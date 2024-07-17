@@ -27,11 +27,12 @@ to be determined...
 ## 🤝 Contributing
 If you would like to contribute to this project, we encourage you to open issues or take a look at the #good-first-issues.
 
-We encourage you to contribute to Twiga! Please check out the [Contributors Guide]() for guidelines about how to self-assign an issue and how to get started. You can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening. This is also where you can ask for help regarding contributions.
+We encourage you to contribute to Twiga! Please check out the [Contributors Manual](https://github.com/jurmy24/twiga/blob/main/CONTRIBUTING.md) for guidelines about how to get started. You can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening. This is also where you can ask for help regarding contributions.
 
 ## 🔗 Links
 - [Discord](https://discord.gg/bCe2HfZY2C)
 - [License](https://github.com/jurmy24/twiga?tab=MIT-1-ov-file)
 - [Code of Conduct](https://github.com/jurmy24/twiga?tab=coc-ov-file#)
 - [Security](https://github.com/jurmy24/twiga?tab=security-ov-file#)
+- [Contributors Manual](https://github.com/jurmy24/twiga/blob/main/CONTRIBUTING.md)
 - [Website](https://ai.or.tz/)
