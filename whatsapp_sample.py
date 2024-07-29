@@ -41,6 +41,21 @@ class WhatsAppWrapper:
 
         return response.status_code
 
+    def send_text_message(self, message, phone_number):
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone_number,
+            "type": "text",
+            "text": {"preview_url": False, "body": message},
+        }
+        response = requests.post(
+            f"{self.API_URL}/messages", json=payload, headers=self.headers
+        )
+        print(response.status_code)
+        print(response.text)
+        assert response.status_code == 200, "Error sending message"
+        return response.status_code
+
 
 if __name__ == "__main__":
     client = WhatsAppWrapper()
