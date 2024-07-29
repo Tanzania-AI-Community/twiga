@@ -44,5 +44,6 @@ class WhatsAppWrapper:
 
 if __name__ == "__main__":
     client = WhatsAppWrapper()
+    phone_number = os.environ.get("RECIPIENT_WAID")
     # send a template message
-    client.send_template_message("hello_world", "en_US", "201012345678")
+    client.send_template_message("hello_world", "en_US", phone_number)
