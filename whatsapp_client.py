@@ -1,5 +1,5 @@
 """
-This script uses the WhatsApp Business API to send template messages via HTTP requests.
+This script uses the WhatsApp Business API to send messages via HTTP requests.
 """
 
 # whatsapp_client.py
