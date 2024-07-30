@@ -1,7 +1,7 @@
 # webhook.py
 import os
 from fastapi import FastAPI, Request, Response
-from app.whatsapp_client import WhatsAppClient
+from app.whatsapp_client import WhatsAppWrapper
 
 app = FastAPI()
 
@@ -24,15 +24,15 @@ def subscribe(request: Request):
 @app.post("/webhook/")
 async def callback(request: Request):
     print("callback is being called")
-    wtsapp_client = WhatsAppClient()
+    whatsapp = WhatsAppWrapper()
     data = await request.json()
     print("We received " + str(data))
-    response = wtsapp_client.process_notification(data)
+    response = whatsapp.process_notification(data)
     if response["statusCode"] == 200:
         if response["body"] and response["from_no"]:
             reply = response["body"]
             print("\nreply is:" + reply)
-            wtsapp_client.send_text_message(
+            whatsapp.send_text_message(
                 message=reply,
                 phone_number=response["from_no"],
             )
