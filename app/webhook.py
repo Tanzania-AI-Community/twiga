@@ -2,9 +2,11 @@
 import os
 from fastapi import FastAPI, Request, Response
 from app.whatsapp_client import WhatsAppWrapper
+import logging
 
 app = FastAPI()
 
+logger = logging.getLogger(__name__)
 WHATSAPP_HOOK_TOKEN = os.environ.get("WHATSAPP_HOOK_TOKEN")
 
 
