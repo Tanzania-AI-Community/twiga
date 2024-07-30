@@ -54,8 +54,8 @@ class WhatsAppWrapper:
         response = requests.post(
             f"{self.API_URL}/messages", json=payload, headers=self.headers
         )
-        print(response.status_code)
-        print(response.text)
+        logger.info(response.status_code)
+        logger.info(response.text)
         assert response.status_code == 200, "Error sending message"
         return response.status_code
 
@@ -73,7 +73,7 @@ class WhatsAppWrapper:
                                 from_no = message["from"]
                                 message_body = message["text"]["body"]
                                 prompt = message_body
-                                print(
+                                logger.info(
                                     f"Ack from FastAPI-WtsApp Webhook: {message_body}"
                                 )
                                 return {
