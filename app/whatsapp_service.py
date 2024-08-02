@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class WhatsAppWrapper:
 
-    API_URL = "https://graph.facebook.com/v15.0/"
+    API_URL = "https://graph.facebook.com/v20.0/"
     WHATSAPP_API_TOKEN = os.environ.get("WHATSAPP_API_TOKEN")
     WHATSAPP_CLOUD_NUMBER_ID = os.environ.get("WHATSAPP_CLOUD_NUMBER_ID")
 

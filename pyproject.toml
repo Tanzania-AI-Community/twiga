@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "twiga"
 version = "0.1.0"
-description = "Twiga WhatsApp application"
+description = "A WhatsApp chatbot for teachers"
 authors = ["Victor Oldensand <victormag24@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -10,7 +10,7 @@ readme = "README.md"
 python = "^3.12"
 python-dotenv = "^1.0.1"
 requests = "^2.32.3"
-fastapi = "^0.111.1"
+fastapi = {extras = ["standard"], version = "^0.112.0"} # see https://fastapi.tiangolo.com/deployment/manually/
 
 
 [build-system]
