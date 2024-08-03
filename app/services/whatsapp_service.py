@@ -14,14 +14,14 @@ import logging
 import httpx
 
 from app.config import settings
-from app.utils.helpers import is_rate_limit_reached, log_httpx_response
+from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
     get_text_message_input,
     is_valid_whatsapp_message,
     process_whatsapp_message,
     process_text_for_whatsapp,
 )
-from db.utils import store_message
+from db.utils import store_message, is_rate_limit_reached
 
 load_dotenv()
 
