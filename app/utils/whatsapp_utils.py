@@ -77,22 +77,36 @@ def get_interactive_list_input(
     return message.model_dump_json()
 
 
-def process_text_for_whatsapp(text: str) -> str:
-    # Remove brackets
-    pattern = r"\【.*?\】"
-    # Substitute the pattern with an empty string
-    text = re.sub(pattern, "", text).strip()
+def format_text_for_whatsapp(text: str) -> str:
+    # TODO: Check bold and code block formatting
+    # Bold: **text** or __text__ to *text*
+    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+    text = re.sub(r"__(.*?)__", r"*\1*", text)
 
-    # Pattern to find double asterisks including the word(s) in between
-    pattern = r"\*\*(.*?)\*\*"
+    # Italic: *text* or _text_ to _text_
+    text = re.sub(
+        r"\*(.*?)\*", r"_\1_", text
+    )  # This might need adjustments for overlapping bold/italic
+    text = re.sub(r"_(.*?)_", r"_\1_", text)
 
-    # Replacement pattern with single asterisks
-    replacement = r"*\1*"
+    # Strikethrough: ~~text~~ to ~text~
+    text = re.sub(r"~~(.*?)~~", r"~\1~", text)
 
-    # Substitute occurrences of the pattern with the replacement
-    whatsapp_style_text = re.sub(pattern, replacement, text)
+    # Monospace (Code Block): ```text``` to ```text```
+    text = re.sub(r"```(.*?)```", r"```\1```", text, flags=re.DOTALL)
 
-    return whatsapp_style_text
+    # Bulleted List: * text or - text (No change needed, WhatsApp supports this directly)
+    # Handle unordered list bullets to ensure they have a leading space
+    text = re.sub(r"^\s*[*-]\s+", r"* ", text, flags=re.MULTILINE)
+
+    # Numbered List: 1. text (No change needed, WhatsApp supports this directly)
+
+    # Blockquotes: > text (No change needed, WhatsApp supports this directly)
+
+    # Inline Code: `text` to `text`
+    text = re.sub(r"`(.*?)`", r"`\1`", text)
+
+    return text
 
 
 async def process_whatsapp_message(body: Any) -> str:
@@ -129,7 +143,7 @@ async def process_whatsapp_message(body: Any) -> str:
     # If the onboarding process is not completed, handle onboarding
     if state["state"] != "completed":
         response_text, options = handle_onboarding(wa_id, message_body)
-        response = process_text_for_whatsapp(response_text)
+        response = format_text_for_whatsapp(response_text)
         # This section handles the type of message to send to the user depending on the number of options available to select from
         if options:
             if len(options) <= 3:
@@ -144,7 +158,7 @@ async def process_whatsapp_message(body: Any) -> str:
             response_text is None
         ):  # Don't send anything back to the user if we decide to ghost them
             return
-        response = process_text_for_whatsapp(response_text)
+        response = format_text_for_whatsapp(response_text)
         data = get_text_input(wa_id, response)
 
     store_message(wa_id, response_text, role="twiga")

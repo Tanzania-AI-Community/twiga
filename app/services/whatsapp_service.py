@@ -16,10 +16,10 @@ import httpx
 from app.config import settings
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
-    get_text_message_input,
+    get_text_input,
     is_valid_whatsapp_message,
     process_whatsapp_message,
-    process_text_for_whatsapp,
+    format_text_for_whatsapp,
 )
 from db.utils import store_message, is_rate_limit_reached
 
@@ -190,8 +190,8 @@ class WhatsAppClient:
                     if is_rate_limit_reached(wa_id):
                         logger.warning(f"Message limit reached for wa_id: {wa_id}")
                         sleepy_text = "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy 🥱 from all of today's texting. Let's talk more tomorrow!"
-                        sleepy_msg = process_text_for_whatsapp(sleepy_text)
-                        data = get_text_message_input(
+                        sleepy_msg = format_text_for_whatsapp(sleepy_text)
+                        data = get_text_input(
                             wa_id,
                             sleepy_msg,  # could also just use wa_id here instead of going to config
                         )
