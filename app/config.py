@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 
 
-# Store whatsapp configurations for the app
+# Store configurations for the app
 class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
+    daily_message_limit: int
 
 
 settings = Settings()

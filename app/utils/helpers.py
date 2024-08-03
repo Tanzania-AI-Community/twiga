@@ -1,31 +1,26 @@
 from datetime import datetime
 import threading
 import logging
-from typing import Any
 import httpx
 
 from db.utils import get_message_count, increment_message_count
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 # TODO: Change the way we deal with rate limiting
-# Initialize the in-memory dictionary to store message counts
-message_counts = {}
+message_counts = {}  # In-memory dictionary to store message counts per user
 
 
 def is_rate_limit_reached(wa_id: str) -> bool:
 
     count, last_message_time = get_message_count(wa_id)
-    # Reset the message count if it's a new day
     if datetime.now().date() > last_message_time.date():
-        count = 0
+        count = 0  # Reset the message count if it's a new day
 
-    # Check if the wa_id has sent more than 5 messages today
-    daily_message_limit = 20
-    if count >= daily_message_limit:
+    if count >= settings.daily_message_limit:
         return True
 
-    # Increment the message count (this also handles new day resets)
     increment_message_count(wa_id)
 
     return False
