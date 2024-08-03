@@ -2,6 +2,35 @@ import datetime
 import os
 import shelve
 from typing import Dict, Literal, Tuple
+import threading
+
+from app.config import settings
+
+
+# TODO: Change the way we deal with rate limiting
+message_counts = {}  # In-memory dictionary to store message counts per user
+
+
+def is_rate_limit_reached(wa_id: str) -> bool:
+    count, last_message_time = get_message_count(wa_id)
+
+    if datetime.datetime.now().date() > last_message_time.date():
+        count = 0
+
+    if count >= settings.daily_message_limit:
+        return True
+
+    increment_message_count(wa_id)
+    return False
+
+
+# Function to reset counts at midnight (optional, if running a persistent service)
+def reset_counts() -> None:
+    now = datetime.datetime.now()
+    midnight = datetime.datetime.combine(now.date(), datetime.datetime.time())
+    seconds_until_midnight = (midnight + datetime.timedelta(days=1) - now).seconds
+    threading.Timer(seconds_until_midnight, reset_counts).start()
+    message_counts.clear()
 
 
 def clear_db(db_name: str):
