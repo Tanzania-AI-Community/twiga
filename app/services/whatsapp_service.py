@@ -14,11 +14,11 @@ import logging
 import httpx
 
 from app.config import settings
+from app.services.messaging_service import process_message
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
     get_text_input,
     is_valid_whatsapp_message,
-    process_message,
     format_text_for_whatsapp,
 )
 from db.utils import store_message, is_rate_limit_reached
