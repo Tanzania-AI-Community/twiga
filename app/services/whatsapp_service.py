@@ -14,7 +14,7 @@ import logging
 import httpx
 
 from app.config import settings
-from app.utils.helpers import is_rate_limit_reached, log_aiohttp_response
+from app.utils.helpers import is_rate_limit_reached, log_httpx_response
 from app.utils.whatsapp_utils import (
     get_text_message_input,
     is_valid_whatsapp_message,
@@ -22,7 +22,6 @@ from app.utils.whatsapp_utils import (
     process_text_for_whatsapp,
 )
 from db.utils import store_message
-from app.main import app
 
 load_dotenv()
 
@@ -34,9 +33,12 @@ class WhatsAppClient:
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
-            "Authorization": f"Bearer {settings.whatsapp_api_token}",
+            "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
         }
         self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
+        self.client = httpx.AsyncClient(
+            base_url=self.url
+        )  # Instantiate once for all requests
 
     def send_template_message(self, template_name, language_code, phone_number):
 
@@ -207,18 +209,20 @@ class WhatsAppClient:
             )
 
     async def send_message(self, data: str) -> None:
-
-        async with httpx.AsyncClient(app=app, base_url=self.url) as session:
+        # TODO: create class-wide session for all requests to reuse the same connection
+        async with httpx.AsyncClient(base_url=self.url) as session:
             try:
                 response = await session.post(
                     "/messages", data=data, headers=self.headers
                 )
                 if response.status_code == 200:
-                    await log_aiohttp_response(response)
+                    await log_httpx_response(response)
                 else:
-                    logger.info("Response status not OK")
-                    logger.info(f"Status: {response.status_code}")
-                    logger.info(response.text)  # Log the response text for more details
+                    logger.error("Response status not OK")
+                    logger.error(f"Status: {response.status_code}")
+                    logger.error(
+                        response.text
+                    )  # Log the response text for more details
             except httpx.ConnectError as e:
                 logger.error("Connection Error: %s", str(e))
             except httpx.HTTPStatusError as e:

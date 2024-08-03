@@ -13,6 +13,7 @@ requests = "^2.32.3"
 fastapi = {extras = ["standard"], version = "^0.112.0"} # see https://fastapi.tiangolo.com/deployment/manually/
 pydantic-settings = "^2.4.0"
 openai = "^1.38.0"
+colorlog = "^6.8.2"
 
 
 [build-system]

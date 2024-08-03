@@ -6,6 +6,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# TODO: rename the folder to something other than decorators
+
 
 def validate_signature(payload: str, signature: str) -> bool:
     """
@@ -13,7 +15,7 @@ def validate_signature(payload: str, signature: str) -> bool:
     """
     # Use the App Secret to hash the payload
     expected_signature = hmac.new(
-        bytes(settings.meta_app_secret, "latin-1"),
+        bytes(settings.meta_app_secret.get_secret_value(), "latin-1"),
         msg=payload.encode("utf-8"),
         digestmod=hashlib.sha256,
     ).hexdigest()
@@ -33,6 +35,3 @@ async def signature_required(request: Request) -> None:
     if not validate_signature(payload.decode("utf-8"), signature):
         logger.info("Signature verification failed!")
         raise HTTPException(status_code=403, detail="Invalid signature")
-
-
-# TODO: rename the folder to something other than decorators

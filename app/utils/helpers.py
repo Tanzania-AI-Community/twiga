@@ -2,7 +2,7 @@ from datetime import datetime
 import threading
 import logging
 from typing import Any
-from fastapi import Response
+import httpx
 
 from db.utils import get_message_count, increment_message_count
 
@@ -40,15 +40,37 @@ def reset_counts():
     message_counts.clear()
 
 
-def log_http_response(response: Response) -> str:
-    logger.info("HTTP response")
-    logger.info(f"Status: {response.status_code}")
-    logger.info(f"Content-type: {response.headers.get('content-type')}")
-    logger.info(f"Body: {response.text}")
+async def log_httpx_response(response: httpx.Response):
+    # ANSI escape code mapping
+    ANSI_COLOR_CODES = {
+        "green": "32",
+        "cyan": "36",
+        "yellow": "33",
+        "red": "31",
+        "reset": "0",
+        "magenta": "35",
+    }
 
+    # Extracting necessary details from the response
+    url = response.url
+    status_code = response.status_code
+    headers = response.headers
+    body = response.text
 
-async def log_aiohttp_response(response):
-    logger.info(f"Response URL: {response.url}")
-    logger.info(f"Response Status: {response.status}")
-    logger.info(f"Response Headers: {response.headers}")
-    logger.info(f"Response Body: {await response.text()}")
+    # Color formatting based on the status code
+    if 200 <= status_code < 300:
+        status_color = ANSI_COLOR_CODES["green"]
+    elif 300 <= status_code < 400:
+        status_color = ANSI_COLOR_CODES["cyan"]
+    elif 400 <= status_code < 500:
+        status_color = ANSI_COLOR_CODES["yellow"]
+    else:
+        status_color = ANSI_COLOR_CODES["red"]
+
+    # Logging the details with color coding
+    logger.info(f"Response URL: {url}")
+    logger.info(f"Response Status: \033[{status_color}m{status_code}\033[0m")
+    # logger.info("Response Headers:")
+    # for key, value in headers.items():
+    #     logger.info(f"    {key}: {value}")
+    logger.info(f"Response Body: \033[35m{body}\033[0m")  # Magenta for body

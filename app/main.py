@@ -1,13 +1,8 @@
-from datetime import datetime
-import json
-from typing import Tuple
 from fastapi import FastAPI, Request, Depends
-from fastapi.responses import JSONResponse
+import logging
 
 from app.decorators.security import signature_required
 from app.services.whatsapp_service import whatsapp_client
-
-import logging
 
 logger = logging.getLogger(__name__)
 
