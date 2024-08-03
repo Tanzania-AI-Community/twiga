@@ -1,7 +1,7 @@
 import datetime
 import os
 import shelve
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, Literal, Tuple
 
 
 def clear_db(db_name: str):
@@ -21,17 +21,19 @@ def inspect_db(db_name: str):
 """ Users Database Functions """
 
 
-def reset_conversation(wa_id: str, db_name: str = "users"):
+def reset_conversation(wa_id: str, db_name: str = "db/users"):
     with shelve.open(db_name) as db:
         db[wa_id] = {"state": "start"}
 
 
-def get_user_state(wa_id: str, db_name: str = "users"):
+def get_user_state(wa_id: str, db_name: str = "db/users"):
     with shelve.open(db_name) as db:
         return db.get(wa_id, {"state": "start"})
 
 
-def update_user_state(wa_id: str, state_update: Dict[str, str], db_name: str = "users"):
+def update_user_state(
+    wa_id: str, state_update: Dict[str, str], db_name: str = "db/users"
+):
     with shelve.open(db_name) as db:
         # Retrieve the existing state or create a new one if it doesn't exist
         existing_state = dict(db.get(wa_id, {}))
@@ -46,12 +48,12 @@ def update_user_state(wa_id: str, state_update: Dict[str, str], db_name: str = "
 """ Threads Database Functions """
 
 
-def check_if_thread_exists(wa_id: str, db_name: str = "threads"):
+def check_if_thread_exists(wa_id: str, db_name: str = "db/threads"):
     with shelve.open(db_name) as db:
         return db.get(wa_id, None)
 
 
-def store_thread(wa_id: str, thread_id: str, db_name: str = "threads"):
+def store_thread(wa_id: str, thread_id: str, db_name: str = "db/threads"):
     with shelve.open(db_name, writeback=True) as db:
         db[wa_id] = {"thread": thread_id}
 
@@ -60,7 +62,7 @@ def store_thread(wa_id: str, thread_id: str, db_name: str = "threads"):
 
 
 def get_message_count(
-    wa_id: str, db_name: str = "message_counts"
+    wa_id: str, db_name: str = "db/message_counts"
 ) -> Tuple[int, datetime.datetime]:
     with shelve.open(db_name) as db:
         if wa_id in db:
@@ -69,7 +71,7 @@ def get_message_count(
         return 0, datetime.datetime.min
 
 
-def increment_message_count(wa_id: str, db_name: str = "message_counts"):
+def increment_message_count(wa_id: str, db_name: str = "db/message_counts"):
     with shelve.open(db_name, writeback=True) as db:
         count, last_message_time = get_message_count(wa_id)
         now = datetime.datetime.now()
@@ -88,7 +90,7 @@ def store_message(
     wa_id: str,
     message: str,
     role: Literal["user", "twiga"],
-    db_name: str = "message_history",
+    db_name: str = "db/message_history",
 ):
     with shelve.open(db_name, writeback=True) as db:
         if wa_id not in db:
@@ -98,12 +100,12 @@ def store_message(
         )
 
 
-def retrieve_messages(wa_id: str, db_name: str = "message_history"):
+def retrieve_messages(wa_id: str, db_name: str = "db/message_history"):
     with shelve.open(db_name) as db:
         return db.get(wa_id, [])
 
 
-def print_messages(wa_id: str, db_name: str = "message_history"):
+def print_messages(wa_id: str, db_name: str = "db/message_history"):
     messages = retrieve_messages(wa_id, db_name)
     for message in messages:
         timestamp = message["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
