@@ -106,7 +106,6 @@ class OnboardingHandler:
         handler = self.state_handlers.get(user_state, self.handle_default)
         response_text, options = handler(wa_id, message_body, state)
 
-        # Log the interaction
         logger.info(
             f"Processed message for {wa_id}: state={user_state}, message='{message_body}' -> response='{response_text}', options={options}"
         )
