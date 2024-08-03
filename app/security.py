@@ -2,20 +2,16 @@ from fastapi import Request, HTTPException
 import hashlib
 import hmac
 import logging
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# TODO: rename the folder to something other than decorators
-
 
 def validate_signature(payload: str, signature: str) -> bool:
-    """
-    Validate the incoming payload's signature against our expected signature
-    """
-    # Use the App Secret to hash the payload
+    # Use the meta app secret to hash the payload
     expected_signature = hmac.new(
-        bytes(settings.meta_app_secret.get_secret_value(), "latin-1"),
+        bytes(settings.meta_app_secret.get_secret_value(), "utf-8"),
         msg=payload.encode("utf-8"),
         digestmod=hashlib.sha256,
     ).hexdigest()
@@ -26,9 +22,6 @@ def validate_signature(payload: str, signature: str) -> bool:
 
 # Dependency to ensure that incoming requests to our webhook are valid and signed with the correct signature.
 async def signature_required(request: Request) -> None:
-    """
-    Dependency to ensure that incoming requests to our webhook are valid and signed with the correct signature.
-    """
     signature = request.headers.get("X-Hub-Signature-256", "")[7:]  # Removing 'sha256='
     payload = await request.body()
 

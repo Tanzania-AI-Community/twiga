@@ -1,13 +1,9 @@
 import logging
 from colorlog import ColoredFormatter
 
-log_format = (
-    "%(log_color)s%(levelname)s%(reset)s:     %(asctime)s - %(name)s - %(message)s"
-)
-
 # Configure color logging
 formatter = ColoredFormatter(
-    log_format,
+    "%(log_color)s%(levelname)s%(reset)s:\t  %(asctime)s - %(name)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",  # Concise timestamp format
     log_colors={
         "DEBUG": "cyan",
@@ -26,7 +22,7 @@ handler.setFormatter(formatter)
 
 # Get the root logger and set its level
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)  # Adjust as needed (DEBUG, INFO, WARNING, etc.)
+logger.setLevel(logging.INFO)
 
 # Clear existing handlers and set the new handler
 if logger.hasHandlers():

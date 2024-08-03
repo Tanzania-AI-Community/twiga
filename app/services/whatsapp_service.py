@@ -100,27 +100,24 @@ class WhatsAppClient:
             "isBase64Encoded": False,
         }
 
-    # Required webhook verification for WhatsApp
-    def verify(request: Request) -> Tuple[str, int]:
+    def verify(request: Request) -> JSONResponse:
+        """
+        Verifies the webhook for WhatsApp. This is required.
+
+        Args:
+            request (Request): The incoming FastAPI request object.
+
+        Returns:
+            JSONResponse: The response object with appropriate status and message.
+        """
+
         # Parse params from the webhook verification request
         mode = request.query_params.get("hub.mode")
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
+
         # Check if a token and mode were sent
-        if mode and token:
-            # Check the mode and token sent are correct
-            if mode == "subscribe" and token == settings.whatsapp_verify_token:
-                # Respond with 200 OK and challenge token from the request
-                logger.info("WEBHOOK_VERIFIED")
-                return challenge, 200
-            else:
-                # Responds with '403 Forbidden' if verify tokens do not match
-                logger.error("VERIFICATION_FAILED")
-                return JSONResponse(
-                    content={"status": "error", "message": "Verification failed"},
-                    status_code=403,
-                )
-        else:
+        if not mode or not token:
             # Responds with '400 Bad Request'
             logger.error("MISSING_PARAMETER")
             return JSONResponse(
@@ -128,7 +125,30 @@ class WhatsAppClient:
                 status_code=400,
             )
 
-    async def handle_message(self, request: Request) -> Tuple[JSONResponse, int]:
+        # Check the mode and token sent are correct
+        if mode == "subscribe" and token == settings.whatsapp_verify_token:
+            # Respond with 200 OK and challenge token from the request
+            logger.info("WEBHOOK_VERIFIED")
+            return JSONResponse(
+                content={"status": "success", "challenge": challenge},
+                status_code=200,
+            )
+        elif mode == "subscribe" and token != settings.whatsapp_verify_token:
+            # Responds with '403 Forbidden' if verify tokens do not match
+            logger.error("VERIFICATION_FAILED")
+            return JSONResponse(
+                content={"status": "error", "message": "Verification failed"},
+                status_code=403,
+            )
+        else:
+            # Responds with '400 Bad Request' if the mode is not 'subscribe'
+            logger.error("INVALID_MODE")
+            return JSONResponse(
+                content={"status": "error", "message": "Invalid mode"},
+                status_code=400,
+            )
+
+    async def handle_message(self, request: Request) -> JSONResponse:
         """
         Handle incoming webhook events from the WhatsApp API.
 
