@@ -4,7 +4,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-async def log_httpx_response(response: httpx.Response):
+async def log_httpx_response(response: httpx.Response) -> None:
     # ANSI escape code mapping
     ANSI_COLOR_CODES = {
         "green": "32",
