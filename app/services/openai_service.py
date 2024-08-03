@@ -95,7 +95,7 @@ async def run_assistant(wa_id: str, thread: Thread, verbose: bool = False) -> st
 
                 if tool.function.name == "generate_exercise":
                     # # Send a message to the user that we're generating an exercise
-                    # response = process_text_for_whatsapp("🔄 Generating exercise...")
+                    # response = format_text_for_whatsapp("🔄 Generating exercise...")
                     # data = get_text_message_input(
                     #     current_app.config["RECIPIENT_WAID"], response
                     # )

@@ -69,12 +69,7 @@ class OnboardingHandler:
                 wa_id, {"state": "completed", "subject": subject, "form": form}
             )
             welcome_message = (
-                """
-                **Bold Text**
-                *Italic Text*
-                ~~Strikethrough Text~~
-                `print("Hello, World!")`"""
-                f"Welcome! You teach {subject} to {form}. \n\nYou might have noticed that Geography Form 2 was the only possible choice. "
+                f"Welcome! You teach *{subject}* to *{form}*. \n\nYou might have noticed that Geography Form 2 was the only possible choice. "
                 "That's because I, Twiga 🦒, am currently being tested with a limited set of data. \n\n"
                 "Currently, I can help you with the following tasks: \n"
                 "1. Generate an exercise or question for your students based on the TIE Form 2 Geography book. \n"
