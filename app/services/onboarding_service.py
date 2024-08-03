@@ -68,6 +68,7 @@ class OnboardingHandler:
             update_user_state(
                 wa_id, {"state": "completed", "subject": subject, "form": form}
             )
+            # TODO: This could also be a template message
             welcome_message = (
                 f"Welcome! You teach *{subject}* to *{form}*. \n\nYou might have noticed that Geography Form 2 was the only possible choice. "
                 "That's because I, Twiga 🦒, am currently being tested with a limited set of data. \n\n"

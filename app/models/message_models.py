@@ -78,3 +78,15 @@ class InteractiveMessage(BaseModel):
     to: str
     type: Literal["interactive"] = "interactive"
     interactive: InteractiveButton | InteractiveList
+
+
+"""
+Main model for template messaged
+"""
+
+
+class TemplateMessage(BaseModel):
+    messaging_product: Literal["whatsapp"] = "whatsapp"
+    to: str
+    type: Literal["template"] = "template"
+    template: Dict[Literal["name", "language"], str]

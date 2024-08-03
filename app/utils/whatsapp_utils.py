@@ -1,9 +1,11 @@
+from datetime import datetime
 import re
-from typing import Any, List
+from typing import Any, List, Literal
 import logging
 
 from app.models.message_models import (
     Row,
+    TemplateMessage,
     TextMessage,
     InteractiveMessage,
     InteractiveButton,
@@ -20,12 +22,14 @@ from app.models.message_models import (
 logger = logging.getLogger(__name__)
 
 
-def get_text_input(recipient: str, text: str) -> str:
-    message = TextMessage(to=recipient, text={"body": text})
-    return message.model_dump_json()
+def get_text_payload(recipient: str, text: str) -> str:
+    payload = TextMessage(to=recipient, text={"body": text})
+    return payload.model_dump_json()
 
 
-def get_interactive_button_input(recipient: str, text: str, options: List[str]) -> str:
+def get_interactive_button_payload(
+    recipient: str, text: str, options: List[str]
+) -> str:
     buttons = [
         Button(type="reply", reply=Reply(id=f"option-{i}", title=opt))
         for i, opt in enumerate(options)
@@ -37,12 +41,12 @@ def get_interactive_button_input(recipient: str, text: str, options: List[str]) 
         action=ButtonsAction(buttons=buttons),
     )
 
-    message = InteractiveMessage(to=recipient, interactive=interactive_button)
+    payload = InteractiveMessage(to=recipient, interactive=interactive_button)
 
-    return message.model_dump_json()
+    return payload.model_dump_json()
 
 
-def get_interactive_list_input(
+def get_interactive_list_payload(
     recipient: str, text: str, options: List[str], title: str = "Options"
 ) -> str:
     rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
@@ -57,9 +61,26 @@ def get_interactive_list_input(
         ),
     )
 
-    message = InteractiveMessage(to=recipient, interactive=interactive_list)
+    payload = InteractiveMessage(to=recipient, interactive=interactive_list)
 
-    return message.model_dump_json()
+    return payload.model_dump_json()
+
+
+def get_template_payload(
+    recipient: str,
+    template_name: str,
+    language_code: Literal["en_US", "en_GB", "en", "sw"],
+) -> str:
+
+    payload = TemplateMessage(
+        to=recipient,
+        template={
+            "name": template_name,
+            "language": {"code": language_code},
+        },
+    )
+
+    return payload.model_dump_json()
 
 
 def format_text_for_whatsapp(text: str) -> str:
@@ -89,3 +110,26 @@ def is_valid_whatsapp_message(body: Any) -> bool:
         and body["entry"][0]["changes"][0]["value"].get("messages")
         and body["entry"][0]["changes"][0]["value"]["messages"][0]
     )
+
+
+def is_status_update(body: dict) -> bool:
+    return (
+        body.get("entry", [{}])[0]
+        .get("changes", [{}])[0]
+        .get("value", {})
+        .get("statuses")
+    ) is not None
+
+
+def extract_message_info(body: dict) -> dict:
+    entry = body["entry"][0]["changes"][0]["value"]
+    return {
+        "message": entry["messages"][0],
+        "wa_id": entry["contacts"][0]["wa_id"],
+        "timestamp": int(entry["messages"][0].get("timestamp")),
+    }
+
+
+def is_message_recent(message_timestamp: int) -> bool:
+    current_timestamp = int(datetime.now().timestamp())
+    return current_timestamp - message_timestamp <= 10

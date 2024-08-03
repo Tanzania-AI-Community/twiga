@@ -20,4 +20,4 @@ async def webhook_get(request: Request) -> JSONResponse:
 @app.post("/webhooks", dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
-    return await whatsapp_client.handle_message(request)
+    return await whatsapp_client.handle_request(request)
