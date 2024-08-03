@@ -24,7 +24,7 @@ from app.models.message_models import (
 logger = logging.getLogger(__name__)
 
 
-def get_text_message_input(recipient: str, text: str) -> str:
+def get_text_input(recipient: str, text: str) -> str:
     # Create a TextMessage instance
     message = TextMessage(to=recipient, text={"body": text})
     # Convert the Pydantic model instance to JSON
@@ -137,7 +137,7 @@ async def process_whatsapp_message(body: Any) -> str:
             else:
                 data = get_interactive_list_input(wa_id, response, options)
         else:
-            data = get_text_message_input(wa_id, response)
+            data = get_text_input(wa_id, response)
     else:  # Twiga Integration
         response_text = await generate_response(message_body, wa_id, name)
         if (
@@ -145,7 +145,7 @@ async def process_whatsapp_message(body: Any) -> str:
         ):  # Don't send anything back to the user if we decide to ghost them
             return
         response = process_text_for_whatsapp(response_text)
-        data = get_text_message_input(wa_id, response)
+        data = get_text_input(wa_id, response)
 
     store_message(wa_id, response_text, role="twiga")
     return data
