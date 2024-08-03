@@ -1,3 +1,7 @@
+"""
+This module sets the env configs for our WhatsApp app.
+"""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 

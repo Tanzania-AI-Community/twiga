@@ -1,3 +1,7 @@
+"""
+This module contains the security logic for our webhook.
+"""
+
 from fastapi import Request, HTTPException
 import hashlib
 import hmac

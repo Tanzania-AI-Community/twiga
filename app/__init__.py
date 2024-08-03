@@ -1,3 +1,7 @@
+"""
+This __init__ module configures the logger.
+"""
+
 import logging
 from colorlog import ColoredFormatter
 
