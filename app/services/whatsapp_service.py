@@ -184,7 +184,9 @@ class WhatsAppClient:
                         return JSONResponse(content={"status": "ok"}, status_code=200)
 
                     # This function is used to process and ultimately send a response message to the user
-                    await process_whatsapp_message(body)
+                    generated_response = await process_whatsapp_message(body)
+                    await self.send_message(generated_response)
+
                     return JSONResponse(content={"status": "ok"}, status_code=200)
                 else:
                     store_message(wa_id, message, role="user")
