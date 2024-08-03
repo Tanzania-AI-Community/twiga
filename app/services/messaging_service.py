@@ -78,33 +78,12 @@ def _extract_message_body(message: dict) -> str:
 
 
 def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
-    """
-    Handle the onboarding flow for a user who has not completed onboarding.
-
-    Args:
-        wa_id (str): WhatsApp ID of the user.
-        message_body (str): The message body received from the user.
-
-    Returns:
-        str: JSON payload to send back to WhatsApp.
-    """
     response_text, options = handle_onboarding(wa_id, message_body)
     response = format_text_for_whatsapp(response_text)
     return _generate_payload(wa_id, response, options)
 
 
 def _generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:
-    """
-    Generate the appropriate payload based on the number of options.
-
-    Args:
-        wa_id (str): WhatsApp ID of the user.
-        response (str): The response text formatted for WhatsApp.
-        options (Optional[list]): A list of options for the user to select.
-
-    Returns:
-        str: JSON payload to send back to WhatsApp.
-    """
     if options:
         if len(options) <= 3:
             return get_interactive_button_payload(wa_id, response, options)
