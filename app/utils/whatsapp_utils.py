@@ -1,82 +1,80 @@
 import json
 import re
-from typing import Any
+from typing import Any, List
 import logging
 
 from app.services.onboarding_service import handle_onboarding
 from app.services.openai_service import generate_response
 from db.utils import store_message, get_user_state
-from app.config import settings
+from app.models.message_models import (
+    Row,
+    TextMessage,
+    InteractiveMessage,
+    InteractiveButton,
+    InteractiveList,
+    TextObject,
+    Button,
+    Reply,
+    ButtonsAction,
+    Section,
+    ListAction,
+)
+
 
 logger = logging.getLogger(__name__)
 
 
-def get_text_message_input(recipient, text) -> str:
-    return json.dumps(
-        {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": recipient,
-            "type": "text",
-            "text": {
-                "preview_url": False,
-                "body": text,
-            },
-        }
-    )
+def get_text_message_input(recipient: str, text: str) -> str:
+    # Create a TextMessage instance
+    message = TextMessage(to=recipient, text={"body": text})
+    # Convert the Pydantic model instance to JSON
+    return message.model_dump_json()
 
 
-def get_interactive_message_input(recipient, text, options) -> str:
+def get_interactive_button_input(recipient: str, text: str, options: List[str]) -> str:
+    # Create buttons from the options
     buttons = [
-        {
-            "type": "reply",
-            "reply": {"id": f"option-{i}", "title": opt},
-        }
+        Button(type="reply", reply=Reply(id=f"option-{i}", title=opt))
         for i, opt in enumerate(options)
     ]
 
-    return json.dumps(
-        {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": recipient,
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {"text": text},
-                "footer": {"text": "Twiga 🦒"},
-                "action": {"buttons": buttons},
-            },
-        }
+    # Create an InteractiveButton instance
+    interactive_button = InteractiveButton(
+        body=TextObject(text=text),
+        footer=TextObject(text="This is an automatic message 🦒"),
+        action=ButtonsAction(buttons=buttons),
     )
 
+    # Create an InteractiveMessage instance using the InteractiveButton
+    message = InteractiveMessage(to=recipient, interactive=interactive_button)
 
-def get_interactive_list_message_input(recipient, text, options) -> str:
+    # Convert the Pydantic model instance to JSON
+    return message.model_dump_json()
 
-    sections = [{"id": f"option-{i}", "title": opt} for i, opt in enumerate(options)]
 
-    return json.dumps(
-        {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": recipient,
-            "type": "interactive",
-            "interactive": {
-                "type": "list",
-                "body": {"text": text},
-                "footer": {"text": "Twiga 🦒"},
-                "action": {
-                    "sections": [
-                        {
-                            "title": "Options",
-                            "rows": sections,
-                        }
-                    ],
-                    "button": "Options",
-                },
-            },
-        }
+def get_interactive_list_input(
+    recipient: str, text: str, options: List[str], title: str = "Options"
+) -> str:
+    # Create rows from the options
+    rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
+
+    # Create a section with the rows
+    section = Section(title=title, rows=rows)
+
+    # Create an InteractiveList instance
+    interactive_list = InteractiveList(
+        body=TextObject(text=text),
+        footer=TextObject(text="This is an automated message 🦒"),
+        action=ListAction(
+            button="Options", sections=[section]  # List containing the section
+        ),
     )
+
+    # Create an InteractiveMessage instance using the InteractiveList
+    message = InteractiveMessage(to=recipient, interactive=interactive_list)
+
+    # Convert the Pydantic model instance to JSON
+    return message.model_dump_json()
 
 
 def process_text_for_whatsapp(text: str) -> str:
@@ -135,9 +133,9 @@ async def process_whatsapp_message(body: Any) -> str:
         # This section handles the type of message to send to the user depending on the number of options available to select from
         if options:
             if len(options) <= 3:
-                data = get_interactive_message_input(wa_id, response, options)
+                data = get_interactive_button_input(wa_id, response, options)
             else:
-                data = get_interactive_list_message_input(wa_id, response, options)
+                data = get_interactive_list_input(wa_id, response, options)
         else:
             data = get_text_message_input(wa_id, response)
     else:  # Twiga Integration
