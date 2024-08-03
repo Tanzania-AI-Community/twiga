@@ -109,7 +109,7 @@ def format_text_for_whatsapp(text: str) -> str:
     return text
 
 
-async def process_whatsapp_message(body: Any) -> str:
+async def process_message(body: Any) -> str:
 
     # A check has been made already that this is a valid WhatsApp message so no need to check again
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
@@ -163,7 +163,6 @@ async def process_whatsapp_message(body: Any) -> str:
 
     store_message(wa_id, response_text, role="twiga")
     return data
-    # await send_message(data)  # this is non-blocking now that it's async
 
 
 def is_valid_whatsapp_message(body: Any) -> bool:

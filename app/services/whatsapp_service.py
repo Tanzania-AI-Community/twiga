@@ -18,7 +18,7 @@ from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
     get_text_input,
     is_valid_whatsapp_message,
-    process_whatsapp_message,
+    process_message,
     format_text_for_whatsapp,
 )
 from db.utils import store_message, is_rate_limit_reached
@@ -206,7 +206,7 @@ class WhatsAppClient:
                         return JSONResponse(content={"status": "ok"}, status_code=200)
 
                     # This function is used to process and ultimately send a response message to the user
-                    generated_response = await process_whatsapp_message(body)
+                    generated_response = await process_message(body)
                     await self.send_message(generated_response)
 
                     return JSONResponse(content={"status": "ok"}, status_code=200)
