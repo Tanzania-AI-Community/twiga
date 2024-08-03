@@ -127,6 +127,7 @@ def extract_message_info(body: dict) -> dict:
         "message": entry["messages"][0],
         "wa_id": entry["contacts"][0]["wa_id"],
         "timestamp": int(entry["messages"][0].get("timestamp")),
+        "name": entry["contacts"][0]["profile"]["name"],
     }
 
 

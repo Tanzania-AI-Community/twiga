@@ -13,7 +13,6 @@ import logging
 import httpx
 
 from app.config import settings
-from app.models.message_models import TemplateMessage
 from app.services.messaging_service import process_message
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
@@ -102,7 +101,7 @@ class WhatsAppClient:
         Handles WhatsApp status updates (sent, delivered, read).
         """
         logger.debug(
-            f"Received a WhatsApp status update: {body.get('entry').get('changes').get('value').get('statuses')}"
+            f"Received a WhatsApp status update: {body.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("statuses")}"
         )
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
@@ -141,13 +140,17 @@ class WhatsAppClient:
             message_info = extract_message_info(body)
             wa_id = message_info["wa_id"]
             message = message_info["message"]
+            timestamp = message_info["timestamp"]
+            name = message_info["name"]
 
             # TODO: Figure out a better way to handle rate limiting and what to do with older messages
-            if is_message_recent(message_info["timestamp"]):
+            if is_message_recent(timestamp):
                 if is_rate_limit_reached(wa_id):
                     return await self._handle_rate_limit(wa_id, message)
 
-                generated_response = await process_message(body)
+                generated_response = await process_message(
+                    wa_id, name, message, timestamp
+                )
                 await self.send_message(generated_response)
                 return JSONResponse(content={"status": "ok"}, status_code=200)
             else:

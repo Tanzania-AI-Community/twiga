@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 import logging
 
 from app.services.onboarding_service import handle_onboarding
@@ -14,57 +14,101 @@ from db.utils import store_message, get_user_state
 logger = logging.getLogger(__name__)
 
 
-async def process_message(body: Any) -> str:
+async def process_message(
+    wa_id: str, name: str, message: dict, timestamp: int
+) -> Optional[str]:
+    """
+    Process an incoming WhatsApp message and generate a response.
 
-    # A check has been made already that this is a valid WhatsApp message so no need to check again
-    wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
-    name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+    Args:
+        wa_id (str): WhatsApp ID of the user (phone number).
+        name (str): Name of the user.
+        message (dict): Message content received from WhatsApp.
+        timestamp (int): Timestamp of the message.
 
-    message = body["entry"][0]["changes"][0]["value"]["messages"][0]
-    message_type = message.get("type")
-    message_timestamp = message.get("timestamp")
+    Returns:
+        Optional[str]: JSON payload to send back to WhatsApp, or None if no response is required.
+    """
 
-    # Extract the message body
-    if message_type == "text":  # If the message is a standard text message
-        message_body = message["text"]["body"]
-    elif (
-        message_type == "interactive"
-        and message["interactive"]["type"] == "button_reply"
-    ):  # If the message is an interactive message with visible buttons
-        message_body = message["interactive"]["button_reply"]["title"]
-    elif (
-        message_type == "interactive" and message["interactive"]["type"] == "list_reply"
-    ):  # If the message is an interactive message with a list of options
-        message_body = message["interactive"]["list_reply"]["title"]
-    else:
-        logger.error(f"Unsupported message type: {message_type}")
-        raise Exception("Unsupported message type")
+    try:
+        message_body = _extract_message_body(message)
+    except ValueError as e:
+        logger.error(str(e))
+        return None
 
     store_message(wa_id, message_body, role="user")
 
-    # Get the user's state from the users shelve database
+    # Retrieve the user's current state
     state = get_user_state(wa_id)
 
-    # If the onboarding process is not completed, handle onboarding
-    if state["state"] != "completed":
-        response_text, options = handle_onboarding(wa_id, message_body)
-        response = format_text_for_whatsapp(response_text)
-        # This section handles the type of message to send to the user depending on the number of options available to select from
-        if options:
-            if len(options) <= 3:
-                data = get_interactive_button_payload(wa_id, response, options)
-            else:
-                data = get_interactive_list_payload(wa_id, response, options)
-        else:
-            data = get_text_payload(wa_id, response)
-    else:  # Twiga Integration
-        response_text = await generate_response(message_body, wa_id, name)
-        if (
-            response_text is None
-        ):  # Don't send anything back to the user if we decide to ghost them
-            return
-        response = format_text_for_whatsapp(response_text)
-        data = get_text_payload(wa_id, response)
+    if state.get("state") != "completed":
+        data = _handle_onboarding_flow(wa_id, message_body)
+    else:
+        data = await _handle_twiga_integration(wa_id, name, message_body)
 
-    store_message(wa_id, response_text, role="twiga")
     return data
+
+
+async def _handle_twiga_integration(
+    wa_id: str, name: str, message_body: str
+) -> Optional[str]:
+
+    response_text = await generate_response(message_body, wa_id, name)
+    if response_text is None:
+        logger.info("No response generated, user will not be contacted.")
+        return None
+
+    response = format_text_for_whatsapp(response_text)
+    store_message(wa_id, response_text, role="twiga")
+    return get_text_payload(wa_id, response)
+
+
+def _extract_message_body(message: dict) -> str:
+    message_type = message.get("type")
+    if message_type == "text":
+        return message["text"]["body"]
+    elif message_type == "interactive":
+        interactive_type = message["interactive"]["type"]
+        if interactive_type == "button_reply":
+            return message["interactive"]["button_reply"]["title"]
+        elif interactive_type == "list_reply":
+            return message["interactive"]["list_reply"]["title"]
+
+    raise ValueError(f"Unsupported message type: {message_type}")
+
+
+def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
+    """
+    Handle the onboarding flow for a user who has not completed onboarding.
+
+    Args:
+        wa_id (str): WhatsApp ID of the user.
+        message_body (str): The message body received from the user.
+
+    Returns:
+        str: JSON payload to send back to WhatsApp.
+    """
+    response_text, options = handle_onboarding(wa_id, message_body)
+    response = format_text_for_whatsapp(response_text)
+    return _generate_payload(wa_id, response, options)
+
+
+def _generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:
+    """
+    Generate the appropriate payload based on the number of options.
+
+    Args:
+        wa_id (str): WhatsApp ID of the user.
+        response (str): The response text formatted for WhatsApp.
+        options (Optional[list]): A list of options for the user to select.
+
+    Returns:
+        str: JSON payload to send back to WhatsApp.
+    """
+    if options:
+        if len(options) <= 3:
+            return get_interactive_button_payload(wa_id, response, options)
+        else:
+            return get_interactive_list_payload(wa_id, response, options)
+    else:
+        return get_text_payload(wa_id, response)
