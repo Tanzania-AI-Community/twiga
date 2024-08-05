@@ -15,9 +15,10 @@ from app.utils.llm_utils import num_tokens_from_messages
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
 
-groq_client = AsyncGroq(api_key=llm_settings.groq_api_key)
+groq_client = AsyncGroq(api_key=llm_settings.groq_api_key.get_secret_value())
 openai_client = openai.AsyncOpenAI(
-    api_key=llm_settings.openai_api_key, organization=llm_settings.openai_org
+    api_key=llm_settings.openai_api_key.get_secret_value(),
+    organization=llm_settings.openai_org,
 )
 
 

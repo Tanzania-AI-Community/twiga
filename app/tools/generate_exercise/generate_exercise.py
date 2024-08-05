@@ -1,25 +1,19 @@
 import logging
 from typing import List, Literal
 
-from app.tools.generate_exercise.utils.ChromaDBLoader import ChromaDBLoader
-from app.tools.utils.groq_requests import async_groq_request
-from app.tools.utils.models import RetrievedDocSchema
-from app.tools.utils.openai_requests import async_openai_request
-from app.tools.utils.prompt_templates import (
+from app.tools.generate_exercise.vector_database import vector_client
+from app.services.llm_service import async_groq_request, async_openai_request
+from app.tools.generate_exercise.models import RetrievedDocSchema
+from app.tools.generate_exercise.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
 )
-from app.tools.utils.question_generator_modules import (
+from app.tools.generate_exercise.modules import (
     chromadb_retriever,
     query_rewriter,
 )
 
-# from app.tools.utils.search_service import DataSearch
-
 logger = logging.getLogger(__name__)
-
-# search_model = DataSearch()
-chromadb_search_model = ChromaDBLoader()
 
 
 async def _generate(
@@ -119,14 +113,14 @@ async def exercise_generator(user_query: str):
 
     # Retrieve the relevant content and exercises
     retrieved_content: List[RetrievedDocSchema] = await chromadb_retriever(
-        model_class=chromadb_search_model,
+        model_class=vector_client,
         retrieval_msg=rewritten_query,
         size=5,
         doc_type="Content",
         verbose=verbose,
     )
     retrieved_exercises: List[RetrievedDocSchema] = await chromadb_retriever(
-        model_class=chromadb_search_model,
+        model_class=vector_client,
         retrieval_msg=rewritten_query,
         size=2,
         doc_type="Exercise",

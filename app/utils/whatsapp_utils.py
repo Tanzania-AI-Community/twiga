@@ -3,6 +3,8 @@ import re
 from typing import Any, List, Literal
 import logging
 
+import httpx
+
 from app.models.message_models import (
     Row,
     TemplateMessage,
@@ -17,9 +19,36 @@ from app.models.message_models import (
     Section,
     ListAction,
 )
+from app.utils.logging_utils import log_httpx_response
+from app.config import settings
 
 
 logger = logging.getLogger(__name__)
+
+
+async def send_message(payload: str) -> None:
+
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
+    }
+    url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
+
+    # TODO: create class-wide session for all requests to reuse the same connection
+    async with httpx.AsyncClient(base_url=url) as session:
+        try:
+            response = await session.post("/messages", data=payload, headers=headers)
+            if response.status_code == 200:
+                await log_httpx_response(response)
+            else:
+                logger.error(f"Status: {response.status_code}")
+                logger.error(response.text)
+        except httpx.ConnectError as e:
+            logger.error("Connection Error: %s", str(e))
+        except httpx.HTTPStatusError as e:
+            logger.error("HTTP Status Error: %s", str(e))
+        except httpx.RequestError as e:
+            logger.error("Request Error: %s", str(e))
 
 
 def get_text_payload(recipient: str, text: str) -> str:

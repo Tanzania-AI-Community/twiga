@@ -20,6 +20,7 @@ from app.utils.whatsapp_utils import (
     is_message_recent,
     is_status_update,
     is_valid_whatsapp_message,
+    send_message
 )
 from db.utils import store_message, is_rate_limit_reached
 
@@ -35,25 +36,6 @@ class WhatsAppClient:
         #self.client = httpx.AsyncClient(
         #     base_url=self.url
         # )  # Instantiate once for all requests
-
-    async def send_message(self, payload: str) -> None:
-        # TODO: create class-wide session for all requests to reuse the same connection
-        async with httpx.AsyncClient(base_url=self.url) as session:
-            try:
-                response = await session.post(
-                    "/messages", data=payload, headers=self.headers
-                )
-                if response.status_code == 200:
-                    await log_httpx_response(response)
-                else:
-                    self.logger.error(f"Status: {response.status_code}")
-                    self.logger.error(response.text)
-            except httpx.ConnectError as e:
-                self.logger.error("Connection Error: %s", str(e))
-            except httpx.HTTPStatusError as e:
-                self.logger.error("HTTP Status Error: %s", str(e))
-            except httpx.RequestError as e:
-                self.logger.error("Request Error: %s", str(e))
 
     def verify(self, request: Request) -> JSONResponse:
         """
@@ -108,7 +90,7 @@ class WhatsAppClient:
         )
         data = get_text_payload(wa_id, sleepy_text)
         store_message(wa_id, message, role="user")
-        await self.send_message(data)
+        await send_message(data)
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def handle_request(self, request: Request) -> JSONResponse:
@@ -143,7 +125,7 @@ class WhatsAppClient:
                 generated_response = await process_message(
                     wa_id, name, message, timestamp
                 )
-                await self.send_message(generated_response)
+                await send_message(generated_response)
                 return JSONResponse(content={"status": "ok"}, status_code=200)
             else:
                 store_message(wa_id, message, role="user")

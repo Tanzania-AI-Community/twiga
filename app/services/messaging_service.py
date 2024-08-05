@@ -2,7 +2,7 @@ from typing import Any, Optional
 import logging
 
 from app.services.onboarding_service import handle_onboarding
-from app.services.openai_service import generate_response
+from app.services.openai_service import llm_client
 from app.utils.whatsapp_utils import (
     get_interactive_button_payload,
     get_interactive_list_payload,
@@ -52,7 +52,7 @@ async def _handle_twiga_integration(
     wa_id: str, name: str, message_body: str
 ) -> Optional[str]:
 
-    response_text = await generate_response(message_body, wa_id, name)
+    response_text = await llm_client.generate_response(message_body, wa_id, name)
     if response_text is None:
         logger.info("No response generated, user will not be contacted.")
         return None

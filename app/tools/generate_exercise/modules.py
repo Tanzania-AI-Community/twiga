@@ -1,18 +1,12 @@
 import logging
 from typing import List, Literal
 
-from app.tools.utils.ChromaDBLoader import ChromaDBLoader
-from app.tools.utils.groq_requests import async_groq_request
-from app.tools.utils.models import Metadata, RetrievedDocSchema, ChunkSchema
-from app.tools.utils.openai_requests import async_openai_request
+from app.tools.generate_exercise.vector_database import ChromaDBLoader
+from app.services.llm_service import async_groq_request, async_openai_request
+from app.tools.generate_exercise.models import Metadata, RetrievedDocSchema, ChunkSchema
 from app.tools.generate_exercise.prompts import REWRITE_QUERY_PROMPT
 
-"""
-This is the modules file, which will contain the modular components that can be used by the RAG pipelines I build.
-"""
-
 logger = logging.getLogger(__name__)
-# cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
 
 async def query_rewriter(
