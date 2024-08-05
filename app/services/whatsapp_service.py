@@ -8,7 +8,6 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 import requests
 import json
-from dotenv import load_dotenv
 import logging
 import httpx
 
@@ -24,11 +23,6 @@ from app.utils.whatsapp_utils import (
 )
 from db.utils import store_message, is_rate_limit_reached
 
-load_dotenv()
-
-logger = logging.getLogger(__name__)
-
-
 class WhatsAppClient:
 
     def __init__(self):
@@ -37,7 +31,8 @@ class WhatsAppClient:
             "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
         }
         self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
-        # self.client = httpx.AsyncClient(
+        self.logger = logging.getLogger(__name__)
+        #self.client = httpx.AsyncClient(
         #     base_url=self.url
         # )  # Instantiate once for all requests
 
@@ -51,16 +46,16 @@ class WhatsAppClient:
                 if response.status_code == 200:
                     await log_httpx_response(response)
                 else:
-                    logger.error(f"Status: {response.status_code}")
-                    logger.error(response.text)
+                    self.logger.error(f"Status: {response.status_code}")
+                    self.logger.error(response.text)
             except httpx.ConnectError as e:
-                logger.error("Connection Error: %s", str(e))
+                self.logger.error("Connection Error: %s", str(e))
             except httpx.HTTPStatusError as e:
-                logger.error("HTTP Status Error: %s", str(e))
+                self.logger.error("HTTP Status Error: %s", str(e))
             except httpx.RequestError as e:
-                logger.error("Request Error: %s", str(e))
+                self.logger.error("Request Error: %s", str(e))
 
-    def verify(request: Request) -> JSONResponse:
+    def verify(self, request: Request) -> JSONResponse:
         """
         Verifies the webhook for WhatsApp. This is required.
         """
@@ -70,26 +65,26 @@ class WhatsAppClient:
         challenge = request.query_params.get("hub.challenge")
 
         if not mode or not token:
-            logger.error("MISSING_PARAMETER")
+            self.logger.error("MISSING_PARAMETER")
             return JSONResponse(
                 content={"status": "error", "message": "Missing parameters"},
                 status_code=400,
             )
 
         if mode == "subscribe" and token == settings.whatsapp_verify_token:
-            logger.info("WEBHOOK_VERIFIED")
+            self.logger.info("WEBHOOK_VERIFIED")
             return JSONResponse(
                 content={"status": "success", "challenge": challenge},
                 status_code=200,
             )
         elif mode == "subscribe" and token != settings.whatsapp_verify_token:
-            logger.error("VERIFICATION_FAILED")
+            self.logger.error("VERIFICATION_FAILED")
             return JSONResponse(
                 content={"status": "error", "message": "Verification failed"},
                 status_code=403,
             )
         else:  # Responds with '400 Bad Request' if the mode is not 'subscribe'
-            logger.error("INVALID_MODE")
+            self.logger.error("INVALID_MODE")
             return JSONResponse(
                 content={"status": "error", "message": "Invalid mode"},
                 status_code=400,
@@ -99,14 +94,14 @@ class WhatsAppClient:
         """
         Handles WhatsApp status updates (sent, delivered, read).
         """
-        logger.debug(
+        self.logger.debug(
             f"Received a WhatsApp status update: {body.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("statuses")}"
         )
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def _handle_rate_limit(self, wa_id: str, message: dict) -> JSONResponse:
         # TODO: This is a good place to use a template instead of hardcoding the message
-        logger.warning("Message limit reached for wa_id: %s", wa_id)
+        self.logger.warning("Message limit reached for wa_id: %s", wa_id)
         sleepy_text = (
             "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy 🥱 "
             "from all of today's texting. Let's talk more tomorrow!"
@@ -152,10 +147,10 @@ class WhatsAppClient:
                 return JSONResponse(content={"status": "ok"}, status_code=200)
             else:
                 store_message(wa_id, message, role="user")
-                logger.warning("Received a message with an outdated timestamp.")
+                self.logger.warning("Received a message with an outdated timestamp.")
                 return JSONResponse(content={"status": "ok"}, status_code=200)
         except json.JSONDecodeError:
-            logger.error("Failed to decode JSON")
+            self.logger.error("Failed to decode JSON")
             return JSONResponse(
                 content={"status": "error", "message": "Invalid JSON provided"},
                 status_code=400,
