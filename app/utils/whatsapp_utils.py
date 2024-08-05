@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_text_payload(recipient: str, text: str) -> str:
-    payload = TextMessage(to=recipient, text={"body": text})
+    payload = TextMessage(to=recipient, text={"body": _format_text_for_whatsapp(text)})
     return payload.model_dump_json()
 
 
@@ -31,12 +31,15 @@ def get_interactive_button_payload(
     recipient: str, text: str, options: List[str]
 ) -> str:
     buttons = [
-        Button(type="reply", reply=Reply(id=f"option-{i}", title=opt))
+        Button(
+            type="reply",
+            reply=Reply(id=f"option-{i}", title=opt),
+        )
         for i, opt in enumerate(options)
     ]
 
     interactive_button = InteractiveButton(
-        body=TextObject(text=text),
+        body=TextObject(text=_format_text_for_whatsapp(text)),
         footer=TextObject(text="This is an automatic message 🦒"),
         action=ButtonsAction(buttons=buttons),
     )
@@ -54,7 +57,7 @@ def get_interactive_list_payload(
     section = Section(title=title, rows=rows)
 
     interactive_list = InteractiveList(
-        body=TextObject(text=text),
+        body=TextObject(text=_format_text_for_whatsapp(text)),
         footer=TextObject(text="This is an automated message 🦒"),
         action=ListAction(
             button="Options", sections=[section]  # List containing the section
@@ -83,7 +86,7 @@ def get_template_payload(
     return payload.model_dump_json()
 
 
-def format_text_for_whatsapp(text: str) -> str:
+def _format_text_for_whatsapp(text: str) -> str:
     # TODO: Check bold and code block formatting
     # Bold: **text** or __text__ to *text*
     text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)

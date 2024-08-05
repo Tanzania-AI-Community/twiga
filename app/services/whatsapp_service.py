@@ -21,7 +21,6 @@ from app.utils.whatsapp_utils import (
     is_message_recent,
     is_status_update,
     is_valid_whatsapp_message,
-    format_text_for_whatsapp,
 )
 from db.utils import store_message, is_rate_limit_reached
 
@@ -112,10 +111,8 @@ class WhatsAppClient:
             "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy 🥱 "
             "from all of today's texting. Let's talk more tomorrow!"
         )
-        sleepy_msg = format_text_for_whatsapp(sleepy_text)
-        data = get_text_payload(wa_id, sleepy_msg)
+        data = get_text_payload(wa_id, sleepy_text)
         store_message(wa_id, message, role="user")
-        store_message(wa_id, sleepy_text, role="twiga")
         await self.send_message(data)
         return JSONResponse(content={"status": "ok"}, status_code=200)
 

@@ -4,7 +4,6 @@ import logging
 from app.services.onboarding_service import handle_onboarding
 from app.services.openai_service import generate_response
 from app.utils.whatsapp_utils import (
-    format_text_for_whatsapp,
     get_interactive_button_payload,
     get_interactive_list_payload,
     get_text_payload,
@@ -58,9 +57,8 @@ async def _handle_twiga_integration(
         logger.info("No response generated, user will not be contacted.")
         return None
 
-    response = format_text_for_whatsapp(response_text)
     store_message(wa_id, response_text, role="twiga")
-    return get_text_payload(wa_id, response)
+    return get_text_payload(wa_id, response_text)
 
 
 def _extract_message_body(message: dict) -> str:
@@ -79,8 +77,7 @@ def _extract_message_body(message: dict) -> str:
 
 def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
     response_text, options = handle_onboarding(wa_id, message_body)
-    response = format_text_for_whatsapp(response_text)
-    return _generate_payload(wa_id, response, options)
+    return _generate_payload(wa_id, response_text, options)
 
 
 def _generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:

@@ -9,6 +9,7 @@ from openai import AsyncOpenAI, OpenAI
 from openai.types.beta import Thread
 
 # from app.tools.generate_exercise import exercise_generator
+from app.utils.whatsapp_utils import get_text_payload
 from db.utils import check_if_thread_exists, store_message, store_thread
 from app.config import llm_settings
 
@@ -94,17 +95,15 @@ async def run_assistant(wa_id: str, thread: Thread, verbose: bool = False) -> st
                 logger.info(f"🛠 Tool call: {tool.function.name}")
 
                 if tool.function.name == "generate_exercise":
-                    # # Send a message to the user that we're generating an exercise
-                    # response = format_text_for_whatsapp("🔄 Generating exercise...")
-                    # data = get_text_message_input(
-                    #     current_app.config["RECIPIENT_WAID"], response
-                    # )
-                    # store_message(wa_id, "🔄 Generating exercise...", role="twiga")
-                    # await send_message(data)
+                    # Send a message to the user that we're generating an exercise
+                    response_text = "🔄 Generating exercise..."
+                    data = get_text_payload(wa_id, response_text)
+                    store_message(wa_id, "🔄 Generating exercise...", role="twiga")
+                    await send_message(data)
 
-                    # await _handle_tool_call(
-                    #     tool, run, exercise_generator, verbose=verbose
-                    # )
+                    await _handle_tool_call(
+                        tool, run, exercise_generator, verbose=verbose
+                    )
                     pass
 
         # RUN STATUS: EXPIRED | FAILED | CANCELLED | INCOMPLETE
