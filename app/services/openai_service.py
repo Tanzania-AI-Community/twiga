@@ -1,23 +1,21 @@
 import json
 import logging
-import os
 import time
 from collections import deque
-from typing import Any, Tuple
+from typing import Any
 
 import openai
-from dotenv import load_dotenv
 from openai import AsyncOpenAI, OpenAI
 from openai.types.beta import Thread
 
 # from app.tools.generate_exercise import exercise_generator
 from db.utils import check_if_thread_exists, store_message, store_thread
+from app.config import llm_settings
 
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_ASSISTANT_ID = os.getenv("TWIGA_OPENAI_ASSISTANT_ID")
-OPENAI_ORG = os.getenv("OPENAI_ORG")
-client = AsyncOpenAI(api_key=OPENAI_API_KEY, organization=OPENAI_ORG)
+
+client = AsyncOpenAI(
+    api_key=llm_settings.openai_api_key, organization=llm_settings.openai_org
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +67,9 @@ async def _handle_tool_call(tool: Any, run: str, func: callable, verbose: bool =
 async def run_assistant(wa_id: str, thread: Thread, verbose: bool = False) -> str:
 
     # Retrieve the Assistant
-    assistant = await client.beta.assistants.retrieve(OPENAI_ASSISTANT_ID)
+    assistant = await client.beta.assistants.retrieve(
+        llm_settings.twiga_openai_assistant_id
+    )
 
     # Run the assistant
     run = await client.beta.threads.runs.create(

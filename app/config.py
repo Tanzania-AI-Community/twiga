@@ -22,4 +22,19 @@ class Settings(BaseSettings):
     daily_message_limit: int
 
 
+class LLMSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", env_file_encoding="utf-8"
+    )  # Load configurations from .env file
+
+    # OpenAI settings
+    openai_api_key: SecretStr
+    openai_org: str
+    twiga_openai_assistant_id: str
+
+    # GROQ settings
+    groq_api_key: SecretStr
+
+
 settings = Settings()
+llm_settings = LLMSettings()
