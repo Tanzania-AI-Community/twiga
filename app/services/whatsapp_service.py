@@ -1,19 +1,10 @@
-"""
-This script uses the WhatsApp Business API to send messages via HTTP requests.
-"""
-
-from datetime import datetime
-from typing import Literal
 from fastapi import Request
 from fastapi.responses import JSONResponse
-import requests
 import json
 import logging
-import httpx
 
 from app.config import settings
 from app.services.messaging_service import process_message
-from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
     extract_message_info,
     get_text_payload,
@@ -23,9 +14,7 @@ from app.utils.whatsapp_utils import (
     send_message
 )
 from db.utils import store_message, is_rate_limit_reached
-
 class WhatsAppClient:
-
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
@@ -33,9 +22,6 @@ class WhatsAppClient:
         }
         self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
         self.logger = logging.getLogger(__name__)
-        #self.client = httpx.AsyncClient(
-        #     base_url=self.url
-        # )  # Instantiate once for all requests
 
     def verify(self, request: Request) -> JSONResponse:
         """
@@ -137,6 +123,6 @@ class WhatsAppClient:
                 content={"status": "error", "message": "Invalid JSON provided"},
                 status_code=400,
             )
-
+        
 
 whatsapp_client = WhatsAppClient()
