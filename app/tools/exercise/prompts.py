@@ -2,8 +2,6 @@
 Directly from LlamaIndex (llama_index/llama-index-core/llama_index/core/prompts/chat_prompts.py)
 """
 
-# TODO: determine whether to use ChatMessage here or to just use the prompt literal like what is done just below
-
 # text qa prompt
 CHAT_TEXT_QA_SYSTEM_PROMPT = (
     "You are an expert Q&A system that is trusted around the world.\n"
