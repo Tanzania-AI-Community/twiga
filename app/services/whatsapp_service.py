@@ -1,19 +1,20 @@
+from typing import Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import json
 import logging
 
+import httpx
+
 from app.config import settings
-from app.services.messaging_service import process_message
+from app.services.onboarding_service import handle_onboarding
+from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
-    extract_message_info,
+    extract_message_body,
+    generate_payload,
     get_text_payload,
-    is_message_recent,
-    is_status_update,
-    is_valid_whatsapp_message,
-    send_message,
 )
-from db.utils import store_message, is_rate_limit_reached
+from db.utils import get_user_state, store_message, is_rate_limit_reached
 
 
 class WhatsAppClient:
@@ -24,6 +25,18 @@ class WhatsAppClient:
         }
         self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
         self.logger = logging.getLogger(__name__)
+        self.client = httpx.AsyncClient(base_url=self.url)
+
+    async def send_message(self, payload: str) -> None:
+        try:
+            response = await self.client.post(
+                "/messages", data=payload, headers=self.headers
+            )
+            log_httpx_response(response)
+        except httpx.RequestError as e:
+            self.logger.error("Request Error: %s", e)
+        except Exception as e:
+            self.logger.error("Unexpected Error: %s", e)
 
     def verify(self, request: Request) -> JSONResponse:
         """
@@ -60,7 +73,7 @@ class WhatsAppClient:
                 status_code=400,
             )
 
-    def _handle_status_update(self, body: dict) -> JSONResponse:
+    def handle_status_update(self, body: dict) -> JSONResponse:
         """
         Handles WhatsApp status updates (sent, delivered, read).
         """
@@ -69,7 +82,7 @@ class WhatsAppClient:
         )
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
-    async def _handle_rate_limit(self, wa_id: str, message: dict) -> JSONResponse:
+    async def handle_rate_limit(self, wa_id: str, message: dict) -> JSONResponse:
         # TODO: This is a good place to use a template instead of hardcoding the message
         self.logger.warning("Message limit reached for wa_id: %s", wa_id)
         sleepy_text = (
@@ -78,53 +91,8 @@ class WhatsAppClient:
         )
         data = get_text_payload(wa_id, sleepy_text)
         store_message(wa_id, message, role="user")
-        await send_message(data)
+        await self.send_message(data)
         return JSONResponse(content={"status": "ok"}, status_code=200)
-
-    async def handle_request(self, request: Request) -> JSONResponse:
-        """
-        Handles HTTP requests to this webhook for message, sent, delivered, and read events.
-        """
-        body = await request.json()
-
-        # Check if it's a WhatsApp status update (sent, delivered, read)
-        if is_status_update(body):
-            return self._handle_status_update(body)
-
-        # Process non-status updates (message, other)
-        try:
-            if not is_valid_whatsapp_message(body):
-                return JSONResponse(
-                    content={"status": "error", "message": "Not a WhatsApp API event"},
-                    status_code=404,
-                )
-
-            message_info = extract_message_info(body)
-            wa_id = message_info["wa_id"]
-            message = message_info["message"]
-            timestamp = message_info["timestamp"]
-            name = message_info["name"]
-
-            # TODO: Figure out a better way to handle rate limiting and what to do with older messages
-            if is_message_recent(timestamp):
-                if is_rate_limit_reached(wa_id):
-                    return await self._handle_rate_limit(wa_id, message)
-
-                generated_response = await process_message(
-                    wa_id, name, message, timestamp
-                )
-                await send_message(generated_response)
-                return JSONResponse(content={"status": "ok"}, status_code=200)
-            else:
-                store_message(wa_id, message, role="user")
-                self.logger.warning("Received a message with an outdated timestamp.")
-                return JSONResponse(content={"status": "ok"}, status_code=200)
-        except json.JSONDecodeError:
-            self.logger.error("Failed to decode JSON")
-            return JSONResponse(
-                content={"status": "error", "message": "Invalid JSON provided"},
-                status_code=400,
-            )
 
 
 whatsapp_client = WhatsAppClient()

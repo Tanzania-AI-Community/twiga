@@ -2,7 +2,7 @@ import logging
 from typing import List, Literal
 
 from app.tools.generate_exercise.vector_database import ChromaDBLoader
-from app.services.llm_service import async_groq_request, async_openai_request
+from app.utils.llm_utils import async_groq_request, async_openai_request
 from app.tools.generate_exercise.models import Metadata, RetrievedDocSchema, ChunkSchema
 from app.tools.generate_exercise.prompts import REWRITE_QUERY_PROMPT
 

@@ -30,5 +30,5 @@ async def signature_required(request: Request) -> None:
     payload = await request.body()
 
     if not validate_signature(payload.decode("utf-8"), signature):
-        logger.info("Signature verification failed!")
+        logger.error("Signature verification failed!")
         raise HTTPException(status_code=403, detail="Invalid signature")

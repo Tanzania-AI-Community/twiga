@@ -1,6 +1,6 @@
 from datetime import datetime
 import re
-from typing import Any, List, Literal
+from typing import Any, List, Literal, Optional
 import logging
 
 import httpx
@@ -26,29 +26,25 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def send_message(payload: str) -> None:
+# async def send_message(payload: str) -> None:
 
-    headers = {
-        "Content-type": "application/json",
-        "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-    }
-    url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
+#     headers = {
+#         "Content-type": "application/json",
+#         "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
+#     }
+#     url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
 
-    # TODO: create class-wide session for all requests to reuse the same connection
-    async with httpx.AsyncClient(base_url=url) as session:
-        try:
-            response = await session.post("/messages", data=payload, headers=headers)
-            if response.status_code == 200:
-                await log_httpx_response(response)
-            else:
-                logger.error(f"Status: {response.status_code}")
-                logger.error(response.text)
-        except httpx.ConnectError as e:
-            logger.error("Connection Error: %s", str(e))
-        except httpx.HTTPStatusError as e:
-            logger.error("HTTP Status Error: %s", str(e))
-        except httpx.RequestError as e:
-            logger.error("Request Error: %s", str(e))
+#     # TODO: create class-wide session for all requests to reuse the same connection
+#     async with httpx.AsyncClient(base_url=url) as session:
+#         try:
+#             response = await session.post("/messages", data=payload, headers=headers)
+#             log_httpx_response(response)
+#         except httpx.ConnectError as e:
+#             logger.error("Connection Error: %s", str(e))
+#         except httpx.HTTPStatusError as e:
+#             logger.error("HTTP Status Error: %s", str(e))
+#         except httpx.RequestError as e:
+#             logger.error("Request Error: %s", str(e))
 
 
 def get_text_payload(recipient: str, text: str) -> str:
@@ -166,3 +162,27 @@ def extract_message_info(body: dict) -> dict:
 def is_message_recent(message_timestamp: int) -> bool:
     current_timestamp = int(datetime.now().timestamp())
     return current_timestamp - message_timestamp <= 10
+
+
+def extract_message_body(message: dict) -> str:
+    message_type = message.get("type")
+    if message_type == "text":
+        return message["text"]["body"]
+    elif message_type == "interactive":
+        interactive_type = message["interactive"]["type"]
+        if interactive_type == "button_reply":
+            return message["interactive"]["button_reply"]["title"]
+        elif interactive_type == "list_reply":
+            return message["interactive"]["list_reply"]["title"]
+
+    raise ValueError(f"Unsupported message type: {message_type}")
+
+
+def generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:
+    if options:
+        if len(options) <= 3:
+            return get_interactive_button_payload(wa_id, response, options)
+        else:
+            return get_interactive_list_payload(wa_id, response, options)
+    else:
+        return get_text_payload(wa_id, response)

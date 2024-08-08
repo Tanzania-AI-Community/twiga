@@ -2,7 +2,7 @@ import logging
 from typing import List, Literal
 
 from app.tools.generate_exercise.vector_database import vector_client
-from app.services.llm_service import async_groq_request, async_openai_request
+from app.utils.llm_utils import async_groq_request, async_openai_request
 from app.tools.generate_exercise.models import RetrievedDocSchema
 from app.tools.generate_exercise.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,

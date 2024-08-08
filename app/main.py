@@ -4,6 +4,7 @@ import logging
 
 from app.security import signature_required
 from app.services.whatsapp_service import whatsapp_client
+from app.services.messaging_service import handle_request
 
 logger = logging.getLogger(__name__)
 
@@ -20,4 +21,4 @@ async def webhook_get(request: Request) -> JSONResponse:
 @app.post("/webhooks", dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
-    return await whatsapp_client.handle_request(request)
+    return await handle_request(request)

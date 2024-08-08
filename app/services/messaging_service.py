@@ -1,16 +1,68 @@
-from typing import Any, Optional
+import json
 import logging
+from typing import Optional
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
+from app.utils.whatsapp_utils import (
+    extract_message_body,
+    extract_message_info,
+    generate_payload,
+    get_text_payload,
+    is_message_recent,
+    is_status_update,
+    is_valid_whatsapp_message,
+)
+from app.services.whatsapp_service import whatsapp_client
 from app.services.onboarding_service import handle_onboarding
 from app.services.openai_service import llm_client
-from app.utils.whatsapp_utils import (
-    get_interactive_button_payload,
-    get_interactive_list_payload,
-    get_text_payload,
-)
-from db.utils import store_message, get_user_state
+from db.utils import get_user_state, is_rate_limit_reached, store_message
 
 logger = logging.getLogger(__name__)
+
+
+async def handle_request(request: Request) -> JSONResponse:
+    """
+    Handles HTTP requests to this webhook for message, sent, delivered, and read events.
+    """
+    body = await request.json()
+
+    # Check if it's a WhatsApp status update (sent, delivered, read)
+    if is_status_update(body):
+        return whatsapp_client.handle_status_update(body)
+
+    # Process non-status updates (message, other)
+    try:
+        if not is_valid_whatsapp_message(body):
+            return JSONResponse(
+                content={"status": "error", "message": "Not a WhatsApp API event"},
+                status_code=404,
+            )
+
+        message_info = extract_message_info(body)
+        wa_id = message_info["wa_id"]
+        message = message_info["message"]
+        timestamp = message_info["timestamp"]
+        name = message_info["name"]
+
+        # TODO: Figure out a better way to handle rate limiting and what to do with older messages
+        if is_message_recent(timestamp):
+            if is_rate_limit_reached(wa_id):
+                return await whatsapp_client.handle_rate_limit(wa_id, message)
+
+            generated_response = await process_message(wa_id, name, message, timestamp)
+            await whatsapp_client.send_message(generated_response)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+        else:
+            store_message(wa_id, message, role="user")
+            logger.warning("Received a message with an outdated timestamp.")
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+    except json.JSONDecodeError:
+        logger.error("Failed to decode JSON")
+        return JSONResponse(
+            content={"status": "error", "message": "Invalid JSON provided"},
+            status_code=400,
+        )
 
 
 async def process_message(
@@ -30,7 +82,7 @@ async def process_message(
     """
 
     try:
-        message_body = _extract_message_body(message)
+        message_body = extract_message_body(message)
     except ValueError as e:
         logger.error(str(e))
         return None
@@ -41,14 +93,14 @@ async def process_message(
     state = get_user_state(wa_id)
 
     if state.get("state") != "completed":
-        data = _handle_onboarding_flow(wa_id, message_body)
+        data = handle_onboarding_flow(wa_id, message_body)
     else:
-        data = await _handle_twiga_integration(wa_id, name, message_body)
+        data = await handle_twiga_integration(wa_id, name, message_body)
 
     return data
 
 
-async def _handle_twiga_integration(
+async def handle_twiga_integration(
     wa_id: str, name: str, message_body: str
 ) -> Optional[str]:
 
@@ -61,30 +113,6 @@ async def _handle_twiga_integration(
     return get_text_payload(wa_id, response_text)
 
 
-def _extract_message_body(message: dict) -> str:
-    message_type = message.get("type")
-    if message_type == "text":
-        return message["text"]["body"]
-    elif message_type == "interactive":
-        interactive_type = message["interactive"]["type"]
-        if interactive_type == "button_reply":
-            return message["interactive"]["button_reply"]["title"]
-        elif interactive_type == "list_reply":
-            return message["interactive"]["list_reply"]["title"]
-
-    raise ValueError(f"Unsupported message type: {message_type}")
-
-
-def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
+def handle_onboarding_flow(wa_id: str, message_body: str) -> str:
     response_text, options = handle_onboarding(wa_id, message_body)
-    return _generate_payload(wa_id, response_text, options)
-
-
-def _generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:
-    if options:
-        if len(options) <= 3:
-            return get_interactive_button_payload(wa_id, response, options)
-        else:
-            return get_interactive_list_payload(wa_id, response, options)
-    else:
-        return get_text_payload(wa_id, response)
+    return generate_payload(wa_id, response_text, options)
