@@ -5,7 +5,6 @@ from openai import OpenAI
 import chromadb
 
 from app.config import llm_settings
-from app.tools.generate_exercise.models import ChunkSchema, Metadata
 
 
 class ChromaDBLoader:
