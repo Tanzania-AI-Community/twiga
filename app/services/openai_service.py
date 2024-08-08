@@ -25,6 +25,42 @@ class OpenAIClient:
         self.logger = logging.getLogger(__name__)
         self.message_queue = deque()  # TODO: Change the handling of the message queue
 
+    async def generate_response(
+        self, message_body: str, wa_id: str, name: str, verbose: bool = False
+    ) -> Optional[str]:
+        # Generate a response from the assistant based on the incoming message.
+
+        # Check if thread exists for the wa_id
+        thread_info = check_if_thread_exists(wa_id) or {}
+        thread_id = str(thread_info.get("thread", ""))
+
+        if not thread_id:
+            # Create a new thread if it doesn't exist
+            thread = await self.client.beta.threads.create()
+            self.logger.debug(f"Creating new thread for {name} with id {thread.id}")
+            store_thread(wa_id, thread.id)
+        else:
+            # Retrieve the existing thread
+            self.logger.debug(
+                f"Retrieving existing thread for {name} with wa_id {wa_id}"
+            )
+            thread = await self.client.beta.threads.retrieve(thread_id)
+
+        try:
+            # Add message to the relevant assistant thread
+            await self.client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=message_body,
+            )
+
+            # Run the assistant and get the new message
+            return await self._run_assistant(wa_id, thread, verbose=verbose)
+
+        except openai.BadRequestError as e:
+            self.logger.error(f"Error sending message to OpenAI: {e}")
+            return None
+
     async def _handle_tool_call(
         self,
         tool: Any,
@@ -168,42 +204,6 @@ class OpenAIClient:
         except openai.OpenAIError as e:
             self.logger.error(f"Error during assistant run: {e}")
             return json.dumps({"error": str(e)})
-
-    async def generate_response(
-        self, message_body: str, wa_id: str, name: str, verbose: bool = False
-    ) -> Optional[str]:
-        # Generate a response from the assistant based on the incoming message.
-
-        # Check if thread exists for the wa_id
-        thread_info = check_if_thread_exists(wa_id) or {}
-        thread_id = str(thread_info.get("thread", ""))
-
-        if not thread_id:
-            # Create a new thread if it doesn't exist
-            thread = await self.client.beta.threads.create()
-            self.logger.debug(f"Creating new thread for {name} with id {thread.id}")
-            store_thread(wa_id, thread.id)
-        else:
-            # Retrieve the existing thread
-            self.logger.debug(
-                f"Retrieving existing thread for {name} with wa_id {wa_id}"
-            )
-            thread = await self.client.beta.threads.retrieve(thread_id)
-
-        try:
-            # Add message to the relevant assistant thread
-            await self.client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=message_body,
-            )
-
-            # Run the assistant and get the new message
-            return await self._run_assistant(wa_id, thread, verbose=verbose)
-
-        except openai.BadRequestError as e:
-            self.logger.error(f"Error sending message to OpenAI: {e}")
-            return None
 
 
 llm_client = OpenAIClient()

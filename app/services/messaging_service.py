@@ -13,10 +13,10 @@ from app.utils.whatsapp_utils import (
     is_status_update,
     is_valid_whatsapp_message,
 )
-from app.services.whatsapp_service import whatsapp_client
-from app.services.onboarding_service import handle_onboarding
-from app.services.openai_service import llm_client
 from db.utils import get_user_state, is_rate_limit_reached, store_message
+from app.services.whatsapp_service import whatsapp_client
+from app.services.openai_service import llm_client
+from app.services.onboarding_service import onboarding_client
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +48,9 @@ async def handle_request(request: Request) -> JSONResponse:
         # TODO: Figure out a better way to handle rate limiting and what to do with older messages
         if is_message_recent(timestamp):
             if is_rate_limit_reached(wa_id):
-                return await whatsapp_client.handle_rate_limit(wa_id, message)
+                return await _handle_rate_limit(wa_id, message)
 
-            generated_response = await process_message(wa_id, name, message, timestamp)
+            generated_response = await _process_message(wa_id, name, message, timestamp)
             await whatsapp_client.send_message(generated_response)
             return JSONResponse(content={"status": "ok"}, status_code=200)
         else:
@@ -65,7 +65,7 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
 
-async def process_message(
+async def _process_message(
     wa_id: str, name: str, message: dict, timestamp: int
 ) -> Optional[str]:
     """
@@ -93,14 +93,14 @@ async def process_message(
     state = get_user_state(wa_id)
 
     if state.get("state") != "completed":
-        data = handle_onboarding_flow(wa_id, message_body)
+        data = _handle_onboarding_flow(wa_id, message_body)
     else:
-        data = await handle_twiga_integration(wa_id, name, message_body)
+        data = await _handle_twiga_integration(wa_id, name, message_body)
 
     return data
 
 
-async def handle_twiga_integration(
+async def _handle_twiga_integration(
     wa_id: str, name: str, message_body: str
 ) -> Optional[str]:
 
@@ -113,6 +113,19 @@ async def handle_twiga_integration(
     return get_text_payload(wa_id, response_text)
 
 
-def handle_onboarding_flow(wa_id: str, message_body: str) -> str:
-    response_text, options = handle_onboarding(wa_id, message_body)
+def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
+    response_text, options = onboarding_client.process_state(wa_id, message_body)
     return generate_payload(wa_id, response_text, options)
+
+
+async def _handle_rate_limit(wa_id: str, message: dict) -> JSONResponse:
+    # TODO: This is a good place to use a template instead of hardcoding the message
+    logger.warning("Message limit reached for wa_id: %s", wa_id)
+    sleepy_text = (
+        "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy 🥱 "
+        "from all of today's texting. Let's talk more tomorrow!"
+    )
+    data = get_text_payload(wa_id, sleepy_text)
+    store_message(wa_id, message, role="user")
+    await whatsapp_client.send_message(data)
+    return JSONResponse(content={"status": "ok"}, status_code=200)

@@ -3,9 +3,6 @@ from typing import List, Optional, Tuple, Dict, Callable
 
 from db.utils import get_user_state, update_user_state
 
-# Initialize the logger for this module
-logger = logging.getLogger(__name__)
-
 
 class OnboardingHandler:
     def __init__(self):
@@ -23,6 +20,7 @@ class OnboardingHandler:
         # Define static choices for options
         self.subjects = ["Geography"]
         self.forms = ["Form 1", "Form 2", "Form 3", "Form 4"]
+        self.logger = logging.getLogger(__name__)
 
     def handle_start(
         self, wa_id: str, message_body: str, state: dict
@@ -95,7 +93,7 @@ class OnboardingHandler:
             "No",
         ]
 
-    def process_message(
+    def process_state(
         self, wa_id: str, message_body: str
     ) -> Tuple[str, Optional[List[str]]]:
         # Get the user's current state
@@ -106,14 +104,11 @@ class OnboardingHandler:
         handler = self.state_handlers.get(user_state, self.handle_default)
         response_text, options = handler(wa_id, message_body, state)
 
-        logger.info(
+        self.logger.debug(
             f"Processed message for {wa_id}: state={user_state}, message='{message_body}' -> response='{response_text}', options={options}"
         )
 
         return response_text, options
 
 
-def handle_onboarding(wa_id: str, message_body: str) -> Tuple[str, Optional[List[str]]]:
-    # Instantiate the OnboardingHandler and process the message
-    onboarding_handler = OnboardingHandler()
-    return onboarding_handler.process_message(wa_id, message_body)
+onboarding_client = OnboardingHandler()

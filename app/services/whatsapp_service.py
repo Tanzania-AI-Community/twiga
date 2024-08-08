@@ -1,20 +1,11 @@
-from typing import Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
-import json
 import logging
 
 import httpx
 
 from app.config import settings
-from app.services.onboarding_service import handle_onboarding
 from app.utils.logging_utils import log_httpx_response
-from app.utils.whatsapp_utils import (
-    extract_message_body,
-    generate_payload,
-    get_text_payload,
-)
-from db.utils import get_user_state, store_message, is_rate_limit_reached
 
 
 class WhatsAppClient:
@@ -80,18 +71,6 @@ class WhatsAppClient:
         self.logger.debug(
             f"Received a WhatsApp status update: {body.get('entry', [{}])[0].get('changes', [{}])[0].get('value', {}).get('statuses')}"
         )
-        return JSONResponse(content={"status": "ok"}, status_code=200)
-
-    async def handle_rate_limit(self, wa_id: str, message: dict) -> JSONResponse:
-        # TODO: This is a good place to use a template instead of hardcoding the message
-        self.logger.warning("Message limit reached for wa_id: %s", wa_id)
-        sleepy_text = (
-            "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy 🥱 "
-            "from all of today's texting. Let's talk more tomorrow!"
-        )
-        data = get_text_payload(wa_id, sleepy_text)
-        store_message(wa_id, message, role="user")
-        await self.send_message(data)
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
 
