@@ -11,7 +11,7 @@ from openai.types.beta import Thread
 from app.utils.whatsapp_utils import get_text_payload
 from db.utils import check_if_thread_exists, store_message, store_thread
 from app.config import llm_settings
-from app.tools.generate_exercise.generate_exercise import exercise_generator
+from app.tools.exercise.executor import generate_exercise
 from app.services.whatsapp_service import whatsapp_client
 
 
@@ -144,7 +144,7 @@ class OpenAIClient:
                             wa_id, "🔄 Generating exercise..."
                         )
                         tool_output = await self._handle_tool_call(
-                            tool, exercise_generator, verbose=verbose
+                            tool, generate_exercise, verbose=verbose
                         )
 
                         tool_outputs.append(tool_output)
