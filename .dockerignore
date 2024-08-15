@@ -1,0 +1,14 @@
+# Ignore .venv file
+.venv
+
+# Ignore .env file
+.env
+*.env
+
+# Ignore all markdown files
+*.md
+
+# Ignore License
+LICENSE
+
+# add .github?
