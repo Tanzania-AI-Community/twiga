@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional, Tuple, Dict, Callable
 
-from db.utils import get_user_state, update_user_state
+from db.utils import AppDatabase
 
 
 class OnboardingHandler:
@@ -21,11 +21,12 @@ class OnboardingHandler:
         self.subjects = ["Geography"]
         self.forms = ["Form 1", "Form 2", "Form 3", "Form 4"]
         self.logger = logging.getLogger(__name__)
+        self.db = AppDatabase()
 
     def handle_start(
         self, wa_id: str, message_body: str, state: dict
     ) -> Tuple[str, List[str]]:
-        update_user_state(wa_id, {"state": "ask_teacher"})
+        self.db.update_user_state(wa_id, {"state": "ask_teacher"})
         return (
             "Hello! My name is Twiga 🦒, I am a WhatsApp bot that supports teachers in the TIE curriculum with their daily tasks. \n\nAre you a TIE teacher?",
             ["Yes", "No"],
@@ -36,7 +37,7 @@ class OnboardingHandler:
     ) -> Tuple[str, Optional[List[str]]]:
         message_body_lower = message_body.lower()
         if message_body_lower == "yes":
-            update_user_state(wa_id, {"state": "ask_subject"})
+            self.db.update_user_state(wa_id, {"state": "ask_subject"})
             return "What subject do you teach?", self.subjects
         elif message_body_lower == "no":
             return (
@@ -50,7 +51,9 @@ class OnboardingHandler:
         self, wa_id: str, message_body: str, state: dict
     ) -> Tuple[str, List[str]]:
         if message_body in self.subjects:
-            update_user_state(wa_id, {"state": "ask_form", "subject": message_body})
+            self.db.update_user_state(
+                wa_id, {"state": "ask_form", "subject": message_body}
+            )
             return "Which form do you teach?", self.forms
         else:
             return "Please select a valid subject from the list.", self.subjects
@@ -63,7 +66,7 @@ class OnboardingHandler:
             form = message_body
             form = "Form 2"  # Temporary addition for the beta
 
-            update_user_state(
+            self.db.update_user_state(
                 wa_id, {"state": "completed", "subject": subject, "form": form}
             )
             # TODO: This could also be a template message
@@ -87,7 +90,7 @@ class OnboardingHandler:
         return None, None
 
     def handle_default(self, wa_id: str) -> Tuple[str, List[str]]:
-        update_user_state(wa_id, {"state": "ask_teacher"})
+        self.db.update_user_state(wa_id, {"state": "ask_teacher"})
         return "I'm not sure how to proceed. Let's start over. Are you a teacher?", [
             "Yes",
             "No",
@@ -97,7 +100,7 @@ class OnboardingHandler:
         self, wa_id: str, message_body: str
     ) -> Tuple[str, Optional[List[str]]]:
         # Get the user's current state
-        state = get_user_state(wa_id)
+        state = self.db.get_user_state(wa_id)
         user_state = state.get("state", "start")
 
         # Fetch the appropriate handler for the user's current state
