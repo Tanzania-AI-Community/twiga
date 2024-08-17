@@ -19,15 +19,6 @@ Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers. It aim
   <img src="https://github.com/user-attachments/assets/cd5bd256-9b48-487e-aa7b-d0efabf33e94" alt="Question generation" width="300"/>
 </p>
 
-## 🖥️ Local development
-
-This is how to set up your local environment to test out and contribute to Twiga...
-
-```sh
-fastapi dev app.main.py
-uvicorn app.main:app --reload
-```
-
 ## 🤝 Contributing
 
 If you would like to contribute to this project, we encourage you to open issues or take a look at the #good-first-issues.
