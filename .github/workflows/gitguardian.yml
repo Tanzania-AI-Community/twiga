@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   scanning:
+    if: github.repository == 'jurmy24/twiga' # This ensures it only runs on our repo, not on forks
     name: GitGuardian scan
     runs-on: ubuntu-latest
     steps:
