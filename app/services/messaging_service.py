@@ -13,7 +13,7 @@ from app.utils.whatsapp_utils import (
     is_status_update,
     is_valid_whatsapp_message,
 )
-from db.utils import get_user_state, is_rate_limit_reached, store_message
+from db.utils import AppDatabase
 from app.services.whatsapp_service import whatsapp_client
 from app.services.openai_service import llm_client
 from app.services.onboarding_service import onboarding_client
@@ -25,6 +25,8 @@ async def handle_request(request: Request) -> JSONResponse:
     """
     Handles HTTP requests to this webhook for message, sent, delivered, and read events.
     """
+    db = AppDatabase()
+
     body = await request.json()
 
     # Check if it's a WhatsApp status update (sent, delivered, read)
@@ -47,14 +49,14 @@ async def handle_request(request: Request) -> JSONResponse:
 
         # TODO: Figure out a better way to handle rate limiting and what to do with older messages
         if is_message_recent(timestamp):
-            if is_rate_limit_reached(wa_id):
+            if db.is_rate_limit_reached(wa_id):
                 return await _handle_rate_limit(wa_id, message)
 
             generated_response = await _process_message(wa_id, name, message, timestamp)
             await whatsapp_client.send_message(generated_response)
             return JSONResponse(content={"status": "ok"}, status_code=200)
         else:
-            store_message(wa_id, message, role="user")
+            db.store_message(wa_id, message, role="user")
             logger.warning("Received a message with an outdated timestamp.")
             return JSONResponse(content={"status": "ok"}, status_code=200)
     except json.JSONDecodeError:
@@ -80,6 +82,7 @@ async def _process_message(
     Returns:
         Optional[str]: JSON payload to send back to WhatsApp, or None if no response is required.
     """
+    db = AppDatabase()
 
     try:
         message_body = extract_message_body(message)
@@ -87,10 +90,10 @@ async def _process_message(
         logger.error(str(e))
         return None
 
-    store_message(wa_id, message_body, role="user")
+    db.store_message(wa_id, message_body, role="user")
 
     # Retrieve the user's current state
-    state = get_user_state(wa_id)
+    state = db.get_user_state(wa_id)
 
     if state.get("state") != "completed":
         data = _handle_onboarding_flow(wa_id, message_body)
@@ -104,12 +107,14 @@ async def _handle_twiga_integration(
     wa_id: str, name: str, message_body: str
 ) -> Optional[str]:
 
+    db = AppDatabase()
+
     response_text = await llm_client.generate_response(message_body, wa_id, name)
     if response_text is None:
         logger.info("No response generated, user will not be contacted.")
         return None
 
-    store_message(wa_id, response_text, role="twiga")
+    db.store_message(wa_id, response_text, role="twiga")
     return get_text_payload(wa_id, response_text)
 
 
@@ -119,6 +124,7 @@ def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
 
 
 async def _handle_rate_limit(wa_id: str, message: dict) -> JSONResponse:
+    db = AppDatabase()
     # TODO: This is a good place to use a template instead of hardcoding the message
     logger.warning("Message limit reached for wa_id: %s", wa_id)
     sleepy_text = (
@@ -126,6 +132,6 @@ async def _handle_rate_limit(wa_id: str, message: dict) -> JSONResponse:
         "from all of today's texting. Let's talk more tomorrow!"
     )
     data = get_text_payload(wa_id, sleepy_text)
-    store_message(wa_id, message, role="user")
+    db.store_message(wa_id, message, role="user")
     await whatsapp_client.send_message(data)
     return JSONResponse(content={"status": "ok"}, status_code=200)

@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 from openai.types.beta import Thread
 
 from app.utils.whatsapp_utils import get_text_payload
-from db.utils import check_if_thread_exists, store_message, store_thread
+from db.utils import AppDatabase
 from app.config import llm_settings
 from app.tools.exercise.executor import generate_exercise
 from app.services.whatsapp_service import whatsapp_client
@@ -24,6 +24,7 @@ class OpenAIClient:
         self.assistant = None  # This is updated in the run_assistant method
         self.logger = logging.getLogger(__name__)
         self.message_queue = deque()  # TODO: Change the handling of the message queue
+        self.db = AppDatabase()
 
     async def generate_response(
         self, message_body: str, wa_id: str, name: str, verbose: bool = False
@@ -31,14 +32,20 @@ class OpenAIClient:
         # Generate a response from the assistant based on the incoming message.
 
         # Check if thread exists for the wa_id
-        thread_info = check_if_thread_exists(wa_id) or {}
+        thread_info = self.db.check_if_thread_exists(wa_id)
+
+        # Convert thread_info to a dictionary if it is a tuple
+        if isinstance(thread_info, tuple):
+            thread_info = {"thread": thread_info[0]}
+
+        # Proceed with the existing code
         thread_id = str(thread_info.get("thread", ""))
 
         if not thread_id:
             # Create a new thread if it doesn't exist
             thread = await self.client.beta.threads.create()
             self.logger.debug(f"Creating new thread for {name} with id {thread.id}")
-            store_thread(wa_id, thread.id)
+            self.db.store_thread(wa_id, thread.id)
         else:
             # Retrieve the existing thread
             self.logger.debug(
@@ -172,7 +179,7 @@ class OpenAIClient:
     async def _send_tool_execution_message(self, wa_id: str, msg: str) -> None:
         # Send a message indicating tool execution to the user.
         data = get_text_payload(wa_id, msg)
-        store_message(wa_id, msg, role="twiga")
+        self.db.store_message(wa_id, msg, role="twiga")
         await whatsapp_client.send_message(data)
 
     async def _get_latest_assistant_message(self, thread_id: str) -> str:

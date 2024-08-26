@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 # Create a FastAPI application instance
 app = FastAPI()
 
+logger.info("FastAPI app initialized")
+
 
 @app.get("/webhooks")
 async def webhook_get(request: Request) -> JSONResponse:

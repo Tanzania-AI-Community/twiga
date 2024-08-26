@@ -28,9 +28,15 @@ handler.setFormatter(formatter)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)  # set to DEBUG for more verbose logging
 
-# TODO: Remove the unnecessary loggers (at least the info stuff)
 
 # Clear existing handlers and set the new handler
 if logger.hasHandlers():
     logger.handlers.clear()
 logger.addHandler(handler)
+
+
+# Remove the unnecessary info loggers
+httpx_logger = logging.getLogger("httpx")
+httpx_logger.setLevel(logging.WARNING)
+chromadb_logger = logging.getLogger("chromadb")
+chromadb_logger.setLevel(logging.WARNING)
