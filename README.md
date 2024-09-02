@@ -13,7 +13,7 @@
 
 </div>
 
-Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, etc.
+Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers, and is being built by the [Tanzania AI Community](https://ai.or.tz/) and open-source contributors. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, and more. Read our [roadmap](https://github.com/jurmy24/twiga/blob/main/docs/en/ROADMAP.md) for further details on our development plans.
 
 ## 📱 Demo
 
@@ -24,11 +24,13 @@ Here are a couple of screenshots. Alternatively, you can take a look at our brie
   <img src="https://github.com/user-attachments/assets/cd5bd256-9b48-487e-aa7b-d0efabf33e94" alt="Question generation" width="300"/>
 </p>
 
-## 🤝 Contributing
+## 🤝 Get involved
 
-We encourage you to contribute to Twiga! Please check out the [Contributors Manual](https://github.com/jurmy24/twiga/blob/main/CONTRIBUTING.md) for guidelines about how to get started. You can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening. This is also where you can ask for help regarding contributions.
+We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](https://github.com/jurmy24/twiga/blob/main/docs/ARCHITECTURE.md) of Twiga, how to [contribute](https://github.com/jurmy24/twiga/blob/main/docs/CONTRIBUTING.md), and our [roadmap](https://github.com/jurmy24/twiga/blob/main/docs/en/ROADMAP.md) for the project in detail in the `docs/` folder.
 
-Thank you to all the people that have contributed to Twiga!
+For further support you can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening, or you can contact us more formally using GitHub [Discussions](https://github.com/jurmy24/twiga/discussions).
+
+Thank you to all the people that have contributed to Twiga so far!
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -48,17 +50,6 @@ Thank you to all the people that have contributed to Twiga!
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-## 🔗 Links
+## 📜 License
 
-- [Discord](https://discord.gg/bCe2HfZY2C)
-- [License](https://github.com/jurmy24/twiga?tab=MIT-1-ov-file)
-- [Code of Conduct](https://github.com/jurmy24/twiga?tab=coc-ov-file#)
-- [Security](https://github.com/jurmy24/twiga?tab=security-ov-file#)
-- [Contributors Manual](https://github.com/jurmy24/twiga/blob/main/CONTRIBUTING.md)
-- [Website](https://ai.or.tz/)
-
-## License
-
-- MIT
-
-Copyright (c) 2024-present, Victor Oldensand
+[MIT](https://github.com/jurmy24/twiga?tab=MIT-1-ov-file) License, Copyright 2024-present, Victor Oldensand
