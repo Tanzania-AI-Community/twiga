@@ -26,7 +26,7 @@ Here are a couple of screenshots. Alternatively, you can take a look at our brie
 
 ## 🤝 Get involved
 
-We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](https://github.com/jurmy24/twiga/blob/main/docs/ARCHITECTURE.md) of Twiga, how to [contribute](https://github.com/jurmy24/twiga/blob/main/docs/CONTRIBUTING.md), and our [roadmap](https://github.com/jurmy24/twiga/blob/main/docs/en/ROADMAP.md) for the project in detail in the `docs/` folder.
+We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](https://github.com/jurmy24/twiga/blob/main/docs/en/ARCHITECTURE.md) of Twiga, how to [contribute](https://github.com/jurmy24/twiga/blob/main/docs/en/CONTRIBUTING.md), and our [roadmap](https://github.com/jurmy24/twiga/blob/main/docs/en/ROADMAP.md) for the project in detail in the `docs/` folder.
 
 For further support you can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening, or you can contact us more formally using GitHub [Discussions](https://github.com/jurmy24/twiga/discussions).
 
