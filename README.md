@@ -13,10 +13,12 @@
 Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, etc.
 
 ## 📱 Demo
-
+Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](https://github.com/jurmy24/twiga/blob/documentation/docs/twiga.gif).
 <p align="center">
-  <img src="https://github.com/jurmy24/twiga/blob/documentation/docs/twiga.gif" alt="GIF of twiga" width="300"/>
+  <img src="https://github.com/user-attachments/assets/27fb128e-32f0-4265-baf8-2dc3ec69ca5f" alt="End of onboarding" width="300"/>
+  <img src="https://github.com/user-attachments/assets/cd5bd256-9b48-487e-aa7b-d0efabf33e94" alt="Question generation" width="300"/>
 </p>
+
 
 ## 🤝 Contributing
 
