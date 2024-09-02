@@ -31,6 +31,13 @@ Thank you to all the people that have contributed to Twiga!
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/jurmy24"><img src="https://avatars.githubusercontent.com/u/21913954?v=4?s=100" width="100px;" alt="Victor Oldensand"/><br /><sub><b>Victor Oldensand</b></sub></a><br /><a href="#infra-jurmy24" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#code-jurmy24" title="Code">💻</a></td>
+    </tr>
+  </tbody>
+</table>
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
