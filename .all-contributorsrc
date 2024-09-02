@@ -1,4 +1,37 @@
 {
   "projectName": "twiga",
-  "projectOwner": "jurmy24"
+  "projectOwner": "jurmy24",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 50,
+  "contributors": [
+    {
+      "login": "jurmy24",
+      "name": "Victor Oldensand",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1500684?v=3",
+      "profile": "https://kentcdodds.com",
+      "contributions": [
+        "bug",
+        "business",
+        "doc",
+        "talk",
+        "code",
+        "design",
+        "fundingFinding",
+        "ideas",
+        "infra",
+        "mentoring",
+        "projectManagement",
+        "promotion",
+        "research",
+      ]
+    }
+  ],
+  "repoType": "github",
+  "contributorsPerLine": 10,
+  "repoHost": "https://github.com",
+  "commitConvention": "angular",
+  "skipCi": true,
+  "commitType": "docs"
 }
