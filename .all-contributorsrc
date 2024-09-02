@@ -1,15 +1,4 @@
 {
   "projectName": "twiga",
-  "projectOwner": "jurmy24",
-  "files": [
-    "README.md"
-  ],
-  "imageSize": 50,
-  "contributors": [],
-  "repoType": "github",
-  "contributorsPerLine": 10,
-  "repoHost": "https://github.com",
-  "commitConvention": "angular",
-  "skipCi": true,
-  "commitType": "docs"
+  "projectOwner": "jurmy24"
 }
