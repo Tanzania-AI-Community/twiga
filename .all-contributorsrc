@@ -15,7 +15,23 @@
       "profile": "https://github.com/jurmy24",
       "contributions": [
         "infra",
-        "code"
+        "code",
+        "bug",
+        "doc",
+        "design",
+        "example",
+        "eventOrganizing",
+        "fundingFinding",
+        "ideas",
+        "maintenance",
+        "mentoring",
+        "projectManagement",
+        "question",
+        "review",
+        "research",
+        "tutorial",
+        "talk",
+        "userTesting"
       ]
     }
   ]
