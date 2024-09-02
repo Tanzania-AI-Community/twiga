@@ -1,4 +1,22 @@
 {
   "projectName": "twiga",
-  "projectOwner": "jurmy24"
+  "projectOwner": "jurmy24",
+  "files": [
+    "README.md"
+  ],
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributorsPerLine": 7,
+  "contributors": [
+    {
+      "login": "jurmy24",
+      "name": "Victor Oldensand",
+      "avatar_url": "https://avatars.githubusercontent.com/u/21913954?v=4",
+      "profile": "https://github.com/jurmy24",
+      "contributions": [
+        "infra",
+        "code"
+      ]
+    }
+  ]
 }
