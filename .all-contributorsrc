@@ -33,6 +33,23 @@
         "talk",
         "userTesting"
       ]
+    },
+    {
+      "login": "EssaMohamedali",
+      "name": "EssaMohamedali",
+      "avatar_url": "https://avatars.githubusercontent.com/u/50261366?v=4",
+      "profile": "https://github.com/EssaMohamedali",
+      "contributions": [
+        "business",
+        "content",
+        "eventOrganizing",
+        "financial",
+        "fundingFinding",
+        "ideas",
+        "projectManagement",
+        "promotion",
+        "talk"
+      ]
     }
   ]
 }
