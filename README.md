@@ -7,6 +7,7 @@
 [![GitHub License](https://img.shields.io/github/license/jurmy24/twiga)](https://github.com/jurmy24/twiga?tab=MIT-1-ov-file)
 [![Discord](https://img.shields.io/discord/1260910452683178024?style=flat&logo=discord&logoColor=white)](https://discord.gg/bCe2HfZY2C)
 [![Static Badge](https://img.shields.io/badge/thesis_repo-%235b5b5b?logo=github&link=https%3A%2F%2Fgithub.com%2Fjurmy24%2Ftwiga-thesis)](https://github.com/jurmy24/twiga-thesis)
+[![All Contributors](https://img.shields.io/github/all-contributors/jurmy24/twiga?color=ee8449&style=flat-square)](#contributors)
 
 </div>
 
@@ -36,7 +37,7 @@ Thank you to all the people that have contributed to Twiga!
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-[![All Contributors](https://img.shields.io/github/all-contributors/jurmy24/twiga?color=ee8449&style=flat-square)](#contributors)
+
 
 ## 🔗 Links
 
