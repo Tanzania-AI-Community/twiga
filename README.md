@@ -14,7 +14,7 @@
 
 Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers, and is being built by the [Tanzania AI Community](https://ai.or.tz/) and open-source contributors. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, and more. 
 
-This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/) for its use of Llama open source LLMs for social good. Read our [roadmap](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ROADMAP.md) for further details on our development plans. 
+This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/) for its use of Llama open source LLMs for social good. Read our [roadmap](https://docs.google.com/document/d/1zus2AFyglt1RJdLeqWeAJIT-uHQh6NeU9WuamzAd-0s/edit?usp=sharing) for further details on our development plans. 
 
 ## 🩷 Sponsors  
 We would like to thank those who are sponsoring this project.
