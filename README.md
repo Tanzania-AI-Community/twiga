@@ -6,7 +6,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/jurmy24/twiga)](https://github.com/Tanzania-AI-Community/twiga?tab=MIT-1-ov-file)
 [![Discord](https://img.shields.io/discord/1260910452683178024?logo=discord&logoColor=%23f6ffff&labelColor=%234a6be4&color=%235a5a5a)](https://discord.gg/bCe2HfZY2C)
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Tanzania-AI-Community/twiga)
+[![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Tanzania-AI-Community/twiga)](https://github.com/Tanzania-AI-Community/twiga/issues)
 [![All Contributors](https://img.shields.io/github/all-contributors/Tanzania-AI-Community/twiga?color=ee8449)](#contributors)
 [![Static Badge](https://img.shields.io/badge/thesis_repo-%235b5b5b?logo=github&link=https%3A%2F%2Fgithub.com%2Fjurmy24%2Ftwiga-thesis)](https://github.com/jurmy24/twiga-thesis)
 
@@ -49,7 +49,7 @@ Here are a couple of screenshots. Alternatively, you can take a look at our brie
 
 ## 🤝 Get involved
 
-We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md) of Twiga, how to [contribute](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/CONTRIBUTING.md), and how to [get started](https://github.com/jurmy24/Tanzania-AI-Community/blob/main/docs/en/ROADMAP.md) in the `docs/` folder.
+We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md) of Twiga, how to [contribute](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/CONTRIBUTING.md), and how to [get started](https://github.com/jurmy24/Tanzania-AI-Community/blob/main/docs/en/GETTING_STARTED.md) in the `docs/` folder.
 
 For further support you can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening, or you can contact us more formally using GitHub [Discussions](https://github.com/Tanzania-AI-Community/twiga/discussions).
 
