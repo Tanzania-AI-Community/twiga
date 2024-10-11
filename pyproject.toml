@@ -1,27 +1,9 @@
-[tool.poetry]
+[project]
 name = "twiga"
 version = "0.1.0"
-description = "A WhatsApp chatbot for teachers"
+description = "A WhatsApp chatbot for teachers" 
 authors = ["Victor Oldensand <victormag24@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-package-mode = false
-
-[tool.poetry.dependencies]
-python = "^3.12"
-python-dotenv = "^1.0.1"
-requests = "^2.32.3"
-fastapi = {extras = ["standard"], version = "^0.112.0"} # see https://fastapi.tiangolo.com/deployment/manually/
-pydantic-settings = "^2.4.0"
-openai = "^1.38.0"
-colorlog = "^6.8.2"
-groq = "^0.9.0"
-backoff = "^2.2.1"
-tiktoken = "^0.7.0"
-chromadb = "^0.5.5"
-boto3 = "^1.34.161"
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires-python = ">=3.12"
+dependencies = []
