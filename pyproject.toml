@@ -1,9 +1,12 @@
 [project]
 name = "twiga"
 version = "0.1.0"
-description = "A WhatsApp chatbot for teachers" 
-authors = ["Victor Oldensand <victormag24@gmail.com>"]
-license = "MIT"
+description = "Add your description here"
 readme = "README.md"
+authors = ["Victor Oldensand <victormag24@gmail.com>"]
 requires-python = ">=3.12"
-dependencies = []
+license = "MIT"
+dependencies = [
+    "colorlog>=6.8.2",
+    "fastapi>=0.115.0",
+]
