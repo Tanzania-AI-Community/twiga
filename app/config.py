@@ -47,7 +47,16 @@ class LLMSettings(BaseSettings):
 
 # Function to determine if we're running on Render
 def is_running_on_render():
-    return os.environ.get("RENDER") == "true"
+    render_env = os.environ.get("RENDER") == "true"
+    print(f"Is running on Render: {render_env}")
+    if render_env:
+        print("Environment variables:")
+        for key, value in os.environ.items():
+            if key.startswith(("META_", "WHATSAPP_", "DAILY_")):
+                print(
+                    f"{key}: {'*' * len(value)}"
+                )  # Mask the actual values for security
+    return render_env
 
 
 # Initialize settings
