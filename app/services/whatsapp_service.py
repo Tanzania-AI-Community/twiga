@@ -52,6 +52,7 @@ class WhatsAppClient:
                 status_code=200,
             )
         elif mode == "subscribe" and token != settings.whatsapp_verify_token:
+            self.logger.info(token, settings.whatsapp_verify_token)
             self.logger.error("VERIFICATION_FAILED")
             return JSONResponse(
                 content={"status": "error", "message": "Verification failed"},
