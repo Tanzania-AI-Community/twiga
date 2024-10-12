@@ -2,6 +2,7 @@
 This module sets the env configs for our WhatsApp app.
 """
 
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 
@@ -28,12 +29,12 @@ class LLMSettings(BaseSettings):
     )  # Load configurations from .env file
 
     # OpenAI settings
-    openai_api_key: SecretStr
-    openai_org: str
-    twiga_openai_assistant_id: str
+    openai_api_key: Optional[SecretStr]
+    openai_org: Optional[str]
+    twiga_openai_assistant_id: Optional[str]
 
     # GROQ settings
-    groq_api_key: SecretStr
+    groq_api_key: Optional[SecretStr]
 
 
 settings = Settings()
