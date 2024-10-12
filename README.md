@@ -41,7 +41,7 @@ We would like to thank those who are sponsoring this project.
 
 ## 📱 Demo
 
-Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/twiga.gif).
+Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/twiga.gif).
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/27fb128e-32f0-4265-baf8-2dc3ec69ca5f" alt="End of onboarding" width="300"/>
