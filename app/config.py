@@ -53,9 +53,11 @@ def is_running_on_render():
 # Initialize settings
 if is_running_on_render():
     # On Render, rely solely on environment variables
+    print("Render: TRUE")
     settings = Settings(_env_file=None)
     llm_settings = LLMSettings(_env_file=None)
 else:
     # Locally, use .env file
+    print("Render: FALSE")
     settings = Settings()
     llm_settings = LLMSettings()
