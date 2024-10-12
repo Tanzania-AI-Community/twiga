@@ -1,5 +1,5 @@
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 import logging
 
 import httpx
@@ -29,11 +29,10 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Unexpected Error: %s", e)
 
-    def verify(self, request: Request) -> JSONResponse:
+    def verify(self, request: Request):
         """
         Verifies the webhook for WhatsApp. This is required.
         """
-
         mode = request.query_params.get("hub.mode")
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
@@ -50,26 +49,13 @@ class WhatsAppClient:
             and token == settings.whatsapp_verify_token.get_secret_value()
         ):
             self.logger.info("WEBHOOK_VERIFIED")
-            return JSONResponse(
-                content={"status": "success", "challenge": challenge},
-                status_code=200,
-            )
-        elif (
-            mode == "subscribe"
-            and token != settings.whatsapp_verify_token.get_secret_value()
-        ):
-            self.logger.info(token, settings.whatsapp_verify_token)
-            self.logger.error("VERIFICATION_FAILED")
-            return JSONResponse(
-                content={"status": "error", "message": "Verification failed"},
-                status_code=403,
-            )
-        else:  # Responds with '400 Bad Request' if the mode is not 'subscribe'
-            self.logger.error("INVALID_MODE")
-            return JSONResponse(
-                content={"status": "error", "message": "Invalid mode"},
-                status_code=400,
-            )
+            return PlainTextResponse(content=challenge)
+
+        self.logger.error("VERIFICATION_FAILED")
+        return JSONResponse(
+            content={"status": "error", "message": "Verification failed"},
+            status_code=403,
+        )
 
     def handle_status_update(self, body: dict) -> JSONResponse:
         """
