@@ -13,14 +13,14 @@ def is_running_on_render():
     print(f"Is running on Render: {render_env}")
     if render_env:
         print("Environment variables:")
-        print(os.environ.items())
-        # for key, value in os.environ.items():
-        #     if key.startswith(
-        #         ("META_", "WHATSAPP_", "DAILY_", "OPENAI_", "GROQ_", "TWIGA_", ".env")
-        #     ):
-        #         print(
-        #             f"{key}: {'*' * len(str(value))}"
-        #         )  # Mask the actual values for security
+        # print(os.environ.items())
+        for key, value in os.environ.items():
+            if key.startswith(
+                ("META_", "WHATSAPP_", "DAILY_", "OPENAI_", "GROQ_", "TWIGA_")
+            ):
+                print(
+                    f"{key}: {'*' * len(str(value))}"
+                )  # Mask the actual values for security
     return render_env
 
 
@@ -78,5 +78,4 @@ def initialize_settings():
     return settings, llm_settings
 
 
-is_render = is_running_on_render()
 settings, llm_settings = initialize_settings()
