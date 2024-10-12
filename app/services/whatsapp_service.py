@@ -45,13 +45,19 @@ class WhatsAppClient:
                 status_code=400,
             )
 
-        if mode == "subscribe" and token == settings.whatsapp_verify_token:
+        if (
+            mode == "subscribe"
+            and token == settings.whatsapp_verify_token.get_secret_value()
+        ):
             self.logger.info("WEBHOOK_VERIFIED")
             return JSONResponse(
                 content={"status": "success", "challenge": challenge},
                 status_code=200,
             )
-        elif mode == "subscribe" and token != settings.whatsapp_verify_token:
+        elif (
+            mode == "subscribe"
+            and token != settings.whatsapp_verify_token.get_secret_value()
+        ):
             self.logger.info(token, settings.whatsapp_verify_token)
             self.logger.error("VERIFICATION_FAILED")
             return JSONResponse(
