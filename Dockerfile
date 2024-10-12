@@ -18,7 +18,7 @@ COPY . .
 EXPOSE 8000
 
 # Hide dev dependencies, right now there are none though --without dev (don't know how the command looks in uv)
-RUN uv sync --frozen --no-cache
+# RUN uv sync --frozen --no-cache
 
 # Install dependencies using the secret .env file
 RUN --mount=type=secret,id=_env,dst=/etc/secrets/.env \
