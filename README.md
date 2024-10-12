@@ -4,7 +4,7 @@
 
 <div align="center">
 
-[![GitHub License](https://img.shields.io/github/license/jurmy24/twiga)](https://github.com/Tanzania-AI-Community/twiga?tab=MIT-1-ov-file)
+[![GitHub License](https://img.shields.io/github/license/Tanzania-AI-Community/twiga)](https://github.com/Tanzania-AI-Community/twiga?tab=MIT-1-ov-file)
 [![Discord](https://img.shields.io/discord/1260910452683178024?logo=discord&logoColor=%23f6ffff&labelColor=%234a6be4&color=%235a5a5a)](https://discord.gg/bCe2HfZY2C)
 [![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Tanzania-AI-Community/twiga)](https://github.com/Tanzania-AI-Community/twiga/issues)
 [![All Contributors](https://img.shields.io/github/all-contributors/Tanzania-AI-Community/twiga?color=ee8449)](#contributors)
@@ -12,11 +12,12 @@
 
 </div>
 
-Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers, and is being built by the [Tanzania AI Community](https://ai.or.tz/) and open-source contributors. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, and more. 
+Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers, and is being built by the [Tanzania AI Community](https://ai.or.tz/) and open-source contributors. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, and more.
 
-This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/) for its use of Llama open source LLMs for social good. Read our [roadmap](https://docs.google.com/document/d/1zus2AFyglt1RJdLeqWeAJIT-uHQh6NeU9WuamzAd-0s/edit?usp=sharing) for further details on our development plans. 
+This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/) for its use of Llama open source LLMs for social good. Read our [roadmap](https://docs.google.com/document/d/1zus2AFyglt1RJdLeqWeAJIT-uHQh6NeU9WuamzAd-0s/edit?usp=sharing) for further details on our development plans.
 
-## 🩷 Sponsors  
+## 🩷 Sponsors
+
 We would like to thank those who are sponsoring this project.
 
 <table align="center" style="background-color: #f9f9f9; padding: 20px; border-radius: 10px;">
@@ -40,7 +41,7 @@ We would like to thank those who are sponsoring this project.
 
 ## 📱 Demo
 
-Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](https://github.com/jurmy24/twiga/blob/documentation/docs/twiga.gif).
+Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/twiga.gif).
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/27fb128e-32f0-4265-baf8-2dc3ec69ca5f" alt="End of onboarding" width="300"/>
