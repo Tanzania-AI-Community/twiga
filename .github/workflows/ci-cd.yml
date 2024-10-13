@@ -16,6 +16,8 @@ jobs:
 
   gitguardian:
     uses: ./.github/workflows/gitguardian.yml
+    secrets:
+      GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY}}
 
   deploy-dev:
     needs: [lint, gitguardian]
