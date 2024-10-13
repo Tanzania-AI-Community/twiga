@@ -24,7 +24,7 @@ class ChromaDBLoader:
 
         try:
             self.collection = self.client.get_collection(name="twiga_documents")
-        except ValueError as e:
+        except:
             self.logger.error("Collection doesn't exist, you have to create one.")
 
     def get_embedding(
