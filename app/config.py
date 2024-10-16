@@ -42,23 +42,9 @@ class LLMSettings(BaseSettings):
     groq_api_key: Optional[SecretStr] = None
 
 
-def initialize_settings(verbose: bool = False):
+def initialize_settings():
     settings = Settings()
     llm_settings = LLMSettings()
-
-    if verbose:
-        print("Loaded settings:")
-        for field in Settings:
-            value = getattr(settings, field)
-            print(f"{field}: {'*' * len(str(value))}")
-
-        print("\nLoaded LLM settings:")
-        for field in LLMSettings:
-            value = getattr(llm_settings, field)
-            if value is not None:
-                print(f"{field}: {'*' * len(str(value))}")
-            else:
-                print(f"{field}: None")
 
     return settings, llm_settings
 
