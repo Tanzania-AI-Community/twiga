@@ -8,22 +8,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 
 
-def is_running_on_render():
-    render_env = os.environ.get("RENDER") == "true"
-    print(f"Is running on Render: {render_env}")
-    if render_env:
-        print("Environment variables:")
-        # print(os.environ.items())
-        for key, value in os.environ.items():
-            if key.startswith(
-                ("META_", "WHATSAPP_", "DAILY_", "OPENAI_", "GROQ_", "TWIGA_")
-            ):
-                print(
-                    f"{key}: {'*' * len(str(value))}"
-                )  # Mask the actual values for security
-    return render_env
-
-
 # Store configurations for the app
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -58,24 +42,25 @@ class LLMSettings(BaseSettings):
     groq_api_key: Optional[SecretStr] = None
 
 
-def initialize_settings():
+def initialize_settings(verbose: bool = False):
     settings = Settings()
     llm_settings = LLMSettings()
 
-    print("Loaded settings:")
-    for field in Settings.__fields__:
-        value = getattr(settings, field)
-        print(f"{field}: {'*' * len(str(value))}")
-
-    print("\nLoaded LLM settings:")
-    for field in LLMSettings.__fields__:
-        value = getattr(llm_settings, field)
-        if value is not None:
+    if verbose:
+        print("Loaded settings:")
+        for field in Settings:
+            value = getattr(settings, field)
             print(f"{field}: {'*' * len(str(value))}")
-        else:
-            print(f"{field}: None")
+
+        print("\nLoaded LLM settings:")
+        for field in LLMSettings:
+            value = getattr(llm_settings, field)
+            if value is not None:
+                print(f"{field}: {'*' * len(str(value))}")
+            else:
+                print(f"{field}: None")
 
     return settings, llm_settings
 
 
-settings, llm_settings = initialize_settings()
+settings, llm_settings = initialize_settings(verbose = False)
