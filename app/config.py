@@ -45,8 +45,7 @@ class LLMSettings(BaseSettings):
 def initialize_settings():
     settings = Settings()
     llm_settings = LLMSettings()
-
     return settings, llm_settings
 
 
-settings, llm_settings = initialize_settings(verbose = False)
+settings, llm_settings = initialize_settings()
