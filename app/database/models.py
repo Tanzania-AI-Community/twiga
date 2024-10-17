@@ -13,6 +13,7 @@ from sqlalchemy import Column
 
 
 class User(SQLModel, table=True):
+    __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=15, unique=True)
@@ -45,6 +46,7 @@ class User(SQLModel, table=True):
 
 
 class Class(SQLModel, table=True):
+    __tablename__ = "classes"
     id: Optional[int] = Field(default=None, primary_key=True)
     subject: str = Field(max_length=30)
     grade_level: int = Field()
@@ -58,12 +60,14 @@ class Class(SQLModel, table=True):
 
 
 class TeacherClass(SQLModel, table=True):
+    __tablename__ = "teachers_classes"
     id: Optional[int] = Field(default=None, primary_key=True)
     teacher_id: int = Field(foreign_key="user.id")
     class_id: int = Field(foreign_key="class.id")
 
 
 class Resource(SQLModel, table=True):
+    __tablename__ = "resources"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
     type: Optional[str] = Field(max_length=30)
@@ -72,12 +76,14 @@ class Resource(SQLModel, table=True):
 
 
 class ClassResource(SQLModel, table=True):
+    __tablename__ = "classes_resources"
     id: Optional[int] = Field(default=None, primary_key=True)
     class_id: int = Field(foreign_key="class.id")
     resource_id: int = Field(foreign_key="resource.id")
 
 
 class Section(SQLModel, table=True):
+    __tablename__ = "sections"
     id: Optional[int] = Field(default=None, primary_key=True)
     resource_id: int = Field(foreign_key="resource.id")
     parent_section_id: Optional[int] = Field(default=None, foreign_key="section.id")
@@ -91,6 +97,7 @@ class Section(SQLModel, table=True):
 
 
 class Chunk(SQLModel, table=True):
+    __tablename__ = "chunks"
     id: Optional[int] = Field(default=None, primary_key=True)
     resource_id: int = Field(foreign_key="resource.id")
     section_id: int = Field(foreign_key="section.id")
@@ -104,6 +111,7 @@ class Chunk(SQLModel, table=True):
 
 
 class Message(SQLModel, table=True):
+    __tablename__ = "messages"
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     role: str = Field(max_length=20)
@@ -116,100 +124,6 @@ class Message(SQLModel, table=True):
         if v not in ["user", "assistant", "system", "context", "tool"]:
             raise ValueError("Invalid role")
         return v
-
-
-"""
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(50),
-  wa_id VARCHAR(15) NOT NULL UNIQUE,
-  state VARCHAR(15) NOT NULL CHECK (state IN ('onboarding', 'ai_lessons', 'active', 'settings')),
-  role VARCHAR(20) NOT NULL DEFAULT 'student' CHECK (role IN ('staff', 'teacher', 'admin')),
-  class_info JSONB,
-  last_message_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_users_wa_id ON users(wa_id);
-
-CREATE TABLE classes (
-  id SERIAL PRIMARY KEY,
-  subject VARCHAR(30) NOT NULL,
-  grade_level INT NOT NULL CHECK (grade_level BETWEEN 1 AND 13),
-  UNIQUE (subject, grade_level)
-);
-
-CREATE TABLE teachers_classes (
-  id SERIAL PRIMARY KEY,
-  teacher_id INT REFERENCES users(id) ON DELETE CASCADE,
-  class_id INT REFERENCES classes(id) ON DELETE CASCADE,
-  UNIQUE (teacher_id, class_id)
-);
-
-CREATE INDEX idx_teachers_classes_teacher_id ON teachers_classes(teacher_id);
-CREATE INDEX idx_teachers_classes_class_id ON teachers_classes(class_id);
-
-CREATE TABLE resources (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  type VARCHAR(30),
-  authors VARCHAR(50)[],
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE classes_resources (
-  id SERIAL PRIMARY KEY,
-  class_id INT REFERENCES classes(id) ON DELETE CASCADE,
-  resource_id INT REFERENCES resources(id) ON DELETE CASCADE,
-  UNIQUE (class_id, resource_id)
-);
-
-CREATE INDEX idx_classes_resources_class_id ON classes_resources(class_id);
-CREATE INDEX idx_classes_resources_resource_id ON classes_resources(resource_id);
-
-CREATE TABLE sections (
-  id SERIAL PRIMARY KEY,
-  resource_id INT REFERENCES resources(id) ON DELETE CASCADE,
-  parent_section_id INT REFERENCES sections(id) ON DELETE CASCADE,
-  section_index VARCHAR(20),
-  section_title VARCHAR(100),
-  section_type VARCHAR(15),
-  section_order INT NOT NULL,
-  page_range INT[2], (currently just stored as a string)
-  summary TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_sections_resource_id ON sections(resource_id);
-CREATE INDEX idx_sections_parent_section_id ON sections(parent_section_id);
-
-CREATE TABLE chunks (
-  id BIGSERIAL PRIMARY KEY,
-  resource_id INT REFERENCES resources(id) ON DELETE CASCADE,
-  section_id INT REFERENCES sections(id) ON DELETE CASCADE,
-  content TEXT,
-  page INT,
-  content_type VARCHAR(30),
-  embedding VECTOR(1536), -- Assuming a 1536-dimensional embedding (to determine later)
-  top_level_section_index VARCHAR(10),
-  top_level_section_title VARCHAR(100),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_chunks_resource_id ON chunks(resource_id);
-CREATE INDEX idx_chunks_section_id ON chunks(section_id);
-
-CREATE TABLE messages (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  role VARCHAR(20) CHECK (role IN ('user', 'assistant', 'system', 'context', 'tool')),
-  content TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_messages_user_id ON messages(user_id);
-"""
 
 
 # Define an async function to interact with the database
