@@ -1,8 +1,17 @@
 from typing import Any, List, Optional
 from datetime import datetime, timezone
-from sqlmodel import Field, SQLModel
+from sqlmodel import (
+    Field,
+    SQLModel,
+    UniqueConstraint,
+    Column,
+    DateTime,
+    String,
+    ARRAY,
+    JSON,
+    Relationship,
+)
 from pydantic import field_validator
-from sqlalchemy import Column, DateTime, String, ARRAY, JSON
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
@@ -20,89 +29,115 @@ class User(SQLModel, table=True):
     role: str = Field(default="teacher", max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     last_message_at: Optional[datetime] = Field(
-        sa_column=DateTime(timezone=True)
+        sa_type=DateTime(timezone=True)
     )  # user.last_message_at = datetime.now(timezone.utc) (this is how to set it when updating later)
-    created_at: datetime = Field(
-        sa_column=DateTime(timezone=True),
+    created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+    updated_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={
+            "onupdate": lambda: datetime.now(timezone.utc),
+        },
+        nullable=False,
     )
 
-    updated_at: datetime = Field(
-        sa_column=DateTime(timezone=True),
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"onupdate": sa.func.now()},
+    # A teacher may have entries in the teachers_classes table (not too happy with the choice of naming so far)
+    taught_classes: Optional[list["TeacherClass"]] = Relationship(
+        back_populates="class_", cascade_delete=True
     )
 
 
 class Class(SQLModel, table=True):
     __tablename__ = "classes"
+    __table_args__ = (
+        UniqueConstraint("subject", "grade_level", name="unique_classes"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     subject: str = Field(max_length=30)
-    grade_level: int = Field()
+    grade_level: str = Field(
+        max_length=10
+    )  # store as string ["p1", "p2", ..., "os1", "os2", ..., "as1", "as2"] (p = primary, os = ordinary secondary, as = advanced secondary)
+
+    # A class may have entries in the teachers_classes table
+    class_teachers: Optional[list["TeacherClass"]] = Relationship(
+        back_populates="class_", cascade_delete=True
+    )
 
 
 class TeacherClass(SQLModel, table=True):
     __tablename__ = "teachers_classes"
+    __table_args__ = (
+        UniqueConstraint("teacher_id", "class_id", name="unique_teacher_class"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
-    teacher_id: int = Field(foreign_key="user.id")
-    class_id: int = Field(foreign_key="class.id")
+    teacher_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
+    class_id: int = Field(foreign_key="classes.id", index=True, ondelete="CASCADE")
+
+    class_: Class = Relationship(back_populates="class_teachers")
+    teacher_: User = Relationship(back_populates="taught_classes")
 
 
-class Resource(SQLModel, table=True):
-    __tablename__ = "resources"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(max_length=100)
-    type: Optional[str] = Field(max_length=30)
-    authors: List[str] = Field(sa_column=Column(ARRAY(String(50))))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+# # NOTE: resources should not be cascade deleted with classes, they should could as separate
+# class Resource(SQLModel, table=True):
+#     __tablename__ = "resources"
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     name: str = Field(max_length=100)
+#     type: Optional[str] = Field(max_length=30)
+#     authors: List[str] = Field(sa_column=Column(ARRAY(String(50))))
+#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class ClassResource(SQLModel, table=True):
-    __tablename__ = "classes_resources"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    class_id: int = Field(foreign_key="class.id")
-    resource_id: int = Field(foreign_key="resource.id")
+# class ClassResource(SQLModel, table=True):
+#     __tablename__ = "classes_resources"
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     class_id: int = Field(foreign_key="class.id")
+#     resource_id: int = Field(foreign_key="resource.id")
 
 
-class Section(SQLModel, table=True):
-    __tablename__ = "sections"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    resource_id: int = Field(foreign_key="resource.id")
-    parent_section_id: Optional[int] = Field(default=None, foreign_key="section.id")
-    section_index: Optional[str] = Field(max_length=20)
-    section_title: Optional[str] = Field(max_length=100)
-    section_type: Optional[str] = Field(max_length=15)
-    section_order: int
-    page_range: Optional[str] = Field(default=None)
-    summary: Optional[str] = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+# class Section(SQLModel, table=True):
+#     __tablename__ = "sections"
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     resource_id: int = Field(foreign_key="resource.id")
+#     parent_section_id: Optional[int] = Field(default=None, foreign_key="section.id")
+#     section_index: Optional[str] = Field(max_length=20)
+#     section_title: Optional[str] = Field(max_length=100)
+#     section_type: Optional[str] = Field(max_length=15)
+#     section_order: int
+#     page_range: Optional[str] = Field(default=None)
+#     summary: Optional[str] = Field(default=None)
+#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class Chunk(SQLModel, table=True):
-    __tablename__ = "chunks"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    resource_id: int = Field(foreign_key="resource.id")
-    section_id: int = Field(foreign_key="section.id")
-    content: Optional[str] = Field(default=None)
-    page: Optional[int] = Field(default=None)
-    content_type: Optional[str] = Field(max_length=30)
-    embedding: Optional[Any] = Field(default=None, sa_column=Column(Vector(1536)))
-    top_level_section_index: Optional[str] = Field(max_length=10)
-    top_level_section_title: Optional[str] = Field(max_length=100)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+# class Chunk(SQLModel, table=True):
+#     __tablename__ = "chunks"
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     resource_id: int = Field(foreign_key="resource.id")
+#     section_id: int = Field(foreign_key="section.id")
+#     content: Optional[str] = Field(default=None)
+#     page: Optional[int] = Field(default=None)
+#     content_type: Optional[str] = Field(max_length=30)
+#     embedding: Optional[Any] = Field(default=None, sa_column=Column(Vector(1536)))
+#     top_level_section_index: Optional[str] = Field(max_length=10)
+#     top_level_section_title: Optional[str] = Field(max_length=100)
+#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class Message(SQLModel, table=True):
-    __tablename__ = "messages"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id")
-    role: str = Field(max_length=20)
-    content: Optional[str] = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+# class Message(SQLModel, table=True):
+#     __tablename__ = "messages"
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     user_id: int = Field(foreign_key="user.id")
+#     role: str = Field(max_length=20)
+#     content: Optional[str] = Field(default=None)
+#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    @field_validator("role")
-    @classmethod
-    def validate_role(cls, v: str) -> str:
-        if v not in ["user", "assistant", "system", "context", "tool"]:
-            raise ValueError("Invalid role")
-        return v
+#     @field_validator("role")
+#     @classmethod
+#     def validate_role(cls, v: str) -> str:
+#         if v not in ["user", "assistant", "system", "context", "tool"]:
+#             raise ValueError("Invalid role")
+#         return v
