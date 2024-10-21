@@ -10,6 +10,7 @@ from sqlmodel import (
     ARRAY,
     JSON,
     Relationship,
+    Date,
 )
 from pydantic import field_validator
 from pgvector.sqlalchemy import Vector
@@ -28,6 +29,9 @@ class User(SQLModel, table=True):
     state: str = Field(max_length=20)
     role: str = Field(default="teacher", max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
+    school_name: Optional[str] = Field(default=None, max_length=100)
+    birthday: Optional[datetime.date] = Field(default=None, sa_type=Date)
+    region: Optional[str] = Field(default=None, max_length=50)
     last_message_at: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True)
     )  # user.last_message_at = datetime.now(timezone.utc) (this is how to set it when updating later)
@@ -49,6 +53,11 @@ class User(SQLModel, table=True):
     # A teacher may have entries in the teachers_classes table (not too happy with the choice of naming so far)
     taught_classes: Optional[list["TeacherClass"]] = Relationship(
         back_populates="class_", cascade_delete=True
+    )
+
+    # A teacher may have entries in the teachers_classes table (not too happy with the choice of naming so far)
+    user_messages: Optional[list["Message"]] = Relationship(
+        back_populates="user_", cascade_delete=True
     )
 
 
@@ -80,6 +89,26 @@ class TeacherClass(SQLModel, table=True):
 
     class_: Class = Relationship(back_populates="class_teachers")
     teacher_: User = Relationship(back_populates="taught_classes")
+
+
+class Message(SQLModel, table=True):
+    __tablename__ = "messages"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
+    role: str = Field(max_length=20)
+    content: str
+
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    user_: User = Relationship(back_populates="user_messages")
+    # NOTE: add a field for message type (eg. text/image)
+    # NOTE: add a field for the content embedding for when we start doing RAG on chat history
 
 
 # # NOTE: resources should not be cascade deleted with classes, they should could as separate
@@ -125,19 +154,3 @@ class TeacherClass(SQLModel, table=True):
 #     top_level_section_index: Optional[str] = Field(max_length=10)
 #     top_level_section_title: Optional[str] = Field(max_length=100)
 #     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-# class Message(SQLModel, table=True):
-#     __tablename__ = "messages"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     user_id: int = Field(foreign_key="user.id")
-#     role: str = Field(max_length=20)
-#     content: Optional[str] = Field(default=None)
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-#     @field_validator("role")
-#     @classmethod
-#     def validate_role(cls, v: str) -> str:
-#         if v not in ["user", "assistant", "system", "context", "tool"]:
-#             raise ValueError("Invalid role")
-#         return v
