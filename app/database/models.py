@@ -104,6 +104,7 @@ class Message(SQLModel, table=True):
         sa_type=DateTime(timezone=True),  # type: ignore
         sa_column_kwargs={"server_default": sa.func.now()},
         nullable=False,
+        index=True,
     )
 
     user_: User = Relationship(back_populates="user_messages")
