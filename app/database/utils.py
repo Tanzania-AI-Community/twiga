@@ -1,10 +1,10 @@
 import asyncio
-from typing import Optional
 from urllib.parse import urlparse
 from sqlmodel import SQLModel, Field, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from app.config import settings
 from app.database.models import *
+
 
 # Load PostgreSQL database URL from environment variables
 database_uri = urlparse(settings.database_url.get_secret_value())

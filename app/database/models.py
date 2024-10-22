@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from sqlmodel import (
     Field,
     SQLModel,
@@ -30,7 +30,7 @@ class User(SQLModel, table=True):
     role: str = Field(default="teacher", max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
-    birthday: Optional[datetime.date] = Field(default=None, sa_type=Date)
+    birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
     last_message_at: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True)
