@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     whatsapp_api_token: SecretStr
     daily_message_limit: int
     database_url: SecretStr
+    debug: bool = False
 
 
 class LLMSettings(BaseSettings):

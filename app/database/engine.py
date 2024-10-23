@@ -1,31 +1,50 @@
 import asyncio
 from urllib.parse import urlparse
-from sqlmodel import select, text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
+from sqlmodel import text
 from app.config import settings
 from app.database.models import *
-
-# Load PostgreSQL database URL from environment variables
-database_uri = urlparse(settings.database_url.get_secret_value())
-postgres_url = f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
-# Initiate the async engine to be used in the rest of the app
-engine = create_async_engine(
-    postgres_url,
-    echo=True,  # TODO: Set this to eg. settings.debug to only print when the debugging flag is set
-)
-# TODO: Make sure to dispose of the engine when the app is done using it (eg. with FastAPI lifetime handlers)
-
-# async def async_main() -> None:
-#     async_engine = create_async_engine(
-#         postgres_url,
-#         echo=True,
-#     )
-
-#     async with async_engine.connect() as conn:
-#         result = await conn.execute(text("select 'hello world"))
-#         print(result.fetchall())
-
-#     await async_engine.dispose()
+import logging
 
 
-# asyncio.run(async_main())
+logger = logging.getLogger(__name__)
+
+
+async def init_db(engine: AsyncEngine) -> None:
+    """
+    Initialize database connection and log basic PostgreSQL information.
+
+    Args:
+        engine: AsyncEngine instance for database connection
+    """
+    try:
+        async with AsyncSession(engine) as session:
+            # Check PostgreSQL version
+            result = await session.execute(text("SELECT pg_catalog.version()"))
+            version = result.scalar()
+            logger.info(f"PostgreSQL version: {version}")
+
+            # Check current schema
+            result = await session.execute(text("SELECT current_schema()"))
+            schema = result.scalar()
+            logger.info(f"Current schema: {schema}")
+
+            # Verify we can start a transaction
+            logger.info("Successfully initiated database transaction")
+
+            await session.commit()
+            logger.info("Database initialization completed successfully")
+
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}")
+        raise
+
+
+def get_database_url() -> str:
+    """Get formatted database URL from settings"""
+    database_uri = urlparse(settings.database_url.get_secret_value())
+    return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
+
+
+# Create the engine without running init
+db_engine = create_async_engine(get_database_url(), echo=settings.debug)

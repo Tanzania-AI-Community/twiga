@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from app.database.models import *
-from app.database.engine import engine
+from app.database.engine import db_engine
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
     Handles all database operations and error logging.
     """
 
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(db_engine) as session:
         try:
             # First try to get existing user
             statement = select(User).where(User.wa_id == wa_id)
@@ -64,7 +64,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
 
 async def create_new_user(name: Optional[str], wa_id: str) -> User:
     """Create new user explicitly"""
-    async with AsyncSession() as session:
+    async with AsyncSession(db_engine) as session:
         try:
             new_user = User(
                 name=name,
@@ -83,7 +83,7 @@ async def create_new_user(name: Optional[str], wa_id: str) -> User:
 
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(db_engine) as session:
         try:
             statement = select(User).where(User.wa_id == wa_id)
             result = await session.execute(statement)
