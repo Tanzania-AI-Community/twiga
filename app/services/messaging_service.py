@@ -13,10 +13,12 @@ from app.utils.whatsapp_utils import (
     is_status_update,
     is_valid_whatsapp_message,
 )
+
 from db.utils import AppDatabase
 from app.services.whatsapp_service import whatsapp_client
 from app.services.openai_service import llm_client
 from app.services.onboarding_service import onboarding_client
+from app.database.db import get_or_create_user
 
 logger = logging.getLogger(__name__)
 
@@ -24,49 +26,70 @@ logger = logging.getLogger(__name__)
 async def handle_request(request: Request) -> JSONResponse:
     """
     Handles HTTP requests to this webhook for message, sent, delivered, and read events.
+    Includes user management with database integration.
     """
-    db = AppDatabase()
-
-    body = await request.json()
-
-    # Check if it's a WhatsApp status update (sent, delivered, read)
-    if is_status_update(body):
-        return whatsapp_client.handle_status_update(body)
-
-    # Process non-status updates (message, other)
     try:
+        body = await request.json()
+
+        # Check if it's a WhatsApp status update (sent, delivered, read)
+        if is_status_update(body):
+            return whatsapp_client.handle_status_update(body)
+
+        # Process non-status updates (message, other)
+        # Validate WhatsApp message
         if not is_valid_whatsapp_message(body):
             return JSONResponse(
                 content={"status": "error", "message": "Not a WhatsApp API event"},
                 status_code=404,
             )
 
+        # Extract message info
         message_info = extract_message_info(body)
-        wa_id = message_info["wa_id"]
-        message = message_info["message"]
-        timestamp = message_info["timestamp"]
-        name = message_info["name"]
 
+        # Get or create user
+        user = await get_or_create_user(
+            wa_id=message_info["wa_id"], name=message_info["name"]
+        )
         # TODO: Figure out a better way to handle rate limiting and what to do with older messages
-        generated_response = await _process_message(wa_id, name, message, timestamp)
-        await whatsapp_client.send_message(generated_response)
-        return JSONResponse(content={"status": "ok"}, status_code=200)
-        # if is_message_recent(timestamp):
-        #     if db.is_rate_limit_reached(wa_id):
-        #         return await _handle_rate_limit(wa_id, message)
+        try:
 
-        #     generated_response = await _process_message(wa_id, name, message, timestamp)
-        #     await whatsapp_client.send_message(generated_response)
-        #     return JSONResponse(content={"status": "ok"}, status_code=200)
-        # else:
-        #     db.store_message(wa_id, message, role="user")
-        #     logger.warning("Received a message with an outdated timestamp.")
-        #     return JSONResponse(content={"status": "ok"}, status_code=200)
+            generated_response = await _process_message(
+                wa_id=user.wa_id,
+                name=user.name,
+                message=message_info["message"],
+                timestamp=message_info["timestamp"],
+            )
+
+            await whatsapp_client.send_message(generated_response)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+            # if is_message_recent(timestamp):
+            #     if db.is_rate_limit_reached(wa_id):
+            #         return await _handle_rate_limit(wa_id, message)
+
+            #     generated_response = await _process_message(wa_id, name, message, timestamp)
+            #     await whatsapp_client.send_message(generated_response)
+            #     return JSONResponse(content={"status": "ok"}, status_code=200)
+            # else:
+            #     db.store_message(wa_id, message, role="user")
+            #     logger.warning("Received a message with an outdated timestamp.")
+            #     return JSONResponse(content={"status": "ok"}, status_code=200)
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}")
+            return JSONResponse(
+                content={"status": "error", "message": "Failed to process message"},
+                status_code=500,
+            )
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON")
         return JSONResponse(
             content={"status": "error", "message": "Invalid JSON provided"},
             status_code=400,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in webhook handler: {str(e)}")
+        return JSONResponse(
+            content={"status": "error", "message": "Internal server error"},
+            status_code=500,
         )
 
 

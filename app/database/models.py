@@ -9,14 +9,28 @@ from sqlmodel import (
     String,
     ARRAY,
     JSON,
+    Enum,
     Relationship,
     Date,
 )
-from pydantic import field_validator
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
 # TODO: update the foreign keys to use the new table names
+
+
+class State(str, Enum):
+    onboarding = "onboarding"
+    active = "active"
+    inactive = "inactive"
+    new = "new"
+    # TODO: Modify this later
+
+
+class Role(str, Enum):
+    admin = "admin"
+    teacher = "teacher"
+    user = "user"
 
 
 class User(SQLModel, table=True):
@@ -50,13 +64,13 @@ class User(SQLModel, table=True):
         nullable=False,
     )
 
-    # A teacher may have entries in the teachers_classes table (not too happy with the choice of naming so far)
-    taught_classes: Optional[list["TeacherClass"]] = Relationship(
-        back_populates="class_", cascade_delete=True
+    # A teacher may have entries in the teachers_classes table
+    taught_classes: Optional[List["TeacherClass"]] = Relationship(
+        back_populates="teacher_", cascade_delete=True
     )
 
-    # A teacher may have entries in the teachers_classes table (not too happy with the choice of naming so far)
-    user_messages: Optional[list["Message"]] = Relationship(
+    # A teacher may have entries in the messages table
+    user_messages: Optional[List["Message"]] = Relationship(
         back_populates="user_", cascade_delete=True
     )
 
@@ -73,7 +87,7 @@ class Class(SQLModel, table=True):
     )  # store as string ["p1", "p2", ..., "os1", "os2", ..., "as1", "as2"] (p = primary, os = ordinary secondary, as = advanced secondary)
 
     # A class may have entries in the teachers_classes table
-    class_teachers: Optional[list["TeacherClass"]] = Relationship(
+    class_teachers: Optional[List["TeacherClass"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
 
