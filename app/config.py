@@ -17,14 +17,19 @@ class Settings(BaseSettings):
         case_sensitive=False,
         env_nested_delimiter="__",
     )
+    # Meta settings
     meta_api_version: str
     meta_app_id: str
     meta_app_secret: SecretStr
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
+    # Rate limit settings
     daily_message_limit: int
+    # Database settings
     database_url: SecretStr
+    migrations_url: Optional[SecretStr] = None
+    # Debug settings
     debug: bool = False
 
 

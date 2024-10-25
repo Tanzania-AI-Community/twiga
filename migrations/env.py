@@ -12,8 +12,8 @@ from app.config import settings
 # access to the values within the .ini file in use.
 config = context.config
 
-# Load PostgreSQL database URL from environment variables
-db_url = settings.database_url.get_secret_value()
+# Load PostgreSQL migrations URL from environment variables (note that this fails if migrations_url is None)
+db_url = settings.migrations_url.get_secret_value()
 print(f"Connecting to: {db_url}")
 config.set_main_option("sqlalchemy.url", db_url)
 
