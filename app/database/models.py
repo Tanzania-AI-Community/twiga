@@ -91,6 +91,9 @@ class User(SQLModel, table=True):
         back_populates="user_", cascade_delete=True
     )
 
+    class Config:
+        arbitrary_types_allowed = True
+
 
 class Class(SQLModel, table=True):
     __tablename__ = "classes"
