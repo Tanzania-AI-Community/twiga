@@ -157,7 +157,7 @@ def extract_message_body(message: dict) -> str:
     raise ValueError(f"Unsupported message type: {message_type}")
 
 
-def generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:
+def generate_payload(wa_id: str, response: str, options: Optional[list] = None) -> str:
     if options:
         if len(options) <= 3:
             return get_interactive_button_payload(wa_id, response, options)

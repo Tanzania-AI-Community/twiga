@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.database.models import UserState
 from app.utils.whatsapp_utils import (
     extract_message_body,
     extract_message_info,
@@ -71,7 +72,11 @@ async def handle_request(request: Request) -> JSONResponse:
         #     status_code=200,
         # )
 
-        if is_message_recent(message_info["timestamp"]):
+        # TODO: should also consider the case where the user is onboarding and not active
+        if (
+            is_message_recent(message_info["timestamp"])
+            and user.state == UserState.active
+        ):
             # Add check if rate limit is reached here and update the database. Will need some function that brings it back the next day though.
             # if db.is_rate_limit_reached(wa_id):
             #     return await _handle_rate_limit(wa_id, message)
@@ -82,6 +87,7 @@ async def handle_request(request: Request) -> JSONResponse:
                 message=message_info["message"],
                 timestamp=message_info["timestamp"],
             )
+            payload = generate_payload(user.wa_id, generated_response)
             await whatsapp_client.send_message(generated_response)
             return JSONResponse(content={"status": "ok"}, status_code=200)
         else:
