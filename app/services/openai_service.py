@@ -213,4 +213,4 @@ class OpenAIClient:
             return json.dumps({"error": str(e)})
 
 
-llm_client = OpenAIClient()
+openai_client = OpenAIClient()

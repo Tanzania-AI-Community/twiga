@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.database.models import UserState
+from app.database.models import User, UserState
 from app.utils.whatsapp_utils import (
     extract_message_body,
     extract_message_info,
@@ -17,7 +17,7 @@ from app.utils.whatsapp_utils import (
 
 from db.utils import AppDatabase
 from app.services.whatsapp_service import whatsapp_client
-from app.services.openai_service import llm_client
+from app.services.llm_service import llm_client
 from app.services.state_service import state_client
 from app.services.onboarding_service import onboarding_client
 from app.database.db import get_or_create_user
@@ -82,8 +82,7 @@ async def handle_request(request: Request) -> JSONResponse:
             #     return await _handle_rate_limit(wa_id, message)
 
             generated_response = await _process_message(
-                wa_id=user.wa_id,
-                name=user.name,
+                user=user,
                 message=message_info["message"],
                 timestamp=message_info["timestamp"],
             )
@@ -108,9 +107,7 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
 
-async def _process_message(
-    wa_id: str, name: str, message: dict, timestamp: int
-) -> Optional[str]:
+async def _process_message(user: User, message: dict, timestamp: int) -> Optional[str]:
     """
     Process an incoming WhatsApp message and generate a response.
 
@@ -123,7 +120,6 @@ async def _process_message(
     Returns:
         Optional[str]: JSON payload to send back to WhatsApp, or None if no response is required.
     """
-    # db = AppDatabase()
 
     try:
         message_body = extract_message_body(message)
@@ -134,7 +130,7 @@ async def _process_message(
     # db.store_message(wa_id, message_body, role="user")
 
     # NOTE: this is a temporary integration for testing purposes
-    data = _handle_testing(wa_id, message_body)
+    data = await _handle_llm(user, message_body)
     # if state.get("state") != "completed":
     #     data = _handle_onboarding_flow(wa_id, message_body)
     # else:
@@ -147,19 +143,20 @@ def _handle_testing(wa_id: str, message_body: str) -> Optional[str]:
     return get_text_payload(wa_id, message_body.upper())
 
 
-async def _handle_twiga_integration(
-    wa_id: str, name: str, message_body: str
-) -> Optional[str]:
+async def _handle_llm(user: User, message_body: str) -> Optional[str]:
 
     db = AppDatabase()
 
-    response_text = await llm_client.generate_response(message_body, wa_id, name)
+    response_text = await llm_client.generate_response(
+        user=user, message_body=message_body, verbose=True
+    )
     if response_text is None:
-        logger.info("No response generated, user will not be contacted.")
+        logger.error("For some reason we didn't get a response")
         return None
 
-    db.store_message(wa_id, response_text, role="twiga")
-    return get_text_payload(wa_id, response_text)
+    # TODO: Store the chatbot response in the database
+    # db.store_message(user.wa_id, response_text, role="assistant")
+    return get_text_payload(user.wa_id, response_text)
 
 
 def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:

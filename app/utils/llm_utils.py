@@ -8,6 +8,8 @@ import openai
 from openai.types.chat import ChatCompletion
 import groq
 from groq import AsyncGroq
+from together import Together
+import together
 
 from app.config import llm_settings
 
@@ -98,3 +100,30 @@ async def async_groq_request(
         # Log and re-raise unexpected errors
         logger.error(f"Unexpected error: {e}")
         raise
+
+
+@backoff.on_exception(backoff.expo, groq.RateLimitError, max_tries=10, max_time=300)
+def llm_request(
+    llm: Literal["meta-llama/Meta-Llama-3-8B-Instruct-Turbo",],
+    api_key: str,
+    verbose: bool = False,
+    **params,
+) -> ChatCompletion:
+    """
+    Make a request to Together AI's API with exponential backoff retry logic.
+
+    Args:
+        llm: Model identifier to use
+        api_key: Together AI API key
+        verbose: Whether to log detailed request information
+        **params: Additional parameters to pass to the API
+
+    Returns:
+        ChatCompletion: Response from the API
+
+    Raises:
+        TogetherRateLimitError: When rate limit is exceeded
+        TogetherAPIError: For other API-related errors
+    """
+    # TODO: Implement this later and replace the calls I have in llm_service with it
+    pass
