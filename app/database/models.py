@@ -33,6 +33,22 @@ class Role(str, Enum):
     user = "user"
 
 
+class OnboardingState(str, Enum):
+    new = "new"
+    personal_info_submitted = "personal_info_submitted"
+    class_subject_info_submitted = "class_subject_info_submitted"
+    completed = "completed"
+
+class UserState(str, Enum):
+    onboarding = "onboarding"
+    active = "active"
+    inactive = "inactive"
+    opted_out = "opted_out" 
+    new = "new"
+    blocked = "blocked" 
+    rate_limited = "rate_limited"     
+    has_pending_message = "has_pending_message" 
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -40,7 +56,8 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
-    state: str = Field(max_length=20)
+    state: UserState = Field(default=UserState.new) 
+    on_boarding_state: Optional[OnboardingState] = Field(default=OnboardingState.new)  
     role: str = Field(default="teacher", max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
@@ -73,6 +90,9 @@ class User(SQLModel, table=True):
     user_messages: Optional[List["Message"]] = Relationship(
         back_populates="user_", cascade_delete=True
     )
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class Class(SQLModel, table=True):

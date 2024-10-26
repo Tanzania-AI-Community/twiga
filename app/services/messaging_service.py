@@ -17,6 +17,7 @@ from app.utils.whatsapp_utils import (
 from db.utils import AppDatabase
 from app.services.whatsapp_service import whatsapp_client
 from app.services.openai_service import llm_client
+from app.services.state_service import state_client
 from app.services.onboarding_service import onboarding_client
 from app.database.db import get_or_create_user
 
@@ -51,6 +52,28 @@ async def handle_request(request: Request) -> JSONResponse:
             wa_id=message_info["wa_id"], name=message_info["name"]
         )
         # TODO: Figure out a better way to handle rate limiting and what to do with older messages
+
+        # Handle state using the State Service
+        response_text, options = state_client.process_state(
+            user, message_info["message"]
+        )
+
+        if response_text:
+            return JSONResponse(
+                content=generate_payload(user.wa_id, response_text, options),
+                status_code=200,
+            )
+
+        # Handle Onboarding Using the Onboarding Service
+        response_text, options = onboarding_client.process_state(
+            user, message_info["message"]
+        )
+        if response_text : 
+            return JSONResponse(
+            content=generate_payload(user.wa_id, response_text, options),
+            status_code=200,
+        )
+
         try:
 
             generated_response = await _process_message(
@@ -91,7 +114,6 @@ async def handle_request(request: Request) -> JSONResponse:
             content={"status": "error", "message": "Internal server error"},
             status_code=500,
         )
-
 
 async def _process_message(
     wa_id: str, name: str, message: dict, timestamp: int

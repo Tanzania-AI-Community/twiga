@@ -47,7 +47,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
                 name=name,
                 wa_id=wa_id,
                 state=State.new,
-                role=Role.user,
+                role=Role.teacher,
             )
             session.add(new_user)
             await session.commit()
