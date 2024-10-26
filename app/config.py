@@ -47,6 +47,9 @@ class LLMSettings(BaseSettings):
     twiga_openai_assistant_id: Optional[str] = None
     # GROQ settings
     groq_api_key: Optional[SecretStr] = None
+    # Together AI settings
+    together_api_key: Optional[SecretStr] = None
+    llm_model_name: str = "meta-llama/Meta-Llama-3-8B-Instruct-Turbo"
 
 
 def initialize_settings():

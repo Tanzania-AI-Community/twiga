@@ -91,3 +91,34 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
             raise UserQueryError(f"Failed to query user: {str(e)}")
+
+
+async def get_user_message_history(
+    user_id: int, limit: int = 10
+) -> Optional[List[Message]]:
+    async with AsyncSession(db_engine) as session:
+        try:
+            # TODO: Make the database order this by default to reduce repeated operations
+            statement = (
+                select(Message)
+                .where(Message.user_id == user_id)
+                .order_by(Message.created_at.desc())
+                .limit(limit)
+            )
+
+            result = await session.execute(statement)
+            messages = result.scalars().all()
+
+            # If no messages found, return empty list
+            if not messages:
+                logger.debug(f"No message history found for user {user_id}")
+                return None
+
+            # Convert to list and reverse to get chronological order (oldest first)
+            return list(reversed(messages))
+
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve message history for user {user_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to retrieve message history: {str(e)}")
