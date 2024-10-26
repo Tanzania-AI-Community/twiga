@@ -11,7 +11,7 @@ from pydantic import SecretStr
 # Store configurations for the app
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env" if os.path.exists(".env") else None,
+        env_file=os.getenv("TWIGA_ENV", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
 class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env" if os.path.exists(".env") else None,
+        env_file=os.getenv("TWIGA_ENV", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
