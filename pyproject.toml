@@ -11,6 +11,7 @@ dependencies = [
     "asyncpg>=0.29.0",
     "chromadb>=0.5.13",
     "colorlog>=6.8.2",
+    "cryptography>=43.0.3",
     "fastapi>=0.115.0",
     "greenlet>=3.1.1",
     "groq>=0.11.0",

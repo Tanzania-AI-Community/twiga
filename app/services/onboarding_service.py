@@ -1,146 +1,86 @@
 import logging
-from typing import List, Optional, Tuple, Dict, Callable
+from typing import List, Optional, Tuple
 
-from app.database.models import User, OnboardingState
+from app.database.models import User, OnboardingState, UserState
+from app.services.flow_service import flow_client
+from app.database.db import update_user
 
 
 class OnboardingHandler:
     def __init__(self):
-        # Define the mapping of states to handler methods
-        self.state_handlers: Dict[
-            str, Callable[[User, str, str], Tuple[str, Optional[List[str]]]]
-        ] = {
+        self.logger = logging.getLogger(__name__)
+        self.flow_client = flow_client
+        self.state_handlers = {
             OnboardingState.new: self.handle_new,
             OnboardingState.personal_info_submitted: self.handle_personal_info_submitted,
             OnboardingState.class_subject_info_submitted: self.handle_class_subject_info_submitted,
             OnboardingState.completed: self.handle_completed,
-            # "blocked": self.handle_blocked,
         }
 
-        self.logger = logging.getLogger(__name__)
+    async def handle_new(self, user: User) -> Tuple[str, Optional[List[str]]]:
+        try:
+            # Call the send_personal_and_school_info_flow method from FlowService
+            await self.flow_client.send_personal_and_school_info_flow(user.wa_id)
 
-    def handle_default(
-        self, user: User, message_body: str, user_state: str
-    ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "sample reply"
-        options = None
-        return response_text, options
+            self.logger.info(
+                f"Triggered send_personal_and_school_info_flow for user {user.wa_id}"
+            )
 
-    def handle_new(
-        self, user: User, message_body: str, user_state: str
-    ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "sample reply"
-        options = None
-        return response_text, options
+            response_text = None  # we don't want to send a response here since the flow will handle it
+            options = None
+            return response_text, options
+
+        except Exception as e:
+            self.logger.error(f"Error handling new user {user.wa_id}: {str(e)}")
+            response_text = "An error occurred during the onboarding process. Please try again later."
+            options = None
+            return response_text, options
 
     def handle_personal_info_submitted(
-        self, user: User, message_body: str, user_state: str
+        self, user: User
     ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "sample reply"
-        options = None
+        response_text = "Thank you for submitting your personal information. Please provide your class and subject information."
+        options = ["Submit Class & Subject Info"]
         return response_text, options
 
     def handle_class_subject_info_submitted(
-        self, user: User, message_body: str, user_state: str
+        self, user: User
     ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "sample reply"
+        response_text = "Thank you for submitting your class and subject information. Your onboarding is almost complete."
+        options = ["Complete Onboarding"]
+        return response_text, options
+
+    def handle_completed(self, user: User) -> Tuple[str, Optional[List[str]]]:
+        response_text = "Your onboarding is complete. Welcome!"
         options = None
         return response_text, options
 
-    def handle_completed(
-        self, user: User, message_body: str, user_state: str
-    ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "sample reply"
+    def handle_default(self, user: User) -> Tuple[str, Optional[List[str]]]:
+        response_text = "I'm not sure how to handle your request."
         options = None
         return response_text, options
 
-    # def handle_blocked(self, user: User, message_body: str, user_state: str) -> Tuple[str, Optional[List[str]]]:
-    #     response_text = "sample reply"
-    #     options = None
-    #     return response_text, options
-
-    def process_state(
-        self, user: User, message_body: str
-    ) -> Tuple[str, Optional[List[str]]]:
+    async def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
         # Get the user's current state from the user object
-        user_state = user.state
+        user_state = user.on_boarding_state
+
+        # Update the user state to onboarding
+        await update_user(user.wa_id, state=UserState.onboarding)
+
+        self.logger.info(
+            f"Updated user state to {UserState.onboarding} for user {user.wa_id}"
+        )
 
         # Fetch the appropriate handler for the user's current state
         handler = self.state_handlers.get(user_state, self.handle_default)
-        response_text, options = handler(user, message_body, user_state)
+        response_text, options = await handler(user)
 
-        self.logger.debug(
-            f"Processed message for {user.wa_id}: state={user_state}, message='{message_body}' -> response='{response_text}', options={options}"
+        self.logger.info(
+            f"Processed message for {user.wa_id}: state={user_state} -> response='{response_text}', options={options}"
         )
 
         return response_text, options
 
 
+# Instantiate and export the OnboardingHandler client
 onboarding_client = OnboardingHandler()
-
-
-# def handle_start(
-#     self, wa_id: str, message_body: str, state: dict
-# ) -> Tuple[str, List[str]]:
-#     self.db.update_user_state(wa_id, {"state": "ask_teacher"})
-#     return (
-#         "Hello! My name is Twiga 🦒, I am a WhatsApp bot that supports teachers in the TIE curriculum with their daily tasks. \n\nAre you a TIE teacher?",
-#         ["Yes", "No"],
-#     )
-
-# def handle_ask_teacher(
-#     self, wa_id: str, message_body: str, state: dict
-# ) -> Tuple[str, Optional[List[str]]]:
-#     message_body_lower = message_body.lower()
-#     if message_body_lower == "yes":
-#         self.db.update_user_state(wa_id, {"state": "ask_subject"})
-#         return "What subject do you teach?", self.subjects
-#     elif message_body_lower == "no":
-#         return (
-#             "This service is for teachers only. Please select yes if you would like further support. Are you a teacher?",
-#             ["Yes", "No"],
-#         )
-#     else:
-#         return "Please select *Yes* or *No*. Are you a teacher?", ["Yes", "No"]
-
-# def handle_ask_subject(
-#     self, wa_id: str, message_body: str, state: dict
-# ) -> Tuple[str, List[str]]:
-#     if message_body in self.subjects:
-#         self.db.update_user_state(
-#             wa_id, {"state": "ask_form", "subject": message_body}
-#         )
-#         return "Which form do you teach?", self.forms
-#     else:
-#         return "Please select a valid subject from the list.", self.subjects
-
-# def handle_ask_form(
-#     self, wa_id: str, message_body: str, state: dict
-# ) -> Tuple[str, List[str]]:
-#     if message_body in self.forms:
-#         subject = state.get("subject")
-#         form = message_body
-#         form = "Form 2"  # Temporary addition for the beta
-
-#         self.db.update_user_state(
-#             wa_id, {"state": "completed", "subject": subject, "form": form}
-#         )
-#         # TODO: This could also be a template message
-#         welcome_message = (
-#             f"Welcome! You teach *{subject}* to *{form}*. \n\nYou might have noticed that Geography Form 2 was the only possible choice. "
-#             "That's because I, Twiga 🦒, am currently being tested with a limited set of data. \n\n"
-#             "Currently, I can help you with the following tasks: \n"
-#             "1. Generate an exercise or question for your students based on the TIE Form 2 Geography book. \n"
-#             "2. Provide general assistance with Geography. \n\n"
-#             "How can I assist you today?"
-#         )
-
-#         return welcome_message, None
-#     else:
-#         return "Please select a valid form from the list.", self.forms
-
-# def handle_completed(
-#     self, wa_id: str, message_body: str, state: dict
-# ) -> Tuple[None, None]:
-#     # Onboarding complete, proceed with normal conversation
-#     return None, None

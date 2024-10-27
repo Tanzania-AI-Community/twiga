@@ -182,3 +182,33 @@ def generate_payload(
             return get_interactive_list_payload(wa_id, response, options)
     else:
         return get_text_payload(wa_id, response)
+
+
+def get_flow_payload(wa_id: str, flow: dict) -> str:
+    payload = {
+        "recipient_type": "individual",
+        "messaging_product": "whatsapp",
+        "to": wa_id,
+        "type": "interactive",
+        "interactive": {
+            "type": "flow",
+            "header": {
+                "type": "text",
+                "text": flow.get("header", "Flow message header"),
+            },
+            "body": {"text": flow.get("body", "Flow message body")},
+            "footer": {"text": flow.get("footer", "Flow message footer")},
+            "action": {
+                "name": "flow",
+                "parameters": {
+                    "flow_message_version": flow.get("flow_message_version", "3"),
+                    "flow_token": flow.get("flow_token", settings.flow_token),
+                    "flow_name": flow.get("flow_name", "default_flow"),
+                    "flow_cta": flow.get("flow_cta", "Start"),
+                    "flow_action": flow.get("flow_action", "navigate"),
+                    "flow_action_payload": flow.get("flow_action_payload", {}),
+                },
+            },
+        },
+    }
+    return json.dumps(payload)

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 import logging
 from contextlib import asynccontextmanager
@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from app.security import signature_required
 from app.services.whatsapp_service import whatsapp_client
 from app.services.messaging_service import handle_request
+from app.services.flow_service import flow_client
 from app.database.engine import db_engine, init_db
 
 logger = logging.getLogger(__name__)
@@ -40,3 +41,14 @@ async def webhook_get(request: Request) -> JSONResponse:
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
     return await handle_request(request)
+
+
+@app.post("/flows")
+async def handle_flows_webhook(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        logger.debug(f"Received webhook: {body}")
+        return await flow_client.handle_flow_webhook(body)
+    except Exception as e:
+        logger.error(f"Error handling webhook: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
