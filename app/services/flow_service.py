@@ -16,6 +16,19 @@ from app.database.models import User
 
 logger = logging.getLogger(__name__)
 
+# For Flows to work you MUST handle submitting of public key to the Meta api
+# First you create a public key and private key pair
+# Then you submit the public key to the Meta API
+
+
+# The public key is used to encrypt the AES key that is used to encrypt the payload received from the Meta API
+# The private key is used to decrypt the AES key that is used to decrypt the payload received from the Meta API
+# We also use the AES key to encrypt the response payload that we send back to the Meta API
+
+
+# TODO Handle submitting of public key to the Meta API
+# TODO Handle errors relating to public key not being submitted to the Meta API
+
 
 class FlowService:
     def __init__(self):
