@@ -1,14 +1,14 @@
 import logging
 from typing import List, Literal
 
-from app.tools.exercise.vector_database import vector_client
+from app.tools.utils.vector_database import vector_client
 from app.utils.llm_utils import async_groq_request, async_openai_request
-from app.tools.exercise.models import RetrievedDocSchema
-from app.tools.exercise.prompts import (
+from app.tools.utils.models import RetrievedDocSchema
+from app.tools.utils.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
 )
-from app.tools.exercise.modules import (
+from app.tools.utils.modules import (
     chromadb_retriever,
     query_rewriter,
 )

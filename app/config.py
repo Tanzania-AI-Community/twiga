@@ -53,6 +53,7 @@ class LLMSettings(BaseSettings):
     llm_model_options: dict = {
         "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
     }
     llm_model_name: str = llm_model_options["llama_70b"]
 

@@ -3,23 +3,25 @@ import logging
 import asyncio
 from typing import Any, Callable, List, Optional, Tuple
 from together import AsyncTogether
+from openai import AsyncOpenAI
 
 
 from app.database.models import Message, MessageRole, User
+from app.tools.get_current_weather import get_current_weather
 from app.utils.whatsapp_utils import get_text_payload
 from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.services.whatsapp_service import whatsapp_client
 from assets.prompts import get_system_prompt
 import app.database.db as db
-
+from app.tools.registry import tools, ToolName
 
 # from app.tools.exercise.executor import generate_exercise
 
 
 class LLMClient:
     def __init__(self):
-        self.client = AsyncTogether(
+        self.client = AsyncOpenAI(
             api_key=llm_settings.together_api_key.get_secret_value(),
         )
         self.logger = logging.getLogger(__name__)
@@ -93,6 +95,8 @@ class LLMClient:
                     response = await self.client.chat.completions.create(
                         model=llm_settings.llm_model_name,
                         messages=api_messages,
+                        tools=tools,
+                        tool_choice="auto",
                     )
 
                     # Check if new messages arrived during processing
@@ -103,6 +107,21 @@ class LLMClient:
                             "New messages arrived during processing, restarting"
                         )
                         continue  # Restart processing with all messages
+
+                    # Handle tool calls if they exist:
+                    tool_calls = response.choices[0].message.tool_calls
+                    if tool_calls:
+                        for tool_call in tool_calls:
+                            function_name = tool_call.function.name
+                            function_args = json.loads(tool_call.function.arguments)
+
+                            if function_name == ToolName.get_current_weather:
+                                function_response = get_current_weather(
+                                    location=function_args.get("location"),
+                                    unit=function_args.get("unit"),
+                                )
+                                # messages_to_process.append(function_response)
+                                # TODO: Separate out this method in a clean way and handle db updates + buffer properly
 
                     for message in messages_to_process:
                         # Store messages in the database
