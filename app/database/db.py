@@ -20,6 +20,12 @@ class UserCreationError(UserDatabaseError):
     pass
 
 
+class MessageCreationError(UserDatabaseError):
+    """Raised when message creation fails"""
+
+    pass
+
+
 class UserQueryError(UserDatabaseError):
     """Raised when user query fails"""
 
@@ -122,3 +128,17 @@ async def get_user_message_history(
                 f"Failed to retrieve message history for user {user_id}: {str(e)}"
             )
             raise Exception(f"Failed to retrieve message history: {str(e)}")
+
+
+async def create_new_message(user_id: int, content: str, role: MessageRole) -> Message:
+    async with AsyncSession(db_engine) as session:
+        try:
+            new_message = Message(user_id=user_id, role=role, content=content)
+            session.add(new_message)
+            await session.commit()
+            await session.refresh(new_message)
+            return new_message
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Failed to create message for user {user_id}: {str(e)}")
+        raise UserCreationError(f"Failed to create message: {str(e)}")

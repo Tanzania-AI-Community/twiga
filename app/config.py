@@ -49,7 +49,12 @@ class LLMSettings(BaseSettings):
     groq_api_key: Optional[SecretStr] = None
     # Together AI settings
     together_api_key: Optional[SecretStr] = None
-    llm_model_name: str = "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"
+    # Model selection
+    llm_model_options: dict = {
+        "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+        "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    }
+    llm_model_name: str = llm_model_options["llama_70b"]
 
 
 def initialize_settings():

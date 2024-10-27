@@ -24,6 +24,13 @@ class Role(str, Enum):
     teacher = "teacher"
 
 
+class MessageRole(str, Enum):
+    user = "user"
+    assistant = "assistant"
+    tool = "tool"
+    system = "system"
+
+
 class OnboardingState(str, Enum):
     new = "new"
     personal_info_submitted = "personal_info_submitted"
