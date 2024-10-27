@@ -49,7 +49,7 @@ class LLMSettings(BaseSettings):
     groq_api_key: Optional[SecretStr] = None
     # Together AI settings
     together_api_key: Optional[SecretStr] = None
-    llm_model_name: str = "meta-llama/Meta-Llama-3-8B-Instruct-Turbo"
+    llm_model_name: str = "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"
 
 
 def initialize_settings():

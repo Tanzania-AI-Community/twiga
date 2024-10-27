@@ -86,8 +86,11 @@ async def handle_request(request: Request) -> JSONResponse:
                 message=message_info["message"],
                 timestamp=message_info["timestamp"],
             )
-            payload = generate_payload(user.wa_id, generated_response)
-            await whatsapp_client.send_message(generated_response)
+
+            if generated_response:
+                payload = generate_payload(user.wa_id, generated_response)
+                await whatsapp_client.send_message(generated_response)
+
             return JSONResponse(content={"status": "ok"}, status_code=200)
         else:
             logger.warning("Received a message with an outdated timestamp. Ignoring.")
@@ -145,13 +148,11 @@ def _handle_testing(wa_id: str, message_body: str) -> Optional[str]:
 
 async def _handle_llm(user: User, message_body: str) -> Optional[str]:
 
-    db = AppDatabase()
-
     response_text = await llm_client.generate_response(
-        user=user, message_body=message_body, verbose=True
+        user=user, message=message_body, verbose=True
     )
     if response_text is None:
-        logger.error("For some reason we didn't get a response")
+        logger.warning(f"No response received for message: {message_body}")
         return None
 
     # TODO: Store the chatbot response in the database
