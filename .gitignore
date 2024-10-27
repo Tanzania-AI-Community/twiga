@@ -174,3 +174,5 @@ cython_debug/
 
 # Ignore vector store
 twiga_vector_store/
+private.pem
+public.pem

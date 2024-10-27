@@ -52,7 +52,7 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
         # Handle state using the State Service
-        response_text, options = state_client.process_state(user)
+        response_text, options = await state_client.process_state(user)
 
         if response_text:
             payload = generate_payload(user.wa_id, response_text, options)
