@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import SQLModel, Field, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
@@ -91,3 +91,31 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
             raise UserQueryError(f"Failed to query user: {str(e)}")
+
+
+class UserDatabaseError(Exception):
+    """Base exception for user database operations"""
+
+    pass
+
+
+class UserUpdateError(UserDatabaseError):
+    """Raised when user update fails"""
+
+    pass
+
+
+async def update_user(wa_id: str, **kwargs) -> None:
+    """
+    Update any information about an existing user.
+    """
+    async with AsyncSession(db_engine) as session:
+        try:
+            statement = update(User).where(User.wa_id == wa_id).values(**kwargs)
+            await session.execute(statement)
+            await session.commit()
+            logger.info(f"Updated user {wa_id} with {kwargs}")
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Failed to update user {wa_id}: {str(e)}")
+            raise UserUpdateError(f"Failed to update user: {str(e)}")
