@@ -11,7 +11,7 @@ from openai.types.beta import Thread
 from app.utils.whatsapp_utils import get_text_payload
 from db.utils import AppDatabase
 from app.config import llm_settings
-from app.tools.exercise.executor import generate_exercise
+from app.tools.generate_exercise import generate_exercise
 from app.services.whatsapp_service import whatsapp_client
 
 
