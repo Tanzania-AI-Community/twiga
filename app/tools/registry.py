@@ -24,6 +24,7 @@ tools_metadata = [
                     },
                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                 },
+                "required": ["location"],
             },
         },
     },

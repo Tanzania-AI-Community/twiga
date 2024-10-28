@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional
+from typing import List, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -82,21 +82,29 @@ async def handle_request(request: Request) -> JSONResponse:
             and user.state == UserState.active
         ):
             # In this scenario the user is active so they are directed to the LLM
-            generated_response = await _process_message(
+            response_messages = await _handle_llm(
                 user=user,
                 message=user_message.content,
             )
 
-            if generated_response:
-                # Send the response back to the user
-                payload = generate_payload(user.wa_id, generated_response)
+            if response_messages:
+                # Update the database with any possible tool calls
+                if len(response_messages) > 1:
+                    for response in response_messages[:-1]:
+                        await db.create_new_message(
+                            user_id=user.id,
+                            content=str(response["content"]),
+                            role=str(response["role"]),
+                        )
+                # Send the last message back to the user
+                payload = generate_payload(user.wa_id, response_messages[-1]["content"])
                 await whatsapp_client.send_message(payload)
 
                 # Store the response message in the database
                 await db.create_new_message(
                     user_id=user.id,
-                    content=generated_response,
-                    role=MessageRole.assistant,
+                    content=str(response_messages[-1]["content"]),
+                    role=str(response_messages[-1]["role"]),
                 )
             return JSONResponse(content={"status": "ok"}, status_code=200)
         else:
@@ -118,22 +126,9 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
 
-async def _process_message(user: User, message: str) -> Optional[str]:
-    data = await _handle_llm(user, message)
-    return data
-
-
-async def _handle_llm(user: User, message_body: str) -> Optional[str]:
-
-    response_text = await llm_client.generate_response(
-        user=user, message=message_body, verbose=True
-    )
-
-    if response_text is None:
-        logger.warning(f"No response received for message: {message_body}")
-        return None
-
-    return response_text
+async def _handle_llm(user: User, message: str) -> Optional[List[dict]]:
+    response_messages = await llm_client.generate_response(user=user, message=message)
+    return response_messages
 
 
 def _handle_testing(wa_id: str, message_body: str) -> Optional[str]:

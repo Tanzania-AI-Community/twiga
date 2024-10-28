@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from together import AsyncTogether
 from openai import AsyncOpenAI
-
+from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
 
 from app.database.models import Message, MessageRole, User
 from app.config import llm_settings
@@ -45,6 +45,7 @@ class MessageProcessor:
 class LLMClient:
     def __init__(self):
         self.client = AsyncOpenAI(
+            base_url="https://api.together.xyz/v1",
             api_key=llm_settings.together_api_key.get_secret_value(),
         )
         self.logger = logging.getLogger(__name__)
@@ -92,7 +93,7 @@ class LLMClient:
     # TODO: this might best be done in the llm_utils file
     async def _generate_completion(
         self, messages: List[dict], include_tools: bool = True
-    ) -> Optional[Dict]:
+    ) -> ChatCompletionMessage:
         """Generate a completion from the API with optional tool support."""
         try:
             response = await self.client.chat.completions.create(
@@ -107,10 +108,25 @@ class LLMClient:
             return None
 
     async def _process_tool_calls(
-        self, messages: List[dict], tool_calls: List[Any]
+        self, messages: List[dict], tool_calls: List[ChatCompletionMessageToolCall]
     ) -> List[dict]:
         """Process tool calls and append results to messages."""
         updated_messages = messages.copy()
+        # Convert each tool_call to a dictionary
+        tool_calls_serializable = [
+            {
+                "function_name": tool_call.function.name,
+                "arguments": tool_call.function.arguments,
+                "tool_call_id": tool_call.id,
+            }
+            for tool_call in tool_calls
+        ]
+        updated_messages.append(
+            {
+                "role": MessageRole.assistant,
+                "tool_calls": json.dumps(tool_calls_serializable),
+            }
+        )
 
         for tool_call in tool_calls:
             try:
@@ -118,19 +134,14 @@ class LLMClient:
                 function_args = json.loads(tool_call.function.arguments)
 
                 if function_name in tools_functions:
-                    result = await tools_functions[function_name](**function_args)
+                    result = tools_functions[function_name](**function_args)
 
-                    updated_messages.extend(
-                        [
-                            {
-                                "role": MessageRole.tool,
-                                "content": json.dumps(tool_call.function),
-                            },
-                            {
-                                "role": MessageRole.tool,
-                                "content": json.dumps(result),
-                            },
-                        ]
+                    updated_messages.append(
+                        {
+                            "role": MessageRole.tool,
+                            "content": json.dumps(result),
+                            "tool_call_id": tool_call.id,
+                        },
                     )
 
             except Exception as e:
@@ -142,7 +153,7 @@ class LLMClient:
         self,
         user: User,
         message: str,
-    ) -> Optional[str]:
+    ) -> Optional[List[dict]]:
         """Generate a response, handling message batching and tool calls."""
         processor = self._get_processor(user.id)
         processor.add_message(message)
@@ -155,9 +166,6 @@ class LLMClient:
             self.logger.info(f"Lock held for user {user.id}, message buffered")
             return None
 
-        message_history = await get_user_message_history(user.id)
-        formatted_messages = self._format_conversation_history(message_history)
-
         async with processor.lock:
             while True:
                 try:
@@ -168,10 +176,15 @@ class LLMClient:
                         self._cleanup_processor(user.id)
                         return None
 
-                    # TODO: handle the fact that the messages_to_process and database formatted_messages have an overlap
-                    # Prepare messages for API
+                    # Fetch message history from the database and format
+                    message_history = await get_user_message_history(user.id)
+                    formatted_messages = self._format_conversation_history(
+                        message_history
+                    )
+
+                    # Prepare messages for API and removes duplicate messages from database and messages_to_process
                     api_messages = [
-                        *formatted_messages,
+                        *formatted_messages[: -(len(messages_to_process))],
                         {"role": "user", "content": "\n".join(messages_to_process)},
                     ]
 
@@ -179,6 +192,7 @@ class LLMClient:
                     initial_response = await self._generate_completion(
                         api_messages, include_tools=True
                     )
+                    # TODO: add some logs for this
                     if not initial_response:
                         return None
 
@@ -193,16 +207,19 @@ class LLMClient:
 
                     # Process tool calls if present
                     if initial_response.tool_calls:
-                        # TODO: Tool calls should be written to the database when they are made and actually used
+                        self.logger.info("Processing tool calls")
                         updated_messages = await self._process_tool_calls(
                             api_messages, initial_response.tool_calls
                         )
 
-                        # Generate final response with tool results
-                        # TODO: This should allow for loops of tool calls to be made if the initial tool call didn't satisfy the LLM
+                        print(updated_messages)
+
                         final_response = await self._generate_completion(
-                            updated_messages
+                            messages=updated_messages,
+                            include_tools=False,
                         )
+
+                        # TODO: add some logs for this
                         if not final_response:
                             return None
 
@@ -212,59 +229,47 @@ class LLMClient:
                         ):
                             continue
 
-                        response_content = final_response.content
+                        # This is bad code, should fix later
+                        response_messages = [
+                            *[
+                                {
+                                    "role": msg["role"],
+                                    "content": (
+                                        msg.get("tool_calls")
+                                        if i == 0
+                                        else msg.get("content")
+                                    ),
+                                }
+                                for i, msg in enumerate(
+                                    updated_messages[
+                                        -(len(initial_response.tool_calls) + 1) :
+                                    ]
+                                )
+                            ],
+                            {
+                                "role": MessageRole.assistant,
+                                "content": final_response.content,
+                            },
+                        ]
                     else:
-                        response_content = initial_response.content
+                        response_messages = [
+                            {
+                                "role": MessageRole.assistant,
+                                "content": initial_response.content,
+                            }
+                        ]
 
                     # Success - clear buffer and return response
                     processor.clear_messages()
                     self._cleanup_processor(user.id)
-                    return response_content
+
+                    return response_messages
 
                 except Exception as e:
                     self.logger.error(f"Error processing messages: {e}")
-                    # On error, preserve messages and clean up
-                    self._cleanup_user(user.id)
+                    processor.clear_messages()
+                    self._cleanup_processor(user.id)
                     return None
-
-    async def _handle_tool_calls(
-        self, messages: List[dict], tool_calls: List[Any]
-    ) -> List[dict]:
-        """Handle tool calls and append results to messages."""
-        updated_messages = messages.copy()
-
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            function_args = json.loads(tool_call.function.arguments)
-
-            if function_name in tools_functions:
-                try:
-                    function_response = await tools_functions[function_name](
-                        **function_args
-                    )
-
-                    # Add the tool response to messages
-                    updated_messages.append(
-                        {
-                            "tool_call_id": tool_call.id,
-                            "role": "tool",
-                            "name": function_name,
-                            "content": json.dumps(function_response),
-                        }
-                    )
-                except Exception as e:
-                    self.logger.error(f"Error calling tool {function_name}: {e}")
-                    # Add error response to messages
-                    updated_messages.append(
-                        {
-                            "tool_call_id": tool_call.id,
-                            "role": "tool",
-                            "name": function_name,
-                            "content": json.dumps({"error": str(e)}),
-                        }
-                    )
-
-        return updated_messages
 
     def _format_conversation_history(
         self, messages: Optional[List[Message]]

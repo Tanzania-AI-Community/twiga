@@ -10,10 +10,9 @@ Core Responsibilities:
 
 Guidelines:
 - Always base responses on the Tanzanian curriculum when applicable
-- Provide practical, classroom-ready suggestions
-- Consider local context and resources
 - Keep responses clear and concise
-- Use English as the primary language but acknowledge Swahili terms when relevant
+- If necessary, use the provided tools to answer the user questions
+- Ask the user to provide more information if the question is unclear
 """
 
 
