@@ -1,10 +1,14 @@
 import logging
 from typing import List, Literal
 
-from app.tools.exercise.vector_database import ChromaDBLoader
+from app.database.vector_database import ChromaDBLoader
 from app.utils.llm_utils import async_groq_request, async_openai_request
-from app.tools.exercise.models import Metadata, RetrievedDocSchema, ChunkSchema
-from app.tools.exercise.prompts import REWRITE_QUERY_PROMPT
+from app.tools.tool_code.generate_exercise.models import (
+    Metadata,
+    RetrievedDocSchema,
+    ChunkSchema,
+)
+from app.tools.tool_code.generate_exercise.prompts import REWRITE_QUERY_PROMPT
 
 logger = logging.getLogger(__name__)
 

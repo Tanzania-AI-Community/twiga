@@ -1,4 +1,6 @@
 from enum import Enum
+from app.tools.tool_code.generate_exercise.main import generate_exercise
+from app.tools.tool_code.get_current_weather.main import get_current_weather
 
 
 class ToolName(str, Enum):
@@ -6,7 +8,7 @@ class ToolName(str, Enum):
     generate_exercise = "generate_exercise"
 
 
-tools = [
+tools_metadata = [
     {
         "type": "function",
         "function": {
@@ -42,3 +44,8 @@ tools = [
         },
     },
 ]
+
+tools_functions = {
+    ToolName.get_current_weather.value: get_current_weather,
+    ToolName.generate_exercise.value: generate_exercise,
+}
