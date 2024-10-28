@@ -11,7 +11,8 @@ from app.utils.whatsapp_utils import (
     get_text_payload,
     is_message_recent,
     is_status_update,
-    is_valid_whatsapp_message,
+    is_whatsapp_user_message,
+    is_flow_complete_message,
 )
 
 from db.utils import AppDatabase
@@ -32,15 +33,24 @@ async def handle_request(request: Request) -> JSONResponse:
     try:
         body = await request.json()
 
+        logger.info(f"Received message on webhook: {body}")
+
         # Check if it's a WhatsApp status update (sent, delivered, read)
         if is_status_update(body):
             return whatsapp_client.handle_status_update(body)
 
         # Process non-status updates (message, other)
-        if not is_valid_whatsapp_message(body):
+        if not is_whatsapp_user_message(body):
             return JSONResponse(
                 content={"status": "error", "message": "Not a WhatsApp API event"},
                 status_code=404,
+            )
+
+        # Check if it's a flow completion message
+        if is_flow_complete_message(body):
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
             )
 
         # Extract message info (NOTE: the message format might look different in flow responses)

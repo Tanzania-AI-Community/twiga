@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import re
 from typing import Any, List, Literal, Optional
 import logging
@@ -108,7 +109,7 @@ def _format_text_for_whatsapp(text: str) -> str:
     return text
 
 
-def is_valid_whatsapp_message(body: Any) -> bool:
+def is_whatsapp_user_message(body: Any) -> bool:
     return (
         body.get("object")
         and body.get("entry")
@@ -116,6 +117,31 @@ def is_valid_whatsapp_message(body: Any) -> bool:
         and body["entry"][0]["changes"][0].get("value")
         and body["entry"][0]["changes"][0]["value"].get("messages")
         and body["entry"][0]["changes"][0]["value"]["messages"][0]
+    )
+
+
+def is_flow_complete_message(body: Any) -> bool:
+    return (
+        body.get("object")
+        and body.get("entry")
+        and body["entry"][0].get("changes")
+        and body["entry"][0]["changes"][0].get("value")
+        and body["entry"][0]["changes"][0]["value"].get("messages")
+        and body["entry"][0]["changes"][0]["value"]["messages"][0].get("interactive")
+        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
+            "type"
+        )
+        == "nfm_reply"
+        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
+            "nfm_reply"
+        )
+        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+            "nfm_reply"
+        ].get("response_json")
+        and "flow_token"
+        in body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+            "nfm_reply"
+        ]["response_json"]
     )
 
 
