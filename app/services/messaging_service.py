@@ -24,6 +24,7 @@ import app.database.db as db
 logger = logging.getLogger(__name__)
 
 
+# TODO: make this function less complex
 async def handle_request(request: Request) -> JSONResponse:
     """
     Handles HTTP requests to this webhook for message, sent, delivered, and read events.
@@ -51,26 +52,39 @@ async def handle_request(request: Request) -> JSONResponse:
             wa_id=message_info["wa_id"], name=message_info["name"]
         )
 
+        request_message = extract_message_body(message_info["message"])
+
+        # Upload the message to the database
+        user_message = await db.create_new_message(
+            user_id=user.id,
+            content=request_message,
+            role=MessageRole.user,
+        )
+
         # Handle state using the State Service
         response_text, options = state_client.process_state(user)
 
-        if response_text:
+        if response_text is not None:
+            # In this scenario the user is in a state that had a predefined response
             payload = generate_payload(user.wa_id, response_text, options)
             await whatsapp_client.send_message(payload)
+
+            # Store the bot response in the database
+            await db.create_new_message(
+                user_id=user.id, content=response_text, role=MessageRole.assistant
+            )
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
             )
-
-        # TODO: should also consider the case where the user is onboarding and not active
-        if (
-            is_message_recent(message_info["timestamp"])
+        elif (
+            is_message_recent(message_info["timestamp"])  # might do this elsewhere
             and user.state == UserState.active
         ):
+            # In this scenario the user is active so they are directed to the LLM
             generated_response = await _process_message(
                 user=user,
-                message=message_info["message"],
-                timestamp=message_info["timestamp"],
+                message=user_message.content,
             )
 
             if generated_response:
@@ -86,6 +100,7 @@ async def handle_request(request: Request) -> JSONResponse:
                 )
             return JSONResponse(content={"status": "ok"}, status_code=200)
         else:
+            # TODO: Determine whether this is the right approach, if it should be handled way at the start, or not at all.
             logger.warning("Received a message with an outdated timestamp. Ignoring.")
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
@@ -103,15 +118,8 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
 
-async def _process_message(user: User, message: dict, timestamp: int) -> Optional[str]:
-    try:
-        message_body = extract_message_body(message)
-    except ValueError as e:
-        logger.error(str(e))
-        return None
-
-    data = await _handle_llm(user, message_body)
-
+async def _process_message(user: User, message: str) -> Optional[str]:
+    data = await _handle_llm(user, message)
     return data
 
 
