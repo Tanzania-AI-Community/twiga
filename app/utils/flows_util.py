@@ -2,9 +2,11 @@ import base64
 import json
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes, serialization, padding
+from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+import logging
 from app.config import settings
+from cryptography.fernet import Fernet
 
 
 def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
@@ -19,8 +21,8 @@ def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
 
     decrypted_key = private_key.decrypt(
         base64.b64decode(encrypted_aes_key),
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        asym_padding.OAEP(
+            mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
             label=None,
         ),
@@ -44,53 +46,17 @@ def decrypt_payload(encrypted_data: str, aes_key: bytes, iv: str) -> dict:
 
 
 def encrypt_response(response: dict, aes_key: bytes, iv: str) -> str:
-    flipped_iv = bytearray()
-    for byte in base64.b64decode(iv):
-        flipped_iv.append(byte ^ 0xFF)
-
+    response_bytes = json.dumps(response).encode("utf-8")
+    iv_bytes = base64.b64decode(iv)
     encryptor = Cipher(
         algorithms.AES(aes_key),
-        modes.GCM(bytes(flipped_iv)),
+        modes.GCM(iv_bytes),
         backend=default_backend(),
     ).encryptor()
-
-    encrypted_response = (
-        encryptor.update(json.dumps(response).encode("utf-8"))
-        + encryptor.finalize()
-        + encryptor.tag
-    )
-
-    return base64.b64encode(encrypted_response).decode("utf-8")
-
-
-def get_flow_payload(wa_id: str, flow: dict) -> str:
-    payload = {
-        "recipient_type": "individual",
-        "messaging_product": "whatsapp",
-        "to": wa_id,
-        "type": "interactive",
-        "interactive": {
-            "type": "flow",
-            "header": {
-                "type": "text",
-                "text": flow.get("header", "Flow message header"),
-            },
-            "body": {"text": flow.get("body", "Flow message body")},
-            "footer": {"text": flow.get("footer", "Flow message footer")},
-            "action": {
-                "name": "flow",
-                "parameters": {
-                    "flow_message_version": flow.get("flow_message_version", "3"),
-                    "flow_token": flow.get("flow_token", settings.flow_token),
-                    "flow_name": flow.get("flow_name", "default_flow"),
-                    "flow_cta": flow.get("flow_cta", "Start"),
-                    "flow_action": flow.get("flow_action", "navigate"),
-                    "flow_action_payload": flow.get("flow_action_payload", {}),
-                },
-            },
-        },
-    }
-    return json.dumps(payload)
+    encrypted_data = encryptor.update(response_bytes) + encryptor.finalize()
+    encrypted_data_tag = encryptor.tag
+    encrypted_data_bytes = encrypted_data + encrypted_data_tag
+    return base64.b64encode(encrypted_data_bytes).decode("utf-8")
 
 
 def decrypt_flow_webhook(body: dict) -> dict:
@@ -106,3 +72,41 @@ def decrypt_flow_webhook(body: dict) -> dict:
         "aes_key": aes_key,
         "initial_vector": initial_vector,
     }
+
+
+def get_fernet_key() -> bytes:
+    key = settings.flow_token_encryption_key.get_secret_value()
+    if isinstance(key, str):
+        key = key.encode("utf-8")
+    return key
+
+
+def decrypt_flow_token(encrypted_flow_token: str) -> tuple:
+    key = get_fernet_key()
+    logging.info(f"Decryption Key: {key}")
+    fernet = Fernet(key)
+
+    try:
+        decrypted_data = fernet.decrypt(encrypted_flow_token.encode("utf-8"))
+        logging.info(f"Decrypted data: {decrypted_data}")
+        decrypted_str = decrypted_data.decode("utf-8")
+        wa_id, flow_id = decrypted_str.split("_")
+        return wa_id, flow_id
+    except Exception as e:
+        logging.error(f"Decryption failed: {e}")
+        raise
+
+
+def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
+    key = get_fernet_key()
+    logging.info(f"Encryption Key: {key}")
+    fernet = Fernet(key)
+
+    # log wa_id and flow_id
+    logging.info(f"going to encrypt wa_id: {wa_id} and flow_id: {flow_id}")
+
+    data = f"{wa_id}_{flow_id}".encode("utf-8")
+    logging.info(f"Data to encrypt: {data}")
+    encrypted_data = fernet.encrypt(data)
+    logging.info(f"Encrypted data: {encrypted_data}")
+    return encrypted_data.decode("utf-8")
