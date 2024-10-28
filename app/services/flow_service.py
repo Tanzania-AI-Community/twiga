@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import base64
 import json
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +74,7 @@ class FlowService:
         #     "Handling Flow init action with data: %s",
         #     decrypted_payload,
         #     "aes_key: %s",
-        #     aes_key,
         #     "initial_vector: %s",
-        #     initial_vector,
         # )
 
         encrypted_flow_token = decrypted_payload.get("flow_token")
@@ -250,6 +249,57 @@ class FlowService:
         except Exception as e:
             self.logger.error(f"Error encrypting response: {e}")
             return PlainTextResponse(content="Encryption failed", status_code=500)
+
+    async def send_personal_and_school_info_flow(self, wa_id: str, name: str) -> None:
+        flow_token = encrypt_flow_token(
+            wa_id, settings.personal_and_school_info_flow_id
+        )
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": wa_id,
+            "recipient_type": "individual",
+            "type": "interactive",
+            "interactive": {
+                "type": "flow",
+                "header": {
+                    "type": "text",
+                    "text": "Start onboarding to Twiga 🦒",
+                },
+                "body": {
+                    "text": "Welcome to Twiga! Let's get started with your onboarding process. ",
+                },
+                "footer": {
+                    "text": "Please follow the the instructions.",
+                },
+                "action": {
+                    "name": "flow",
+                    "parameters": {
+                        "flow_message_version": "3",
+                        "flow_action": "navigate",
+                        "flow_token": flow_token,
+                        "flow_id": settings.personal_and_school_info_flow_id,
+                        "flow_cta": "Start Onboarding",
+                        "mode": "published",
+                        "flow_action_payload": {
+                            "screen": "personal_info",
+                            "data": {"full_name": name},
+                        },
+                    },
+                },
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
+                },
+                json=payload,
+            )
+            self.logger.info(
+                f"WhatsApp API response: {response.status_code} - {response.text}"
+            )
 
 
 flow_client = FlowService()

@@ -20,7 +20,9 @@ class OnboardingHandler:
     async def handle_new(self, user: User) -> Tuple[str, Optional[List[str]]]:
         try:
             # Call the send_personal_and_school_info_flow method from FlowService
-            await self.flow_client.send_personal_and_school_info_flow(user.wa_id)
+            await self.flow_client.send_personal_and_school_info_flow(
+                user.wa_id, user.name
+            )
 
             self.logger.info(
                 f"Triggered send_personal_and_school_info_flow for user {user.wa_id}"

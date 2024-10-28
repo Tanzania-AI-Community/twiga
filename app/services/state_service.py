@@ -46,7 +46,7 @@ class StateHandler:
         options = None
         return response_text, options
 
-    async def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
+    async def process_state(self, user: User) -> Tuple[str, Optional[List[str]], bool]:
 
         logger.info(
             f"Processing state for user {user.name} with wa_id {user.wa_id} and user state {user.state}"
@@ -61,12 +61,13 @@ class StateHandler:
 
         if user_state == UserState.onboarding or user_state == UserState.new:
             await onboarding_client.process_state(user)
+            return None, None, True
 
         # Fetch the appropriate handler for the user's current state
         handler = self.state_handlers.get(user_state, self.handle_default)
         response_text, options = handler(user, user_state)
 
-        return response_text, options
+        return response_text, options, False
 
 
 state_client = StateHandler()

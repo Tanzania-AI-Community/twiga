@@ -33,7 +33,7 @@ async def handle_request(request: Request) -> JSONResponse:
     try:
         body = await request.json()
 
-        logger.info(f"Received message on webhook: {body}")
+        # logger.info(f"Received message on webhook: {body}")
 
         # Check if it's a WhatsApp status update (sent, delivered, read)
         if is_status_update(body):
@@ -62,7 +62,16 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
         # Handle state using the State Service
-        response_text, options = await state_client.process_state(user)
+        response_text, options, is_end = await state_client.process_state(user)
+
+        # log the response_text and options
+        logger.info(f"Response text: {response_text} | Options: {options}")
+
+        if is_end:
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
 
         if response_text:
             payload = generate_payload(user.wa_id, response_text, options)
