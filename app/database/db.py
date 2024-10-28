@@ -119,3 +119,30 @@ async def update_user(wa_id: str, **kwargs) -> None:
             await session.rollback()
             logger.error(f"Failed to update user {wa_id}: {str(e)}")
             raise UserUpdateError(f"Failed to update user: {str(e)}")
+
+
+class UserQueryError(UserDatabaseError):
+    """Raised when user query fails"""
+
+    pass
+
+
+async def get_user_data(wa_id: str) -> dict:
+    """
+    Retrieve user data based on wa_id.
+    """
+    async with AsyncSession(db_engine) as session:
+        try:
+            statement = select(User).where(User.wa_id == wa_id)
+            result = await session.execute(statement)
+            user = result.scalar_one_or_none()
+            if user:
+                user_data = user.model_dump()
+                logger.info(f"Retrieved user data for {wa_id}: {user_data}")
+                return user_data
+            else:
+                logger.warning(f"No user found with wa_id {wa_id}")
+                return None
+        except Exception as e:
+            logger.error(f"Failed to query user {wa_id}: {str(e)}")
+            raise UserQueryError(f"Failed to query user: {str(e)}")
