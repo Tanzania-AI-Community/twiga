@@ -1,6 +1,7 @@
 from sqlmodel import SQLModel, Field, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
+from datetime import datetime
 
 from app.database.models import *
 from app.database.engine import db_engine
@@ -109,6 +110,9 @@ async def update_user(wa_id: str, **kwargs) -> None:
     """
     Update any information about an existing user.
     """
+    if "birthday" in kwargs and isinstance(kwargs["birthday"], str):
+        kwargs["birthday"] = datetime.strptime(kwargs["birthday"], "%Y-%m-%d").date()
+
     async with AsyncSession(db_engine) as session:
         try:
             statement = update(User).where(User.wa_id == wa_id).values(**kwargs)

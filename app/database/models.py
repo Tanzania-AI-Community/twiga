@@ -56,8 +56,10 @@ class User(SQLModel, table=True):
     role: str = Field(default=Role.teacher, max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
+    school_location: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
+    location: Optional[str] = Field(default=None, max_length=100)
     last_message_at: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True)
     )  # user.last_message_at = datetime.now(timezone.utc) (this is how to set it when updating later)

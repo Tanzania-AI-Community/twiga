@@ -7,7 +7,7 @@ from app.utils.flows_util import (
     encrypt_flow_token,
 )
 from app.database.models import User
-from app.database.db import get_user_data
+from app.database.db import get_user_data, update_user
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -46,6 +46,7 @@ class FlowService:
         )  # TODO remove this line in production
 
         action = decrypted_payload.get("action")
+        self.logger.info(f"Flow Action: {action}")
         handler = self.get_action_handler(action)
         return await handler(decrypted_payload, aes_key, initial_vector)
 
@@ -53,6 +54,7 @@ class FlowService:
         return {
             "ping": self.handle_health_check,
             "INIT": self.handle_init_action,
+            "data_exchange": self.handle_data_exchange_action,
         }.get(action, self.handle_unknown_action)
 
     async def handle_unknown_action(
@@ -107,6 +109,78 @@ class FlowService:
         handler = self.flow_token_handlers.get(flow_id, self.handle_unknown_flow_token)
 
         return await handler(decrypted_payload, aes_key, initial_vector, user_data)
+
+    async def handle_data_exchange_action(
+        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+    ) -> PlainTextResponse:
+        self.logger.info(
+            "Handling data exchange action, with data: %s", decrypted_payload
+        )
+
+        # Extract data from the payload
+        data = decrypted_payload.get("data", {})
+        full_name = data.get("personal_info_full_name")
+        birthday = data.get("personal_info_birthday")
+        location = data.get("personal_info_location")
+        school_name = data.get("school_info_personal_birthday")
+        school_location = data.get("school_info_school_location")
+
+        # Extract and decrypt flow token
+        encrypted_flow_token = decrypted_payload.get("flow_token")
+        if not encrypted_flow_token:
+            self.logger.error("Missing flow token")
+            return JSONResponse(
+                content={"error_msg": "Your request has expired please start again"},
+                status_code=422,
+            )
+        try:
+            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
+            self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
+        except Exception as e:
+            self.logger.error(f"Error decrypting flow token: {e}")
+            return JSONResponse(
+                content={"error_msg": "Your request has expired please start again"},
+                status_code=422,
+            )
+
+        # Fetch user data
+        user_data = await get_user_data(wa_id)
+        if not user_data:
+            self.logger.error(f"User data not found for wa_id {wa_id}")
+            return JSONResponse(
+                content={"error_msg": "User data not found"}, status_code=422
+            )
+
+        # Update user object
+        user_data["name"] = full_name
+        user_data["birthday"] = birthday
+        user_data["location"] = location
+        user_data["school_name"] = school_name
+        user_data["school_location"] = school_location
+        user_data["on_boarding_state"] = "personal_info_submitted"
+
+        await update_user(
+            wa_id,
+            name=full_name,
+            birthday=birthday,
+            location=location,
+            school_name=school_name,
+            school_location=school_location,
+            on_boarding_state="personal_info_submitted",
+        )
+
+        # Prepare success response payload
+        response_payload = {
+            "screen": "SUCCESS",
+            "data": {
+                "extension_message_response": {
+                    "params": {
+                        "flow_token": encrypted_flow_token,
+                    },
+                },
+            },
+        }
+        return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_unknown_flow_token(
         self,
