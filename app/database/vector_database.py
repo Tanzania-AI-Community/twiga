@@ -15,6 +15,7 @@ class ChromaDBLoader:
             organization=llm_settings.openai_org,
         )
         self.logger = logging.getLogger(__name__)
+        # TODO: Replace this with pgvector
         self.client = chromadb.PersistentClient(path="db/twiga_vector_store")
 
         self.logger.info(self.client.heartbeat())
