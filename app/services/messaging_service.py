@@ -97,6 +97,9 @@ async def handle_request(request: Request) -> JSONResponse:
                             role=str(response["role"]),
                         )
                 # Send the last message back to the user
+                logger.debug(
+                    f"Sending message to {user.wa_id}: {response_messages[-1]['content']}"
+                )
                 payload = generate_payload(user.wa_id, response_messages[-1]["content"])
                 await whatsapp_client.send_message(payload)
 

@@ -71,25 +71,6 @@ class LLMClient:
         """Check if new messages arrived during processing."""
         return len(processor.messages) > original_count
 
-    # def _get_user_lock(self, user_id: int) -> asyncio.Lock:
-    #     """Get or create a lock for a specific user."""
-    #     if user_id not in self._user_locks:
-    #         self._user_locks[user_id] = asyncio.Lock()
-    #     return self._user_locks[user_id]
-
-    # def _get_message_buffer(self, user_id: int) -> list:
-    #     """Get or create a message buffer for a specific user."""
-    #     if user_id not in self._message_buffers:
-    #         self._message_buffers[user_id] = []
-    #     return self._message_buffers[user_id]
-
-    # def _cleanup_user(self, user_id: int):
-    #     """Remove user's lock and buffer if they're empty."""
-    #     if user_id in self._message_buffers and not self._message_buffers[user_id]:
-    #         del self._message_buffers[user_id]
-    #     if user_id in self._user_locks and not self._user_locks[user_id].locked():
-    #         del self._user_locks[user_id]
-
     # TODO: this might best be done in the llm_utils file
     async def _generate_completion(
         self, messages: List[dict], include_tools: bool = True
@@ -172,6 +153,7 @@ class LLMClient:
                     messages_to_process = processor.get_pending_messages()
 
                     if not messages_to_process:  # Shouldn't happen, but just in case
+                        self.logger.debug(f"No messages to process for user {user.id}")
                         processor.clear_messages()
                         self._cleanup_processor(user.id)
                         return None
@@ -212,7 +194,7 @@ class LLMClient:
                             api_messages, initial_response.tool_calls
                         )
 
-                        print(updated_messages)
+                        self.logger.debug(updated_messages)
 
                         final_response = await self._generate_completion(
                             messages=updated_messages,
@@ -227,6 +209,9 @@ class LLMClient:
                         if await self._check_new_messages(
                             processor, len(messages_to_process)
                         ):
+                            self.logger.info(
+                                "New messages arrived during processing of tools, restarting"
+                            )
                             continue
 
                         # This is bad code, should fix later
@@ -260,6 +245,7 @@ class LLMClient:
                         ]
 
                     # Success - clear buffer and return response
+                    self.logger.info("Message processing complete, clearing buffer")
                     processor.clear_messages()
                     self._cleanup_processor(user.id)
 
