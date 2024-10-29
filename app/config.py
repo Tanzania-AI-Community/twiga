@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     whatsapp_business_private_key: SecretStr
     whatsapp_business_private_key_password: SecretStr
     personal_and_school_info_flow_id: str
+    subject_class_info_flow_id: str
     flow_token_encryption_key: SecretStr
     # Rate limit settings
     daily_message_limit: int
