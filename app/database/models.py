@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
 from datetime import datetime, timezone, date
 from sqlmodel import (
+    Enum,
     Field,
     SQLModel,
     UniqueConstraint,
@@ -16,7 +17,12 @@ from sqlmodel import (
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
-# TODO: update the foreign keys to use the new table names
+
+class ResourceType(str, Enum):
+    textbook = "textbook"
+    curriculum = "curriculum"
+    document = "document"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
 class Role(str, Enum):
@@ -29,6 +35,21 @@ class MessageRole(str, Enum):
     assistant = "assistant"
     tool = "tool"
     system = "system"
+
+
+class GradeLevel(str, Enum):
+    p1 = "p1"  # primary 1
+    p2 = "p2"
+    p3 = "p3"
+    p4 = "p4"
+    p5 = "p5"
+    p6 = "p6"
+    os1 = "os1"  # ordinary secondary 1 (form 1)
+    os2 = "os2"
+    os3 = "os3"
+    os4 = "os4"
+    as1 = "as1"  # advanced secondary 1 (form 5)
+    as2 = "as2"
 
 
 class OnboardingState(str, Enum):
@@ -101,9 +122,7 @@ class Class(SQLModel, table=True):
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     subject: str = Field(max_length=30)
-    grade_level: str = Field(
-        max_length=10
-    )  # store as string ["p1", "p2", ..., "os1", "os2", ..., "as1", "as2"] (p = primary, os = ordinary secondary, as = advanced secondary)
+    grade_level: str = Field(max_length=10)  # use GradeLevel enum
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(
@@ -145,14 +164,21 @@ class Message(SQLModel, table=True):
     # NOTE: add a field for the content embedding for when we start doing RAG on chat history
 
 
-# # NOTE: resources should not be cascade deleted with classes, they should could as separate
-# class Resource(SQLModel, table=True):
-#     __tablename__ = "resources"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     name: str = Field(max_length=100)
-#     type: Optional[str] = Field(max_length=30)
-#     authors: List[str] = Field(sa_column=Column(ARRAY(String(50))))
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class Resource(SQLModel, table=True):
+    __tablename__ = "resources"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=100)
+    type: Optional[str] = Field(max_length=30)  # use ResourceType enum
+    authors: Optional[List[str]] = Field(sa_column=Column(ARRAY(String(50))))
+    grade_levels: Optional[List[str]] = Field(
+        sa_column=Column(ARRAY(String(10)))
+    )  # Use GradeLevel enum
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
 
 
 # class ClassResource(SQLModel, table=True):
