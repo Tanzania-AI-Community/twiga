@@ -1,8 +1,9 @@
 from typing import Any, List, Optional
 from datetime import datetime, timezone, date
 from sqlmodel import (
-    Integer,
+    Index,
     Enum,
+    Integer,
     Field,
     SQLModel,
     UniqueConstraint,
@@ -192,6 +193,9 @@ class Resource(SQLModel, table=True):
     resource_sections: Optional[List["Section"]] = Relationship(
         back_populates="resource_", cascade_delete=True
     )
+    resource_chunks: Optional[List["Chunk"]] = Relationship(
+        back_populates="resource_", cascade_delete=True
+    )
 
 
 class ClassResource(SQLModel, table=True):
@@ -233,17 +237,41 @@ class Section(SQLModel, table=True):
         cascade_delete=True,
         sa_relationship_kwargs=dict(remote_side="Node.id"),
     )
+    section_chunks: Optional[List["Chunk"]] = Relationship(
+        back_populates="section_", cascade_delete=True
+    )
 
 
-# class Chunk(SQLModel, table=True):
-#     __tablename__ = "chunks"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     resource_id: int = Field(foreign_key="resource.id")
-#     section_id: int = Field(foreign_key="section.id")
-#     content: Optional[str] = Field(default=None)
-#     page: Optional[int] = Field(default=None)
-#     content_type: Optional[str] = Field(max_length=30)
-#     embedding: Optional[Any] = Field(default=None, sa_column=Column(Vector(1536)))
-#     top_level_section_index: Optional[str] = Field(max_length=10)
-#     top_level_section_title: Optional[str] = Field(max_length=100)
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class Chunk(SQLModel, table=True):
+    __tablename__ = "chunks"
+    __table_args__ = (
+        Index(
+            "chunk_embedding_idx",  # index name
+            "embedding",  # column name
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
+    section_id: Optional[int] = Field(
+        foreign_key="sections.id", index=True, ondelete="CASCADE", default=None
+    )
+    content: str
+    page: Optional[int] = Field(default=None)  # Maybe add index in future
+    content_type: Optional[str] = Field(
+        max_length=30
+    )  # exercise, text, image, etc. (to define later)  - maybe add index in future
+    embedding: Any = Field(sa_column=Column(Vector(1024)))  # BAAI/bge-large-en-v1.5
+    top_level_section_index: Optional[str] = Field(max_length=10, default=None)
+    top_level_section_title: Optional[str] = Field(max_length=100, default=None)
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    resource_: Optional["Resource"] = Relationship(back_populates="resource_chunks")
+    section_: Optional["Section"] = Relationship(back_populates="section_chunks")
