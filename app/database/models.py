@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
 from datetime import datetime, timezone, date
 from sqlmodel import (
+    Integer,
     Enum,
     Field,
     SQLModel,
@@ -106,7 +107,7 @@ class User(SQLModel, table=True):
 
     # A teacher may have entries in the teachers_classes table
     taught_classes: Optional[List["TeacherClass"]] = Relationship(
-        back_populates="teacher_", cascade_delete=True
+        back_populates="teacher_", cascade_delete=True  # Could rename to user_
     )
 
     # A teacher may have entries in the messages table
@@ -126,6 +127,10 @@ class Class(SQLModel, table=True):
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(
+        back_populates="class_", cascade_delete=True
+    )
+    # A class may have entries in the classes_resources table
+    class_resources: Optional[List["ClassResource"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
 
@@ -173,6 +178,7 @@ class Resource(SQLModel, table=True):
     grade_levels: Optional[List[str]] = Field(
         sa_column=Column(ARRAY(String(10)))
     )  # Use GradeLevel enum
+    subjects: Optional[List[str]] = Field(sa_column=Column(ARRAY(String(50))))
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -180,26 +186,53 @@ class Resource(SQLModel, table=True):
         nullable=False,
     )
 
+    resource_classes: Optional[List["ClassResource"]] = Relationship(
+        back_populates="resource_", cascade_delete=True
+    )
+    resource_sections: Optional[List["Section"]] = Relationship(
+        back_populates="resource_", cascade_delete=True
+    )
 
-# class ClassResource(SQLModel, table=True):
-#     __tablename__ = "classes_resources"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     class_id: int = Field(foreign_key="class.id")
-#     resource_id: int = Field(foreign_key="resource.id")
+
+class ClassResource(SQLModel, table=True):
+    __tablename__ = "classes_resources"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    class_id: int = Field(foreign_key="classes.id", index=True, ondelete="CASCADE")
+    resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
+
+    class_: Class = Relationship(back_populates="class_resources")
+    resource_: Resource = Relationship(back_populates="resource_classes")
 
 
-# class Section(SQLModel, table=True):
-#     __tablename__ = "sections"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     resource_id: int = Field(foreign_key="resource.id")
-#     parent_section_id: Optional[int] = Field(default=None, foreign_key="section.id")
-#     section_index: Optional[str] = Field(max_length=20)
-#     section_title: Optional[str] = Field(max_length=100)
-#     section_type: Optional[str] = Field(max_length=15)
-#     section_order: int
-#     page_range: Optional[str] = Field(default=None)
-#     summary: Optional[str] = Field(default=None)
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class Section(SQLModel, table=True):
+    __tablename__ = "sections"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
+    parent_section_id: Optional[int] = Field(
+        default=None, foreign_key="sections.id", nullable=True
+    )
+    section_index: Optional[str] = Field(max_length=20, default=None)
+    section_title: Optional[str] = Field(max_length=100, default=None)
+    section_type: Optional[str] = Field(max_length=15, default=None)
+    section_order: int
+    page_range: Optional[List[int]] = Field(sa_column=Column(ARRAY(Integer)))
+    summary: Optional[str] = Field(default=None)
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    resource_: Resource = Relationship(back_populates="resource_sections")
+    parent: Optional["Section"] = Relationship(back_populates="children")
+
+    # Only part I'm not too sure about
+    children: Optional[List["Section"]] = Relationship(
+        back_populates="parent",
+        cascade_delete=True,
+        sa_relationship_kwargs=dict(remote_side="Node.id"),
+    )
 
 
 # class Chunk(SQLModel, table=True):
