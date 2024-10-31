@@ -16,7 +16,7 @@ from app.database.models import (
     Subject,
 )
 from scripts.database.db import get_or_create_resource, save_chunks
-from scripts.database.embedder import get_embeddings
+from app.utils.embedder import get_embeddings
 
 # Configure logging
 logger = logging.getLogger(__name__)
