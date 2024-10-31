@@ -1,6 +1,6 @@
 from enum import Enum
 
-# from app.tools.tool_code.generate_exercise.main import generate_exercise
+from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.get_current_weather.main import get_current_weather
 
 
@@ -36,12 +36,12 @@ tools_metadata = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "user_query": {
+                    "query": {
                         "type": "string",
-                        "description": "A short message describing the desired question or exercise type and the topic it should be about. Request just one question.",
+                        "description": "A brief message describing the desired question or exercise type and the topic it should be about. Request just one question.",
                     }
                 },
-                "required": ["user_query"],
+                "required": ["query"],
             },
         },
     },
@@ -50,5 +50,5 @@ tools_metadata = [
 
 tools_functions = {
     ToolName.get_current_weather.value: get_current_weather,
-    # ToolName.generate_exercise.value: generate_exercise,
+    ToolName.generate_exercise.value: generate_exercise,
 }

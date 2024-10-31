@@ -56,7 +56,10 @@ class LLMSettings(BaseSettings):
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
     }
     llm_model_name: str = llm_model_options["llama_70b"]
+    # Embedding model
     embedding_model: str = "BAAI/bge-large-en-v1.5"
+    # Exercise generator model
+    exercise_generator_model: str = llm_model_options["llama_70b"]
 
 
 def initialize_settings():

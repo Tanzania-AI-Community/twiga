@@ -4,6 +4,7 @@ import logging
 
 from app.database.models import *
 from app.database.engine import db_engine
+from app.utils import embedder
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +143,34 @@ async def create_new_message(user_id: int, content: str, role: MessageRole) -> M
             await session.rollback()
             logger.error(f"Failed to create message for user {user_id}: {str(e)}")
         raise UserCreationError(f"Failed to create message: {str(e)}")
+
+
+async def search_knowledge(query: str, n_results: int, where: dict) -> List[Chunk]:
+    try:
+        query_vector = embedder.get_embedding(query)
+    except Exception as e:
+        logger.error(f"Failed to get embedding for query {query}: {str(e)}")
+        raise Exception(f"Failed to get embedding for query: {str(e)}")
+
+    # Decode the where dict
+    filters = []
+    for key, value in where.items():
+        if isinstance(value, list) and len(value) > 1:
+            filters.append(getattr(Chunk, key).in_(value))
+        elif isinstance(value, list) and len(value) == 1:
+            filters.append(getattr(Chunk, key) == value[0])
+        else:
+            filters.append(getattr(Chunk, key) == value)
+
+    async with AsyncSession(db_engine) as session:
+        try:
+            result = await session.execute(
+                select(Chunk)
+                .where(*filters)
+                .order_by(Chunk.embedding.cosine_distance(query_vector))
+                .limit(n_results)
+            )
+            return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Failed to search for knowledge: {str(e)}")
+            raise Exception(f"Failed to search for knowledge: {str(e)}")

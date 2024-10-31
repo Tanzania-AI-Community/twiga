@@ -83,7 +83,7 @@ class Subject(str, Enum):
 
 
 class ChunkType(str, Enum):
-    content = "text"
+    text = "text"
     exercise = "exercise"
     image = "image"
     table = "table"

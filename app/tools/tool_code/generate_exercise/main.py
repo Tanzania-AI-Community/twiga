@@ -1,62 +1,63 @@
 import logging
-from typing import List, Literal
+from typing import List
 
-from app.database.vector_database import vector_client
-from app.utils.llm_utils import async_groq_request, async_openai_request
-from app.tools.tool_code.generate_exercise.models import RetrievedDocSchema
-from app.tools.tool_code.generate_exercise.prompts import (
+from app.utils.llm_utils import async_llm_request
+from assets.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
 )
-from app.tools.tool_code.generate_exercise.modules import (
-    chromadb_retriever,
-    query_rewriter,
-)
+from app.database.db import search_knowledge
+from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject
+from app.config import llm_settings
 
 logger = logging.getLogger(__name__)
 
 
-async def generate_exercise(user_query: str):
-    # Rewrite the user query
-    original_query = user_query
-    rewritten_query = await query_rewriter(original_query, llm="llama3-8b-8192")
+async def generate_exercise(
+    query: str,
+    subject: Subject = Subject.geography,
+    grade_level: GradeLevel = GradeLevel.os2,
+) -> str:
 
-    verbose = False
-
+    # TODO: Add a global setting to store the resource ID for the user
+    # TODO: Redesign this function to search on only the relevant resources
     # Retrieve the relevant content and exercises
-    retrieved_content: List[RetrievedDocSchema] = await chromadb_retriever(
-        model_class=vector_client,
-        retrieval_msg=rewritten_query,
-        size=5,
-        doc_type="Content",
-        verbose=verbose,
+    retrieved_content = await search_knowledge(
+        query=query,
+        n_results=7,
+        where={
+            Chunk.content_type: [ChunkType.text],
+            Chunk.resource_id: [4],
+        },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
     )
-    retrieved_exercises: List[RetrievedDocSchema] = await chromadb_retriever(
-        model_class=vector_client,
-        retrieval_msg=rewritten_query,
-        size=2,
-        doc_type="Exercise",
-        verbose=verbose,
+    retrieved_exercises = await search_knowledge(
+        query=query,
+        n_results=3,
+        where={
+            Chunk.content_type: [ChunkType.exercise],
+            Chunk.resource_id: [4],
+        },
+    )
+
+    logger.debug(
+        f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
+    )
+    logger.debug(
+        f"Retrieved {len(retrieved_content)} exercise chunks, this is the first: {retrieved_content[0]}"
     )
 
     # Format the context and prompt
     context = _format_context(retrieved_content, retrieved_exercises)
     system_prompt = PIPELINE_QUESTION_GENERATOR_PROMPT.format()
     user_prompt = PIPELINE_QUESTION_GENERATOR_USER_PROMPT.format(
-        query=user_query, context_str=context
+        query=query, context_str=context
     )
 
     # Generate a question based on the context
-    res = await _generate(system_prompt, user_prompt, model="llama3-70b-8192")
-    return res
+    return await _generate(system_prompt, user_prompt)
 
 
-async def _generate(
-    prompt: str,
-    query: str,
-    model: Literal["gpt-3.5-turbo-0125", "gpt-4-turbo-2024-04-09", "llama3-70b-8192"],
-    verbose: bool = False,
-) -> str:
+async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
     try:
         messages = [
             {"role": "system", "content": prompt},
@@ -69,25 +70,14 @@ async def _generate(
             print(f"--------------------------")
             print(f"User prompt: \n{query}")
 
-        if model == "llama3-70b-8192":
-            res = await async_groq_request(
-                llm=model,
-                verbose=False,
-                messages=messages,
-                max_tokens=100,
-            )
-        else:
-            res = await async_openai_request(
-                model=model,
-                verbose=False,
-                messages=messages,
-                max_tokens=100,  # Adjust based on the expected length of the response
-            )
+        res = await async_llm_request(
+            llm=llm_settings.exercise_generator_model,
+            verbose=False,
+            messages=messages,
+            max_tokens=100,
+        )
 
-        # Extract the enhanced query text from the response
-        gen_query = res.choices[0].message.content
-
-        return gen_query
+        return res.choices[0].message.content
 
     except Exception as e:
         logger.error(f"An error occurred when generating a response query: {e}")
@@ -95,45 +85,31 @@ async def _generate(
 
 
 def _format_context(
-    retrieved_content: List[RetrievedDocSchema],
-    retrieved_exercise: List[RetrievedDocSchema],
+    retrieved_content: List[Chunk],
+    retrieved_exercise: List[Chunk],
+    resources: List[Resource],
 ):
-    # Format the context
+    # Formatting the context
     context_parts = []
+    if len(resources) == 1:
+        context_parts.append(f"### Context from the resource ({resources[0].name})\n")
+    else:
+        # TODO: Make this neater another time
+        resource_titles = ", ".join(
+            [f"{resource.id}. {resource.name}" for resource in resources]
+        )
+        context_parts.append(f"### Context from the resources ({resource_titles})\n")
 
-    context_parts.append(
-        f"### Context from the textbook ({retrieved_content[0].source.metadata.title})\n"
-    )
-    for index, doc in enumerate(retrieved_content):
-
-        metadata = doc.source.metadata
-        if metadata.chapter and metadata.subsection and metadata.subsubsection:
-            heading = f"-Chunk number {index} from chapter {metadata.chapter}, subsection {metadata.subsection}, subsubsection {metadata.subsubsection}"
-        elif metadata.chapter and metadata.subsection:
-            heading = f"-Chunk number {index} from chapter {metadata.chapter}, subsection {metadata.subsection}"
-        elif metadata.chapter:
-            heading = f"-Chunk number {index} from chapter {metadata.chapter}"
+    for chunk in retrieved_content + retrieved_exercise:
+        # TODO: Make this neater another time
+        if chunk.top_level_section_title and chunk.top_level_section_index:
+            heading = f"-{chunk.content_type} from chapter {chunk.top_level_section_index}. {chunk.top_level_section_title} in resource {chunk.resource_id}"
+        elif chunk.top_level_section_title:
+            heading = f"-{chunk.content_type} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
         else:
-            heading = f"-Chunk number {index}"
+            heading = f"-{chunk.content_type} from resource {chunk.resource_id}"
 
     context_parts.append(heading)
-    context_parts.append(f"{doc.source.chunk}")
-
-    context_parts.append(
-        f"\n### Sample exercises from the textbook ({retrieved_content[0].source.metadata.title})\n"
-    )
-    for doc in retrieved_exercise:
-        metadata = doc.source.metadata
-        if metadata.chapter and metadata.subsection and metadata.subsubsection:
-            heading = f"-Exercise of type {metadata.exercise_format} from chapter {metadata.chapter}, subsection {metadata.subsection}, subsubsection {metadata.subsubsection}"
-        elif metadata.chapter and metadata.subsection:
-            heading = f"-Exercise of type {metadata.exercise_format} from chapter {metadata.chapter}, subsection {metadata.subsection}"
-        elif metadata.chapter:
-            heading = f"-Exercise of type {metadata.exercise_format} from chapter {metadata.chapter}"
-        else:
-            heading = f"-Exercise of type {metadata.exercise_format}"
-
-        context_parts.append(heading)
-        context_parts.append(f"{doc.source.chunk}")
+    context_parts.append(f"{chunk.content}")
 
     return "\n".join(context_parts)

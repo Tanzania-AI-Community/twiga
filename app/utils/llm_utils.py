@@ -21,6 +21,10 @@ openai_client = openai.AsyncOpenAI(
     api_key=llm_settings.openai_api_key.get_secret_value(),
     organization=llm_settings.openai_org,
 )
+llm_client = openai.AsyncOpenAI(
+    base_url="https://api.together.xyz/v1",
+    api_key=llm_settings.together_api_key.get_secret_value(),
+)
 
 
 def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> int:
@@ -102,10 +106,8 @@ async def async_groq_request(
         raise
 
 
-@backoff.on_exception(backoff.expo, groq.RateLimitError, max_tries=10, max_time=300)
-def llm_request(
-    llm: Literal["meta-llama/Meta-Llama-3-8B-Instruct-Turbo",],
-    api_key: str,
+@backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=10, max_time=300)
+async def async_llm_request(
     verbose: bool = False,
     **params,
 ) -> ChatCompletion:
@@ -125,5 +127,19 @@ def llm_request(
         TogetherRateLimitError: When rate limit is exceeded
         TogetherAPIError: For other API-related errors
     """
-    # TODO: Implement this later and replace the calls I have in llm_service with it
-    pass
+    try:
+        # Print messages if the flag is True
+        if verbose:
+            messages = params.get("messages", None)
+            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
+            logger.info(
+                f"Number of OpenAI-equivalent tokens in the payload:\n{num_tokens_from_messages(messages)}"
+            )
+
+        completion = await llm_client.chat.completions.create(**params)
+
+        return completion
+    except openai.RateLimitError as e:
+        raise
+    except Exception as e:
+        raise Exception(f"Failed to retrieve completion: {str(e)}")
