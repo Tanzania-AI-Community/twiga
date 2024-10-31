@@ -34,9 +34,9 @@ class FlowService:
             return PlainTextResponse(content="Decryption failed", status_code=500)
 
         self.logger.info(f"Flow Webhook Decrypted payload: {decrypted_payload}")
+        wa_id, flow_id = decrypt_flow_token(decrypted_payload.get("flow_token"))
 
         action = decrypted_payload.get("action")
-        flow_id = decrypted_payload.get("flow_id")
         self.logger.info(f"Flow Action: {action}, Flow ID: {flow_id}")
         handler = self.get_action_handler(action, flow_id)
         return await handler(decrypted_payload, aes_key, initial_vector)
