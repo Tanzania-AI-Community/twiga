@@ -71,6 +71,26 @@ class UserState(str, Enum):
     has_pending_message = "has_pending_message"
 
 
+class ResourceType(str, Enum):
+    textbook = "textbook"
+    curriculum = "curriculum"
+    document = "document"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
+
+
+class Subject(str, Enum):
+    geography = "geography"
+
+
+class ChunkType(str, Enum):
+    content = "text"
+    exercise = "exercise"
+    image = "image"
+    table = "table"
+    other = "other"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -229,13 +249,20 @@ class Section(SQLModel, table=True):
     )
 
     resource_: Resource = Relationship(back_populates="resource_sections")
-    parent: Optional["Section"] = Relationship(back_populates="children")
+    parent: Optional["Section"] = Relationship(
+        back_populates="children",
+        sa_relationship_kwargs={
+            "remote_side": "[Section.id]"  # Quote wrapped to handle forward references
+        },
+    )
 
     # Only part I'm not too sure about
     children: Optional[List["Section"]] = Relationship(
         back_populates="parent",
         cascade_delete=True,
-        sa_relationship_kwargs=dict(remote_side="Node.id"),
+        sa_relationship_kwargs={
+            "single_parent": True,  # This ensures a child can only have one parent
+        },
     )
     section_chunks: Optional[List["Chunk"]] = Relationship(
         back_populates="section_", cascade_delete=True
