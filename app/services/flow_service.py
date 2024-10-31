@@ -15,6 +15,13 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Sample config file for subjects and classes
+SUBJECTS_CONFIG = {
+    "Mathematics": ["Class 1", "Class 2", "Class 3"],
+    "Science": ["Class 1", "Class 2", "Class 3"],
+    "History": ["Class 1", "Class 2", "Class 3"],
+}
+
 
 class FlowService:
     def __init__(self):
@@ -115,18 +122,17 @@ class FlowService:
                 status_code=422,
             )
 
-        user_data = await get_user_data(wa_id)
-        if not user_data:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
-            )
+        # Get available subjects from the config
+        subjects = [
+            {"id": str(i + 1), "title": subject}
+            for i, subject in enumerate(SUBJECTS_CONFIG.keys())
+        ]
+        subjects.append({"id": "done", "title": "Done"})
 
         response_payload = {
-            "screen": "subject_class_info",
+            "screen": "select_subject",
             "data": {
-                "subject_name": user_data.get("subject_name", ""),
-                "class_name": user_data.get("class_name", ""),
+                "subjects": subjects,
             },
         }
         return await self.process_response(response_payload, aes_key, initial_vector)
@@ -204,8 +210,8 @@ class FlowService:
         self.logger.info("Handling subject class info data exchange action")
 
         data = decrypted_payload.get("data", {})
-        subject_name = data.get("subject_name")
-        class_name = data.get("class_name")
+        subject_id = data.get("subject_id")
+        class_ids = data.get("class_ids", [])
 
         encrypted_flow_token = decrypted_payload.get("flow_token")
         if not encrypted_flow_token:
@@ -231,25 +237,44 @@ class FlowService:
                 content={"error_msg": "User data not found"}, status_code=422
             )
 
-        user_data["subject_name"] = subject_name
-        user_data["class_name"] = class_name
-        user_data["on_boarding_state"] = "subject_class_info_submitted"
-
-        await update_user(
-            wa_id,
-            subject_name=subject_name,
-            class_name=class_name,
-            on_boarding_state="subject_class_info_submitted",
-        )
-
-        response_payload = {
-            "screen": "SUCCESS",
-            "data": {
-                "extension_message_response": {
-                    "params": {
-                        "flow_token": encrypted_flow_token,
+        if subject_id == "done":
+            response_payload = {
+                "screen": "SUCCESS",
+                "data": {
+                    "extension_message_response": {
+                        "params": {
+                            "flow_token": encrypted_flow_token,
+                        },
                     },
                 },
+            }
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        # Check if classes_ids are submitted and subject_id is not "done"
+        if class_ids and subject_id != "done":
+            response_payload = {
+                "screen": "select_subject",
+                "data": {},
+            }
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        # Get the subject name from the subject ID
+        subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
+
+        # Get the classes for the selected subject
+        classes = SUBJECTS_CONFIG[subject_name]
+        classes_data = [
+            {"id": str(i + 1), "title": cls} for i, cls in enumerate(classes)
+        ]
+
+        response_payload = {
+            "screen": "select_classes",
+            "data": {
+                "classes": classes_data,
             },
         }
         return await self.process_response(response_payload, aes_key, initial_vector)
