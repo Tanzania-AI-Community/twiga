@@ -32,47 +32,38 @@ async def handle_request(request: Request) -> JSONResponse:
     """
     try:
         body = await request.json()
-
         # logger.info(f"Received message on webhook: {body}")
-
         # Check if it's a WhatsApp status update (sent, delivered, read)
         if is_status_update(body):
             return whatsapp_client.handle_status_update(body)
-
         # Process non-status updates (message, other)
         if not is_whatsapp_user_message(body):
+            logger.warning("Received a non-WhatsApp user message. Ignoring. %s", body)
             return JSONResponse(
                 content={"status": "error", "message": "Not a WhatsApp API event"},
                 status_code=404,
             )
-
-        # Check if it's a flow completion message
+        # Check if it's a flow completion message # Merge this with the status update
         if is_flow_complete_message(body):
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
             )
-
         # Extract message info (NOTE: the message format might look different in flow responses)
         message_info = extract_message_info(body)
-
         # Get or create user
         user = await get_or_create_user(
             wa_id=message_info["wa_id"], name=message_info["name"]
         )
-
         # Handle state using the State Service
         response_text, options, is_end = await state_client.process_state(user)
-
         # log the response_text and options
         logger.info(f"Response text: {response_text} | Options: {options}")
-
         if is_end:
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
             )
-
         if response_text:
             payload = generate_payload(user.wa_id, response_text, options)
             await whatsapp_client.send_message(payload)
@@ -80,21 +71,10 @@ async def handle_request(request: Request) -> JSONResponse:
                 content={"status": "ok"},
                 status_code=200,
             )
-
-        # response_text, options = onboarding_client.process_state(
-        #     user, message_info["message"]
-        # )
-        # if response_text:
-        # return JSONResponse(
-        #     content=generate_payload(user.wa_id, response_text, options),
-        #     status_code=200,
-        # )
-
         if is_message_recent(message_info["timestamp"]):
             # Add check if rate limit is reached here and update the database. Will need some function that brings it back the next day though.
             # if db.is_rate_limit_reached(wa_id):
             #     return await _handle_rate_limit(wa_id, message)
-
             generated_response = await _process_message(
                 wa_id=user.wa_id,
                 name=user.name,
@@ -106,7 +86,6 @@ async def handle_request(request: Request) -> JSONResponse:
         else:
             logger.warning("Received a message with an outdated timestamp. Ignoring.")
             return JSONResponse(content={"status": "ok"}, status_code=200)
-
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON")
         return JSONResponse(
