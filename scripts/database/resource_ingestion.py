@@ -98,8 +98,7 @@ async def process_chunks(
 
         try:
             # Get embeddings for the batch
-            embedding_response = get_embeddings(batch_texts)
-            embeddings = embedding_response.data
+            embeddings = get_embeddings(batch_texts)
 
             # Create Chunk objects for the batch
             for item, embedding in zip(batch_items, embeddings):
@@ -120,7 +119,7 @@ async def process_chunks(
                     content_type=content_type,
                     top_level_section_index=top_level_section_id,
                     top_level_section_title=top_level_section_title,
-                    embedding=embedding.embedding,
+                    embedding=embedding,
                 )
                 chunks.append(chunk)
 
