@@ -19,6 +19,7 @@ class OnboardingHandler:
 
     async def handle_new(self, user: User) -> Tuple[str, Optional[List[str]]]:
         try:
+            self.logger.info(f"Handling new user {user.wa_id}")
             # Call the send_personal_and_school_info_flow method from FlowService
             await self.flow_client.send_personal_and_school_info_flow(
                 user.wa_id, user.name
@@ -38,47 +39,61 @@ class OnboardingHandler:
             options = None
             return response_text, options
 
-    def handle_personal_info_submitted(
+    async def handle_personal_info_submitted(
         self, user: User
     ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "Thank you for submitting your personal information. Please provide your class and subject information."
-        options = ["Submit Class & Subject Info"]
+        self.logger.info(f"Handling personal info submitted for user {user.wa_id}")
+
+        await self.flow_client.send_class_and_subject_info_flow(user.wa_id, user.name)
+
+        response_text = None
+        options = None
         return response_text, options
 
     def handle_class_subject_info_submitted(
         self, user: User
     ) -> Tuple[str, Optional[List[str]]]:
+        self.logger.info(
+            f"Handling class and subject info submitted for user {user.wa_id}"
+        )
         response_text = "Thank you for submitting your class and subject information. Your onboarding is almost complete."
         options = ["Complete Onboarding"]
         return response_text, options
 
     def handle_completed(self, user: User) -> Tuple[str, Optional[List[str]]]:
+        self.logger.info(f"Handling completed onboarding for user {user.wa_id}")
         response_text = "Your onboarding is complete. Welcome!"
         options = None
         return response_text, options
 
     def handle_default(self, user: User) -> Tuple[str, Optional[List[str]]]:
+        self.logger.info(f"Handling default onboarding state for user {user.wa_id}")
         response_text = "I'm not sure how to handle your request."
         options = None
         return response_text, options
 
     async def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
         # Get the user's current state from the user object
-        user_state = user.on_boarding_state
+        user_onboarding_state = user.on_boarding_state
+        user_state = user.state
 
-        # Update the user state to onboarding
-        await update_user(user.wa_id, state=UserState.onboarding)
+        # Update the user state to onboarding, only if the user is not already in the onboarding state
+        if user_state != UserState.onboarding:
+            await update_user(user.wa_id, state=UserState.onboarding)
+
+            self.logger.info(
+                f"Updated user state to {UserState.onboarding} for user {user.wa_id}"
+            )
 
         self.logger.info(
-            f"Updated user state to {UserState.onboarding} for user {user.wa_id}"
+            f"Going to handle OnboardingState: {user_onboarding_state} for user {user.wa_id}"
         )
-
         # Fetch the appropriate handler for the user's current state
-        handler = self.state_handlers.get(user_state, self.handle_default)
+        handler = self.state_handlers.get(user_onboarding_state, self.handle_default)
         response_text, options = await handler(user)
 
         self.logger.info(
-            f"Processed message for {user.wa_id}: state={user_state} -> response='{response_text}', options={options}"
+            f"Processed message for {user.wa_id}: state={user_onboarding_state} -> response='{response_text}', options={options}"
         )
 
         return response_text, options

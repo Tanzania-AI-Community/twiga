@@ -1,0 +1,223 @@
+{
+  "data_api_version": "3.0",
+  "version": "5.0",
+  "routing_model": {
+    "select_subject": ["select_classes"]
+  },
+  "screens": [
+    {
+      "id": "select_subject",
+      "title": "Select Subject",
+      "refresh_on_back": true,
+      "terminal": true,
+      "data": {
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "1",
+              "title": "Mathematics"
+            },
+            {
+              "id": "2",
+              "title": "Science"
+            },
+            {
+              "id": "3",
+              "title": "History"
+            },
+            {
+              "id": "done",
+              "title": "Done"
+            }
+          ]
+        },
+        "selected_subject": {
+          "type": "string",
+          "__example__": "1"
+        },
+        "selected_subject_name": {
+          "type": "string",
+          "__example__": "Mathematics"
+        },
+        "selected_classes_text": {
+          "type": "string",
+          "__example__": "Selected classes for Mathematics are: Class 1, Class 2"
+        },
+        "select_class_text": {
+          "type": "string",
+          "__example__": "Please select the classes for the selected subject:"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Which subjects and corresponding classes do you teach?"
+          },
+          {
+            "type": "TextBody",
+            "text": "Select a subject to review or modify the classes associated with it."
+          },
+          {
+            "type": "Form",
+            "name": "subject_form",
+            "children": [
+              {
+                "type": "Dropdown",
+                "name": "select_subject_dropdown",
+                "label": "Subject",
+                "required": true,
+                "data-source": "${data.subjects}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "type": "subject_selected",
+                    "subject_id": "${form.select_subject_dropdown}"
+                  }
+                }
+              },
+              {
+                "type": "If",
+                "condition": "(${form.select_subject_dropdown} != '')",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.selected_classes_text}"
+                  },
+                  {
+                    "type": "EmbeddedLink",
+                    "text": "Select classes for the subject",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "type": "selecting_classes",
+                        "screen": "select_classes",
+                        "subject_id": "${form.select_subject_dropdown}"
+                      }
+                    }
+                  }
+                ],
+                "else": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.select_class_text}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Complete",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "type": "completed"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "select_classes",
+      "title": "Select Classes",
+      "data": {
+        "classes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "1",
+              "title": "Class 1"
+            },
+            {
+              "id": "2",
+              "title": "Class 2"
+            },
+            {
+              "id": "3",
+              "title": "Class 3"
+            }
+          ]
+        },
+        "selected_classes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["1", "2"]
+        },
+        "selected_subject": {
+          "type": "string",
+          "__example__": "1"
+        },
+        "selected_subject_name": {
+          "type": "string",
+          "__example__": "Mathematics"
+        },
+        "selected_classes_info": {
+          "type": "string",
+          "__example__": "Mathematics"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "${data.selected_classes_info}"
+          },
+          {
+            "type": "Form",
+            "name": "classes_form",
+            "children": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_checkbox",
+                "label": "Classes",
+                "required": true,
+                "data-source": "${data.classes}"
+              },
+              {
+                "type": "Footer",
+                "label": "Submit",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "subject_id": "${screen.select_subject.form.select_subject_dropdown}",
+                    "type": "selected_classes",
+                    "class_ids": "${form.select_classes_checkbox}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
