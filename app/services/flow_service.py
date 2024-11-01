@@ -15,11 +15,11 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Sample config file for subjects and classes
+# Example config file for subjects and classes
 SUBJECTS_CONFIG = {
-    "Mathematics": ["Class 1", "Class 2", "Class 3"],
-    "Science": ["Class 1", "Class 2", "Class 3"],
-    "History": ["Class 1", "Class 2", "Class 3"],
+    "Mathematics": ["Math 1", "Class 2", "Class 3"],
+    "Geography": ["Class 1", "Geo 2", "Class 3"],
+    "History": ["Class 1", "Class 2", "His 3"],
 }
 
 
@@ -127,12 +127,13 @@ class FlowService:
             {"id": str(i + 1), "title": subject}
             for i, subject in enumerate(SUBJECTS_CONFIG.keys())
         ]
-        subjects.append({"id": "done", "title": "Done"})
 
         response_payload = {
             "screen": "select_subject",
             "data": {
                 "subjects": subjects,
+                "selected_classes_text": "Please select a subject to proceed",
+                "select_class_text": "Please select a class to proceed",
             },
         }
         return await self.process_response(response_payload, aes_key, initial_vector)
@@ -207,11 +208,17 @@ class FlowService:
     async def handle_subject_class_info_data_exchange_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        self.logger.info("Handling subject class info data exchange action")
+        self.logger.info(
+            "Handling subject class info data exchange action", decrypted_payload
+        )
 
         data = decrypted_payload.get("data", {})
+        self.logger.info("Data from payload : %s", data)
         subject_id = data.get("subject_id")
         class_ids = data.get("class_ids", [])
+        type = data.get("type")
+
+        self.logger.info("Type is: , %s", type)
 
         encrypted_flow_token = decrypted_payload.get("flow_token")
         if not encrypted_flow_token:
@@ -237,7 +244,89 @@ class FlowService:
                 content={"error_msg": "User data not found"}, status_code=422
             )
 
-        if subject_id == "done":
+        classes = SUBJECTS_CONFIG[list(SUBJECTS_CONFIG.keys())[0]]
+
+        classes_data = [
+            {"id": str(i + 1), "title": cls} for i, cls in enumerate(classes)
+        ]
+
+        if type == "subject_selected":
+            self.logger.info(f"Subject selected Action in exchange: {subject_id}")
+            # make sure we have a valid subject id
+            if not subject_id:
+                self.logger.error("Missing subject id")
+                # Get available subjects from the config
+                subjects = [
+                    {"id": str(i + 1), "title": subject}
+                    for i, subject in enumerate(SUBJECTS_CONFIG.keys())
+                ]
+                response_payload = {
+                    "screen": "select_subject",
+                    "data": {
+                        "subjects": subjects,
+                        "selected_classes_text": "Please select a subject to proceed",
+                        "select_class_text": "Please select a class to proceed",
+                        "classes": classes_data,
+                    },
+                }
+
+            # Get Subject Classes
+            subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
+            subject_classes = SUBJECTS_CONFIG[subject_name]
+
+            # TODO Get the classes the user has selected for the subject (or for all subjects), then pass it to the
+            # user_selected_classes = []
+            # for now we will use the classes from the config
+            user_selected_classes = subject_classes
+
+            response_payload = {
+                "screen": "select_subject",
+                "subject_id": subject_id,
+                "data": {
+                    "data-" "selected_subject": subject_id,
+                    "selected_subject_name": subject_name,
+                    "selected_classes_text": f"Selected classes for {subject_name} are: {', '.join(user_selected_classes)}",
+                    "classes": classes_data,
+                },
+            }
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        if type == "selected_classes":
+            self.logger.info(f"Class selected Action in exchange: {class_ids}")
+            # make sure we have a valid class id
+            if not class_ids:
+                self.logger.error("Missing class id")
+                return JSONResponse(
+                    content={"error_msg": "Missing class id"}, status_code=422
+                )
+
+            # Get Subject Classes
+            subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
+            subject_classes = SUBJECTS_CONFIG[subject_name]
+
+            # TODO Get the classes the user has selected for the subject (or for all subjects), then pass it to the
+            # user_selected_classes = []
+            # for now we will use the all classes from the config
+            user_selected_classes = subject_classes
+
+            response_payload = {
+                "screen": "select_subject",
+                "subject_id": subject_id,
+                "data": {
+                    "selected_subject": subject_id,
+                    "selected_subject_name": subject_name,
+                    "selected_classes_text": f"Selected classes for {subject_name} are: {', '.join(user_selected_classes)}",
+                    "classes": classes_data,
+                },
+            }
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        if type == "completed":
+            self.logger.info("Flow completed")
             response_payload = {
                 "screen": "SUCCESS",
                 "data": {
@@ -252,32 +341,34 @@ class FlowService:
                 response_payload, aes_key, initial_vector
             )
 
-        # Check if classes_ids are submitted and subject_id is not "done"
-        if class_ids and subject_id != "done":
+        if type == "selecting_classes":
+            # Get the subject name from the subject ID
+            subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
+
+            # Get the classes for the selected subject
+            classes = SUBJECTS_CONFIG[subject_name]
+            classes_data = [
+                {"id": str(i + 1), "title": cls} for i, cls in enumerate(classes)
+            ]
+
             response_payload = {
-                "screen": "select_subject",
-                "data": {},
+                "screen": "select_classes",
+                "data": {
+                    "classes": classes_data,
+                    "selected_subject_name": subject_name,
+                    "selected_subject": subject_id,
+                    "selected_classes_info": f"Select the classes you teach for {subject_name} subject",
+                },
             }
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )
 
-        # Get the subject name from the subject ID
-        subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
-
-        # Get the classes for the selected subject
-        classes = SUBJECTS_CONFIG[subject_name]
-        classes_data = [
-            {"id": str(i + 1), "title": cls} for i, cls in enumerate(classes)
-        ]
-
-        response_payload = {
-            "screen": "select_classes",
-            "data": {
-                "classes": classes_data,
-            },
-        }
-        return await self.process_response(response_payload, aes_key, initial_vector)
+        else:
+            return JSONResponse(
+                content={"status": "error", "message": "Invalid type provided"},
+                status_code=400,
+            )
 
     async def handle_health_check(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -351,6 +442,66 @@ class FlowService:
                         "flow_action_payload": {
                             "screen": "personal_info",
                             "data": {"full_name": name},
+                        },
+                    },
+                },
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
+                },
+                json=payload,
+            )
+            self.logger.info(
+                f"WhatsApp API response: {response.status_code} - {response.text}"
+            )
+
+    async def send_class_and_subject_info_flow(self, wa_id: str, name: str) -> None:
+        flow_token = encrypt_flow_token(wa_id, settings.class_and_subject_flow_id)
+
+        # Get available subjects from the config
+        subjects = [
+            {"id": str(i + 1), "title": subject}
+            for i, subject in enumerate(SUBJECTS_CONFIG.keys())
+        ]
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": wa_id,
+            "recipient_type": "individual",
+            "type": "interactive",
+            "interactive": {
+                "type": "flow",
+                "header": {
+                    "type": "text",
+                    "text": "Start class and subject selection 📝",
+                },
+                "body": {
+                    "text": "Congratulations! You have completed the first step of onboarding. Let's proceed with selecting your classes and subjects.",
+                },
+                "footer": {
+                    "text": "Please follow the instructions.",
+                },
+                "action": {
+                    "name": "flow",
+                    "parameters": {
+                        "flow_message_version": "3",
+                        "flow_action": "navigate",
+                        "flow_token": flow_token,
+                        "flow_id": settings.class_and_subject_flow_id,
+                        "flow_cta": "Start Selection",
+                        "mode": "published",
+                        "flow_action_payload": {
+                            "screen": "select_subject",
+                            "data": {
+                                "subjects": subjects,
+                                "selected_classes_text": "Please select a subject to proceed",
+                                "select_class_text": "Please select a class to proceed",
+                            },
                         },
                     },
                 },
