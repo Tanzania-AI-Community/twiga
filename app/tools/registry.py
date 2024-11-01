@@ -1,11 +1,11 @@
 from enum import Enum
 
 from app.tools.tool_code.generate_exercise.main import generate_exercise
-from app.tools.tool_code.get_current_weather.main import get_current_weather
+from app.tools.tool_code.search_knowledge.main import search_knowledge
 
 
 class ToolName(str, Enum):
-    get_current_weather = "get_current_weather"
+    search_knowledge = "search_knowledge"
     generate_exercise = "generate_exercise"
 
 
@@ -13,18 +13,17 @@ tools_metadata = [
     {
         "type": "function",
         "function": {
-            "name": ToolName.get_current_weather.value,
-            "description": "get the current weather in a given location",
+            "name": ToolName.search_knowledge.value,
+            "description": "Get relevant information from the knowledge base.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "location": {
+                    "search_phrase": {
                         "type": "string",
-                        "description": "the city and state, e.g. san francisco, ca",
-                    },
-                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                        "description": "A message describing the information you are looking for.",
+                    }
                 },
-                "required": ["location"],
+                "required": ["search_phrase"],
             },
         },
     },
@@ -49,6 +48,6 @@ tools_metadata = [
 
 
 tools_functions = {
-    ToolName.get_current_weather.value: get_current_weather,
+    ToolName.search_knowledge.value: search_knowledge,
     ToolName.generate_exercise.value: generate_exercise,
 }
