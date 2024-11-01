@@ -174,7 +174,7 @@ async def create_new_message(message: Message) -> Message:
         raise Exception(f"Failed to create message: {str(e)}")
 
 
-async def search_knowledge(query: str, n_results: int, where: dict) -> List[Chunk]:
+async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
     try:
         query_vector = embedder.get_embedding(query)
     except Exception as e:

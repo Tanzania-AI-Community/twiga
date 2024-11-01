@@ -6,7 +6,7 @@ from assets.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
 )
-from app.database.db import search_knowledge
+from app.database.db import vector_search
 from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject
 from app.config import llm_settings
 
@@ -23,7 +23,7 @@ async def generate_exercise(
     # TODO: Redesign this function to search on only the relevant resources
     try:
         # Retrieve the relevant content and exercises
-        retrieved_content = await search_knowledge(
+        retrieved_content = await vector_search(
             query=query,
             n_results=7,
             where={
@@ -31,7 +31,7 @@ async def generate_exercise(
                 "resource_id": [4],
             },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
         )
-        retrieved_exercises = await search_knowledge(
+        retrieved_exercises = await vector_search(
             query=query,
             n_results=3,
             where={
@@ -117,7 +117,7 @@ def _format_context(
         else:
             heading = f"-{chunk.content_type} from resource {chunk.resource_id}"
 
-    context_parts.append(heading)
-    context_parts.append(f"{chunk.content}")
+        context_parts.append(heading)
+        context_parts.append(f"{chunk.content}")
 
     return "\n".join(context_parts)
