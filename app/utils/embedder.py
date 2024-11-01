@@ -9,17 +9,17 @@ client = Together(
 )
 
 
-def get_embedding(text: str) -> EmbeddingResponse:
+def get_embedding(text: str) -> List[float]:
     response = client.embeddings.create(
         model=llm_settings.embedding_model,
         input=text,
     )
-    return response
+    return response.data[0].embedding
 
 
-def get_embeddings(texts: List[str]) -> EmbeddingResponse:
+def get_embeddings(texts: List[str]) -> List[List[float]]:
     response = client.embeddings.create(
         model=llm_settings.embedding_model,
         input=texts,
     )
-    return response
+    return [embedding.embedding for embedding in response.data]

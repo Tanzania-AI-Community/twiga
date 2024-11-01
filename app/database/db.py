@@ -131,18 +131,47 @@ async def get_user_message_history(
             raise Exception(f"Failed to retrieve message history: {str(e)}")
 
 
-async def create_new_message(user_id: int, content: str, role: MessageRole) -> Message:
+async def create_new_messages(messages: List[Message]) -> List[Message]:
+    """
+    Create multiple messages in the database in a single transaction.
+    """
+    if not messages:
+        return []
+
     async with AsyncSession(db_engine) as session:
         try:
-            new_message = Message(user_id=user_id, role=role, content=content)
-            session.add(new_message)
+            # Add all messages to the session
+            session.add_all(messages)
+
+            # Commit the transaction
             await session.commit()
-            await session.refresh(new_message)
-            return new_message
+
+            # Refresh all messages to get their IDs and other DB-populated fields
+            for message in messages:
+                await session.refresh(message)
+
+            return messages
+
         except Exception as e:
             await session.rollback()
-            logger.error(f"Failed to create message for user {user_id}: {str(e)}")
-        raise UserCreationError(f"Failed to create message: {str(e)}")
+            logger.error(
+                f"Unexpected error creating messages for user {messages[0].user_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to create messages: {str(e)}")
+
+
+async def create_new_message(message: Message) -> Message:
+    """
+    Create a single message in the database.
+    """
+    try:
+        messages = await create_new_messages([message])
+        return messages[0]
+    except UserCreationError as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error in create_new_message: {str(e)}")
+        raise Exception(f"Failed to create message: {str(e)}")
 
 
 async def search_knowledge(query: str, n_results: int, where: dict) -> List[Chunk]:

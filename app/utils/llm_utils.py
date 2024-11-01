@@ -106,7 +106,7 @@ async def async_groq_request(
         raise
 
 
-@backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=10, max_time=300)
+# @backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=10, max_time=300)
 async def async_llm_request(
     verbose: bool = False,
     **params,

@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Optional
 
 from app.utils.llm_utils import async_llm_request
 from assets.prompts import (
@@ -21,40 +21,44 @@ async def generate_exercise(
 
     # TODO: Add a global setting to store the resource ID for the user
     # TODO: Redesign this function to search on only the relevant resources
-    # Retrieve the relevant content and exercises
-    retrieved_content = await search_knowledge(
-        query=query,
-        n_results=7,
-        where={
-            Chunk.content_type: [ChunkType.text],
-            Chunk.resource_id: [4],
-        },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
-    )
-    retrieved_exercises = await search_knowledge(
-        query=query,
-        n_results=3,
-        where={
-            Chunk.content_type: [ChunkType.exercise],
-            Chunk.resource_id: [4],
-        },
-    )
+    try:
+        # Retrieve the relevant content and exercises
+        retrieved_content = await search_knowledge(
+            query=query,
+            n_results=7,
+            where={
+                "content_type": [ChunkType.text],
+                "resource_id": [4],
+            },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
+        )
+        retrieved_exercises = await search_knowledge(
+            query=query,
+            n_results=3,
+            where={
+                "content_type": [ChunkType.exercise],
+                "resource_id": [4],
+            },
+        )
 
-    logger.debug(
-        f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
-    )
-    logger.debug(
-        f"Retrieved {len(retrieved_content)} exercise chunks, this is the first: {retrieved_content[0]}"
-    )
+        logger.debug(
+            f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
+        )
+        logger.debug(
+            f"Retrieved {len(retrieved_content)} exercise chunks, this is the first: {retrieved_content[0]}"
+        )
 
-    # Format the context and prompt
-    context = _format_context(retrieved_content, retrieved_exercises)
-    system_prompt = PIPELINE_QUESTION_GENERATOR_PROMPT.format()
-    user_prompt = PIPELINE_QUESTION_GENERATOR_USER_PROMPT.format(
-        query=query, context_str=context
-    )
+        # Format the context and prompt
+        context = _format_context(retrieved_content, retrieved_exercises)
+        system_prompt = PIPELINE_QUESTION_GENERATOR_PROMPT.format()
+        user_prompt = PIPELINE_QUESTION_GENERATOR_USER_PROMPT.format(
+            query=query, context_str=context
+        )
 
-    # Generate a question based on the context
-    return await _generate(system_prompt, user_prompt)
+        # Generate a question based on the context
+        return await _generate(system_prompt, user_prompt)
+    except Exception as e:
+        logger.error(f"An error occurred when generating an exercise: {e}")
+        return None
 
 
 async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
@@ -71,8 +75,7 @@ async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
             print(f"User prompt: \n{query}")
 
         res = await async_llm_request(
-            llm=llm_settings.exercise_generator_model,
-            verbose=False,
+            model=llm_settings.exercise_generator_model,
             messages=messages,
             max_tokens=100,
         )
@@ -87,18 +90,23 @@ async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
 def _format_context(
     retrieved_content: List[Chunk],
     retrieved_exercise: List[Chunk],
-    resources: List[Resource],
+    resources: Optional[List[Resource]] = None,
 ):
     # Formatting the context
     context_parts = []
-    if len(resources) == 1:
-        context_parts.append(f"### Context from the resource ({resources[0].name})\n")
-    else:
-        # TODO: Make this neater another time
-        resource_titles = ", ".join(
-            [f"{resource.id}. {resource.name}" for resource in resources]
-        )
-        context_parts.append(f"### Context from the resources ({resource_titles})\n")
+    if resources:
+        if len(resources) == 1:
+            context_parts.append(
+                f"### Context from the resource ({resources[0].name})\n"
+            )
+        else:
+            # TODO: Make this neater another time
+            resource_titles = ", ".join(
+                [f"{resource.id}. {resource.name}" for resource in resources]
+            )
+            context_parts.append(
+                f"### Context from the resources ({resource_titles})\n"
+            )
 
     for chunk in retrieved_content + retrieved_exercise:
         # TODO: Make this neater another time

@@ -55,7 +55,7 @@ class LLMSettings(BaseSettings):
         "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
     }
-    llm_model_name: str = llm_model_options["llama_70b"]
+    llm_model_name: str = llm_model_options["llama_405b"]
     # Embedding model
     embedding_model: str = "BAAI/bge-large-en-v1.5"
     # Exercise generator model

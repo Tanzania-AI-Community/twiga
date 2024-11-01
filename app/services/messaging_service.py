@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.database.models import MessageRole, User, UserState
+from app.database.models import Message, MessageRole, User, UserState
 from app.utils.whatsapp_utils import (
     extract_message_body,
     extract_message_info,
@@ -47,6 +47,14 @@ async def handle_request(request: Request) -> JSONResponse:
         # Extract message info (NOTE: the message format might look different in flow responses)
         message_info = extract_message_info(body)
 
+        # Check if message is recent
+        if not is_message_recent(message_info["timestamp"]):
+            logger.warning("Received a message with an outdated timestamp. Ignoring.")
+            return JSONResponse(
+                content={"status": "error", "message": "Message is outdated"},
+                status_code=400,
+            )
+
         # Get or create user
         user = await db.get_or_create_user(
             wa_id=message_info["wa_id"], name=message_info["name"]
@@ -56,9 +64,7 @@ async def handle_request(request: Request) -> JSONResponse:
 
         # Upload the message to the database
         user_message = await db.create_new_message(
-            user_id=user.id,
-            content=request_message,
-            role=MessageRole.user,
+            Message(user_id=user.id, role=MessageRole.user, content=request_message)
         )
 
         # Handle state using the State Service
@@ -71,49 +77,31 @@ async def handle_request(request: Request) -> JSONResponse:
 
             # Store the bot response in the database
             await db.create_new_message(
-                user_id=user.id, content=response_text, role=MessageRole.assistant
+                Message(user_id=user.id, role=MessageRole.user, content=request_message)
             )
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
             )
-        elif (
-            is_message_recent(message_info["timestamp"])  # might do this elsewhere
-            and user.state == UserState.active
-        ):
+
+        if user.state == UserState.active:
             # In this scenario the user is active so they are directed to the LLM
-            response_messages = await _handle_llm(
-                user=user,
-                message=user_message.content,
+            response_messages = await llm_client.generate_response(
+                user=user, message=user_message.content
             )
 
             if response_messages:
-                # Update the database with any possible tool calls
-                if len(response_messages) > 1:
-                    for response in response_messages[:-1]:
-                        await db.create_new_message(
-                            user_id=user.id,
-                            content=str(response["content"]),
-                            role=str(response["role"]),
-                        )
+                # Update the database with the responses (including tool calls)
+                response_messages = await db.create_new_messages(response_messages)
+
                 # Send the last message back to the user
                 logger.debug(
-                    f"Sending message to {user.wa_id}: {response_messages[-1]['content']}"
+                    f"Sending message to {user.wa_id}: {response_messages[-1].content}"
                 )
-                payload = generate_payload(user.wa_id, response_messages[-1]["content"])
+                payload = generate_payload(user.wa_id, response_messages[-1].content)
                 await whatsapp_client.send_message(payload)
 
-                # Store the response message in the database
-                await db.create_new_message(
-                    user_id=user.id,
-                    content=str(response_messages[-1]["content"]),
-                    role=str(response_messages[-1]["role"]),
-                )
-            return JSONResponse(content={"status": "ok"}, status_code=200)
-        else:
-            # TODO: Determine whether this is the right approach, if it should be handled way at the start, or not at all.
-            logger.warning("Received a message with an outdated timestamp. Ignoring.")
-            return JSONResponse(content={"status": "ok"}, status_code=200)
+        return JSONResponse(content={"status": "ok"}, status_code=200)
 
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON")
@@ -127,12 +115,3 @@ async def handle_request(request: Request) -> JSONResponse:
             content={"status": "error", "message": "Internal server error"},
             status_code=500,
         )
-
-
-async def _handle_llm(user: User, message: str) -> Optional[List[dict]]:
-    response_messages = await llm_client.generate_response(user=user, message=message)
-    return response_messages
-
-
-def _handle_testing(wa_id: str, message_body: str) -> Optional[str]:
-    return get_text_payload(wa_id, message_body.upper())
