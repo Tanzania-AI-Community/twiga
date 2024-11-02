@@ -98,6 +98,10 @@
                     "text": "${data.selected_classes_text}"
                   },
                   {
+                    "type": "TextBody",
+                    "text": "Click below to update Class Selection for the subject"
+                  },
+                  {
                     "type": "EmbeddedLink",
                     "text": "Select classes for the subject",
                     "on-click-action": {
