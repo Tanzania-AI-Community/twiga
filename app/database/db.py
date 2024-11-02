@@ -106,19 +106,47 @@ class UserUpdateError(UserDatabaseError):
     pass
 
 
-async def update_user(wa_id: str, **kwargs) -> None:
+async def update_user_by_waid(user: User) -> User:
     """
-    Update any information about an existing user.
+    Update any information about an existing user and return the updated user.
     """
-    if "birthday" in kwargs and isinstance(kwargs["birthday"], str):
-        kwargs["birthday"] = datetime.strptime(kwargs["birthday"], "%Y-%m-%d").date()
+    if user is None:
+        logger.error("Cannot update user: user object is None")
+        raise UserUpdateError("Cannot update user: user object is None")
+
+    # Convert the User object to a dictionary
+    user_data = user.__dict__.copy()
+
+    logger.debug(f"Updating user {user_data}")
+
+    # Remove the _sa_instance_state attribute
+    user_data.pop("_sa_instance_state", None)
+
+    # Extract the wa_id
+    wa_id = user_data.pop("wa_id")
+
+    # Remove the id attribute
+    user_data.pop("wa_id", None)
+    user_data.pop("id", None)
+
+    # Handle the birthday field if necessary
+    if "birthday" in user_data and isinstance(user_data["birthday"], str):
+        user_data["birthday"] = datetime.strptime(
+            user_data["birthday"], "%Y-%m-%d"
+        ).date()
 
     async with AsyncSession(db_engine) as session:
         try:
-            statement = update(User).where(User.wa_id == wa_id).values(**kwargs)
+            statement = update(User).where(User.wa_id == wa_id).values(**user_data)
             await session.execute(statement)
             await session.commit()
-            logger.info(f"Updated user {wa_id} with {kwargs}")
+
+            # Fetch the updated user
+            result = await session.execute(select(User).filter_by(wa_id=wa_id))
+            updated_user = result.scalar_one_or_none()
+
+            logger.info(f"Updated user {wa_id} with {user_data}")
+            return updated_user
         except Exception as e:
             await session.rollback()
             logger.error(f"Failed to update user {wa_id}: {str(e)}")
