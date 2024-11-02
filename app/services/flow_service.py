@@ -5,7 +5,10 @@ from app.utils.flows_util import (
     decrypt_flow_token,
     encrypt_flow_token,
 )
-from app.database.db import get_user_data, update_user
+from app.database.db import get_user_by_waid, update_user_by_waid
+from app.database.models import User
+from app.services.whatsapp_service import whatsapp_client
+from app.utils.whatsapp_utils import generate_payload
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -33,6 +36,7 @@ class FlowService:
             decrypted_payload = decrypted_data["decrypted_payload"]
             aes_key = decrypted_data["aes_key"]
             initial_vector = decrypted_data["initial_vector"]
+            action = decrypted_payload.get("action")
         except ValueError as e:
             self.logger.error(f"Error decrypting payload: {e}")
             return PlainTextResponse(content="Decryption failed", status_code=421)
@@ -41,10 +45,31 @@ class FlowService:
             return PlainTextResponse(content="Decryption failed", status_code=500)
 
         self.logger.info(f"Flow Webhook Decrypted payload: {decrypted_payload}")
-        wa_id, flow_id = decrypt_flow_token(decrypted_payload.get("flow_token"))
 
-        action = decrypted_payload.get("action")
-        self.logger.info(f"Flow Action: {action}, Flow ID: {flow_id}")
+        if action == "ping":
+            self.logger.info("Received ping action")
+            return await self.handle_health_check(
+                decrypted_payload, aes_key, initial_vector
+            )
+
+        flow_token = decrypted_payload.get("flow_token")
+        if not flow_token:
+            self.logger.error("Missing flow token")
+            return JSONResponse(
+                content={"error_msg": "Missing flow token, Unable to process request"},
+                status_code=422,
+            )
+
+        try:
+            wa_id, flow_id = decrypt_flow_token(flow_token)
+            self.logger.info(f"Flow Action: {action}, Flow ID: {flow_id}")
+        except Exception as e:
+            self.logger.error(f"Error decrypting flow token: {e}")
+            return JSONResponse(
+                content={"error_msg": "Your request has expired please start again"},
+                status_code=422,
+            )
+
         handler = self.get_action_handler(action, flow_id)
         return await handler(decrypted_payload, aes_key, initial_vector)
 
@@ -90,8 +115,8 @@ class FlowService:
                 status_code=422,
             )
 
-        user_data = await get_user_data(wa_id)
-        if not user_data:
+        user = await get_user_by_waid(wa_id)
+        if not user:
             self.logger.error(f"User data not found for wa_id {wa_id}")
             return JSONResponse(
                 content={"error_msg": "User data not found"}, status_code=422
@@ -99,7 +124,7 @@ class FlowService:
 
         response_payload = {
             "screen": "personal_info",
-            "data": {"full_name": user_data.get("name", "Your Name")},
+            "data": {"full_name": user.get("name", "Your Name")},
         }
         return await self.process_response(response_payload, aes_key, initial_vector)
 
@@ -149,7 +174,9 @@ class FlowService:
         full_name = data.get("personal_info_full_name")
         birthday = data.get("personal_info_birthday")
         location = data.get("personal_info_location")
-        school_name = data.get("school_info_personal_birthday")
+        school_name = data.get(
+            "school_info_personal_birthday"
+        )  # should be school_info_school_name, we need to update the published flow too
         school_location = data.get("school_info_school_location")
 
         encrypted_flow_token = decrypted_payload.get("flow_token")
@@ -169,29 +196,24 @@ class FlowService:
                 status_code=422,
             )
 
-        user_data = await get_user_data(wa_id)
-        if not user_data:
+        user = await get_user_by_waid(wa_id)
+        self.logger.info(f"User after get: {user}")
+        if not user:
             self.logger.error(f"User data not found for wa_id {wa_id}")
             return JSONResponse(
                 content={"error_msg": "User data not found"}, status_code=422
             )
 
-        user_data["name"] = full_name
-        user_data["birthday"] = birthday
-        user_data["location"] = location
-        user_data["school_name"] = school_name
-        user_data["school_location"] = school_location
-        user_data["on_boarding_state"] = "personal_info_submitted"
+        user.name = full_name if full_name else user.name
+        user.birthday = birthday
+        user.location = location
+        user.school_name = school_name
+        user.school_location = school_location
+        user.on_boarding_state = "personal_info_submitted"
 
-        await update_user(
-            wa_id,
-            name=full_name,
-            birthday=birthday,
-            location=location,
-            school_name=school_name,
-            school_location=school_location,
-            on_boarding_state="personal_info_submitted",
-        )
+        self.logger.info(f"Going to update user: {user}")
+        await update_user_by_waid(user)
+        self.logger.info(f"User after update: {user}")
 
         response_payload = {
             "screen": "SUCCESS",
@@ -203,6 +225,15 @@ class FlowService:
                 },
             },
         }
+
+        response_text = "Thank you for submitting your personal and school information. Your onboarding is almost complete."
+        options = None
+
+        payload = generate_payload(user.wa_id, response_text, options)
+        await whatsapp_client.send_message(payload)
+        # send class and subject info flow
+        await self.send_class_and_subject_info_flow(user.wa_id, user.name)
+
         return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_subject_class_info_data_exchange_action(
@@ -237,8 +268,8 @@ class FlowService:
                 status_code=422,
             )
 
-        user_data = await get_user_data(wa_id)
-        if not user_data:
+        user = await get_user_by_waid(wa_id)
+        if not user:
             self.logger.error(f"User data not found for wa_id {wa_id}")
             return JSONResponse(
                 content={"error_msg": "User data not found"}, status_code=422
@@ -325,22 +356,6 @@ class FlowService:
                 response_payload, aes_key, initial_vector
             )
 
-        if type == "completed":
-            self.logger.info("Flow completed")
-            response_payload = {
-                "screen": "SUCCESS",
-                "data": {
-                    "extension_message_response": {
-                        "params": {
-                            "flow_token": encrypted_flow_token,
-                        },
-                    },
-                },
-            }
-            return await self.process_response(
-                response_payload, aes_key, initial_vector
-            )
-
         if type == "selecting_classes":
             # Get the subject name from the subject ID
             subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
@@ -360,6 +375,32 @@ class FlowService:
                     "selected_classes_info": f"Select the classes you teach for {subject_name} subject",
                 },
             }
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        if type == "completed":
+            self.logger.info("Flow completed")
+            response_payload = {
+                "screen": "SUCCESS",
+                "data": {
+                    "extension_message_response": {
+                        "params": {
+                            "flow_token": encrypted_flow_token,
+                        },
+                    },
+                },
+            }
+
+            user = User(wa_id=wa_id, on_boarding_state="completed", state="active")
+
+            await update_user_by_waid(user)
+
+            response_text = f"Hurray! {user.name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start using Twiga 🦒."
+            options = None
+
+            payload = generate_payload(user.wa_id, response_text, options)
+            await whatsapp_client.send_message(payload)
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )
@@ -384,7 +425,9 @@ class FlowService:
     async def process_response(
         self, response_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        self.logger.info(f"Processing response: {response_payload}")
+        self.logger.info(
+            f"Processing response: {response_payload} , AES Key: {aes_key} , IV: {initial_vector}"
+        )
 
         try:
             response_bytes = json.dumps(response_payload).encode("utf-8")
@@ -461,7 +504,7 @@ class FlowService:
             )
 
     async def send_class_and_subject_info_flow(self, wa_id: str, name: str) -> None:
-        flow_token = encrypt_flow_token(wa_id, settings.class_and_subject_flow_id)
+        flow_token = encrypt_flow_token(wa_id, settings.subject_class_info_flow_id)
 
         # Get available subjects from the config
         subjects = [
@@ -492,7 +535,7 @@ class FlowService:
                         "flow_message_version": "3",
                         "flow_action": "navigate",
                         "flow_token": flow_token,
-                        "flow_id": settings.class_and_subject_flow_id,
+                        "flow_id": settings.subject_class_info_flow_id,
                         "flow_cta": "Start Selection",
                         "mode": "published",
                         "flow_action_payload": {

@@ -27,7 +27,6 @@ class Role(str, Enum):
 class OnboardingState(str, Enum):
     new = "new"
     personal_info_submitted = "personal_info_submitted"
-    class_subject_info_submitted = "class_subject_info_submitted"
     completed = "completed"
 
 
