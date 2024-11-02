@@ -61,6 +61,16 @@
         "design",
         "promotion"
       ]
+    },
+    {
+      "login": "fredygerman",
+      "name": "Fredy Mgimba",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26197540?v=4",
+      "profile": "https://book.fredygerman.com",
+      "contributions": [
+        "code",
+        "infra"
+      ]
     }
   ]
 }
