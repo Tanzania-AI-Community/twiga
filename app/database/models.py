@@ -1,6 +1,9 @@
 from typing import Any, List, Optional
 from datetime import datetime, timezone, date
 from sqlmodel import (
+    Index,
+    Enum,
+    Integer,
     Field,
     SQLModel,
     UniqueConstraint,
@@ -16,12 +19,39 @@ from sqlmodel import (
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
-# TODO: update the foreign keys to use the new table names
+
+class ResourceType(str, Enum):
+    textbook = "textbook"
+    curriculum = "curriculum"
+    document = "document"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
 class Role(str, Enum):
     admin = "admin"
     teacher = "teacher"
+
+
+class MessageRole(str, Enum):
+    user = "user"
+    assistant = "assistant"
+    tool = "tool"
+    system = "system"
+
+
+class GradeLevel(str, Enum):
+    p1 = "p1"  # primary 1
+    p2 = "p2"
+    p3 = "p3"
+    p4 = "p4"
+    p5 = "p5"
+    p6 = "p6"
+    os1 = "os1"  # ordinary secondary 1 (form 1)
+    os2 = "os2"
+    os3 = "os3"
+    os4 = "os4"
+    as1 = "as1"  # advanced secondary 1 (form 5)
+    as2 = "as2"
 
 
 class OnboardingState(str, Enum):
@@ -38,6 +68,26 @@ class UserState(str, Enum):
     blocked = "blocked"
     rate_limited = "rate_limited"
     has_pending_message = "has_pending_message"
+
+
+class ResourceType(str, Enum):
+    textbook = "textbook"
+    curriculum = "curriculum"
+    document = "document"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
+
+
+class Subject(str, Enum):
+    geography = "geography"
+
+
+class ChunkType(str, Enum):
+    text = "text"
+    exercise = "exercise"
+    image = "image"
+    table = "table"
+    other = "other"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
 class User(SQLModel, table=True):
@@ -79,7 +129,7 @@ class User(SQLModel, table=True):
 
     # A teacher may have entries in the teachers_classes table
     taught_classes: Optional[List["TeacherClass"]] = Relationship(
-        back_populates="teacher_", cascade_delete=True
+        back_populates="teacher_", cascade_delete=True  # Could rename to user_
     )
 
     # A teacher may have entries in the messages table
@@ -95,12 +145,14 @@ class Class(SQLModel, table=True):
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     subject: str = Field(max_length=30)
-    grade_level: str = Field(
-        max_length=10
-    )  # store as string ["p1", "p2", ..., "os1", "os2", ..., "as1", "as2"] (p = primary, os = ordinary secondary, as = advanced secondary)
+    grade_level: str = Field(max_length=10)  # use GradeLevel enum
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(
+        back_populates="class_", cascade_delete=True
+    )
+    # A class may have entries in the classes_resources table
+    class_resources: Optional[List["ClassResource"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
 
@@ -139,46 +191,115 @@ class Message(SQLModel, table=True):
     # NOTE: add a field for the content embedding for when we start doing RAG on chat history
 
 
-# # NOTE: resources should not be cascade deleted with classes, they should could as separate
-# class Resource(SQLModel, table=True):
-#     __tablename__ = "resources"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     name: str = Field(max_length=100)
-#     type: Optional[str] = Field(max_length=30)
-#     authors: List[str] = Field(sa_column=Column(ARRAY(String(50))))
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class Resource(SQLModel, table=True):
+    __tablename__ = "resources"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=100)
+    type: Optional[str] = Field(max_length=30)  # use ResourceType enum
+    authors: Optional[List[str]] = Field(sa_column=Column(ARRAY(String(50))))
+    grade_levels: Optional[List[str]] = Field(
+        sa_column=Column(ARRAY(String(10)))
+    )  # Use GradeLevel enum
+    subjects: Optional[List[str]] = Field(sa_column=Column(ARRAY(String(50))))
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    resource_classes: Optional[List["ClassResource"]] = Relationship(
+        back_populates="resource_", cascade_delete=True
+    )
+    resource_sections: Optional[List["Section"]] = Relationship(
+        back_populates="resource_", cascade_delete=True
+    )
+    resource_chunks: Optional[List["Chunk"]] = Relationship(
+        back_populates="resource_", cascade_delete=True
+    )
 
 
-# class ClassResource(SQLModel, table=True):
-#     __tablename__ = "classes_resources"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     class_id: int = Field(foreign_key="class.id")
-#     resource_id: int = Field(foreign_key="resource.id")
+class ClassResource(SQLModel, table=True):
+    __tablename__ = "classes_resources"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    class_id: int = Field(foreign_key="classes.id", index=True, ondelete="CASCADE")
+    resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
+
+    class_: Class = Relationship(back_populates="class_resources")
+    resource_: Resource = Relationship(back_populates="resource_classes")
 
 
-# class Section(SQLModel, table=True):
-#     __tablename__ = "sections"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     resource_id: int = Field(foreign_key="resource.id")
-#     parent_section_id: Optional[int] = Field(default=None, foreign_key="section.id")
-#     section_index: Optional[str] = Field(max_length=20)
-#     section_title: Optional[str] = Field(max_length=100)
-#     section_type: Optional[str] = Field(max_length=15)
-#     section_order: int
-#     page_range: Optional[str] = Field(default=None)
-#     summary: Optional[str] = Field(default=None)
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class Section(SQLModel, table=True):
+    __tablename__ = "sections"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
+    parent_section_id: Optional[int] = Field(
+        default=None, foreign_key="sections.id", nullable=True
+    )
+    section_index: Optional[str] = Field(max_length=20, default=None)
+    section_title: Optional[str] = Field(max_length=100, default=None)
+    section_type: Optional[str] = Field(max_length=15, default=None)
+    section_order: int
+    page_range: Optional[List[int]] = Field(sa_column=Column(ARRAY(Integer)))
+    summary: Optional[str] = Field(default=None)
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    resource_: Resource = Relationship(back_populates="resource_sections")
+    parent: Optional["Section"] = Relationship(
+        back_populates="children",
+        sa_relationship_kwargs={
+            "remote_side": "[Section.id]"  # Quote wrapped to handle forward references
+        },
+    )
+
+    # Only part I'm not too sure about
+    children: Optional[List["Section"]] = Relationship(
+        back_populates="parent",
+        cascade_delete=True,
+        sa_relationship_kwargs={
+            "single_parent": True,  # This ensures a child can only have one parent
+        },
+    )
+    section_chunks: Optional[List["Chunk"]] = Relationship(
+        back_populates="section_", cascade_delete=True
+    )
 
 
-# class Chunk(SQLModel, table=True):
-#     __tablename__ = "chunks"
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     resource_id: int = Field(foreign_key="resource.id")
-#     section_id: int = Field(foreign_key="section.id")
-#     content: Optional[str] = Field(default=None)
-#     page: Optional[int] = Field(default=None)
-#     content_type: Optional[str] = Field(max_length=30)
-#     embedding: Optional[Any] = Field(default=None, sa_column=Column(Vector(1536)))
-#     top_level_section_index: Optional[str] = Field(max_length=10)
-#     top_level_section_title: Optional[str] = Field(max_length=100)
-#     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class Chunk(SQLModel, table=True):
+    __tablename__ = "chunks"
+    __table_args__ = (
+        Index(
+            "chunk_embedding_idx",  # index name
+            "embedding",  # column name
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
+    section_id: Optional[int] = Field(
+        foreign_key="sections.id", index=True, ondelete="CASCADE", default=None
+    )
+    content: str
+    page: Optional[int] = Field(default=None)  # Maybe add index in future
+    content_type: Optional[str] = Field(
+        max_length=30
+    )  # exercise, text, image, etc. (to define later)  - maybe add index in future
+    embedding: Any = Field(sa_column=Column(Vector(1024)))  # BAAI/bge-large-en-v1.5
+    top_level_section_index: Optional[str] = Field(max_length=10, default=None)
+    top_level_section_title: Optional[str] = Field(max_length=100, default=None)
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    resource_: Optional["Resource"] = Relationship(back_populates="resource_chunks")
+    section_: Optional["Section"] = Relationship(back_populates="section_chunks")

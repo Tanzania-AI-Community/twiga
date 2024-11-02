@@ -8,6 +8,8 @@ import openai
 from openai.types.chat import ChatCompletion
 import groq
 from groq import AsyncGroq
+from together import Together
+import together
 
 from app.config import llm_settings
 
@@ -18,6 +20,10 @@ groq_client = AsyncGroq(api_key=llm_settings.groq_api_key.get_secret_value())
 openai_client = openai.AsyncOpenAI(
     api_key=llm_settings.openai_api_key.get_secret_value(),
     organization=llm_settings.openai_org,
+)
+llm_client = openai.AsyncOpenAI(
+    base_url="https://api.together.xyz/v1",
+    api_key=llm_settings.together_api_key.get_secret_value(),
 )
 
 
@@ -98,3 +104,42 @@ async def async_groq_request(
         # Log and re-raise unexpected errors
         logger.error(f"Unexpected error: {e}")
         raise
+
+
+@backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=10, max_time=300)
+async def async_llm_request(
+    verbose: bool = False,
+    **params,
+) -> ChatCompletion:
+    """
+    Make a request to Together AI's API with exponential backoff retry logic.
+
+    Args:
+        llm: Model identifier to use
+        api_key: Together AI API key
+        verbose: Whether to log detailed request information
+        **params: Additional parameters to pass to the API
+
+    Returns:
+        ChatCompletion: Response from the API
+
+    Raises:
+        TogetherRateLimitError: When rate limit is exceeded
+        TogetherAPIError: For other API-related errors
+    """
+    try:
+        # Print messages if the flag is True
+        if verbose:
+            messages = params.get("messages", None)
+            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
+            logger.info(
+                f"Number of OpenAI-equivalent tokens in the payload:\n{num_tokens_from_messages(messages)}"
+            )
+
+        completion = await llm_client.chat.completions.create(**params)
+
+        return completion
+    except openai.RateLimitError as e:
+        raise
+    except Exception as e:
+        raise Exception(f"Failed to retrieve completion: {str(e)}")

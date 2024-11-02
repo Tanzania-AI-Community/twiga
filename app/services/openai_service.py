@@ -9,9 +9,10 @@ from openai import AsyncOpenAI
 from openai.types.beta import Thread
 
 from app.utils.whatsapp_utils import get_text_payload
-from db.utils import AppDatabase
+
+# from db.utils import AppDatabase
 from app.config import llm_settings
-from app.tools.exercise.executor import generate_exercise
+from app.tools.registry import ToolName, tools_functions, tools_metadata
 from app.services.whatsapp_service import whatsapp_client
 
 
@@ -24,7 +25,7 @@ class OpenAIClient:
         self.assistant = None  # This is updated in the run_assistant method
         self.logger = logging.getLogger(__name__)
         self.message_queue = deque()  # TODO: Change the handling of the message queue
-        self.db = AppDatabase()
+        # self.db = AppDatabase()
 
     async def generate_response(
         self, message_body: str, wa_id: str, name: str, verbose: bool = False
@@ -32,7 +33,7 @@ class OpenAIClient:
         # Generate a response from the assistant based on the incoming message.
 
         # Check if thread exists for the wa_id
-        thread_info = self.db.check_if_thread_exists(wa_id)
+        # thread_info = self.db.check_if_thread_exists(wa_id)
 
         # Convert thread_info to a dictionary if it is a tuple
         if isinstance(thread_info, tuple):
@@ -45,7 +46,7 @@ class OpenAIClient:
             # Create a new thread if it doesn't exist
             thread = await self.client.beta.threads.create()
             self.logger.debug(f"Creating new thread for {name} with id {thread.id}")
-            self.db.store_thread(wa_id, thread.id)
+            # self.db.store_thread(wa_id, thread.id)
         else:
             # Retrieve the existing thread
             self.logger.debug(
@@ -151,7 +152,9 @@ class OpenAIClient:
                             wa_id, "🔄 Generating exercise..."
                         )
                         tool_output = await self._handle_tool_call(
-                            tool, generate_exercise, verbose=verbose
+                            tool,
+                            tools_functions[ToolName.generate_exercise],
+                            verbose=verbose,
                         )
 
                         tool_outputs.append(tool_output)
@@ -179,7 +182,7 @@ class OpenAIClient:
     async def _send_tool_execution_message(self, wa_id: str, msg: str) -> None:
         # Send a message indicating tool execution to the user.
         data = get_text_payload(wa_id, msg)
-        self.db.store_message(wa_id, msg, role="twiga")
+        # self.db.store_message(wa_id, msg, role="twiga")
         await whatsapp_client.send_message(data)
 
     async def _get_latest_assistant_message(self, thread_id: str) -> str:
@@ -213,4 +216,4 @@ class OpenAIClient:
             return json.dumps({"error": str(e)})
 
 
-llm_client = OpenAIClient()
+openai_client = OpenAIClient()
