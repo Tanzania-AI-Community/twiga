@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import re
 from typing import Any, List, Literal, Optional
 import logging
@@ -108,7 +109,7 @@ def _format_text_for_whatsapp(text: str) -> str:
     return text
 
 
-def is_valid_whatsapp_message(body: Any) -> bool:
+def is_whatsapp_user_message(body: Any) -> bool:
     return (
         body.get("object")
         and body.get("entry")
@@ -116,6 +117,41 @@ def is_valid_whatsapp_message(body: Any) -> bool:
         and body["entry"][0]["changes"][0].get("value")
         and body["entry"][0]["changes"][0]["value"].get("messages")
         and body["entry"][0]["changes"][0]["value"]["messages"][0]
+    )
+
+
+def is_flow_complete_message(body: Any) -> bool:
+    return (
+        body.get("object")
+        and body.get("entry")
+        and body["entry"][0].get("changes")
+        and body["entry"][0]["changes"][0].get("value")
+        and body["entry"][0]["changes"][0]["value"].get("messages")
+        and body["entry"][0]["changes"][0]["value"]["messages"][0].get("interactive")
+        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
+            "type"
+        )
+        == "nfm_reply"
+        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
+            "nfm_reply"
+        )
+        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+            "nfm_reply"
+        ].get("response_json")
+        and "flow_token"
+        in body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+            "nfm_reply"
+        ]["response_json"]
+    )
+
+
+def is_event(body: dict) -> bool:
+    return (
+        body.get("object") == "whatsapp_business_account"
+        and body.get("entry")
+        and body["entry"][0].get("changes")
+        and body["entry"][0]["changes"][0].get("value")
+        and body["entry"][0]["changes"][0]["value"].get("event")
     )
 
 
@@ -156,12 +192,49 @@ def extract_message_body(message: dict) -> str:
 
     raise ValueError(f"Unsupported message type: {message_type}")
 
-
-def generate_payload(wa_id: str, response: str, options: Optional[list]) -> str:
-    if options:
+    
+def generate_payload(
+    wa_id: str,
+    response: str,
+    options: Optional[list] = None,
+    flow: Optional[dict] = None,
+) -> str:
+    if flow:
+        return get_flow_payload(wa_id, flow)
+    elif options:
         if len(options) <= 3:
             return get_interactive_button_payload(wa_id, response, options)
         else:
             return get_interactive_list_payload(wa_id, response, options)
     else:
         return get_text_payload(wa_id, response)
+
+
+def get_flow_payload(wa_id: str, flow: dict) -> str:
+    payload = {
+        "recipient_type": "individual",
+        "messaging_product": "whatsapp",
+        "to": wa_id,
+        "type": "interactive",
+        "interactive": {
+            "type": "flow",
+            "header": {
+                "type": "text",
+                "text": flow.get("header", "Flow message header"),
+            },
+            "body": {"text": flow.get("body", "Flow message body")},
+            "footer": {"text": flow.get("footer", "Flow message footer")},
+            "action": {
+                "name": "flow",
+                "parameters": {
+                    "flow_message_version": flow.get("flow_message_version", "3"),
+                    "flow_token": flow.get("flow_token", settings.flow_token),
+                    "flow_name": flow.get("flow_name", "default_flow"),
+                    "flow_cta": flow.get("flow_cta", "Start"),
+                    "flow_action": flow.get("flow_action", "navigate"),
+                    "flow_action_payload": flow.get("flow_action_payload", {}),
+                },
+            },
+        },
+    }
+    return json.dumps(payload)

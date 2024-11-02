@@ -33,7 +33,16 @@ def log_httpx_response(response: httpx.Response) -> None:
     else:
         status_color = ANSI_COLOR_CODES["red"]
         log_method = logger.error
+    from app.config import settings
 
+    if log_method != logger.info:
+        log_method(f"Current app ID: {settings.meta_app_id}")
+        log_method(f"Current api version: {settings.meta_api_version}")
+        log_method(f"Current cloud number ID: {settings.whatsapp_cloud_number_id}")
+        log_method(
+            f"Current whatsapp api token: {settings.whatsapp_api_token.get_secret_value()}"
+        )
+        log_method(f"Current app secret: {settings.meta_app_secret.get_secret_value()}")
     log_method(f"Response URL: {url}")
     log_method(f"Response Status: \033[{status_color}m{status_code}\033[0m")
     log_method(f"Response Body: \033[35m{body}\033[0m")

@@ -122,13 +122,17 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+*.env
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.env.local
+.env.production
+.env.development
+.env.test
 
 # Spyder project settings
 .spyderproject
@@ -170,3 +174,5 @@ cython_debug/
 
 # Ignore vector store
 twiga_vector_store/
+private.pem
+public.pem
