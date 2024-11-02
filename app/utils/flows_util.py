@@ -83,12 +83,11 @@ def get_fernet_key() -> bytes:
 
 def decrypt_flow_token(encrypted_flow_token: str) -> tuple:
     key = get_fernet_key()
-    logging.info(f"Decryption Key: {key}")
     fernet = Fernet(key)
 
     try:
         decrypted_data = fernet.decrypt(encrypted_flow_token.encode("utf-8"))
-        logging.info(f"Decrypted data: {decrypted_data}")
+        # logging.info(f"Decrypted data: {decrypted_data}")
         decrypted_str = decrypted_data.decode("utf-8")
         wa_id, flow_id = decrypted_str.split("_")
         return wa_id, flow_id
@@ -99,14 +98,14 @@ def decrypt_flow_token(encrypted_flow_token: str) -> tuple:
 
 def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
     key = get_fernet_key()
-    logging.info(f"Encryption Key: {key}")
+    # logging.info(f"Encryption Key: {key}")
     fernet = Fernet(key)
 
     # log wa_id and flow_id
     logging.info(f"going to encrypt wa_id: {wa_id} and flow_id: {flow_id}")
 
     data = f"{wa_id}_{flow_id}".encode("utf-8")
-    logging.info(f"Data to encrypt: {data}")
+    # logging.info(f"Data to encrypt: {data}")
     encrypted_data = fernet.encrypt(data)
-    logging.info(f"Encrypted data: {encrypted_data}")
+    # logging.info(f"Encrypted data: {encrypted_data}")
     return encrypted_data.decode("utf-8")
