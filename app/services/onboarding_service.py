@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 from app.database.models import User, OnboardingState, UserState
 from app.services.flow_service import flow_client
-from app.database.db import update_user
+from app.database.db import UserUpdateError, update_user_by_waid, get_user_by_waid
 
 
 class OnboardingHandler:
@@ -13,7 +13,6 @@ class OnboardingHandler:
         self.state_handlers = {
             OnboardingState.new: self.handle_new,
             OnboardingState.personal_info_submitted: self.handle_personal_info_submitted,
-            OnboardingState.class_subject_info_submitted: self.handle_class_subject_info_submitted,
             OnboardingState.completed: self.handle_completed,
         }
 
@@ -46,18 +45,8 @@ class OnboardingHandler:
 
         await self.flow_client.send_class_and_subject_info_flow(user.wa_id, user.name)
 
-        response_text = None
+        response_text = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
         options = None
-        return response_text, options
-
-    def handle_class_subject_info_submitted(
-        self, user: User
-    ) -> Tuple[str, Optional[List[str]]]:
-        self.logger.info(
-            f"Handling class and subject info submitted for user {user.wa_id}"
-        )
-        response_text = "Thank you for submitting your class and subject information. Your onboarding is almost complete."
-        options = ["Complete Onboarding"]
         return response_text, options
 
     def handle_completed(self, user: User) -> Tuple[str, Optional[List[str]]]:
@@ -73,16 +62,26 @@ class OnboardingHandler:
         return response_text, options
 
     async def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
+        self.logger.info(f"Processing Onboarding State for user {user.wa_id}")
         # Get the user's current state from the user object
         user_onboarding_state = user.on_boarding_state
         user_state = user.state
 
+        # Fetch the existing user from the database
+        existing_user = await get_user_by_waid(user.wa_id)
+        if existing_user is None:
+            self.logger.error(f"User with wa_id {user.wa_id} does not exist")
+            raise UserUpdateError(f"User with wa_id {user.wa_id} does not exist")
+
         # Update the user state to onboarding, only if the user is not already in the onboarding state
         if user_state != UserState.onboarding:
-            await update_user(user.wa_id, state=UserState.onboarding)
+            existing_user.on_boarding_state = "new"
+            existing_user.state = "onboarding"
+            self.logger.debug(f"User object before update: {existing_user}")
+            updated_user = await update_user_by_waid(existing_user)
 
             self.logger.info(
-                f"Updated user state to {UserState.onboarding} for user {user.wa_id}"
+                f"Updated user data for {updated_user.wa_id}: state={updated_user.state}, onboarding_state={updated_user.on_boarding_state}"
             )
 
         self.logger.info(
@@ -90,10 +89,10 @@ class OnboardingHandler:
         )
         # Fetch the appropriate handler for the user's current state
         handler = self.state_handlers.get(user_onboarding_state, self.handle_default)
-        response_text, options = await handler(user)
+        response_text, options = await handler(existing_user)
 
         self.logger.info(
-            f"Processed message for {user.wa_id}: state={user_onboarding_state} -> response='{response_text}', options={options}"
+            f"Processed message for {existing_user.wa_id}: state={user_onboarding_state} -> response='{response_text}', options={options}"
         )
 
         return response_text, options

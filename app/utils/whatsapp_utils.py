@@ -145,6 +145,16 @@ def is_flow_complete_message(body: Any) -> bool:
     )
 
 
+def is_event(body: dict) -> bool:
+    return (
+        body.get("object") == "whatsapp_business_account"
+        and body.get("entry")
+        and body["entry"][0].get("changes")
+        and body["entry"][0]["changes"][0].get("value")
+        and body["entry"][0]["changes"][0]["value"].get("event")
+    )
+
+
 def is_status_update(body: dict) -> bool:
     return (
         body.get("entry", [{}])[0]

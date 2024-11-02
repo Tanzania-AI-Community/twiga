@@ -47,19 +47,19 @@ class StateHandler:
         return response_text, options
 
     async def process_state(self, user: User) -> Tuple[str, Optional[List[str]], bool]:
+        user_state = user.state
 
         logger.info(
-            f"Processing state for user {user.name} with wa_id {user.wa_id} and user state {user.state}"
+            f"Processing state for user {user.name} with wa_id {user.wa_id} and user state {user_state}"
         )
 
         # Get the user's current state from the user object
-        user_state = user.state
 
         # If the user is active  return None to indicate that the message should be processed differently than an automated response
         if user_state == UserState.active:
-            return None, None
+            return None, None, False
 
-        if user_state == UserState.onboarding or user_state == UserState.new:
+        if user_state == UserState.onboarding or UserState.new:
             await onboarding_client.process_state(user)
             return None, None, True
 
@@ -67,7 +67,7 @@ class StateHandler:
         handler = self.state_handlers.get(user_state, self.handle_default)
         response_text, options = handler(user, user_state)
 
-        return response_text, options, False
+        return response_text, options, True
 
 
 state_client = StateHandler()

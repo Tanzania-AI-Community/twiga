@@ -13,6 +13,7 @@ from app.utils.whatsapp_utils import (
     is_status_update,
     is_whatsapp_user_message,
     is_flow_complete_message,
+    is_event,
 )
 
 from db.utils import AppDatabase
@@ -32,10 +33,16 @@ async def handle_request(request: Request) -> JSONResponse:
     """
     try:
         body = await request.json()
-        # logger.info(f"Received message on webhook: {body}")
+        logger.info(f"Received message on webhook: {body}")
+
+        # Handle different types of events
+        if is_event(body):
+            return await whatsapp_client.handle_event_request(body)
+
         # Check if it's a WhatsApp status update (sent, delivered, read)
         if is_status_update(body):
             return whatsapp_client.handle_status_update(body)
+
         # Process non-status updates (message, other)
         if not is_whatsapp_user_message(body):
             logger.warning("Received a non-WhatsApp user message. Ignoring. %s", body)
@@ -45,10 +52,12 @@ async def handle_request(request: Request) -> JSONResponse:
             )
         # Check if it's a flow completion message # Merge this with the status update
         if is_flow_complete_message(body):
+            logger.info("Received a flow completion message. Ignoring. %s", body)
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
             )
+
         # Extract message info (NOTE: the message format might look different in flow responses)
         message_info = extract_message_info(body)
         # Get or create user
@@ -71,6 +80,7 @@ async def handle_request(request: Request) -> JSONResponse:
                 content={"status": "ok"},
                 status_code=200,
             )
+
         if is_message_recent(message_info["timestamp"]):
             # Add check if rate limit is reached here and update the database. Will need some function that brings it back the next day though.
             # if db.is_rate_limit_reached(wa_id):
@@ -152,11 +162,6 @@ async def _handle_twiga_integration(
 
     db.store_message(wa_id, response_text, role="twiga")
     return get_text_payload(wa_id, response_text)
-
-
-def _handle_onboarding_flow(wa_id: str, message_body: str) -> str:
-    response_text, options = onboarding_client.process_state(wa_id, message_body)
-    return generate_payload(wa_id, response_text, options)
 
 
 # TODO: This will be partially deprecated and handled by the state service
