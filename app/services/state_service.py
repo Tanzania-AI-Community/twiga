@@ -2,6 +2,9 @@ import logging
 from typing import List, Optional, Tuple, Dict, Callable
 
 from app.database.models import User, UserState
+from app.services.onboarding_service import onboarding_client
+
+logger = logging.getLogger(__name__)
 
 
 class StateHandler:
@@ -10,7 +13,6 @@ class StateHandler:
         self.state_handlers: Dict[
             UserState, Callable[[User, UserState], Tuple[str, Optional[List[str]]]]
         ] = {
-            UserState.new: self.handle_new,
             UserState.blocked: self.handle_blocked,
             UserState.rate_limited: self.handle_rate_limited,
             UserState.has_pending_message: self.handle_has_pending_message,  # TODO: determine if this is the right approach
@@ -23,12 +25,6 @@ class StateHandler:
         self, user: User, user_state: UserState
     ) -> Tuple[str, Optional[List[str]]]:
         response_text = "There appears to have occurred an error. Please contact support (dev@ai.or.tz) for assistance."
-        return response_text, None
-
-    def handle_new(
-        self, user: User, user_state: UserState
-    ) -> Tuple[str, Optional[List[str]]]:
-        response_text = "Welcome! Please complete the onboarding process to start using the service."
         return response_text, None
 
     def handle_blocked(
@@ -50,20 +46,28 @@ class StateHandler:
         options = None
         return response_text, options
 
-    def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
-
-        # Get the user's current state from the user object
+    async def process_state(self, user: User) -> Tuple[str, Optional[List[str]], bool]:
         user_state = user.state
 
-        # If the user is active or onboarding return None to indicate that the message should be processed differently than an automated response
-        if user_state == UserState.active or user_state == UserState.onboarding:
-            return None, None
+        logger.info(
+            f"Processing state for user {user.name} with wa_id {user.wa_id} and user state {user_state}"
+        )
+
+        # Get the user's current state from the user object
+
+        # If the user is active  return None to indicate that the message should be processed differently than an automated response
+        if user_state == UserState.active:
+            return None, None, False
+
+        if user_state == UserState.onboarding or UserState.new:
+            await onboarding_client.process_state(user)
+            return None, None, True
 
         # Fetch the appropriate handler for the user's current state
         handler = self.state_handlers.get(user_state, self.handle_default)
         response_text, options = handler(user, user_state)
 
-        return response_text, options
+        return response_text, options, True
 
 
 state_client = StateHandler()

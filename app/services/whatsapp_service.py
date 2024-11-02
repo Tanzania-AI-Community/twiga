@@ -66,5 +66,64 @@ class WhatsAppClient:
         )
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
+    async def handle_event_request(self, body: dict) -> JSONResponse:
+        """
+        Handles WhatsApp webhook events.
+        """
+        self.logger.debug(f"Received a WhatsApp event: {body}")
+        event_type = body["entry"][0]["changes"][0]["value"]["event"]
+
+        if event_type == "ENDPOINT_AVAILABILITY":
+            flow_id = body["entry"][0]["changes"][0]["value"]["flow_id"]
+            threshold = body["entry"][0]["changes"][0]["value"]["threshold"]
+            availability = body["entry"][0]["changes"][0]["value"]["availability"]
+            self.logger.info(
+                f"Received a flow availability request for flow id {flow_id}, threshold {threshold}, availability {availability}"
+            )
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
+        elif event_type == "FLOW_STATUS_CHANGE":
+            flow_id = body["entry"][0]["changes"][0]["value"]["flow_id"]
+            old_status = body["entry"][0]["changes"][0]["value"]["old_status"]
+            new_status = body["entry"][0]["changes"][0]["value"]["new_status"]
+            self.logger.info(
+                f"Received a flow status change request for flow id {flow_id}, old status {old_status}, new status {new_status}"
+            )
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
+        elif event_type == "ENDPOINT_ERROR_RATE":
+            self.logger.info(f"Handling event type: {event_type}")
+            # Add your handling logic here
+            return JSONResponse(
+                content={
+                    "status": "success",
+                    "message": f"Handled event type: {event_type}",
+                },
+                status_code=200,
+            )
+        elif event_type == "ENDPOINT_LATENCY":
+            self.logger.info(f"Handling event type: {event_type}")
+            # Add your handling logic here
+            return JSONResponse(
+                content={
+                    "status": "success",
+                    "message": f"Handled event type: {event_type}",
+                },
+                status_code=200,
+            )
+        else:
+            self.logger.warning(f"⚠️ Unhandled event type: {event_type}")
+            return JSONResponse(
+                content={
+                    "status": "warning",
+                    "message": f"Unhandled event type: {event_type}",
+                },
+                status_code=200,
+            )
+
 
 whatsapp_client = WhatsAppClient()

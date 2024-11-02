@@ -21,9 +21,17 @@ class Settings(BaseSettings):
     meta_api_version: str
     meta_app_id: str
     meta_app_secret: SecretStr
+    # WhatsApp settings
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
+    whatsapp_business_public_key: SecretStr
+    whatsapp_business_private_key: SecretStr
+    whatsapp_business_private_key_password: SecretStr
+    # Flows settings
+    personal_and_school_info_flow_id: str
+    subject_class_info_flow_id: str
+    flow_token_encryption_key: SecretStr
     # Rate limit settings
     daily_message_limit: int
     # Database settings
