@@ -32,7 +32,8 @@ class UserQueryError(UserDatabaseError):
     """Raised when user query fails"""
 
     pass
-  
+
+
 class UserUpdateError(UserDatabaseError):
     """Raised when user update fails"""
 
@@ -75,26 +76,6 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             raise UserDatabaseError(f"Failed to get or create user: {str(e)}")
 
 
-async def create_new_user(name: Optional[str], wa_id: str) -> User:
-    """Create new user explicitly"""
-    async with AsyncSession(db_engine) as session:
-        try:
-            new_user = User(
-                name=name,
-                wa_id=wa_id,
-                state=UserState.new,
-                role=Role.teacher,
-            )
-            session.add(new_user)
-            await session.commit()
-            await session.refresh(new_user)
-            return new_user
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Failed to create user {wa_id}: {str(e)}")
-            raise UserCreationError(f"Failed to create user: {str(e)}")
-
-
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
     async with AsyncSession(db_engine) as session:
         try:
@@ -104,6 +85,7 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
             raise UserQueryError(f"Failed to query user: {str(e)}")
+
 
 # TODO: rename this function
 async def update_user_by_waid(user: User) -> User:
@@ -151,7 +133,7 @@ async def update_user_by_waid(user: User) -> User:
             await session.rollback()
             logger.error(f"Failed to update user {wa_id}: {str(e)}")
             raise UserUpdateError(f"Failed to update user: {str(e)}")
- 
+
 
 # TODO: This should be replaced with get_user_by_waid or the get_or_create_user function
 async def get_user_data(wa_id: str) -> dict:
@@ -174,7 +156,7 @@ async def get_user_data(wa_id: str) -> dict:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
             raise UserQueryError(f"Failed to query user: {str(e)}")
 
-            
+
 async def get_user_message_history(
     user_id: int, limit: int = 10
 ) -> Optional[List[Message]]:

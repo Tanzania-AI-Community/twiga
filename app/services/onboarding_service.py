@@ -20,6 +20,7 @@ class OnboardingHandler:
         try:
             self.logger.info(f"Handling new user {user.wa_id}")
             # Call the send_personal_and_school_info_flow method from FlowService
+            # TODO: PUT USER AS INPUT INSTEAD
             await self.flow_client.send_personal_and_school_info_flow(
                 user.wa_id, user.name
             )
@@ -43,6 +44,7 @@ class OnboardingHandler:
     ) -> Tuple[str, Optional[List[str]]]:
         self.logger.info(f"Handling personal info submitted for user {user.wa_id}")
 
+        # TODO: SEND USER AS INPUT INSTEAD
         await self.flow_client.send_class_and_subject_info_flow(user.wa_id, user.name)
 
         response_text = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."

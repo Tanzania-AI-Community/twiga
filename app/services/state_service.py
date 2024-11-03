@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple, Dict, Callable
 
 from app.database.models import User, UserState
 from app.services.onboarding_service import onboarding_client
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +54,19 @@ class StateHandler:
             f"Processing state for user {user.name} with wa_id {user.wa_id} and user state {user_state}"
         )
 
-        # Get the user's current state from the user object
-
         # If the user is active  return None to indicate that the message should be processed differently than an automated response
         if user_state == UserState.active:
             return None, None, False
 
         if user_state == UserState.onboarding or UserState.new:
-            await onboarding_client.process_state(user)
+            if not settings.business_env and user.state == UserState.new:
+                # TODO: Update user state to active and set them as a Geography Form 2 Teacher (alternatively, create custom onboarding)
+                self.logger.info(
+                    "User is new and in development environment. Setting user as active with dummy data."
+                )
+                pass
+            else:
+                await onboarding_client.process_state(user)
             return None, None, True
 
         # Fetch the appropriate handler for the user's current state

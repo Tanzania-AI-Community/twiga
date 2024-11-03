@@ -44,7 +44,7 @@ class Settings(BaseSettings):
 
     # Debug settings
     # TODO: Determine if we need this
-    debug: str = False
+    debug: bool = False
 
     # Business environment
     business_env: bool = False  # Default if not found in .env

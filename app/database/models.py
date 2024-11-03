@@ -99,16 +99,17 @@ class User(SQLModel, table=True):
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
     state: str = Field(default=UserState.new, max_length=50)
+    # TODO: Update the on_boarding_state
     on_boarding_state: Optional[str] = Field(
         default=OnboardingState.new, max_length=50
     )  # Is this really optional?
     role: str = Field(default=Role.teacher, max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
-    school_location: Optional[str] = Field(default=None, max_length=100)
+    # school_location: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
-    location: Optional[str] = Field(default=None, max_length=100)
+    # location: Optional[str] = Field(default=None, max_length=100)
     last_message_at: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True)
     )  # user.last_message_at = datetime.now(timezone.utc) (this is how to set it when updating later)

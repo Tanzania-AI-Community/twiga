@@ -70,7 +70,7 @@ async def handle_request(request: Request) -> JSONResponse:
                 content={"status": "error", "message": "Message is outdated"},
                 status_code=400,
             )
-        
+
         # Get or create user
         user = await db.get_or_create_user(
             wa_id=message_info["wa_id"], name=message_info["name"]
@@ -78,8 +78,9 @@ async def handle_request(request: Request) -> JSONResponse:
 
         # Handle state using the State Service
         response_text, options, is_end = await state_client.process_state(user)
-        
+
         # log the response_text and options
+        # TODO: Fix "is_end", I'm not a fan of it - Victor
         logger.info(f"Response text: {response_text} | Options: {options}")
         if is_end:
             return JSONResponse(
@@ -88,7 +89,7 @@ async def handle_request(request: Request) -> JSONResponse:
             )
 
         request_message = extract_message_body(message_info["message"])
-        
+
         user_message = await db.create_new_message(
             Message(user_id=user.id, role=MessageRole.user, content=request_message)
         )
@@ -100,14 +101,15 @@ async def handle_request(request: Request) -> JSONResponse:
 
             # Store the bot response in the database
             await db.create_new_message(
-                Message(user_id=user.id, role=MessageRole.assistant, content=response_text)
+                Message(
+                    user_id=user.id, role=MessageRole.assistant, content=response_text
+                )
             )
-            
+
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
             )
-                  
 
         if user.state == UserState.active:
             # In this scenario the user is active so they are directed to the LLM
@@ -127,7 +129,7 @@ async def handle_request(request: Request) -> JSONResponse:
                 await whatsapp_client.send_message(payload)
 
         return JSONResponse(content={"status": "ok"}, status_code=200)
-      
+
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON")
         return JSONResponse(

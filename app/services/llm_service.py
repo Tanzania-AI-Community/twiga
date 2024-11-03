@@ -46,7 +46,7 @@ class LLMClient:
     def __init__(self):
         self.client = AsyncOpenAI(
             base_url="https://api.together.xyz/v1",
-            api_key=llm_settings.together_api_key.get_secret_value(),
+            api_key=llm_settings.llm_api_key.get_secret_value(),
         )
         self.logger = logging.getLogger(__name__)
         self._processors: dict[int, MessageProcessor] = {}

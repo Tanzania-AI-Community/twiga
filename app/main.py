@@ -10,6 +10,7 @@ from app.services.whatsapp_service import whatsapp_client
 from app.services.messaging_service import handle_request
 from app.services.flow_service import flow_client
 from app.database.engine import db_engine, init_db
+from app.utils.flows_util import decrypt_flow_token
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ async def handle_decrypt_flow_token(request: Request) -> JSONResponse:
         logger.debug(f"Received request to decrypt flow token: {body}")
         encrypted_flow_token = body.get("encrypted-flow-token")
 
-        return await flow_client.decrypt_flow_token(encrypted_flow_token)
+        return await decrypt_flow_token(encrypted_flow_token)
     except Exception as e:
         logger.error(f"Error decrypting flow token: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

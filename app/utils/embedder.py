@@ -5,7 +5,7 @@ from together import Together
 from together.types import EmbeddingResponse
 
 client = Together(
-    api_key=llm_settings.together_api_key.get_secret_value(),
+    api_key=llm_settings.llm_api_key.get_secret_value(),
 )
 
 
