@@ -77,9 +77,13 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
         # Handle state using the State Service
-        response_text, options, is_end = await state_client.process_state(user)
+        response_text, options, is_end, updated_user = await state_client.process_state(
+            user
+        )
 
-        # log the response_text and options
+        if updated_user:
+            user = updated_user
+
         # TODO: Fix "is_end", I'm not a fan of it - Victor
         logger.debug(f"Response text: {response_text} | Options: {options}")
         if is_end:

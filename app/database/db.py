@@ -134,11 +134,57 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
 #             raise UserUpdateError(f"Failed to update user: {str(e)}")
 
 
-async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> User:
+async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> Class:
     """
-    Add a teacher-class to the teachers_classes table
+    Add a teacher-class to the teachers_classes table and update user's class_info
+
+    Args:
+        user: User object for the teacher
+        subject: Subject enum value to find
+        grade: GradeLevel enum value to find
+
+    Returns:
+        User: Updated user object
+
+    Raises:
+        UserUpdateError: If update fails
     """
-    pass
+    async with AsyncSession(db_engine) as session:
+        try:
+            # First check if the class exists
+            statement = select(Class).where(
+                Class.subject == subject.value, Class.grade_level == grade.value
+            )
+            result = await session.execute(statement)
+            class_obj = result.scalar_one_or_none()
+
+            # If class doesn't exist, create it
+            if not class_obj:
+                raise Exception(f"Class {subject.value} {grade.value} does not exist")
+
+            # Check if teacher-class relationship already exists
+            statement = select(TeacherClass).where(
+                TeacherClass.teacher_id == user.id,
+                TeacherClass.class_id == class_obj.id,
+            )
+            result = await session.execute(statement)
+            teacher_class = result.scalar_one_or_none()
+
+            # If relationship doesn't exist, create it
+            if not teacher_class:
+                teacher_class = TeacherClass(teacher_id=user.id, class_id=class_obj.id)
+                session.add(teacher_class)
+                await session.commit()
+
+            # TODO: Consider updating user.class_info here too
+
+            logger.info(f"Added class {subject.value} {grade.value} for user {user.id}")
+            return class_obj
+
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Failed to add teacher class: {str(e)}")
+            raise UserUpdateError(f"Failed to add teacher class: {str(e)}")
 
 
 async def update_user(user: User) -> User:
