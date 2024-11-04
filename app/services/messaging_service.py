@@ -34,7 +34,7 @@ async def handle_request(request: Request) -> JSONResponse:
     """
     try:
         body = await request.json()
-        logger.info(f"Received message on webhook: {body}")
+        logger.debug(f"Received message on webhook: {body}")
 
         # TODO: All of these cases can be handled within one separate function to shorten this function
         # Handle different types of events
@@ -54,7 +54,7 @@ async def handle_request(request: Request) -> JSONResponse:
             )
         # Check if it's a flow completion message # Merge this with the status update
         if is_flow_complete_message(body):
-            logger.info("Received a flow completion message. Ignoring. %s", body)
+            logger.debug("Received a flow completion message. Ignoring. %s", body)
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
