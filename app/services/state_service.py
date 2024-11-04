@@ -1,8 +1,10 @@
 import logging
 from typing import List, Optional, Tuple, Dict, Callable
 
+from app.database.db import update_user_by_waid
 from app.database.models import User, UserState
 from app.services.onboarding_service import onboarding_client
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,25 @@ class StateHandler:
             return None, None, False
 
         if user_state == UserState.onboarding or UserState.new:
+
+            is_flows_active = settings.is_flows_active != "False"
+            self.logger.info(f"Flows are active: {is_flows_active}")
+
+            # skip onboarding if flows are not active, #TODO set an alternative onboarding process
+            if not is_flows_active:
+                self.logger.info(
+                    "Flows are not active. Skipping onboarding. And setting user state to active"
+                )
+                # check if the user is in onboarding state or new state
+                if user_state == UserState.new or user_state == UserState.onboarding:
+                    user.state = "active"
+                    user.on_boarding_state = "completed"
+                    user = await update_user_by_waid(user)
+                    self.logger.info(
+                        f"Updated user state to active for user {user.wa_id}, state {user.state}"
+                    )
+                    return None, None, False
+
             await onboarding_client.process_state(user)
             return None, None, True
 
