@@ -192,7 +192,7 @@ def extract_message_body(message: dict) -> str:
 
     raise ValueError(f"Unsupported message type: {message_type}")
 
-    
+
 def generate_payload(
     wa_id: str,
     response: str,
