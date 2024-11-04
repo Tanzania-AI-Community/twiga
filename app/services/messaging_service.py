@@ -81,7 +81,7 @@ async def handle_request(request: Request) -> JSONResponse:
 
         # log the response_text and options
         # TODO: Fix "is_end", I'm not a fan of it - Victor
-        logger.info(f"Response text: {response_text} | Options: {options}")
+        logger.debug(f"Response text: {response_text} | Options: {options}")
         if is_end:
             return JSONResponse(
                 content={"status": "ok"},
