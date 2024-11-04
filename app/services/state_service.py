@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional, Tuple, Dict, Callable
 
+from app.database.db import update_user_by_waid
 from app.database.models import User, UserState
 from app.services.onboarding_service import onboarding_client
 from app.config import settings
