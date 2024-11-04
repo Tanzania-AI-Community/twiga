@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 from app.database.models import User, OnboardingState, UserState
 from app.services.flow_service import flow_client
-from app.database.db import UserUpdateError, update_user_by_waid, get_user_by_waid
+from app.database.db import UserUpdateError, update_user, get_user_by_waid
 
 
 class OnboardingHandler:
@@ -80,7 +80,7 @@ class OnboardingHandler:
             existing_user.on_boarding_state = "new"
             existing_user.state = "onboarding"
             self.logger.debug(f"User object before update: {existing_user}")
-            updated_user = await update_user_by_waid(existing_user)
+            updated_user = await update_user(existing_user)
 
             self.logger.info(
                 f"Updated user data for {updated_user.wa_id}: state={updated_user.state}, onboarding_state={updated_user.on_boarding_state}"

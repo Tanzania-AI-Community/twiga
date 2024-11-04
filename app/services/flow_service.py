@@ -5,7 +5,7 @@ from app.utils.flows_util import (
     decrypt_flow_token,
     encrypt_flow_token,
 )
-from app.database.db import get_user_by_waid, update_user_by_waid
+from app.database.db import get_user_by_waid, update_user
 from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.whatsapp_utils import generate_payload
@@ -212,7 +212,7 @@ class FlowService:
         user.on_boarding_state = "personal_info_submitted"
 
         self.logger.info(f"Going to update user: {user}")
-        await update_user_by_waid(user)
+        await update_user(user)
         self.logger.info(f"User after update: {user}")
 
         response_payload = {
@@ -394,7 +394,7 @@ class FlowService:
 
             user = User(wa_id=wa_id, on_boarding_state="completed", state="active")
 
-            await update_user_by_waid(user)
+            await update_user(user)
 
             response_text = f"Hurray! {user.name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start using Twiga 🦒."
             options = None
