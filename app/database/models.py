@@ -1,5 +1,6 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, date
+from pydantic import BaseModel, ConfigDict
 from sqlmodel import (
     Index,
     Enum,
@@ -90,6 +91,33 @@ class ChunkType(str, Enum):
     # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
+class ClassInfo(BaseModel):
+    """Maps subjects to their grade levels for a teacher"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # NOTE: The keys are Subject and the values are lists of GradeLevel
+    subjects: Dict[str, List[str]]
+
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+        return {
+            subject: [grade for grade in grades]
+            for subject, grades in data["subjects"].items()
+        }
+
+    @classmethod
+    def model_validate(cls, data: Dict):
+        if data is None:
+            return None
+        return cls(
+            subjects={
+                Subject(subject): [GradeLevel(grade) for grade in grades]
+                for subject, grades in data.items()
+            }
+        )
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -145,8 +173,8 @@ class Class(SQLModel, table=True):
         UniqueConstraint("subject", "grade_level", name="unique_classes"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
-    subject: str = Field(max_length=30)
-    grade_level: str = Field(max_length=10)  # use GradeLevel enum
+    subject: str = Field(max_length=30, index=True)
+    grade_level: str = Field(max_length=10, index=True)  # use GradeLevel enum
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(

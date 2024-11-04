@@ -87,51 +87,90 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
             raise UserQueryError(f"Failed to query user: {str(e)}")
 
 
-# TODO: rename this function
+# async def update_user(user: User) -> User:
+#     """
+#     Update any information about an existing user and return the updated user.
+#     """
+#     if user is None:
+#         logger.error("Cannot update user: user object is None")
+#         raise UserUpdateError("Cannot update user: user object is None")
+
+#     # Convert the User object to a dictionary
+#     user_data = user.__dict__.copy()
+
+#     logger.debug(f"Updating user {user_data}")
+
+#     # Remove the _sa_instance_state attribute
+#     user_data.pop("_sa_instance_state", None)
+
+#     # Extract the wa_id
+#     wa_id = user_data.pop("wa_id")
+
+#     # Remove the id attribute
+#     user_data.pop("wa_id", None)
+#     user_data.pop("id", None)
+
+#     # Handle the birthday field if necessary
+#     if "birthday" in user_data and isinstance(user_data["birthday"], str):
+#         user_data["birthday"] = datetime.strptime(
+#             user_data["birthday"], "%Y-%m-%d"
+#         ).date()
+
+#     async with AsyncSession(db_engine) as session:
+#         try:
+#             statement = update(User).where(User.wa_id == wa_id).values(**user_data)
+#             await session.execute(statement)
+#             await session.commit()
+
+#             # Fetch the updated user
+#             result = await session.execute(select(User).filter_by(wa_id=wa_id))
+#             updated_user = result.scalar_one_or_none()
+
+#             logger.info(f"Updated user {wa_id} with {user_data}")
+#             return updated_user
+#         except Exception as e:
+#             await session.rollback()
+#             logger.error(f"Failed to update user {wa_id}: {str(e)}")
+#             raise UserUpdateError(f"Failed to update user: {str(e)}")
+
+
+async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> User:
+    """
+    Add a teacher-class to the teachers_classes table
+    """
+    pass
+
+
 async def update_user(user: User) -> User:
     """
     Update any information about an existing user and return the updated user.
+
+    Args:
+        user (User): User object with updated information
+
+    Returns:
+        User: Updated user object
+
+    Raises:
+        UserUpdateError: If user is None or update fails
     """
     if user is None:
         logger.error("Cannot update user: user object is None")
         raise UserUpdateError("Cannot update user: user object is None")
 
-    # Convert the User object to a dictionary
-    user_data = user.__dict__.copy()
-
-    logger.debug(f"Updating user {user_data}")
-
-    # Remove the _sa_instance_state attribute
-    user_data.pop("_sa_instance_state", None)
-
-    # Extract the wa_id
-    wa_id = user_data.pop("wa_id")
-
-    # Remove the id attribute
-    user_data.pop("wa_id", None)
-    user_data.pop("id", None)
-
-    # Handle the birthday field if necessary
-    if "birthday" in user_data and isinstance(user_data["birthday"], str):
-        user_data["birthday"] = datetime.strptime(
-            user_data["birthday"], "%Y-%m-%d"
-        ).date()
-
     async with AsyncSession(db_engine) as session:
         try:
-            statement = update(User).where(User.wa_id == wa_id).values(**user_data)
-            await session.execute(statement)
+            # Add user to session and refresh to ensure we have latest data
+            session.add(user)
             await session.commit()
+            await session.refresh(user)
 
-            # Fetch the updated user
-            result = await session.execute(select(User).filter_by(wa_id=wa_id))
-            updated_user = result.scalar_one_or_none()
+            logger.info(f"Updated user {user.wa_id}")
+            return user
 
-            logger.info(f"Updated user {wa_id} with {user_data}")
-            return updated_user
         except Exception as e:
             await session.rollback()
-            logger.error(f"Failed to update user {wa_id}: {str(e)}")
+            logger.error(f"Failed to update user {user.wa_id}: {str(e)}")
             raise UserUpdateError(f"Failed to update user: {str(e)}")
 
 
