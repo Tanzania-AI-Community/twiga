@@ -25,7 +25,7 @@ def upgrade() -> None:
     op.add_column(
         "users",
         sa.Column(
-            "on_boarding_state",
+            "onboarding_state",
             sqlmodel.sql.sqltypes.AutoString(length=50),
             nullable=True,
         ),
@@ -49,5 +49,5 @@ def downgrade() -> None:
         type_=sa.VARCHAR(length=20),
         existing_nullable=False,
     )
-    op.drop_column("users", "on_boarding_state")
+    op.drop_column("users", "onboarding_state")
     # ### end Alembic commands ###

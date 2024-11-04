@@ -127,8 +127,8 @@ class User(SQLModel, table=True):
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
     state: str = Field(default=UserState.new, max_length=50)
-    # TODO: Update the on_boarding_state
-    on_boarding_state: Optional[str] = Field(
+    # TODO: Update the onboarding_state
+    onboarding_state: Optional[str] = Field(
         default=OnboardingState.new, max_length=50
     )  # Is this really optional?
     role: str = Field(default=Role.teacher, max_length=20)

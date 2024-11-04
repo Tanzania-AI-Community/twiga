@@ -209,7 +209,7 @@ class FlowService:
         user.location = location
         user.school_name = school_name
         user.school_location = school_location
-        user.on_boarding_state = "personal_info_submitted"
+        user.onboarding_state = "personal_info_submitted"
 
         self.logger.info(f"Going to update user: {user}")
         await update_user(user)
@@ -392,7 +392,7 @@ class FlowService:
                 },
             }
 
-            user = User(wa_id=wa_id, on_boarding_state="completed", state="active")
+            user = User(wa_id=wa_id, onboarding_state="completed", state="active")
 
             await update_user(user)
 
