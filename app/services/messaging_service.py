@@ -38,7 +38,7 @@ async def handle_request(request: Request) -> JSONResponse:
     """
     try:
         body = await request.json()
-        logger.info(f"Received message on webhook: {body}")
+        logger.debug(f"Received message on webhook: {body}")
 
         # TODO: All of these cases can be handled within one separate function to shorten this function
         # Handle different types of events
@@ -58,7 +58,7 @@ async def handle_request(request: Request) -> JSONResponse:
             )
         # Check if it's a flow completion message # Merge this with the status update
         if is_flow_complete_message(body):
-            logger.info("Received a flow completion message. Ignoring. %s", body)
+            logger.debug("Received a flow completion message. Ignoring. %s", body)
             return JSONResponse(
                 content={"status": "ok"},
                 status_code=200,
@@ -89,11 +89,15 @@ async def handle_request(request: Request) -> JSONResponse:
             return await handle_command_message(user, message)
 
         # Handle state using the State Service
-        response_text, options, is_end = await state_client.process_state(user)
+        response_text, options, is_end, updated_user = await state_client.process_state(
+            user
+        )
 
-        # log the response_text and options
+        if updated_user:
+            user = updated_user
+
         # TODO: Fix "is_end", I'm not a fan of it - Victor
-        logger.info(f"Response text: {response_text} | Options: {options}")
+        logger.debug(f"Response text: {response_text} | Options: {options}")
         if is_end:
             return JSONResponse(
                 content={"status": "ok"},

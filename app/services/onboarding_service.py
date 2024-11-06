@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 from app.database.models import User, OnboardingState, UserState
 from app.services.flow_service import flow_client
-from app.database.db import UserUpdateError, update_user_by_waid, get_user_by_waid
+from app.database.db import UserUpdateError, update_user, get_user_by_waid
 
 
 class OnboardingHandler:
@@ -66,7 +66,7 @@ class OnboardingHandler:
     async def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
         self.logger.info(f"Processing Onboarding State for user {user.wa_id}")
         # Get the user's current state from the user object
-        user_onboarding_state = user.on_boarding_state
+        user_onboarding_state = user.onboarding_state
         user_state = user.state
 
         # Fetch the existing user from the database
@@ -77,13 +77,13 @@ class OnboardingHandler:
 
         # Update the user state to onboarding, only if the user is not already in the onboarding state
         if user_state != UserState.onboarding:
-            existing_user.on_boarding_state = "new"
+            existing_user.onboarding_state = "new"
             existing_user.state = "onboarding"
             self.logger.debug(f"User object before update: {existing_user}")
-            updated_user = await update_user_by_waid(existing_user)
+            updated_user = await update_user(existing_user)
 
             self.logger.info(
-                f"Updated user data for {updated_user.wa_id}: state={updated_user.state}, onboarding_state={updated_user.on_boarding_state}"
+                f"Updated user data for {updated_user.wa_id}: state={updated_user.state}, onboarding_state={updated_user.onboarding_state}"
             )
 
         self.logger.info(

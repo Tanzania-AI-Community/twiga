@@ -12,7 +12,7 @@ from app.services.whatsapp_service import (
     whatsapp_client,
 )  # TODO: send updates to user during tool calls
 from app.utils.llm_utils import async_llm_request
-from assets.prompts import get_system_prompt
+from assets.preprompts.prompts import get_system_prompt
 from app.tools.registry import tools_functions, tools_metadata
 
 

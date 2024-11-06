@@ -87,74 +87,137 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
             raise UserQueryError(f"Failed to query user: {str(e)}")
 
 
-# TODO: rename this function
-async def update_user_by_waid(user: User) -> User:
+# async def update_user(user: User) -> User:
+#     """
+#     Update any information about an existing user and return the updated user.
+#     """
+#     if user is None:
+#         logger.error("Cannot update user: user object is None")
+#         raise UserUpdateError("Cannot update user: user object is None")
+
+#     # Convert the User object to a dictionary
+#     user_data = user.__dict__.copy()
+
+#     logger.debug(f"Updating user {user_data}")
+
+#     # Remove the _sa_instance_state attribute
+#     user_data.pop("_sa_instance_state", None)
+
+#     # Extract the wa_id
+#     wa_id = user_data.pop("wa_id")
+
+#     # Remove the id attribute
+#     user_data.pop("wa_id", None)
+#     user_data.pop("id", None)
+
+#     # Handle the birthday field if necessary
+#     if "birthday" in user_data and isinstance(user_data["birthday"], str):
+#         user_data["birthday"] = datetime.strptime(
+#             user_data["birthday"], "%Y-%m-%d"
+#         ).date()
+
+#     async with AsyncSession(db_engine) as session:
+#         try:
+#             statement = update(User).where(User.wa_id == wa_id).values(**user_data)
+#             await session.execute(statement)
+#             await session.commit()
+
+#             # Fetch the updated user
+#             result = await session.execute(select(User).filter_by(wa_id=wa_id))
+#             updated_user = result.scalar_one_or_none()
+
+#             logger.info(f"Updated user {wa_id} with {user_data}")
+#             return updated_user
+#         except Exception as e:
+#             await session.rollback()
+#             logger.error(f"Failed to update user {wa_id}: {str(e)}")
+#             raise UserUpdateError(f"Failed to update user: {str(e)}")
+
+
+async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> Class:
+    """
+    Add a teacher-class to the teachers_classes table and update user's class_info
+
+    Args:
+        user: User object for the teacher
+        subject: Subject enum value to find
+        grade: GradeLevel enum value to find
+
+    Returns:
+        User: Updated user object
+
+    Raises:
+        UserUpdateError: If update fails
+    """
+    async with AsyncSession(db_engine) as session:
+        try:
+            # First check if the class exists
+            statement = select(Class).where(
+                Class.subject == subject.value, Class.grade_level == grade.value
+            )
+            result = await session.execute(statement)
+            class_obj = result.scalar_one_or_none()
+
+            # If class doesn't exist, create it
+            if not class_obj:
+                raise Exception(f"Class {subject.value} {grade.value} does not exist")
+
+            # Check if teacher-class relationship already exists
+            statement = select(TeacherClass).where(
+                TeacherClass.teacher_id == user.id,
+                TeacherClass.class_id == class_obj.id,
+            )
+            result = await session.execute(statement)
+            teacher_class = result.scalar_one_or_none()
+
+            # If relationship doesn't exist, create it
+            if not teacher_class:
+                teacher_class = TeacherClass(teacher_id=user.id, class_id=class_obj.id)
+                session.add(teacher_class)
+                await session.commit()
+
+            # TODO: Consider updating user.class_info here too
+
+            logger.info(f"Added class {subject.value} {grade.value} for user {user.id}")
+            return class_obj
+
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Failed to add teacher class: {str(e)}")
+            raise UserUpdateError(f"Failed to add teacher class: {str(e)}")
+
+
+async def update_user(user: User) -> User:
     """
     Update any information about an existing user and return the updated user.
+
+    Args:
+        user (User): User object with updated information
+
+    Returns:
+        User: Updated user object
+
+    Raises:
+        UserUpdateError: If user is None or update fails
     """
     if user is None:
         logger.error("Cannot update user: user object is None")
         raise UserUpdateError("Cannot update user: user object is None")
 
-    # Convert the User object to a dictionary
-    user_data = user.__dict__.copy()
-
-    logger.debug(f"Updating user {user_data}")
-
-    # Remove the _sa_instance_state attribute
-    user_data.pop("_sa_instance_state", None)
-
-    # Extract the wa_id
-    wa_id = user_data.pop("wa_id")
-
-    # Remove the id attribute
-    user_data.pop("wa_id", None)
-    user_data.pop("id", None)
-
-    # Handle the birthday field if necessary
-    if "birthday" in user_data and isinstance(user_data["birthday"], str):
-        user_data["birthday"] = datetime.strptime(
-            user_data["birthday"], "%Y-%m-%d"
-        ).date()
-
     async with AsyncSession(db_engine) as session:
         try:
-            statement = update(User).where(User.wa_id == wa_id).values(**user_data)
-            await session.execute(statement)
+            # Add user to session and refresh to ensure we have latest data
+            session.add(user)
             await session.commit()
+            await session.refresh(user)
 
-            # Fetch the updated user
-            result = await session.execute(select(User).filter_by(wa_id=wa_id))
-            updated_user = result.scalar_one_or_none()
+            logger.info(f"Updated user {user.wa_id}")
+            return user
 
-            logger.info(f"Updated user {wa_id} with {user_data}")
-            return updated_user
         except Exception as e:
             await session.rollback()
-            logger.error(f"Failed to update user {wa_id}: {str(e)}")
+            logger.error(f"Failed to update user {user.wa_id}: {str(e)}")
             raise UserUpdateError(f"Failed to update user: {str(e)}")
-
-
-# TODO: This should be replaced with get_user_by_waid or the get_or_create_user function
-async def get_user_data(wa_id: str) -> dict:
-    """
-    Retrieve user data based on wa_id.
-    """
-    async with AsyncSession(db_engine) as session:
-        try:
-            statement = select(User).where(User.wa_id == wa_id)
-            result = await session.execute(statement)
-            user = result.scalar_one_or_none()
-            if user:
-                user_data = user.model_dump()
-                logger.info(f"Retrieved user data for {wa_id}: {user_data}")
-                return user_data
-            else:
-                logger.warning(f"No user found with wa_id {wa_id}")
-                return None
-        except Exception as e:
-            logger.error(f"Failed to query user {wa_id}: {str(e)}")
-            raise UserQueryError(f"Failed to query user: {str(e)}")
 
 
 async def get_user_message_history(

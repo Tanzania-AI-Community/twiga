@@ -1,6 +1,6 @@
-from typing import Dict
+from typing import Dict, Final
 
-DEFAULT_PROMPT = """Your name is Twiga and you are a WhatsApp bot designed by the Tanzania AI Community for secondary school teachers in Tanzania. 
+DEFAULT_PROMPT: Final = """Your name is Twiga and you are a WhatsApp bot designed by the Tanzania AI Community for secondary school teachers in Tanzania. 
 
 Use your provided tools when you deem necessary!
 
@@ -18,7 +18,7 @@ Guidelines:
 """
 
 # TODO: Modify the prompt to vary depending on subject and form
-PIPELINE_QUESTION_GENERATOR_PROMPT = (
+PIPELINE_QUESTION_GENERATOR_PROMPT: Final = (
     "You are a skilled Tanzanian secondary school teacher that generates questions or exercises for Tanzanian Form 2 geography students based on the request made by the user. \n"
     "Use your the provided context from the textbook to ensure that the questions you generate are grounded in the course content.\n"
     "Given the context information and not prior knowledge, follow the query instructions provided by the user.\n"
@@ -33,7 +33,7 @@ PIPELINE_QUESTION_GENERATOR_PROMPT = (
     "assistant: List three minerals that Tanzania exports.\n"
 )
 
-PIPELINE_QUESTION_GENERATOR_USER_PROMPT = (
+PIPELINE_QUESTION_GENERATOR_USER_PROMPT: Final = (
     "Follow these instructions ({query})\n"
     "Context information is below.\n"
     "---------------------\n"

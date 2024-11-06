@@ -3,8 +3,10 @@ from typing import List, Optional, Tuple, Dict, Callable
 
 from app.database.db import update_user_by_waid
 from app.database.models import User, UserState
+from app.database.models import ClassInfo, GradeLevel, Role, Subject, User, UserState
 from app.services.onboarding_service import onboarding_client
 from app.config import settings
+from app.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,10 @@ class StateHandler:
         options = None
         return response_text, options
 
-    async def process_state(self, user: User) -> Tuple[str, Optional[List[str]], bool]:
+    # TODO: Should reduce the number of returned values to make the function signature more readable
+    async def process_state(
+        self, user: User
+    ) -> Tuple[str, Optional[List[str]], bool, Optional[User]]:
         user_state = user.state
 
         logger.info(
@@ -57,24 +62,35 @@ class StateHandler:
 
         # If the user is active  return None to indicate that the message should be processed differently than an automated response
         if user_state == UserState.active:
-            return None, None, False
+            return None, None, False, None
 
         if user_state == UserState.onboarding or UserState.new:
             if not settings.business_env and user.state == UserState.new:
-                # TODO: Update user state to active and set them as a Geography Form 2 Teacher (alternatively, create custom onboarding)
+                # Updates user state to active and set them as a Geography Form 2 Teacher (alternatively, create custom onboarding)
+                user.state = UserState.active
+                user.role = Role.teacher
+
+                # Create ClassInfo and convert to dictionary for storage
+                class_info = ClassInfo(subjects={Subject.geography: [GradeLevel.os2]})
+                user.class_info = class_info.model_dump()
+
+                user = await db.update_user(user)
                 self.logger.info(
                     "User is new and in development environment. Setting user as active with dummy data."
                 )
-                pass
+                teacher_class = await db.add_teacher_class(
+                    user, Subject.geography, GradeLevel.os2
+                )
+                return None, None, False, user
             else:
                 await onboarding_client.process_state(user)
-            return None, None, True
+            return None, None, True, None
 
         # Fetch the appropriate handler for the user's current state
         handler = self.state_handlers.get(user_state, self.handle_default)
         response_text, options = handler(user, user_state)
 
-        return response_text, options, True
+        return response_text, options, True, None
 
 
 state_client = StateHandler()
