@@ -192,7 +192,27 @@ def extract_message_body(message: dict) -> str:
 
     raise ValueError(f"Unsupported message type: {message_type}")
 
-    
+
+def is_interactive_message(message_info: dict) -> bool:
+    message = message_info.get("message", {})
+    return message.get("type") == "interactive"
+
+
+COMMAND_OPTIONS = ["settings", "help"]
+
+
+def is_command_message(message_info: dict) -> bool:
+    logger.info(
+        f"Going to check if message is a command with message info: {message_info}"
+    )
+    message = message_info.get("message", {}).get("text", {}).get("body", "")
+    logger.info(f"Checking if message is a command: {message}")
+
+    if isinstance(message, str):
+        return message.lower() in COMMAND_OPTIONS
+    return False
+
+
 def generate_payload(
     wa_id: str,
     response: str,

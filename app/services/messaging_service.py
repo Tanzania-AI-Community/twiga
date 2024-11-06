@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.database.models import Message, MessageRole, User, UserState
 from app.utils.whatsapp_utils import (
+    COMMAND_OPTIONS,
     extract_message_body,
     extract_message_info,
     generate_payload,
@@ -15,10 +16,13 @@ from app.utils.whatsapp_utils import (
     is_whatsapp_user_message,
     is_flow_complete_message,
     is_event,
+    is_interactive_message,
+    is_command_message,
 )
 
 from app.services.whatsapp_service import whatsapp_client
 from app.services.llm_service import llm_client
+from app.services.flow_service import flow_client
 from app.services.state_service import state_client
 from app.services.onboarding_service import onboarding_client
 import app.database.db as db
@@ -75,6 +79,14 @@ async def handle_request(request: Request) -> JSONResponse:
         user = await db.get_or_create_user(
             wa_id=message_info["wa_id"], name=message_info["name"]
         )
+
+        if is_interactive_message(message_info):
+            # Handle interactive message
+            return await handle_interactive(user, message_info)
+
+        if is_command_message(message_info):
+            message = message_info.get("message", {}).get("text", {}).get("body", "")
+            return await handle_command_message(user, message)
 
         # Handle state using the State Service
         response_text, options, is_end = await state_client.process_state(user)
@@ -140,5 +152,68 @@ async def handle_request(request: Request) -> JSONResponse:
         logger.error(f"Unexpected error in webhook handler: {str(e)}")
         return JSONResponse(
             content={"status": "error", "message": "Internal server error"},
+            status_code=500,
+        )
+
+
+async def handle_interactive(user: User, message_info: dict) -> JSONResponse:
+    try:
+        # Extract the title from the message using extract_message_body
+        title = extract_message_body(message_info.get("message", {}))
+        logger.info(f"Handling interactive message with title: {title}")
+
+        if title == "Personal Info":
+            logger.info("Sending update personal and school info flow")
+            await flow_client.send_update_personal_and_school_info_flow(user)
+        elif title == "Class and Subject":
+            logger.info("Sending update class and subject info flow")
+            await flow_client.send_update_class_and_subject_info_flow(user)
+        else:
+            # Say reply not recognized
+            response_text = "Your reply was not recognized. Please try another."
+            logger.warning(f"Unrecognized reply: {title}")
+            await whatsapp_client.send_message(
+                get_text_payload(user.wa_id, response_text)
+            )
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
+
+        return JSONResponse(
+            content={"status": "ok"},
+            status_code=200,
+        )
+    except Exception as e:
+        logger.error(f"Error handling interactive message: {e}")
+        return JSONResponse(
+            content={"status": "error", "message": str(e)},
+            status_code=500,
+        )
+
+
+async def handle_command_message(user: User, message: str) -> JSONResponse:  # type: ignore
+    logger.info(f"Handling command message: {message}")
+    try:
+        if message == "settings":
+            # send interactive message to the user showing them the options for settings
+            response_text = (
+                "Welcome to the Settings Menu, please select what you want to update"
+            )
+            options = ["Personal Info", "Class and Subject"]
+            payload = generate_payload(user.wa_id, response_text, options)
+
+            return await whatsapp_client.send_message(payload)
+        else:
+            # handle other commands or provide a default response
+            response_text = "Command not recognized. Please try again."
+            await whatsapp_client.send_message(
+                generate_payload(user.wa_id, response_text, [])
+            )
+
+    except Exception as e:
+        logger.error(f"Error handling command message: {e}")
+        return JSONResponse(
+            content={"status": "error", "message": str(e)},
             status_code=500,
         )
