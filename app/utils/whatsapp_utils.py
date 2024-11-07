@@ -109,8 +109,8 @@ def _format_text_for_whatsapp(text: str) -> str:
     return text
 
 
-def is_whatsapp_user_message(body: Any) -> bool:
-    return (
+def is_invalid_whatsapp_message(body: Any) -> bool:
+    return not (
         body.get("object")
         and body.get("entry")
         and body["entry"][0].get("changes")
@@ -145,7 +145,7 @@ def is_flow_complete_message(body: Any) -> bool:
     )
 
 
-def is_event(body: dict) -> bool:
+def is_flow_event(body: dict) -> bool:
     return (
         body.get("object") == "whatsapp_business_account"
         and body.get("entry")
@@ -174,12 +174,12 @@ def extract_message_info(body: dict) -> dict:
     }
 
 
-def is_message_recent(message_timestamp: int) -> bool:
+def is_message_outdated(message_timestamp: int) -> bool:
     current_timestamp = int(datetime.now().timestamp())
-    return current_timestamp - message_timestamp <= 10
+    return current_timestamp - message_timestamp >= 10
 
 
-def extract_message_body(message: dict) -> str:
+def extract_message(message: dict) -> str:
     message_type = message.get("type")
     if message_type == "text":
         return message["text"]["body"]
@@ -202,11 +202,8 @@ COMMAND_OPTIONS = ["settings", "help"]
 
 
 def is_command_message(message_info: dict) -> bool:
-    logger.info(
-        f"Going to check if message is a command with message info: {message_info}"
-    )
+    logger.debug(f"Checking if message is a command: {message}")
     message = message_info.get("message", {}).get("text", {}).get("body", "")
-    logger.info(f"Checking if message is a command: {message}")
 
     if isinstance(message, str):
         return message.lower() in COMMAND_OPTIONS

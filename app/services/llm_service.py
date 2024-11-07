@@ -121,11 +121,11 @@ class LLMClient:
     async def generate_response(
         self,
         user: User,
-        message: str,
+        message: Message,
     ) -> Optional[List[Message]]:
         """Generate a response, handling message batching and tool calls."""
         processor = self._get_processor(user.id)
-        processor.add_message(message)
+        processor.add_message(message.content)
 
         self.logger.debug(
             f"Message buffer for user: {user.wa_id}, buffer: {processor.get_pending_messages()}"

@@ -62,13 +62,11 @@ class OnboardingState(str, Enum):
 
 
 class UserState(str, Enum):
-    onboarding = "onboarding"
-    active = "active"
-    opted_out = "opted_out"
-    new = "new"
     blocked = "blocked"
     rate_limited = "rate_limited"
-    has_pending_message = "has_pending_message"
+    new = "new"
+    onboarding = "onboarding"
+    active = "active"
 
 
 class ResourceType(str, Enum):
