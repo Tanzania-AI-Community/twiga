@@ -1,43 +1,15 @@
-from sqlmodel import SQLModel, Field, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from sqlmodel import select
 import logging
 from datetime import datetime
 
 from app.database.models import *
-from app.database.engine import db_engine
+from app.database.engine import get_session
 from app.utils import embedder
 
 logger = logging.getLogger(__name__)
 
-
-class UserDatabaseError(Exception):
-    """Base exception for user database operations"""
-
-    pass
-
-
-class UserCreationError(UserDatabaseError):
-    """Raised when user creation fails"""
-
-    pass
-
-
-class MessageCreationError(UserDatabaseError):
-    """Raised when message creation fails"""
-
-    pass
-
-
-class UserQueryError(UserDatabaseError):
-    """Raised when user query fails"""
-
-    pass
-
-
-class UserUpdateError(UserDatabaseError):
-    """Raised when user update fails"""
-
-    pass
+# TODO: Add custom Exceptions for better error handling
 
 
 async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
@@ -46,10 +18,10 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
     Handles all database operations and error logging.
     """
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # First try to get existing user
-            statement = select(User).where(User.wa_id == wa_id)
+            statement = select(User).where(User.wa_id == wa_id).with_for_update()
             result = await session.execute(statement)
             user = result.scalar_one_or_none()
 
@@ -64,27 +36,26 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
                 role=Role.teacher,
             )
             session.add(new_user)
-            await session.commit()
+            # await session.commit()
             await session.refresh(new_user)
 
             logger.info(f"Created new user with wa_id: {wa_id}")
             return new_user
 
         except Exception as e:
-            await session.rollback()
             logger.error(f"Database operation failed for wa_id {wa_id}: {str(e)}")
-            raise UserDatabaseError(f"Failed to get or create user: {str(e)}")
+            raise Exception(f"Failed to get or create user: {str(e)}")
 
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             statement = select(User).where(User.wa_id == wa_id)
             result = await session.execute(statement)
             return result.scalar_one_or_none()
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
-            raise UserQueryError(f"Failed to query user: {str(e)}")
+            raise Exception(f"Failed to query user: {str(e)}")
 
 
 async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> Class:
@@ -99,10 +70,8 @@ async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> 
     Returns:
         User: Updated user object
 
-    Raises:
-        UserUpdateError: If update fails
     """
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # First check if the class exists
             statement = select(Class).where(
@@ -135,9 +104,8 @@ async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> 
             return class_obj
 
         except Exception as e:
-            await session.rollback()
             logger.error(f"Failed to add teacher class: {str(e)}")
-            raise UserUpdateError(f"Failed to add teacher class: {str(e)}")
+            raise Exception(f"Failed to add teacher class: {str(e)}")
 
 
 async def update_user(user: User) -> User:
@@ -150,14 +118,12 @@ async def update_user(user: User) -> User:
     Returns:
         User: Updated user object
 
-    Raises:
-        UserUpdateError: If user is None or update fails
     """
     if user is None:
         logger.error("Cannot update user: user object is None")
-        raise UserUpdateError("Cannot update user: user object is None")
+        raise Exception("Cannot update user: user object is None")
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # Add user to session and refresh to ensure we have latest data
             session.add(user)
@@ -168,26 +134,34 @@ async def update_user(user: User) -> User:
             return user
 
         except Exception as e:
-            await session.rollback()
             logger.error(f"Failed to update user {user.wa_id}: {str(e)}")
-            raise UserUpdateError(f"Failed to update user: {str(e)}")
+            raise Exception(f"Failed to update user: {str(e)}")
 
 
 async def get_user_message_history(
     user_id: int, limit: int = 10
 ) -> Optional[List[Message]]:
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # TODO: Make the database order this by default to reduce repeated operations
-            statement = (
-                select(Message)
-                .where(Message.user_id == user_id)
-                .order_by(Message.created_at.desc())
-                .limit(limit)
+            # statement = (
+            #     select(Message)
+            #     .where(Message.user_id == user_id)
+            #     .order_by(Message.created_at.desc())
+            #     .limit(limit)
+            # )
+            query = text(
+                """
+                SELECT id, user_id, role, content, created_at
+                FROM messages
+                WHERE user_id = :user_id
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """
             )
 
-            result = await session.execute(statement)
-            messages = result.scalars().all()
+            result = await session.execute(query, {"user_id": user_id, "limit": limit})
+            messages = result.fetchall()
 
             # If no messages found, return empty list
             if not messages:
@@ -205,28 +179,17 @@ async def get_user_message_history(
 
 
 async def create_new_messages(messages: List[Message]) -> List[Message]:
-    """
-    Create multiple messages in the database in a single transaction.
-    """
+    """Optimized bulk message creation"""
     if not messages:
         return []
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # Add all messages to the session
             session.add_all(messages)
-
-            # Commit the transaction
-            await session.commit()
-
-            # Refresh all messages to get their IDs and other DB-populated fields
-            for message in messages:
-                await session.refresh(message)
-
+            await session.flush()  # Get IDs without committing
             return messages
-
         except Exception as e:
-            await session.rollback()
             logger.error(
                 f"Unexpected error creating messages for user {messages[0].user_id}: {str(e)}"
             )
@@ -237,14 +200,22 @@ async def create_new_message(message: Message) -> Message:
     """
     Create a single message in the database.
     """
-    try:
-        messages = await create_new_messages([message])
-        return messages[0]
-    except UserCreationError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Error in create_new_message: {str(e)}")
-        raise Exception(f"Failed to create message: {str(e)}")
+    async with get_session() as session:
+        try:
+            # Add the message to the session
+            session.add(message)
+
+            # Commit the transaction
+            await session.commit()
+
+            # Refresh the message to get its ID and other DB-populated fields
+            await session.refresh(message)
+
+            return message
+
+        except Exception as e:
+            logger.error(f"Error creating message for user {message.user_id}: {str(e)}")
+            raise Exception(f"Failed to create message: {str(e)}")
 
 
 async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
@@ -264,7 +235,7 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
         else:
             filters.append(getattr(Chunk, key) == value)
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             result = await session.execute(
                 select(Chunk)
