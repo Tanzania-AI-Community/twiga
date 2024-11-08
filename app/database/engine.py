@@ -47,4 +47,4 @@ def get_database_url() -> str:
 
 
 # Create the engine without running init
-db_engine = create_async_engine(get_database_url(), echo=settings.debug)
+db_engine = create_async_engine(get_database_url(), echo=False)

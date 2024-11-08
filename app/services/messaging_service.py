@@ -234,24 +234,30 @@ async def handle_new_dummy(user: User) -> JSONResponse:
 
 
 async def get_request_type(body: dict) -> RequestType:
-    if is_flow_event(body):  # Various standard Flow events
-        return RequestType.FLOW_EVENT
-    if is_status_update(body):  # WhatsApp status update (sent, delivered, read)
-        return RequestType.MESSAGE_STATUS_UPDATE
-    if is_flow_complete_message(body):  # Flow completion message
-        return RequestType.FLOW_COMPLETE
-    if is_invalid_whatsapp_message(body):  # Non-status updates (message, other)
-        return RequestType.INVALID_MESSAGE
+    try:
+        if is_flow_event(body):  # Various standard Flow events
+            return RequestType.FLOW_EVENT
+        if is_status_update(body):  # WhatsApp status update (sent, delivered, read)
+            return RequestType.MESSAGE_STATUS_UPDATE
+        if is_flow_complete_message(body):  # Flow completion message
+            return RequestType.FLOW_COMPLETE
+        if is_invalid_whatsapp_message(body):  # Non-status updates (message, other)
+            return RequestType.INVALID_MESSAGE
 
-    # For valid WhatsApp messages, extract the message info
-    message_info = extract_message_info(body)
+        # For valid WhatsApp messages, extract the message info
+        message_info = extract_message_info(body)
 
-    # TODO: SETTINGS_FLOW_SELECTION and COMMAND are also VALID_MESSAGE, fix logic issue
-    if is_message_outdated(message_info["timestamp"]):
-        return RequestType.OUTDATED
-    if is_interactive_message(message_info):  # NOTE: Only settings choice interactive
-        return RequestType.SETTINGS_FLOW_SELECTION
-    if is_command_message(message_info):
-        return RequestType.COMMAND
+        # TODO: SETTINGS_FLOW_SELECTION and COMMAND are also VALID_MESSAGE, fix logic issue
+        if is_message_outdated(message_info["timestamp"]):
+            return RequestType.OUTDATED
+        if is_interactive_message(
+            message_info
+        ):  # NOTE: Only settings choice interactive
+            return RequestType.SETTINGS_FLOW_SELECTION
+        if is_command_message(message_info):
+            return RequestType.COMMAND
+    except Exception as e:
+        logger.error(f"Error determining request type: {e}")
+        raise
 
     return RequestType.VALID_MESSAGE

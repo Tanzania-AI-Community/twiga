@@ -110,58 +110,76 @@ def _format_text_for_whatsapp(text: str) -> str:
 
 
 def is_invalid_whatsapp_message(body: Any) -> bool:
-    return not (
-        body.get("object")
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("messages")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]
-    )
+    try:
+        return not (
+            body.get("object")
+            and body.get("entry")
+            and body["entry"][0].get("changes")
+            and body["entry"][0]["changes"][0].get("value")
+            and body["entry"][0]["changes"][0]["value"].get("messages")
+            and body["entry"][0]["changes"][0]["value"]["messages"][0]
+        )
+    except (IndexError, AttributeError, TypeError) as e:
+        logger.error(f"Error validating WhatsApp message: {e}")
+        return True  # Return True since an error means the message is invalid
 
 
 def is_flow_complete_message(body: Any) -> bool:
-    return (
-        body.get("object")
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("messages")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0].get("interactive")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
-            "type"
+    try:
+        return (
+            body.get("object")
+            and body.get("entry")
+            and body["entry"][0].get("changes")
+            and body["entry"][0]["changes"][0].get("value")
+            and body["entry"][0]["changes"][0]["value"].get("messages")
+            and body["entry"][0]["changes"][0]["value"]["messages"][0].get(
+                "interactive"
+            )
+            and body["entry"][0]["changes"][0]["value"]["messages"][0][
+                "interactive"
+            ].get("type")
+            == "nfm_reply"
+            and body["entry"][0]["changes"][0]["value"]["messages"][0][
+                "interactive"
+            ].get("nfm_reply")
+            and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+                "nfm_reply"
+            ].get("response_json")
+            and "flow_token"
+            in body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+                "nfm_reply"
+            ]["response_json"]
         )
-        == "nfm_reply"
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
-            "nfm_reply"
-        )
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
-            "nfm_reply"
-        ].get("response_json")
-        and "flow_token"
-        in body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
-            "nfm_reply"
-        ]["response_json"]
-    )
+    except (IndexError, AttributeError, TypeError, KeyError) as e:
+        logger.error(f"Error checking flow complete message: {e}")
+        return False
 
 
 def is_flow_event(body: dict) -> bool:
-    return (
-        body.get("object") == "whatsapp_business_account"
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("event")
-    )
+    try:
+        return (
+            body.get("object") == "whatsapp_business_account"
+            and body.get("entry")
+            and body["entry"][0].get("changes")
+            and body["entry"][0]["changes"][0].get("value")
+            and body["entry"][0]["changes"][0]["value"].get("event")
+        )
+    except (IndexError, AttributeError, TypeError) as e:
+        logger.error(f"Error checking flow event: {e}")
+        return False
 
 
 def is_status_update(body: dict) -> bool:
-    return (
-        body.get("entry", [{}])[0]
-        .get("changes", [{}])[0]
-        .get("value", {})
-        .get("statuses")
-    ) is not None
+    try:
+        return (
+            body.get("entry", [{}])[0]
+            .get("changes", [{}])[0]
+            .get("value", {})
+            .get("statuses")
+        ) is not None
+    except (IndexError, AttributeError, TypeError) as e:
+        logger.error(f"Error checking status update: {e}")
+        return False
 
 
 def extract_message_info(body: dict) -> dict:
@@ -202,7 +220,7 @@ COMMAND_OPTIONS = ["settings", "help"]
 
 
 def is_command_message(message_info: dict) -> bool:
-    logger.debug(f"Checking if message is a command: {message}")
+    logger.debug(f"Checking if message is a command: {message_info}")
     message = message_info.get("message", {}).get("text", {}).get("body", "")
 
     if isinstance(message, str):

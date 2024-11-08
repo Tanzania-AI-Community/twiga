@@ -42,10 +42,6 @@ class Settings(BaseSettings):
     database_url: SecretStr
     migrations_url: Optional[SecretStr] = None
 
-    # Debug settings
-    # TODO: Determine if we need this
-    debug: bool = False
-
     # Business environment
     business_env: bool = False  # Default if not found in .env
 
