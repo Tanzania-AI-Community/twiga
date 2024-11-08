@@ -36,7 +36,7 @@ async def handle_request(request: Request) -> JSONResponse:
     try:
         body = await request.json()
         request_type = get_request_type(body)
-        logger.debug(f"Received a request of type: {request_type}")
+        logger.info(f"Received a request of type: {request_type}")
 
         # Route the basic and stateless request types
         match request_type:
