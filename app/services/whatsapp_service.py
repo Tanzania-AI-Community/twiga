@@ -1,3 +1,4 @@
+from typing import List, Optional
 from fastapi import Request
 from fastapi.responses import PlainTextResponse, JSONResponse
 import logging
@@ -6,6 +7,7 @@ import httpx
 
 from app.config import settings
 from app.utils.logging_utils import log_httpx_response
+from app.utils.whatsapp_utils import generate_payload
 
 
 class WhatsAppClient:
@@ -18,8 +20,11 @@ class WhatsAppClient:
         self.logger = logging.getLogger(__name__)
         self.client = httpx.AsyncClient(base_url=self.url)
 
-    async def send_message(self, payload: str) -> None:
+    async def send_message(
+        self, wa_id: str, message: str, options: Optional[List[str]] = None
+    ) -> None:
         try:
+            payload = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
             )

@@ -229,8 +229,7 @@ class FlowService:
         response_text = "Thank you for submitting your personal and school information. Your onboarding is almost complete."
         options = None
 
-        payload = generate_payload(user.wa_id, response_text, options)
-        await whatsapp_client.send_message(payload)
+        await whatsapp_client.send_message(user.wa_id, response_text, options)
         # send class and subject info flow
         await self.send_class_and_subject_info_flow(user.wa_id, user.name)
 
@@ -399,8 +398,7 @@ class FlowService:
             response_text = f"Hurray! {user.name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start using Twiga 🦒."
             options = None
 
-            payload = generate_payload(user.wa_id, response_text, options)
-            await whatsapp_client.send_message(payload)
+            await whatsapp_client.send_message(user.wa_id, response_text, options)
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )

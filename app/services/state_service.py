@@ -18,8 +18,7 @@ class StateHandler:
 
     async def handle_blocked(self, user: User) -> JSONResponse:
         response_text = "Your account is currently blocked. Please contact support (dev@ai.or.tz) for assistance."
-        payload = generate_payload(user.wa_id, response_text)
-        await whatsapp_client.send_message(payload)
+        await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
             Message(
                 user_id=user.id,
@@ -35,8 +34,7 @@ class StateHandler:
 
     async def handle_rate_limited(self, user: User) -> JSONResponse:
         response_text = "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Let's talk more tomorrow!"
-        payload = generate_payload(user.wa_id, response_text)
-        await whatsapp_client.send_message(payload)
+        await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
             Message(
                 user_id=user.id,

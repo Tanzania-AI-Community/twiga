@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional
 
 from app.utils.llm_utils import async_llm_request
+from app.utils.whatsapp_utils import generate_payload
 from assets.preprompts.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
@@ -9,6 +10,7 @@ from assets.preprompts.prompts import (
 from app.database.db import vector_search
 from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject
 from app.config import llm_settings
+from app.services.whatsapp_service import whatsapp_client
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +24,18 @@ async def generate_exercise(
     # TODO: Add a global setting to store the resource ID for the user
     # TODO: Redesign this function to search on only the relevant resources
     try:
+        # TODO: Get the user
+        # whatsapp_client.send_message(
+        #     user.wa_id, "Generating an exercise for you, please wait..."
+        # )
+
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
             query=query,
             n_results=7,
             where={
                 "content_type": [ChunkType.text],
-                "resource_id": [4],
+                "resource_id": [1],
             },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
         )
         retrieved_exercises = await vector_search(
@@ -36,7 +43,7 @@ async def generate_exercise(
             n_results=3,
             where={
                 "content_type": [ChunkType.exercise],
-                "resource_id": [4],
+                "resource_id": [1],
             },
         )
 
