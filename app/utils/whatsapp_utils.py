@@ -1,10 +1,9 @@
 from datetime import datetime
+from enum import Enum, auto
 import json
 import re
 from typing import Any, List, Literal, Optional
 import logging
-
-import httpx
 
 from app.models.message_models import (
     Row,
@@ -20,8 +19,22 @@ from app.models.message_models import (
     Section,
     ListAction,
 )
-from app.utils.logging_utils import log_httpx_response
 from app.config import settings
+
+
+class RequestType(Enum):
+    FLOW_EVENT = auto()
+    MESSAGE_STATUS_UPDATE = auto()
+    FLOW_COMPLETE = auto()
+    INVALID_MESSAGE = auto()
+    OUTDATED = auto()
+    VALID_MESSAGE = auto()
+
+
+class ValidMessageType(Enum):
+    SETTINGS_FLOW_SELECTION = auto()
+    COMMAND = auto()
+    CHAT = auto()
 
 
 logger = logging.getLogger(__name__)
@@ -273,3 +286,37 @@ def get_flow_payload(wa_id: str, flow: dict) -> str:
         },
     }
     return json.dumps(payload)
+
+
+def get_valid_message_type(message_info: dict) -> ValidMessageType:
+
+    if is_interactive_message(message_info):
+        return ValidMessageType.SETTINGS_FLOW_SELECTION
+    if is_command_message(message_info):
+        return ValidMessageType.COMMAND
+
+    return ValidMessageType.CHAT
+
+
+def get_request_type(body: dict) -> RequestType:
+    try:
+        if is_flow_event(body):  # Various standard Flow events
+            return RequestType.FLOW_EVENT
+        if is_status_update(body):  # WhatsApp status update (sent, delivered, read)
+            return RequestType.MESSAGE_STATUS_UPDATE
+        if is_flow_complete_message(body):  # Flow completion message
+            return RequestType.FLOW_COMPLETE
+        if is_invalid_whatsapp_message(body):  # Non-status updates (message, other)
+            return RequestType.INVALID_MESSAGE
+
+        # For valid WhatsApp messages, extract the message info
+        message_info = extract_message_info(body)
+
+        if is_message_outdated(message_info["timestamp"]):
+            return RequestType.OUTDATED
+
+    except Exception as e:
+        logger.error(f"Error determining request type: {e}")
+        raise
+
+    return RequestType.VALID_MESSAGE

@@ -16,11 +16,6 @@ class StateHandler:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    # TODO: all manually written messages should be moved to a separate file
-    def handle_default(self) -> Tuple[str, Optional[List[str]]]:
-        response_text = "There appears to have occurred an error. Please contact support (dev@ai.or.tz) for assistance."
-        return response_text
-
     async def handle_blocked(self, user: User) -> JSONResponse:
         response_text = "Your account is currently blocked. Please contact support (dev@ai.or.tz) for assistance."
         payload = generate_payload(user.wa_id, response_text)
@@ -56,6 +51,23 @@ class StateHandler:
 
     async def handle_onboarding(self, user: User) -> JSONResponse:
         await onboarding_client.process_state(user)
+        return JSONResponse(
+            content={"status": "ok"},
+            status_code=200,
+        )
+
+    async def handle_new_dummy(self, user: User) -> JSONResponse:
+        user.state = UserState.active
+        user.role = Role.teacher
+        user.class_info = ClassInfo(
+            subjects={Subject.geography: [GradeLevel.os2]}
+        ).model_dump()
+
+        # Update the database accordingly
+        user = await db.update_user(user)
+        await db.add_teacher_class(user, Subject.geography, GradeLevel.os2)
+
+        self.logger.warning(f"User {user.wa_id} was given dummy data for development")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
