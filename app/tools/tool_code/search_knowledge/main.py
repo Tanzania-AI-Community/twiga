@@ -2,7 +2,8 @@ import json
 import logging
 from typing import List, Optional
 from app.database.db import vector_search
-from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject
+from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
+from app.services.whatsapp_service import whatsapp_client
 
 logger = logging.getLogger(__name__)
 
@@ -10,18 +11,24 @@ logger = logging.getLogger(__name__)
 # Example function to make available to model
 async def search_knowledge(
     search_phrase: str,
-    subject: Subject = Subject.geography,
-    grade_level: GradeLevel = GradeLevel.os2,
+    user: User,
+    resources: List[int],
+    # subject: Subject = Subject.geography,
+    # grade_level: GradeLevel = GradeLevel.os2,
 ):
     try:
+        await whatsapp_client.send_message(
+            user.wa_id,
+            "🔍 Searching the textbook, please hold...",
+        )
         # Retrieve the relevant content
         retrieved_content = await vector_search(
             query=search_phrase,
             n_results=10,
             where={
                 "content_type": [ChunkType.text],
-                "resource_id": [4],
-            },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
+                "resource_id": resources,
+            },
         )
 
         logger.debug(

@@ -72,8 +72,11 @@ class LLMClient:
         return len(processor.messages) > len(original_buffer)
 
     async def _process_tool_calls(
-        self, tool_calls: List[ChatCompletionMessageToolCall]
-    ) -> List[dict]:
+        self,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        user: User,
+        resources: Optional[List[int]] = None,
+    ) -> Optional[List[dict]]:
         """Process tool calls and return just the new tool response messages.
 
         Args:
@@ -84,44 +87,64 @@ class LLMClient:
             List[dict]: Only the new tool response messages
         """
         tool_responses = []
-
-        # Process each tool call and collect results
-        for tool_call in tool_calls:
-            try:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
-
-                if function_name in tools_functions:
-                    tool_func = tools_functions[function_name]
-                    result = (
-                        await tool_func(**function_args)
-                        if asyncio.iscoroutinefunction(tool_func)
-                        else tool_func(**function_args)
+        if resources:
+            self.logger.debug(f"Resources available: {resources}")
+            # Process each tool call and collect results
+            for tool_call in tool_calls:
+                try:
+                    function_name = tool_call.function.name
+                    function_args = json.loads(tool_call.function.arguments)
+                    # TODO: Make this modular, depending on what the tools available are
+                    function_args["user"] = user  # Each tool gets the user object
+                    function_args["resources"] = (
+                        resources  # Each tool gets the resource ids
                     )
 
+                    if function_name in tools_functions:
+                        tool_func = tools_functions[function_name]
+                        result = (
+                            await tool_func(**function_args)
+                            if asyncio.iscoroutinefunction(tool_func)
+                            else tool_func(**function_args)
+                        )
+
+                        tool_responses.append(
+                            {
+                                "role": MessageRole.tool,
+                                "content": json.dumps(result),
+                                "tool_call_id": tool_call.id,
+                            }
+                        )
+                except Exception as e:
+                    self.logger.error(f"Error in {function_name}: {str(e)}")
                     tool_responses.append(
                         {
                             "role": MessageRole.tool,
-                            "content": json.dumps(result),
+                            "content": json.dumps({"error": str(e)}),
                             "tool_call_id": tool_call.id,
                         }
                     )
-            except Exception as e:
-                self.logger.error(f"Error in {function_name}: {str(e)}")
-                tool_responses.append(
-                    {
-                        "role": MessageRole.tool,
-                        "content": json.dumps({"error": str(e)}),
-                        "tool_call_id": tool_call.id,
-                    }
-                )
 
-        return tool_responses
+            return tool_responses
+        else:
+            self.logger.error("No resources available for tool calls")
+            tool_responses.append(
+                {
+                    "role": MessageRole.system,
+                    "content": json.dumps(
+                        {
+                            "error": "Tools are not available right now, no available resources."
+                        }
+                    ),
+                }
+            )
+            return None
 
     async def generate_response(
         self,
         user: User,
         message: Message,
+        resources: Optional[List[int]] = None,
     ) -> Optional[List[Message]]:
         """Generate a response, handling message batching and tool calls."""
         processor = self._get_processor(user.id)
@@ -153,6 +176,7 @@ class LLMClient:
                     messages = self._format_messages(
                         messages_to_process=messages_to_process,
                         database_messages=history_objects,
+                        user=user,
                     )
 
                     self.logger.debug(
@@ -168,6 +192,7 @@ class LLMClient:
                         messages=messages,
                         tools=tools_metadata,
                         tool_choice="auto",
+                        temperature=0.5,
                     )
 
                     self.logger.debug(
@@ -214,6 +239,8 @@ class LLMClient:
                         # Process tool calls and track the tool response messages
                         tool_responses = await self._process_tool_calls(
                             initial_response.choices[0].message.tool_calls,
+                            user,
+                            resources,
                         )
 
                         messages.extend(tool_responses)
@@ -279,6 +306,7 @@ class LLMClient:
         self,
         messages_to_process: List[str],
         database_messages: List[Message],
+        user: User,
     ) -> List[dict]:
         """
         Format messages for the API, removing duplicates between new messages and database history.
@@ -292,7 +320,10 @@ class LLMClient:
         """
         # Initialize with system prompt
         formatted_messages = [
-            {"role": MessageRole.system, "content": get_system_prompt("default_system")}
+            {
+                "role": MessageRole.system,
+                "content": get_system_prompt(user, "default_system"),
+            }
         ]
 
         # If we have messages in the database, add all except the most recent duplicates

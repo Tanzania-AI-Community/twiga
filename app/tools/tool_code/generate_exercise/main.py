@@ -8,7 +8,7 @@ from assets.preprompts.prompts import (
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
 )
 from app.database.db import vector_search
-from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject
+from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
 from app.config import llm_settings
 from app.services.whatsapp_service import whatsapp_client
 
@@ -17,17 +17,19 @@ logger = logging.getLogger(__name__)
 
 async def generate_exercise(
     query: str,
-    subject: Subject = Subject.geography,
-    grade_level: GradeLevel = GradeLevel.os2,
+    user: User,
+    resources: List[int],
+    # subject: Subject = Subject.geography,
+    # grade_level: GradeLevel = GradeLevel.os2,
 ) -> str:
 
-    # TODO: Add a global setting to store the resource ID for the user
     # TODO: Redesign this function to search on only the relevant resources
     try:
-        # TODO: Get the user
-        # whatsapp_client.send_message(
-        #     user.wa_id, "Generating an exercise for you, please wait..."
-        # )
+        # TODO: Technically only send this once in case multiple tools called at once, but for now it's fine
+        await whatsapp_client.send_message(
+            user.wa_id,
+            "🏋️ Generating an exercise using the course literature, please hold...",
+        )
 
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
@@ -35,15 +37,15 @@ async def generate_exercise(
             n_results=7,
             where={
                 "content_type": [ChunkType.text],
-                "resource_id": [1],
-            },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
+                "resource_id": resources,
+            },
         )
         retrieved_exercises = await vector_search(
             query=query,
             n_results=3,
             where={
                 "content_type": [ChunkType.exercise],
-                "resource_id": [1],
+                "resource_id": resources,
             },
         )
 

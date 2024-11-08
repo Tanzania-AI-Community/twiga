@@ -247,3 +247,44 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
         except Exception as e:
             logger.error(f"Failed to search for knowledge: {str(e)}")
             raise Exception(f"Failed to search for knowledge: {str(e)}")
+
+
+async def get_user_resources(user: User) -> Optional[List[int]]:
+    """
+    Get all resource IDs accessible to a user through their class assignments.
+    Uses a single optimized SQL query with proper indexing.
+
+    Args:
+        user_id: The ID of the user to find resources for
+
+    Returns:
+        List[int]: List of resource IDs the user has access to
+
+    Raises:
+        Exception: If there's an error querying the database
+    """
+    async with get_session() as session:
+        try:
+            # Use text() for a more efficient raw SQL query
+            query = text(
+                """
+                SELECT DISTINCT cr.resource_id 
+                FROM teachers_classes tc
+                JOIN classes_resources cr ON tc.class_id = cr.class_id
+                WHERE tc.teacher_id = :user_id
+            """
+            )
+
+            result = await session.execute(query, {"user_id": user.id})
+            resource_ids = [row[0] for row in result.fetchall()]
+
+            if not resource_ids:
+                logger.warning(f"No resources found for user {user.wa_id}")
+                return None
+
+            logger.debug(f"Found resources {resource_ids} for user {user.wa_id}")
+            return resource_ids
+
+        except Exception as e:
+            logger.error(f"Failed to get resources for user {user.wa_id}: {str(e)}")
+            raise Exception(f"Failed to get user resources: {str(e)}")

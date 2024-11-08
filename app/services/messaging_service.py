@@ -145,7 +145,10 @@ async def handle_command_message(user: User, message: Message) -> JSONResponse: 
 
 
 async def handle_chat_message(user: User, user_message: Message) -> JSONResponse:
-    llm_responses = await llm_client.generate_response(user=user, message=user_message)
+    available_user_resources = await db.get_user_resources(user)
+    llm_responses = await llm_client.generate_response(
+        user=user, message=user_message, resources=available_user_resources
+    )
     if llm_responses:
         logger.debug(f"Sending message to {user.wa_id}: {llm_responses[-1].content}")
 
