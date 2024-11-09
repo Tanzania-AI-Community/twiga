@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # Flows settings
     onboarding_flow_id: Optional[str] = None
-    subject_class_info_flow_id: Optional[str] = None
+    select_subjects_flow_id: Optional[str] = None
     flow_token_encryption_key: Optional[SecretStr] = None
 
     # Rate limit settings

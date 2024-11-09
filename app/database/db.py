@@ -291,3 +291,27 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
         except Exception as e:
             logger.error(f"Failed to get resources for user {user.wa_id}: {str(e)}")
             raise Exception(f"Failed to get user resources: {str(e)}")
+
+
+async def get_available_subjects() -> List[Dict[str, str]]:
+    """
+    Get all available subjects with their IDs and names.
+
+    Returns:
+        List[Dict[str, str]]: List of dictionaries containing subject IDs and names as strings.
+    """
+    async with get_session() as session:
+        try:
+            statement = (
+                select(Class.id, Class.subject)
+                .where(Class.status == SubjectClassStatus.active)
+                .distinct()
+            )
+            result = await session.execute(statement)
+            subjects = [
+                {"id": str(row.id), "title": row.subject} for row in result.fetchall()
+            ]
+            return subjects
+        except Exception as e:
+            logger.error(f"Failed to get available subjects: {str(e)}")
+            raise Exception(f"Failed to get available subjects: {str(e)}")
