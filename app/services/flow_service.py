@@ -1,3 +1,5 @@
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import logging
 from fastapi.responses import PlainTextResponse, JSONResponse
 from app.utils.flows_util import (
@@ -83,7 +85,7 @@ class FlowService:
         else:
             return {
                 "ping": self.handle_health_check,
-                "INIT": self.handle_personal_and_school_info_flow_init_action,
+                # "INIT": self.handle_personal_and_school_info_flow_init_action,
                 "data_exchange": self.handle_personal_and_school_info_flow_data_exchange_action,
             }.get(action, self.handle_unknown_action)
 
@@ -96,37 +98,37 @@ class FlowService:
         response_payload = {"unknown": "event"}
         return await self.process_response(response_payload, aes_key, initial_vector)
 
-    async def handle_personal_and_school_info_flow_init_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
-    ) -> PlainTextResponse:
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
-        try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
+    # async def handle_personal_and_school_info_flow_init_action(
+    #     self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+    # ) -> PlainTextResponse:
+    #     encrypted_flow_token = decrypted_payload.get("flow_token")
+    #     if not encrypted_flow_token:
+    #         self.logger.error("Missing flow token")
+    #         return JSONResponse(
+    #             content={"error_msg": "Your request has expired please start again"},
+    #             status_code=422,
+    #         )
+    #     try:
+    #         wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
+    #     except Exception as e:
+    #         self.logger.error(f"Error decrypting flow token: {e}")
+    #         return JSONResponse(
+    #             content={"error_msg": "Your request has expired please start again"},
+    #             status_code=422,
+    #         )
 
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
-            )
+    #     user = await get_user_by_waid(wa_id)
+    #     if not user:
+    #         self.logger.error(f"User data not found for wa_id {wa_id}")
+    #         return JSONResponse(
+    #             content={"error_msg": "User data not found"}, status_code=422
+    #         )
 
-        response_payload = {
-            "screen": "personal_info",
-            "data": {"full_name": user.get("name", "Your Name")},
-        }
-        return await self.process_response(response_payload, aes_key, initial_vector)
+    #     response_payload = {
+    #         "screen": "personal_info",
+    #         "data": {"full_name": user.get("name", "Your Name")},
+    #     }
+    #     return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_subject_class_info_init_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -166,18 +168,13 @@ class FlowService:
     async def handle_personal_and_school_info_flow_data_exchange_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        self.logger.info(
+        self.logger.debug(
             "Handling data exchange action, with data: %s", decrypted_payload
         )
 
         data = decrypted_payload.get("data", {})
-        full_name = data.get("personal_info_full_name")
-        birthday = data.get("personal_info_birthday")
-        location = data.get("personal_info_location")
-        school_name = data.get(
-            "school_info_personal_birthday"
-        )  # should be school_info_school_name, we need to update the published flow too
-        school_location = data.get("school_info_school_location")
+        is_updating = data.get("is_updating", False)
+        logger.debug(f"Is updating: {is_updating}")
 
         encrypted_flow_token = decrypted_payload.get("flow_token")
         if not encrypted_flow_token:
@@ -186,6 +183,7 @@ class FlowService:
                 content={"error_msg": "Your request has expired please start again"},
                 status_code=422,
             )
+
         try:
             wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
             self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
@@ -204,11 +202,19 @@ class FlowService:
                 content={"error_msg": "User data not found"}, status_code=422
             )
 
-        user.name = full_name if full_name else user.name
+        full_name = (
+            data.get("update_full_name") if is_updating else data.get("full_name")
+        )
+        birthday = data.get("update_birthday") if is_updating else data.get("birthday")
+        region = data.get("update_region") if is_updating else data.get("region")
+        school_name = (
+            data.get("update_school_name") if is_updating else data.get("school_name")
+        )
+
+        user.name = full_name or user.name
         user.birthday = birthday
-        user.location = location
+        user.region = region
         user.school_name = school_name
-        user.school_location = school_location
         user.onboarding_state = "personal_info_submitted"
 
         self.logger.info(f"Going to update user: {user}")
@@ -230,7 +236,6 @@ class FlowService:
         options = None
 
         await whatsapp_client.send_message(user.wa_id, response_text, options)
-        # send class and subject info flow
         await self.send_class_and_subject_info_flow(user.wa_id, user.name)
 
         return await self.process_response(response_payload, aes_key, initial_vector)
@@ -451,11 +456,9 @@ class FlowService:
             return PlainTextResponse(content="Encryption failed", status_code=500)
 
     async def send_personal_and_school_info_flow(
-        self, wa_id: str, name: str, is_update: bool = False
+        self, user: User, is_update: bool = False
     ) -> None:
-        flow_token = encrypt_flow_token(
-            wa_id, settings.personal_and_school_info_flow_id
-        )
+        flow_token = encrypt_flow_token(user.wa_id, settings.onboarding_flow_id)
         header_text = (
             "Update your personal and school information 📝"
             if is_update
@@ -464,12 +467,32 @@ class FlowService:
         body_text = (
             "Let's update your personal and school information."
             if is_update
-            else "Welcome to Twiga! Let's get started with your onboarding process."
+            else "Welcome to Twiga!, Looks like you are new here. Let's get started with your onboarding process."
         )
+
+        logger.debug(f"Sending personal and school info flow to {user}")
+
+        data = {
+            "full_name": user.name if user.name else "User name",
+            "min_date": "1900-01-01",
+            "max_date": (datetime.now() - relativedelta(years=18)).strftime("%Y-%m-%d"),
+            "is_updating": is_update,
+        }
+
+        if is_update:
+            data.update(
+                {
+                    "region": user.region,
+                    "birthday": user.birthday.strftime("%Y-%m-%d"),
+                    "school_name": user.school_name,
+                }
+            )
+
+        logger.debug(f"Screen Data for send_personal_and_school_info_flow: {data}")
 
         payload = {
             "messaging_product": "whatsapp",
-            "to": wa_id,
+            "to": user.wa_id,
             "recipient_type": "individual",
             "type": "interactive",
             "interactive": {
@@ -490,19 +513,20 @@ class FlowService:
                         "flow_message_version": "3",
                         "flow_action": "navigate",
                         "flow_token": flow_token,
-                        "flow_id": settings.personal_and_school_info_flow_id,
+                        "flow_id": settings.onboarding_flow_id,
                         "flow_cta": (
                             "Update Information" if is_update else "Start Onboarding"
                         ),
                         "mode": "published",
                         "flow_action_payload": {
                             "screen": "personal_info",
-                            "data": {"full_name": name},
+                            "data": data,
                         },
                     },
                 },
             },
         }
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",

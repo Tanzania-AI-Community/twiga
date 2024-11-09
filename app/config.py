@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     whatsapp_business_private_key_password: Optional[SecretStr] = None
 
     # Flows settings
-    personal_and_school_info_flow_id: Optional[str] = None
+    onboarding_flow_id: Optional[str] = None
     subject_class_info_flow_id: Optional[str] = None
     flow_token_encryption_key: Optional[SecretStr] = None
 
