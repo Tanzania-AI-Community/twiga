@@ -8,6 +8,7 @@ from app.utils.flows_util import (
 from app.database.db import get_user_by_waid, update_user
 from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import strings, StringCategory
 from app.utils.whatsapp_utils import generate_payload
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -226,7 +227,9 @@ class FlowService:
             },
         }
 
-        response_text = "Thank you for submitting your personal and school information. Your onboarding is almost complete."
+        response_text = strings.get_string(
+            StringCategory.ONBOARDING, "personal_info_submitted"
+        )
         options = None
 
         await whatsapp_client.send_message(user.wa_id, response_text, options)
@@ -395,7 +398,9 @@ class FlowService:
 
             await update_user(user)
 
-            response_text = f"Hurray! {user.name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start using Twiga 🦒."
+            response_text = strings.get_template(
+                StringCategory.ONBOARDING, "completed", user_name=user.name
+            )
             options = None
 
             await whatsapp_client.send_message(user.wa_id, response_text, options)

@@ -22,6 +22,11 @@ class ProjectPaths:
         """Directory containing prompt templates"""
         return self.ASSETS / "prompts"
 
+    @cached_property
+    def STRINGS(self) -> Path:
+        """Directory containing string resources"""
+        return self.ASSETS / "strings"
+
     def __str__(self) -> str:
         """Useful for debugging path configurations"""
         return (

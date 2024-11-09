@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.database.db import vector_search
 from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
 from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,7 @@ async def search_knowledge(
 ):
     try:
         await whatsapp_client.send_message(
-            user.wa_id,
-            "🔍 Searching the textbook, please hold...",
+            user.wa_id, strings.get_string(StringCategory.TOOLS, "search_knowledge")
         )
         # Retrieve the relevant content
         retrieved_content = await vector_search(

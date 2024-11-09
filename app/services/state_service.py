@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import db
 from app.utils.whatsapp_utils import generate_payload
 from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import strings, StringCategory
 
 
 class StateHandler:
@@ -17,7 +18,7 @@ class StateHandler:
         self.logger = logging.getLogger(__name__)
 
     async def handle_blocked(self, user: User) -> JSONResponse:
-        response_text = "Your account is currently blocked. Please contact support (dev@ai.or.tz) for assistance."
+        response_text = strings.get_string(StringCategory.ERROR, "blocked")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
             Message(
@@ -33,7 +34,7 @@ class StateHandler:
         )
 
     async def handle_rate_limited(self, user: User) -> JSONResponse:
-        response_text = "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Let's talk more tomorrow!"
+        response_text = strings.get_string(StringCategory.ERROR, "rate_limited")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
             Message(

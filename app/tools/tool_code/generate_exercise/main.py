@@ -7,6 +7,7 @@ from app.database.db import vector_search
 from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
 from app.config import llm_settings
 from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,7 @@ async def generate_exercise(
     try:
         # TODO: Technically only send this once in case multiple tools called at once, but for now it's fine
         await whatsapp_client.send_message(
-            user.wa_id,
-            "🏋️ Generating an exercise using the course literature, please hold...",
+            user.wa_id, strings.get_string(StringCategory.TOOLS, "exercise_generator")
         )
 
         # Retrieve the relevant content and exercises
