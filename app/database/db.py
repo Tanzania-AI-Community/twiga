@@ -144,24 +144,24 @@ async def get_user_message_history(
     async with get_session() as session:
         try:
             # TODO: Make the database order this by default to reduce repeated operations
-            # statement = (
-            #     select(Message)
-            #     .where(Message.user_id == user_id)
-            #     .order_by(Message.created_at.desc())
-            #     .limit(limit)
-            # )
-            query = text(
-                """
-                SELECT id, user_id, role, content, created_at
-                FROM messages
-                WHERE user_id = :user_id
-                ORDER BY created_at DESC
-                LIMIT :limit
-            """
+            statement = (
+                select(Message)
+                .where(Message.user_id == user_id)
+                .order_by(Message.created_at.desc())
+                .limit(limit)
             )
+            # query = text(
+            #     """
+            #     SELECT id, user_id, role, content, created_at
+            #     FROM messages
+            #     WHERE user_id = :user_id
+            #     ORDER BY created_at DESC
+            #     LIMIT :limit
+            # """
+            # )
 
-            result = await session.execute(query, {"user_id": user_id, "limit": limit})
-            messages = result.fetchall()
+            result = await session.execute(statement)
+            messages = result.scalars().all()
 
             # If no messages found, return empty list
             if not messages:
