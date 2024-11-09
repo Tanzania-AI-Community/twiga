@@ -123,6 +123,14 @@ async def update_user(user: User) -> User:
         logger.error("Cannot update user: user object is None")
         raise Exception("Cannot update user: user object is None")
 
+    # Ensure birthday is a date object
+    if isinstance(user.birthday, str):
+        try:
+            user.birthday = datetime.strptime(user.birthday, "%Y-%m-%d").date()
+        except ValueError as e:
+            logger.error(f"Invalid date format for birthday: {user.birthday}")
+            raise Exception(f"Invalid date format for birthday: {user.birthday}")
+
     async with get_session() as session:
         try:
             # Add user to session and refresh to ensure we have latest data
