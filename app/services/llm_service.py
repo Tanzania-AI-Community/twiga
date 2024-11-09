@@ -9,7 +9,7 @@ from app.database.models import Message, MessageRole, User
 from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
-from app.utils.prompts import get_system_prompt
+from app.utils.prompt_manager import prompt_manager
 from app.tools.registry import tools_functions, tools_metadata
 
 
@@ -238,16 +238,13 @@ class LLMClient:
         """
         Format messages for the API, removing duplicates between new messages and database history.
         """
-        # Debug: Check types
-        for msg in database_messages:
-            print(f"Database message type: {type(msg)}")
-        for msg in new_messages:
-            print(f"New message type: {type(msg)}")
         # Initialize with system prompt
         formatted_messages = [
             {
                 "role": MessageRole.system,
-                "content": get_system_prompt(user, "default_system"),
+                "content": prompt_manager.format_prompt(
+                    "twiga_system", user_name=user.name, class_info=user.class_info
+                ),
             }
         ]
 

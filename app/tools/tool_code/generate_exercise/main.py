@@ -2,11 +2,7 @@ import logging
 from typing import List, Optional
 
 from app.utils.llm_utils import async_llm_request
-from app.utils.whatsapp_utils import generate_payload
-from app.utils.prompts import (
-    PIPELINE_QUESTION_GENERATOR_PROMPT,
-    PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
-)
+from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
 from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
 from app.config import llm_settings
@@ -58,9 +54,10 @@ async def generate_exercise(
 
         # Format the context and prompt
         context = _format_context(retrieved_content, retrieved_exercises)
-        system_prompt = PIPELINE_QUESTION_GENERATOR_PROMPT.format()
-        user_prompt = PIPELINE_QUESTION_GENERATOR_USER_PROMPT.format(
-            query=query, context_str=context
+        system_prompt = prompt_manager.get_prompt("exercise_generator_system")
+
+        user_prompt = prompt_manager.format_prompt(
+            "exercise_generator_user", query=query, context_str=context
         )
 
         # Generate a question based on the context
