@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 def get_database_url() -> str:
     """Get formatted database URL from settings"""
+    if settings.env_file == ".env.local":
+        return settings.database_url.get_secret_value()
     database_uri = urlparse(settings.database_url.get_secret_value())
     return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
 

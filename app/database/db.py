@@ -26,6 +26,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             user = result.scalar_one_or_none()
 
             if user:
+                await session.refresh(user)
                 return user
 
             # Create new user if they don't exist
@@ -36,14 +37,14 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
                 role=Role.teacher,
             )
             session.add(new_user)
-            # await session.commit()
+            await session.flush()  # Get the ID without committing
             await session.refresh(new_user)
 
             logger.info(f"Created new user with wa_id: {wa_id}")
             return new_user
 
         except Exception as e:
-            logger.error(f"Database operation failed for wa_id {wa_id}: {str(e)}")
+            logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
             raise Exception(f"Failed to get or create user: {str(e)}")
 
 
