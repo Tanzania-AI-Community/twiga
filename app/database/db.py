@@ -17,17 +17,14 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
     Get existing user or create new one if they don't exist.
     Handles all database operations and error logging.
     """
-
     async with get_session() as session:
         try:
             # First try to get existing user
             statement = select(User).where(User.wa_id == wa_id).with_for_update()
             result = await session.execute(statement)
             user = result.scalar_one_or_none()
-
             if user:
                 return user
-
             # Create new user if they don't exist
             new_user = User(
                 name=name,
@@ -36,12 +33,10 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
                 role=Role.teacher,
             )
             session.add(new_user)
-            # await session.commit()
+            await session.commit()
             await session.refresh(new_user)
-
             logger.info(f"Created new user with wa_id: {wa_id}")
             return new_user
-
         except Exception as e:
             logger.error(f"Database operation failed for wa_id {wa_id}: {str(e)}")
             raise Exception(f"Failed to get or create user: {str(e)}")
