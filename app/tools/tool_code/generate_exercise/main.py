@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from app.utils.llm_utils import async_llm_request
 from app.utils.whatsapp_utils import generate_payload
-from assets.preprompts.prompts import (
+from app.utils.prompts import (
     PIPELINE_QUESTION_GENERATOR_PROMPT,
     PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
 )

@@ -9,7 +9,7 @@ from app.database.models import Message, MessageRole, User
 from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
-from assets.preprompts.prompts import get_system_prompt
+from app.utils.prompts import get_system_prompt
 from app.tools.registry import tools_functions, tools_metadata
 
 
