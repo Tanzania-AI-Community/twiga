@@ -23,7 +23,7 @@ jobs:
 
   deploy-dev:
     needs: [pre-commit, gitguardian]
-    if: github.ref == 'refs/heads/development' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/development' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
     runs-on: ubuntu-latest
     environment: development
     steps:
@@ -35,7 +35,7 @@ jobs:
 
   deploy-prod:
     needs: [pre-commit, gitguardian]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
     runs-on: ubuntu-latest
     environment: production
     steps:
