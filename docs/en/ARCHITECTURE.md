@@ -12,4 +12,3 @@ This diagram is an overview of the infrastructure for the first iteration of Twi
 
 # Database schema
 ...tbd
-
