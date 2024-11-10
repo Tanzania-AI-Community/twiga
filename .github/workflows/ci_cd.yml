@@ -11,8 +11,8 @@ on:
       - main
 
 jobs:
-  lint:
-    uses: ./.github/workflows/lint.yml
+  pre-commit:
+    uses: ./.github/workflows/pre_commit.yml
 
   gitguardian:
     uses: ./.github/workflows/gitguardian.yml
@@ -20,7 +20,7 @@ jobs:
       GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY}}
 
   deploy-dev:
-    needs: [lint, gitguardian]
+    needs: [pre-commit, gitguardian]
     if: github.ref == 'refs/heads/development' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: development
@@ -32,7 +32,7 @@ jobs:
           curl "$deploy_url"
 
   deploy-prod:
-    needs: [lint, gitguardian]
+    needs: [pre-commit, gitguardian]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: production
