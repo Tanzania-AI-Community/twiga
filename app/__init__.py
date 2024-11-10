@@ -26,7 +26,7 @@ handler.setFormatter(formatter)
 
 # Get the root logger and set its level
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)  # set to DEBUG for more verbose logging
+logger.setLevel(logging.DEBUG)  # set to DEBUG for more verbose logging
 
 
 # Clear existing handlers and set the new handler

@@ -36,6 +36,9 @@ async def load_json_file(file_path: str) -> List[Dict[str, Any]]:
         raise ChunkIngestionError(f"Failed to load JSON file: {str(e)}")
 
 
+# NOTE: Resource ingestion should be done on the main branch of the database, make sure the right database is selected in .env
+
+
 def extract_chapter_number(
     chapter_text: Optional[str],
 ) -> Optional[str]:
@@ -108,7 +111,7 @@ async def process_chunks(
                 if item["metadata"].get("doc_type") == "Exercise":
                     content_type = ChunkType.exercise
                 elif item["metadata"].get("doc_type") == "Content":
-                    content_type = ChunkType.content
+                    content_type = ChunkType.text
                 else:
                     content_type = ChunkType.other
 
@@ -162,22 +165,19 @@ async def main():
 
         # Step 2: Convert JSON to Chunks
         content_path = Path("assets/tie-geography-f2-content.json")
-        # exercises_path = Path("assets/tie-geography-f2-exercises.json")
+        exercises_path = Path("assets/tie-geography-f2-exercises.json")
 
         content_data = await load_json_file(str(content_path))
-        # exercises_data = await load_json_file(str(exercises_path))
+        exercises_data = await load_json_file(str(exercises_path))
 
+        # Step 3: Process and save chunks to database
         logger.info("Processing content chunks...")
         content_chunks = await process_chunks(content_data, resource_id=resource.id)
+        await save_chunks(content_chunks)
 
-        # logger.info("Processing exercise chunks...")
-        # exercise_chunks = await process_chunks(exercises_data, resource_id=resource.id)
-
-        # Step 3: Upload Chunks to the database
-        all_chunks = content_chunks
-
-        logger.info("Saving chunks to database...")
-        await save_chunks(all_chunks)
+        logger.info("Processing exercise chunks...")
+        exercise_chunks = await process_chunks(exercises_data, resource_id=resource.id)
+        await save_chunks(exercise_chunks)
 
         logger.info("Chunk ingestion completed successfully")
 

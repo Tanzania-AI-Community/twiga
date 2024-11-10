@@ -1,8 +1,6 @@
-from pydantic import BaseModel, constr, Field, root_validator
+from pydantic import BaseModel
 from typing import List, Dict, Literal, Optional, Union
-import json
-from pydantic import BaseModel, constr, Field, model_validator
-from typing import List, Dict, Literal, Optional, Union
+from pydantic import model_validator
 
 
 class TextObject(BaseModel):
@@ -84,11 +82,6 @@ class TemplateMessage(BaseModel):
 """
 Models for flow interactive messages
 """
-
-
-class FlowActionPayload(BaseModel):
-    screen: str
-    data: Dict[str, Union[str, int]]
 
 
 class FlowActionPayload(BaseModel):

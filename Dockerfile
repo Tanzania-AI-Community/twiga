@@ -29,5 +29,5 @@ CMD uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 # # "poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"
 # ENTRYPOINT ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-# build with:DOCKER_BUILDKIT=1 docker build --secret id=_env,src=.env -t twiga_dev . 
-# run with: docker run -p 8000:8000 --env-file .env --name twiga_dev_c twiga_dev 
+# build with:DOCKER_BUILDKIT=1 docker build --secret id=_env,src=.env -t twiga_dev .
+# run with: docker run -p 8000:8000 --env-file .env --name twiga_dev_c twiga_dev

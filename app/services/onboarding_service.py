@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 from app.database.models import User, OnboardingState, UserState
 from app.services.flow_service import flow_client
-from app.database.db import UserUpdateError, update_user_by_waid, get_user_by_waid
+from app.database.db import update_user, get_user_by_waid
 
 
 class OnboardingHandler:
@@ -20,6 +20,7 @@ class OnboardingHandler:
         try:
             self.logger.info(f"Handling new user {user.wa_id}")
             # Call the send_personal_and_school_info_flow method from FlowService
+            # TODO: PUT USER AS INPUT INSTEAD
             await self.flow_client.send_personal_and_school_info_flow(
                 user.wa_id, user.name
             )
@@ -43,6 +44,7 @@ class OnboardingHandler:
     ) -> Tuple[str, Optional[List[str]]]:
         self.logger.info(f"Handling personal info submitted for user {user.wa_id}")
 
+        # TODO: SEND USER AS INPUT INSTEAD
         await self.flow_client.send_class_and_subject_info_flow(user.wa_id, user.name)
 
         response_text = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
@@ -64,24 +66,24 @@ class OnboardingHandler:
     async def process_state(self, user: User) -> Tuple[str, Optional[List[str]]]:
         self.logger.info(f"Processing Onboarding State for user {user.wa_id}")
         # Get the user's current state from the user object
-        user_onboarding_state = user.on_boarding_state
+        user_onboarding_state = user.onboarding_state
         user_state = user.state
 
         # Fetch the existing user from the database
         existing_user = await get_user_by_waid(user.wa_id)
         if existing_user is None:
             self.logger.error(f"User with wa_id {user.wa_id} does not exist")
-            raise UserUpdateError(f"User with wa_id {user.wa_id} does not exist")
+            raise Exception(f"User with wa_id {user.wa_id} does not exist")
 
         # Update the user state to onboarding, only if the user is not already in the onboarding state
         if user_state != UserState.onboarding:
-            existing_user.on_boarding_state = "new"
+            existing_user.onboarding_state = "new"
             existing_user.state = "onboarding"
             self.logger.debug(f"User object before update: {existing_user}")
-            updated_user = await update_user_by_waid(existing_user)
+            updated_user = await update_user(existing_user)
 
             self.logger.info(
-                f"Updated user data for {updated_user.wa_id}: state={updated_user.state}, onboarding_state={updated_user.on_boarding_state}"
+                f"Updated user data for {updated_user.wa_id}: state={updated_user.state}, onboarding_state={updated_user.onboarding_state}"
             )
 
         self.logger.info(

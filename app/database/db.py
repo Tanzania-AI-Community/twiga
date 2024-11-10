@@ -1,42 +1,25 @@
-from sqlmodel import SQLModel, Field, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional
+from sqlalchemy import text
+from sqlmodel import select
 import logging
-from datetime import datetime
 
-from app.database.models import *
-from app.database.engine import db_engine
+from app.database.models import (
+    User,
+    Message,
+    TeacherClass,
+    Class,
+    Chunk,
+    Role,
+    UserState,
+    Subject,
+    GradeLevel,
+)
+from app.database.engine import get_session
 from app.utils import embedder
 
 logger = logging.getLogger(__name__)
 
-
-class UserDatabaseError(Exception):
-    """Base exception for user database operations"""
-
-    pass
-
-
-class UserCreationError(UserDatabaseError):
-    """Raised when user creation fails"""
-
-    pass
-
-
-class MessageCreationError(UserDatabaseError):
-    """Raised when message creation fails"""
-
-    pass
-
-
-class UserQueryError(UserDatabaseError):
-    """Raised when user query fails"""
-
-    pass
-  
-class UserUpdateError(UserDatabaseError):
-    """Raised when user update fails"""
-
-    pass
+# TODO: Add custom Exceptions for better error handling
 
 
 async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
@@ -45,14 +28,15 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
     Handles all database operations and error logging.
     """
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # First try to get existing user
-            statement = select(User).where(User.wa_id == wa_id)
+            statement = select(User).where(User.wa_id == wa_id).with_for_update()
             result = await session.execute(statement)
             user = result.scalar_one_or_none()
 
             if user:
+                await session.refresh(user)
                 return user
 
             # Create new user if they don't exist
@@ -63,122 +47,112 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
                 role=Role.teacher,
             )
             session.add(new_user)
-            await session.commit()
+            await session.flush()  # Get the ID without committing
             await session.refresh(new_user)
 
             logger.info(f"Created new user with wa_id: {wa_id}")
             return new_user
 
         except Exception as e:
-            await session.rollback()
-            logger.error(f"Database operation failed for wa_id {wa_id}: {str(e)}")
-            raise UserDatabaseError(f"Failed to get or create user: {str(e)}")
-
-
-async def create_new_user(name: Optional[str], wa_id: str) -> User:
-    """Create new user explicitly"""
-    async with AsyncSession(db_engine) as session:
-        try:
-            new_user = User(
-                name=name,
-                wa_id=wa_id,
-                state=UserState.new,
-                role=Role.teacher,
-            )
-            session.add(new_user)
-            await session.commit()
-            await session.refresh(new_user)
-            return new_user
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Failed to create user {wa_id}: {str(e)}")
-            raise UserCreationError(f"Failed to create user: {str(e)}")
+            logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
+            raise Exception(f"Failed to get or create user: {str(e)}")
 
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             statement = select(User).where(User.wa_id == wa_id)
             result = await session.execute(statement)
             return result.scalar_one_or_none()
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
-            raise UserQueryError(f"Failed to query user: {str(e)}")
+            raise Exception(f"Failed to query user: {str(e)}")
 
-# TODO: rename this function
-async def update_user_by_waid(user: User) -> User:
+
+async def add_teacher_class(user: User, subject: Subject, grade: GradeLevel) -> Class:
+    """
+    Add a teacher-class to the teachers_classes table and update user's class_info
+
+    Args:
+        user: User object for the teacher
+        subject: Subject enum value to find
+        grade: GradeLevel enum value to find
+
+    Returns:
+        User: Updated user object
+
+    """
+    async with get_session() as session:
+        try:
+            # First check if the class exists
+            statement = select(Class).where(
+                Class.subject == subject, Class.grade_level == grade
+            )
+            result = await session.execute(statement)
+            class_obj = result.scalar_one_or_none()
+
+            # If class doesn't exist, create it
+            if not class_obj:
+                raise Exception(f"Class {subject} {grade} does not exist")
+
+            # Check if teacher-class relationship already exists
+            statement = select(TeacherClass).where(
+                TeacherClass.teacher_id == user.id,
+                TeacherClass.class_id == class_obj.id,
+            )
+            result = await session.execute(statement)
+            teacher_class = result.scalar_one_or_none()
+
+            # If relationship doesn't exist, create it
+            if not teacher_class:
+                teacher_class = TeacherClass(teacher_id=user.id, class_id=class_obj.id)
+                session.add(teacher_class)
+                await session.commit()
+
+            # TODO: Consider updating user.class_info here too
+
+            logger.info(f"Added class {subject} {grade} for user {user.id}")
+            return class_obj
+
+        except Exception as e:
+            logger.error(f"Failed to add teacher class: {str(e)}")
+            raise Exception(f"Failed to add teacher class: {str(e)}")
+
+
+async def update_user(user: User) -> User:
     """
     Update any information about an existing user and return the updated user.
+
+    Args:
+        user (User): User object with updated information
+
+    Returns:
+        User: Updated user object
+
     """
     if user is None:
         logger.error("Cannot update user: user object is None")
-        raise UserUpdateError("Cannot update user: user object is None")
+        raise Exception("Cannot update user: user object is None")
 
-    # Convert the User object to a dictionary
-    user_data = user.__dict__.copy()
-
-    logger.debug(f"Updating user {user_data}")
-
-    # Remove the _sa_instance_state attribute
-    user_data.pop("_sa_instance_state", None)
-
-    # Extract the wa_id
-    wa_id = user_data.pop("wa_id")
-
-    # Remove the id attribute
-    user_data.pop("wa_id", None)
-    user_data.pop("id", None)
-
-    # Handle the birthday field if necessary
-    if "birthday" in user_data and isinstance(user_data["birthday"], str):
-        user_data["birthday"] = datetime.strptime(
-            user_data["birthday"], "%Y-%m-%d"
-        ).date()
-
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
-            statement = update(User).where(User.wa_id == wa_id).values(**user_data)
-            await session.execute(statement)
+            # Add user to session and refresh to ensure we have latest data
+            session.add(user)
             await session.commit()
+            await session.refresh(user)
 
-            # Fetch the updated user
-            result = await session.execute(select(User).filter_by(wa_id=wa_id))
-            updated_user = result.scalar_one_or_none()
+            logger.info(f"Updated user {user.wa_id}")
+            return user
 
-            logger.info(f"Updated user {wa_id} with {user_data}")
-            return updated_user
         except Exception as e:
-            await session.rollback()
-            logger.error(f"Failed to update user {wa_id}: {str(e)}")
-            raise UserUpdateError(f"Failed to update user: {str(e)}")
- 
+            logger.error(f"Failed to update user {user.wa_id}: {str(e)}")
+            raise Exception(f"Failed to update user: {str(e)}")
 
-# TODO: This should be replaced with get_user_by_waid or the get_or_create_user function
-async def get_user_data(wa_id: str) -> dict:
-    """
-    Retrieve user data based on wa_id.
-    """
-    async with AsyncSession(db_engine) as session:
-        try:
-            statement = select(User).where(User.wa_id == wa_id)
-            result = await session.execute(statement)
-            user = result.scalar_one_or_none()
-            if user:
-                user_data = user.model_dump()
-                logger.info(f"Retrieved user data for {wa_id}: {user_data}")
-                return user_data
-            else:
-                logger.warning(f"No user found with wa_id {wa_id}")
-                return None
-        except Exception as e:
-            logger.error(f"Failed to query user {wa_id}: {str(e)}")
-            raise UserQueryError(f"Failed to query user: {str(e)}")
 
-            
 async def get_user_message_history(
     user_id: int, limit: int = 10
 ) -> Optional[List[Message]]:
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # TODO: Make the database order this by default to reduce repeated operations
             statement = (
@@ -187,6 +161,15 @@ async def get_user_message_history(
                 .order_by(Message.created_at.desc())
                 .limit(limit)
             )
+            # query = text(
+            #     """
+            #     SELECT id, user_id, role, content, created_at
+            #     FROM messages
+            #     WHERE user_id = :user_id
+            #     ORDER BY created_at DESC
+            #     LIMIT :limit
+            # """
+            # )
 
             result = await session.execute(statement)
             messages = result.scalars().all()
@@ -207,28 +190,17 @@ async def get_user_message_history(
 
 
 async def create_new_messages(messages: List[Message]) -> List[Message]:
-    """
-    Create multiple messages in the database in a single transaction.
-    """
+    """Optimized bulk message creation"""
     if not messages:
         return []
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             # Add all messages to the session
             session.add_all(messages)
-
-            # Commit the transaction
-            await session.commit()
-
-            # Refresh all messages to get their IDs and other DB-populated fields
-            for message in messages:
-                await session.refresh(message)
-
+            await session.flush()  # Get IDs without committing
             return messages
-
         except Exception as e:
-            await session.rollback()
             logger.error(
                 f"Unexpected error creating messages for user {messages[0].user_id}: {str(e)}"
             )
@@ -239,14 +211,22 @@ async def create_new_message(message: Message) -> Message:
     """
     Create a single message in the database.
     """
-    try:
-        messages = await create_new_messages([message])
-        return messages[0]
-    except UserCreationError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Error in create_new_message: {str(e)}")
-        raise Exception(f"Failed to create message: {str(e)}")
+    async with get_session() as session:
+        try:
+            # Add the message to the session
+            session.add(message)
+
+            # Commit the transaction
+            await session.commit()
+
+            # Refresh the message to get its ID and other DB-populated fields
+            await session.refresh(message)
+
+            return message
+
+        except Exception as e:
+            logger.error(f"Error creating message for user {message.user_id}: {str(e)}")
+            raise Exception(f"Failed to create message: {str(e)}")
 
 
 async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
@@ -266,7 +246,7 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
         else:
             filters.append(getattr(Chunk, key) == value)
 
-    async with AsyncSession(db_engine) as session:
+    async with get_session() as session:
         try:
             result = await session.execute(
                 select(Chunk)
@@ -278,3 +258,44 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
         except Exception as e:
             logger.error(f"Failed to search for knowledge: {str(e)}")
             raise Exception(f"Failed to search for knowledge: {str(e)}")
+
+
+async def get_user_resources(user: User) -> Optional[List[int]]:
+    """
+    Get all resource IDs accessible to a user through their class assignments.
+    Uses a single optimized SQL query with proper indexing.
+
+    Args:
+        user_id: The ID of the user to find resources for
+
+    Returns:
+        List[int]: List of resource IDs the user has access to
+
+    Raises:
+        Exception: If there's an error querying the database
+    """
+    async with get_session() as session:
+        try:
+            # Use text() for a more efficient raw SQL query
+            query = text(
+                """
+                SELECT DISTINCT cr.resource_id
+                FROM teachers_classes tc
+                JOIN classes_resources cr ON tc.class_id = cr.class_id
+                WHERE tc.teacher_id = :user_id
+            """
+            )
+
+            result = await session.execute(query, {"user_id": user.id})
+            resource_ids = [row[0] for row in result.fetchall()]
+
+            if not resource_ids:
+                logger.warning(f"No resources found for user {user.wa_id}")
+                return None
+
+            logger.debug(f"Found resources {resource_ids} for user {user.wa_id}")
+            return resource_ids
+
+        except Exception as e:
+            logger.error(f"Failed to get resources for user {user.wa_id}: {str(e)}")
+            raise Exception(f"Failed to get user resources: {str(e)}")

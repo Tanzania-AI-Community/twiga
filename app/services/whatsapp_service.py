@@ -1,3 +1,4 @@
+from typing import List, Optional
 from fastapi import Request
 from fastapi.responses import PlainTextResponse, JSONResponse
 import logging
@@ -6,6 +7,7 @@ import httpx
 
 from app.config import settings
 from app.utils.logging_utils import log_httpx_response
+from app.utils.whatsapp_utils import generate_payload
 
 
 class WhatsAppClient:
@@ -18,8 +20,11 @@ class WhatsAppClient:
         self.logger = logging.getLogger(__name__)
         self.client = httpx.AsyncClient(base_url=self.url)
 
-    async def send_message(self, payload: str) -> None:
+    async def send_message(
+        self, wa_id: str, message: str, options: Optional[List[str]] = None
+    ) -> None:
         try:
+            payload = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
             )
@@ -57,6 +62,13 @@ class WhatsAppClient:
             status_code=403,
         )
 
+    def handle_outdated_message(self, body: dict) -> JSONResponse:
+        self.logger.warning("Received a message with an outdated timestamp. Ignoring.")
+        return JSONResponse(
+            content={"status": "error", "message": "Message is outdated"},
+            status_code=400,
+        )
+
     def handle_status_update(self, body: dict) -> JSONResponse:
         """
         Handles WhatsApp status updates (sent, delivered, read).
@@ -66,11 +78,11 @@ class WhatsAppClient:
         )
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
-    async def handle_event_request(self, body: dict) -> JSONResponse:
+    def handle_flow_event(self, body: dict) -> JSONResponse:
         """
         Handles WhatsApp webhook events.
         """
-        self.logger.debug(f"Received a WhatsApp event: {body}")
+        self.logger.debug(f"Received a WhatsApp Flow event: {body}")
         event_type = body["entry"][0]["changes"][0]["value"]["event"]
 
         if event_type == "ENDPOINT_AVAILABILITY":
@@ -124,6 +136,25 @@ class WhatsAppClient:
                 },
                 status_code=200,
             )
+
+    def handle_flow_message_complete(self, body: dict) -> JSONResponse:
+        """
+        Handles WhatsApp flow message completion events.
+        """
+        self.logger.debug(
+            f"Received a WhatsApp Flow message complete event. Ignoring: {body}"
+        )
+        return JSONResponse(content={"status": "ok"}, status_code=200)
+
+    def handle_invalid_message(self, body: dict) -> JSONResponse:
+        """
+        Handles invalid WhatsApp messages.
+        """
+        self.logger.error(f"Received an invalid WhatsApp message: {body}")
+        return JSONResponse(
+            content={"status": "error", "message": "Not a WhatsApp API event"},
+            status_code=404,
+        )
 
 
 whatsapp_client = WhatsAppClient()

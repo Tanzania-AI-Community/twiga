@@ -1,18 +1,15 @@
 import json
 import logging
 import asyncio
-from typing import Dict, List, Optional
+from typing import List, Optional
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageToolCall
 
 from app.database.models import Message, MessageRole, User
 from app.config import llm_settings
 from app.database.db import get_user_message_history
-from app.services.whatsapp_service import (
-    whatsapp_client,
-)  # TODO: send updates to user during tool calls
 from app.utils.llm_utils import async_llm_request
-from assets.prompts import get_system_prompt
+from app.utils.prompt_manager import prompt_manager
 from app.tools.registry import tools_functions, tools_metadata
 
 
@@ -22,12 +19,12 @@ class MessageProcessor:
     def __init__(self, user_id: int):
         self.user_id = user_id
         self.lock = asyncio.Lock()
-        self.messages: List[str] = []
+        self.messages: List[Message] = []
 
-    def add_message(self, message: str) -> None:
+    def add_message(self, message: Message) -> None:
         self.messages.append(message)
 
-    def get_pending_messages(self) -> List[str]:
+    def get_pending_messages(self) -> List[Message]:
         return self.messages.copy()
 
     def clear_messages(self) -> None:
@@ -46,12 +43,10 @@ class LLMClient:
     def __init__(self):
         self.client = AsyncOpenAI(
             base_url="https://api.together.xyz/v1",
-            api_key=llm_settings.together_api_key.get_secret_value(),
+            api_key=llm_settings.llm_api_key.get_secret_value(),
         )
         self.logger = logging.getLogger(__name__)
         self._processors: dict[int, MessageProcessor] = {}
-        # self._user_locks = {}  # {user_id: Lock()}
-        # self._message_buffers = {}  # {user_id: ["message1", "message2"]}
 
     def _get_processor(self, user_id: int) -> MessageProcessor:
         """Get or create a message processor for a user."""
@@ -66,30 +61,40 @@ class LLMClient:
             del self._processors[user_id]
 
     def _check_new_messages(
-        self, processor: MessageProcessor, original_buffer: List[str]
+        self, processor: MessageProcessor, original_count: int
     ) -> bool:
         """Check if new messages arrived during processing."""
-        return len(processor.messages) > len(original_buffer)
+        return len(processor.messages) > original_count
 
     async def _process_tool_calls(
-        self, tool_calls: List[ChatCompletionMessageToolCall]
-    ) -> List[dict]:
-        """Process tool calls and return just the new tool response messages.
+        self,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        user: User,
+        resources: Optional[List[int]] = None,
+    ) -> Optional[List[Message]]:
+        """Process tool calls and return just the new tool response messages."""
+        if not resources:
+            self.logger.error("No resources available for tool calls")
+            return [
+                Message(
+                    user_id=user.id,
+                    role=MessageRole.system,
+                    content=json.dumps(
+                        {
+                            "error": "Tools are not available right now, no available resources."
+                        }
+                    ),
+                )
+            ]
 
-        Args:
-            messages: Current message history (not modified)
-            tool_calls: List of tool calls to process
-
-        Returns:
-            List[dict]: Only the new tool response messages
-        """
         tool_responses = []
-
-        # Process each tool call and collect results
         for tool_call in tool_calls:
             try:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
+                # TODO: Make this more modular, depending on the need for each tool
+                function_args["user"] = user
+                function_args["resources"] = resources
 
                 if function_name in tools_functions:
                     tool_func = tools_functions[function_name]
@@ -100,28 +105,31 @@ class LLMClient:
                     )
 
                     tool_responses.append(
-                        {
-                            "role": MessageRole.tool,
-                            "content": json.dumps(result),
-                            "tool_call_id": tool_call.id,
-                        }
+                        Message(
+                            user_id=user.id,
+                            role=MessageRole.tool,
+                            content=json.dumps(result),
+                            tool_call_id=tool_call.id,
+                        )
                     )
             except Exception as e:
                 self.logger.error(f"Error in {function_name}: {str(e)}")
                 tool_responses.append(
-                    {
-                        "role": MessageRole.tool,
-                        "content": json.dumps({"error": str(e)}),
-                        "tool_call_id": tool_call.id,
-                    }
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.tool,
+                        content=json.dumps({"error": str(e)}),
+                        tool_call_id=tool_call.id,
+                    )
                 )
 
-        return tool_responses
+            return tool_responses
 
     async def generate_response(
         self,
         user: User,
-        message: str,
+        message: Message,
+        resources: Optional[List[int]] = None,
     ) -> Optional[List[Message]]:
         """Generate a response, handling message batching and tool calls."""
         processor = self._get_processor(user.id)
@@ -132,236 +140,137 @@ class LLMClient:
         )
 
         if processor.is_locked:
-            self.logger.info(f"Lock held for user {user.id}, message buffered")
+            self.logger.info(f"Lock held for user {user.wa_id}, message buffered")
             return None
 
         async with processor.lock:
             while True:
                 try:
                     messages_to_process = processor.get_pending_messages()
-
+                    original_count = len(messages_to_process)
                     if not messages_to_process:
-                        self.logger.warning(
-                            f"This shouldn't happen. No messages to process for user {user.id}."
-                        )
+                        self.logger.warning(f"No messages to process for {user.wa_id}.")
                         processor.clear_messages()
                         self._cleanup_processor(user.id)
                         return None
 
-                    # Fetch messages and format into API-ready messages
-                    history_objects = await get_user_message_history(user.id)
-                    messages = self._format_messages(
-                        messages_to_process=messages_to_process,
-                        database_messages=history_objects,
+                    # Get message history and format for the api
+                    history = await get_user_message_history(user.id)
+                    api_messages = self._format_messages(
+                        messages_to_process, history, user
                     )
+                    self.logger.debug(f"Initial messages:\n {api_messages}")
 
-                    self.logger.debug(
-                        "Initial messages:\n" + json.dumps(messages, indent=2)
-                    )
-
-                    # Track new messages from this interaction
-                    new_messages: List[Message] = []
-
-                    # Initial generation with tools enabled
+                    # Initial response with tools
                     initial_response = await async_llm_request(
                         model=llm_settings.llm_model_name,
-                        messages=messages,
+                        messages=api_messages,
                         tools=tools_metadata,
                         tool_choice="auto",
                     )
-
-                    self.logger.debug(
-                        "LLM response:\n"
-                        + json.dumps(
-                            initial_response.choices[0].message.model_dump(), indent=2
-                        )
+                    initial_message = Message.from_api_format(
+                        initial_response.choices[0].message.model_dump(), user.id
                     )
+                    self.logger.debug(f"LLM response:\n {initial_message}")
+
+                    # Track new messages
+                    new_messages = [initial_message]
 
                     # Check for new messages
-                    if self._check_new_messages(processor, messages_to_process):
-                        self.logger.warning(
-                            "New messages arrived during llm processing, restarting"
-                        )
+                    if self._check_new_messages(processor, original_count):
+                        self.logger.warning("New messages buffered during processing")
                         continue
 
                     # Process tool calls if present
-                    if initial_response.choices[0].message.tool_calls:
+                    if initial_message.tool_calls:
                         self.logger.debug("Processing tool calls 🛠️")
-
-                        # Add tool calls message to tracking
-                        tool_calls_message = {
-                            "role": MessageRole.assistant,
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": tool_call.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tool_call.function.name,
-                                        "arguments": tool_call.function.arguments,
-                                    },
-                                }
-                                for tool_call in initial_response.choices[
-                                    0
-                                ].message.tool_calls
-                            ],
-                        }
-                        messages.append(tool_calls_message)
-                        new_messages.append(
-                            self._create_message_object(tool_calls_message, user.id)
-                        )
 
                         # Process tool calls and track the tool response messages
                         tool_responses = await self._process_tool_calls(
                             initial_response.choices[0].message.tool_calls,
+                            user,
+                            resources,
                         )
 
-                        messages.extend(tool_responses)
-                        new_messages.extend(
-                            self._create_message_objects(tool_responses, user.id)
-                        )
+                        if tool_responses:
+                            new_messages.extend(tool_responses)
 
-                        self.logger.debug(
-                            "Updated messages:\n" + json.dumps(messages, indent=2)
-                        )
+                            # Update api_messages with new messages while preserving order
+                            api_messages.extend(
+                                msg.to_api_format() for msg in new_messages
+                            )
 
-                        final_response = await async_llm_request(
-                            model=llm_settings.llm_model_name,
-                            messages=messages,
-                            tools=None,
-                            tool_choice=None,
-                        )
+                            # Get final response after tool calls
+                            final_response = await async_llm_request(
+                                model=llm_settings.llm_model_name,
+                                messages=api_messages,
+                                tools=None,
+                                tool_choice=None,
+                            )
 
-                        # Add final_response to messages
-                        messages.append(
-                            {
-                                "role": MessageRole.assistant,
-                                "content": final_response.choices[0].message.content,
-                            }
-                        )
+                            final_message = Message.from_api_format(
+                                final_response.choices[0].message.model_dump(), user.id
+                            )
+                            new_messages.append(final_message)
 
                         # Check for new messages again
-                        if self._check_new_messages(processor, messages_to_process):
-                            self.logger.warning(
-                                "New messages arrived during processing of tools, restarting"
-                            )
+                        if self._check_new_messages(processor, original_count):
+                            self.logger.warning("New messages buffered during tools")
                             continue
 
-                        final_message = {
-                            "role": MessageRole.assistant,
-                            "content": final_response.choices[0].message.content,
-                        }
-                    else:
-                        # If no tool calls, use the initial response as the final message
-                        final_message = {
-                            "role": MessageRole.assistant,
-                            "content": initial_response.choices[0].message.content,
-                        }
-
                     # Success - clear buffer and return response
-                    self.logger.info("Message processing complete, clearing buffer")
+                    self.logger.debug("LLM finished. Clearing buffer.")
                     processor.clear_messages()
                     self._cleanup_processor(user.id)
-
-                    new_messages.append(
-                        self._create_message_object(final_message, user.id)
-                    )
-
                     return new_messages
-
                 except Exception as e:
                     self.logger.error(f"Error processing messages: {e}")
                     processor.clear_messages()
                     self._cleanup_processor(user.id)
                     return None
 
+    @staticmethod
     def _format_messages(
-        self,
-        messages_to_process: List[str],
+        new_messages: List[Message],
         database_messages: List[Message],
+        user: User,
     ) -> List[dict]:
         """
         Format messages for the API, removing duplicates between new messages and database history.
-
-        Args:
-            messages_to_process: List of new messages to be processed
-            database_messages: List of messages from database history
-
-        Returns:
-            List[dict]: Formatted messages with system prompt, history, and new messages
         """
         # Initialize with system prompt
         formatted_messages = [
-            {"role": MessageRole.system, "content": get_system_prompt("default_system")}
+            {
+                "role": MessageRole.system,
+                "content": prompt_manager.format_prompt(
+                    "twiga_system", user_name=user.name, class_info=user.class_info
+                ),
+            }
         ]
 
-        # If we have messages in the database, add all except the most recent duplicates
+        # Add history messages
         if database_messages:
-            message_count = len(messages_to_process)
+            # Exclude potential duplicates
+            message_count = len(new_messages)
             db_message_count = len(database_messages)
 
             # Safety check: ensure we don't slice more messages than we have
-            messages_to_keep = max(0, db_message_count - message_count)
-
-            # Add messages from database, excluding potential duplicates
-            formatted_messages.extend(
-                {"role": msg.role, "content": msg.content}
-                for msg in database_messages[:messages_to_keep]
-            )
-
             if db_message_count < message_count:
-                self.logger.warning(
-                    f"Unusual message count scenario detected: {message_count} new messages, "
-                    f"but only {db_message_count} messages in database. Using only new messages."
+                raise Exception(
+                    f"Unusual message count scenario detected: There are {message_count} new messages but only {db_message_count} messages in the database."
                 )
 
-        # Add each new message separately
-        formatted_messages.extend(
-            {"role": MessageRole.user, "content": msg} for msg in messages_to_process
-        )
+            old_messages = (
+                database_messages[:-message_count]
+                if message_count > 0
+                else database_messages
+            )
+            formatted_messages.extend(msg.to_api_format() for msg in old_messages)
+
+        # Add new messages
+        formatted_messages.extend(msg.to_api_format() for msg in new_messages)
 
         return formatted_messages
-
-    def _create_message_object(self, message: Dict[str, str], user_id: int) -> Message:
-        """Create a Message object from a message dict."""
-        try:
-            # Handle tool calls differently
-            content = message.get("content", "")
-            if message.get("tool_calls"):
-                content = json.dumps(message.get("tool_calls"))
-
-            # Create Message object
-            message_object = Message(
-                user_id=user_id,
-                content=content,
-                role=message["role"],
-            )
-
-            # Handle tool responses differently
-            if message.get("tool_call_id"):
-                message_object.content = json.dumps(
-                    {
-                        "content": content,
-                        "tool_call_id": message["tool_call_id"],
-                    }
-                )
-
-            return message_object
-        except KeyError as e:
-            self.logger.error(f"Missing required field in message: {e}")
-        except Exception as e:
-            self.logger.error(f"Error converting message: {e}")
-
-    def _create_message_objects(
-        self, messages: List[Dict[str, str]], user_id: int
-    ) -> List[Message]:
-        """Convert LLM messages to Message objects."""
-        message_objects: List[Message] = []
-
-        for message in messages:
-            message_objects.append(self._create_message_object(message, user_id))
-
-        return message_objects
 
 
 llm_client = LLMClient()

@@ -1,7 +1,7 @@
 """init-setup
 
 Revision ID: 04faf4381e00
-Revises: 
+Revises:
 Create Date: 2024-10-22 23:52:07.042951
 
 """

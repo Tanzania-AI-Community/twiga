@@ -1,8 +1,8 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, date
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlmodel import (
     Index,
-    Enum,
     Integer,
     Field,
     SQLModel,
@@ -61,20 +61,11 @@ class OnboardingState(str, Enum):
 
 
 class UserState(str, Enum):
-    onboarding = "onboarding"
-    active = "active"
-    opted_out = "opted_out"
-    new = "new"
     blocked = "blocked"
     rate_limited = "rate_limited"
-    has_pending_message = "has_pending_message"
-
-
-class ResourceType(str, Enum):
-    textbook = "textbook"
-    curriculum = "curriculum"
-    document = "document"
-    # NOTE: add more types as needed, but keep clean structure with good segregation
+    new = "new"
+    onboarding = "onboarding"
+    active = "active"
 
 
 class Subject(str, Enum):
@@ -90,6 +81,33 @@ class ChunkType(str, Enum):
     # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
+class ClassInfo(BaseModel):
+    """Maps subjects to their grade levels for a teacher"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # NOTE: The keys are Subject and the values are lists of GradeLevel
+    subjects: Dict[str, List[str]]
+
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+        return {
+            subject: [grade for grade in grades]
+            for subject, grades in data["subjects"].items()
+        }
+
+    @classmethod
+    def model_validate(cls, data: Dict):
+        if data is None:
+            return None
+        return cls(
+            subjects={
+                Subject(subject): [GradeLevel(grade) for grade in grades]
+                for subject, grades in data.items()
+            }
+        )
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -99,16 +117,17 @@ class User(SQLModel, table=True):
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
     state: str = Field(default=UserState.new, max_length=50)
-    on_boarding_state: Optional[str] = Field(
+    # TODO: Update the onboarding_state
+    onboarding_state: Optional[str] = Field(
         default=OnboardingState.new, max_length=50
     )  # Is this really optional?
     role: str = Field(default=Role.teacher, max_length=20)
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
-    school_location: Optional[str] = Field(default=None, max_length=100)
+    # school_location: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
-    location: Optional[str] = Field(default=None, max_length=100)
+    # location: Optional[str] = Field(default=None, max_length=100)
     last_message_at: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True)
     )  # user.last_message_at = datetime.now(timezone.utc) (this is how to set it when updating later)
@@ -144,8 +163,8 @@ class Class(SQLModel, table=True):
         UniqueConstraint("subject", "grade_level", name="unique_classes"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
-    subject: str = Field(max_length=30)
-    grade_level: str = Field(max_length=10)  # use GradeLevel enum
+    subject: str = Field(max_length=30, index=True)
+    grade_level: str = Field(max_length=10, index=True)  # use GradeLevel enum
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(
@@ -171,13 +190,29 @@ class TeacherClass(SQLModel, table=True):
 
 
 class Message(SQLModel, table=True):
+    """
+    Message model aligned with OpenAI's chat completion format.
+    Supports standard messages, tool calls, and tool responses.
+    """
+
     __tablename__ = "messages"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
-    role: str = Field(max_length=20)
-    content: str
+    role: str = Field(max_length=20)  # system, user, assistant, tool
+    content: Optional[str] = Field(default=None)  # None when tool_calls present
 
+    # Tool call related fields
+    tool_calls: Optional[List[dict]] = Field(
+        default=None, sa_column=Column(JSON)
+    )  # For assistant messages with tool calls
+    tool_call_id: Optional[str] = Field(default=None)  # For tool response messages
+    # TODO: Make tool_name actually be used (right now its always None)
+    tool_name: Optional[str] = Field(
+        default=None, max_length=50
+    )  # Good for tracking tool usage
+
+    # Metadata
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -186,9 +221,78 @@ class Message(SQLModel, table=True):
         index=True,
     )
 
-    user_: User = Relationship(back_populates="user_messages")
-    # NOTE: add a field for message type (eg. text/image)
-    # NOTE: add a field for the content embedding for when we start doing RAG on chat history
+    # Relationships
+    user_: "User" = Relationship(back_populates="user_messages")
+
+    @field_validator("tool_calls", mode="before")
+    @classmethod
+    def validate_tool_calls(cls, v):
+
+        # Convert empty list to none
+        if v == []:
+            return None
+        """Ensure tool_calls is a list of dicts with required fields"""
+        if v is not None:
+            if not isinstance(v, list):
+                raise ValueError("tool_calls must be a list")
+            for call in v:
+                if not isinstance(call, dict):
+                    raise ValueError("Each tool call must be a dict")
+                required_fields = {"id", "type", "function"}
+                if not all(field in call for field in required_fields):
+                    raise ValueError(
+                        f"Tool call missing required fields: {required_fields}"
+                    )
+        return v
+
+    def to_api_format(self) -> dict:
+        """Convert message to OpenAI API format"""
+        message = {"role": self.role}
+        if self.tool_calls and len(self.tool_calls) > 0:
+            message["tool_calls"] = self.tool_calls
+            message["content"] = None
+        if self.content is not None:
+            message["content"] = self.content
+        if self.tool_call_id is not None:
+            message["tool_call_id"] = self.tool_call_id
+        # if self.tool_name is not None:
+        #     message["name"] = self.tool_name
+
+        return message
+
+    @classmethod
+    def from_api_format(cls, data: dict, user_id: int) -> "Message":
+        """Create message from OpenAI API format"""
+        message_data = {
+            "user_id": user_id,
+            "role": data["role"],
+            "content": data.get("content"),
+            "tool_calls": data.get("tool_calls"),
+            "tool_call_id": data.get("tool_call_id"),
+            "tool_name": data.get("name"),  # NOTE: This might not be needed
+        }
+        return cls(**message_data)
+
+
+# class Message(SQLModel, table=True):
+#     __tablename__ = "messages"
+
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
+#     role: str = Field(max_length=20)
+#     content: str
+
+#     created_at: Optional[datetime] = Field(
+#         default_factory=lambda: datetime.now(timezone.utc),
+#         sa_type=DateTime(timezone=True),  # type: ignore
+#         sa_column_kwargs={"server_default": sa.func.now()},
+#         nullable=False,
+#         index=True,
+#     )
+
+#     user_: User = Relationship(back_populates="user_messages")
+#     # NOTE: add a field for message type (eg. text/image)
+#     # NOTE: add a field for the content embedding for when we start doing RAG on chat history
 
 
 class Resource(SQLModel, table=True):
