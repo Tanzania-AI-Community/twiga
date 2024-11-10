@@ -1,73 +1,164 @@
-# Contributor Manual
+# Contributing to Twiga 🦒
 
-We welcome contributions of any size and skill level. As an open source project, we believe in giving back to our contributors and are happy to help with guidance on PRs, technical writing, and turning any feature idea into a reality.
+We welcome contributions of any size and skill level. As an open source project, we believe in giving back to our contributors and are happy to help with guidance on pull requests (PRs), technical writing, and turning any feature idea into a reality.
 
 > [!Tip]
 >
-> **For new contributors:** Take a look at [https://github.com/firstcontributions/first-contributions](https://github.com/firstcontributions/first-contributions) for helpful information on contributing
+> **For new contributors 🚼:** Take a look at [first contributions](https://github.com/firstcontributions/first-contributions) for helpful information on contributing. You can of course ask questions in our [Discord](https://discord.gg/bCe2HfZY2C).
 
-## 🖥️ Local Development Quick Guide
+By contributing you agree to our [**Code of Conduct**](https://github.com/Tanzania-AI-Community/twiga/blob/main/.github/CODE_OF_CONDUCT.md).
 
-As this project uses a combination of cloud services, dependencies, and API's with authtokens we are working on making the local development experience smoother for open source contributors. In some cases you may need to use your own credentials (such as _OpenAI_ API keys).
+## Merge Policy for Pull Requests
 
-If you want to set up the project locally on your own computer we recommend to complete the following steps. Start by forking :fork*and_knife: this repository. When forking make sure to deselect "\_copy the `main` branch only*".
+We're using the [Gitflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) workflow, meaning we don't do PRs for new features directly to the `main` branch. Any updates to the codebase, whether large or small, are first merged into the `development`. They're then deployed to our development server (basically our staging area) where we can evaluate if there's any breaking changes. After each milestone we submit a PR from `development` to `main`.
 
-Once you have forked you can clone it locally on your computer. Using Visual Studio code as your IDE is recommended but not neccessary. Run the following steps in the folder you want to keep the code.
+> [!Important]
+> Submit your PR against the `development` branch, not `main`. We do not accept PRs directly to `main`.
 
-```sh
-git clone git@github.com:{USERNAME}/twiga.git
-git checkout -b {YOUR BRANCH}
+## From Fork to PR with Twiga
+
+To start contributing to Twiga, follow these steps:
+
+1. Create a fork of this repository and clone it to your local machine
+
+> [!Important]
+> Remember to uncheck the "Copy the `main` branch only" so that you get the `development`branch too
+
+2. [Checkout](https://git-scm.com/docs/git-checkout) the `development` branch: `git checkout development`
+3. Create your feature branch from the `development` branch: `git checkout -b your-branch-name`
+4. Follow the steps in our [getting started](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/en/GETTING_STARTED.md) guide to get the project up and running locally
+5. (Not yet possible) Run the tests to ensure everything is working as expected
+6. [Commit](#conventional-commits) your changes: `git commit -m "[type]: descriptive commit message"`
+7. Push to your remote branch: `git push origin your-branch-name`
+8. Submit a pull request to the `development` branch of the original repository
+
+## Code Formatting and Linting
+
+Make sure to follow the established coding style guidelines in this project. We believe consistent formatting of the code makes it easier to understand and debug. Therefore, we enforce good formatting conventions using [_pre-commit_](https://pre-commit.com/) in order to automatically run the Python [_black_](https://github.com/psf/black) and [_ruff_](https://docs.astral.sh/ruff/) formatters on every commit.
+
+Don't worry, you don't need to learn a whole new way of formatting code - it's done for you. Though if you're curious about having these formatters and linters during your development (and not just on commit) we recommend these extensions for VSCode (our preferred editor): [_Black Formatter_](https://marketplace.visualstudio.com/items?itemName=ms-python.black-formatter) and [_Ruff_](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff). When you've completed steps 1-3 in [From Fork to PR with Twiga](#from-fork-to-pr-with-twiga), you can install the dependencies with:
+
+```bash
+$ uv sync
+$ source .venv/bin/activate
 ```
 
-This creates a new branch under the name you decide so you can work on whatever feature / issue you're interested in.
+> [!Note]
+> For **Windows** the second command would be `.venv\Scripts\activate`
 
-### Setup prerequisites
+Then you can install the _pre-commit_ hooks with:
 
-If you want to run a local server and test your Twiga build on WhatsApp directly, I recommend following some steps from the [tutorial](https://github.com/daveebbelaar/python-whatsapp-bot) made by Dave Ebbelaar. Note that these are all free to do.
+```bash
+$ pre-commit install
 
-1. Create a Meta [developer account](https://developers.facebook.com/) and [business app](https://developers.facebook.com/docs/development/create-an-app/)
-2. [Select phone numbers](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-1-select-phone-numbers)
-3. [Send messages with the API](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-2-send-messages-with-the-api)
-4. [Configure webhooks with ngrok](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-3-configure-webhooks-to-receive-messages)
-5. Create an [OpenAI API account](https://platform.openai.com/docs/quickstart) to get an **API key**
-6. Then create an [assistant](https://platform.openai.com/docs/assistants/overview) to get an **assistant ID** (give it the system prompt provided in _TBD_)
-
-Create a `.env` file using `example.env`as a template and remove all comments and whitespace.
-
-### Own computer
-
-Start out by installing the [**Poetry**](https://python-poetry.org/) python package manager to your computer. Make sure you're in the root directory of the repository and run the command `poetry install`. This will read the dependencies needed to run Twiga and download them into a `.venv/` folder. Next run `poetry shell` to activate a shell in your command line using the created virtual environment. Finally, run **one of** the following two commands to start the FastAPI server. They are development servers meaning you have hot reload.
-
-```sh
-fastapi dev app.main.py
+# output
+> pre-commit installed at .git/hooks/pre-commit
 ```
 
-```sh
-uvicorn app.main:app --port 8000 --reload
+### An Example of _pre-commit_ in Action
+
+> [!Note]
+> We shamelessly took this example from [gpt-engineer](https://github.com/gpt-engineer-org/gpt-engineer/tree/main). Thanks!
+
+As an introduction of the actual workflow, here is an example of the process you will encounter when you make a commit:
+
+Let's add a file we have modified with some errors, see how the pre-commit hooks run `black` and fails.
+`black` is set to automatically fix the issues it finds:
+
+```bash
+$ git add random_code_file.py
+$ git commit -m "commit message"
+black....................................................................Failed
+- hook id: black
+- files were modified by this hook
+
+reformatted random_code_file.py
+
+All done! ✨ 🍰 ✨
+1 file reformatted.
 ```
 
-In order for the Meta API to access your local FastAPI server you need to activate the ngrok API gateway with the following command.
+You can see that `random_code_file.py` is both staged and not staged for commit. This is because `black` has formatted it and now it is different from the version you have in your working directory. To fix this you can simply run `git add random_code_file.py` again and now you can commit your changes.
 
-```sh
-ngrok http 8000 --domain {YOUR-GATEWAY-NAME}.ngrok-free.app
+```bash
+$ git status
+On branch pre-commit-setup
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+    modified:   random_code_file.py
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+    modified:   random_code_file.py
 ```
 
-If all is set up correctly, you should be able to have a basic version of Twiga up and running that you can text with on WhatsApp.
+Now let's add the file again to include the latest commits and see how `ruff` fails.
 
-### Containerized with Docker
+```bash
+$ git add random_code_file.py
+$ git commit -m "commit message"
+black....................................................................Passed
+ruff.....................................................................Failed
+- hook id: ruff
+- exit code: 1
+- files were modified by this hook
 
-We are also using Docker for Twiga so that you can work on the project in a contained development to avoid some of the dependency and versioning issues that may occur on your own computer. Our `Dockerfile` and `docker-compose.yml` files ensure that the right version of python and poetry are installed to the system. All you need is to have [Docker](https://www.docker.com/) running on your computer.
-
-We recommend reading up on docker to learn about images, containerization, volumes, etc. We use docker compose with volumes so that you even have hot reloads in the running container (read `docker-compose.yml` and `Dockerfile` for more details). Once docker is set up you can run the following command.
-
-```sh
-docker compose up
+Found 2 errors (2 fixed, 0 remaining).
 ```
 
-In order for the Meta API to access your local FastAPI server you need to activate the ngrok API gateway with the following command.
+Same as before, you can see that `random_code_file.py` is both staged and not staged for commit. This is because `ruff` has formatted it and now it is different from the version you have in your working directory. To fix this you can simply run `git add random_code_file.py` again and now you can commit your changes.
 
-```sh
-ngrok http 8000 --domain {YOUR-GATEWAY-NAME}.ngrok-free.app
+```bash
+$ git add random_code_file.py
+$ git commit -m "commit message"
+black....................................................................Passed
+ruff.....................................................................Passed
+fix end of files.........................................................Passed
+[pre-commit-setup f00c0ce] testing
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 ```
 
-## 🤝 Sharing your contribution with us
+Now your file has been committed and you can push your changes.
+
+At the beginning this might seem like a tedious process (having to add the file again after `black` and `ruff` have modified it) but it is actually very useful. It allows you to see what changes `black` and `ruff` have made to your files and make sure that they are correct before you commit them.
+
+> [!Note]
+> When pre-commit fails in the build pipeline when submitting a PR you need to run `pre-commit run --all-files` to have it force format all files, not just the ones you edited since the previous commit.
+
+Sometimes `pre-commit` will seemingly run successfully, as follows:
+
+```bash
+black................................................(no files to check)Skipped
+ruff.................................................(no files to check)Skipped
+check toml...........................................(no files to check)Skipped
+check yaml...........................................(no files to check)Skipped
+detect private key...................................(no files to check)Skipped
+fix end of files.....................................(no files to check)Skipped
+trim trailing whitespace.............................(no files to check)Skipped
+```
+
+However, you may see `pre-commit` fail in the build pipeline upon submitting a PR. The solution to this is to run `pre-commit run --all-files` to force
+
+## Conventional Commits
+
+In addition to keeping our code style clean, we encourage you to use [_conventional commits_](https://www.conventionalcommits.org/en/v1.0.0/) to keep the commit history somewhat legible. We in the core team try our best to follow this convention but sometimes don't follow it perfectly or simply forget, so we won't enforce it. Here are some examples of commit messages we like:
+
+- `build: add langchain dependency`
+- `chore: update the gitignore to hide .venv`
+- `feat: create a textbook parser`
+- `fix: remove the KeyError in the user dictionary`
+- `refactor: move the assets folder to the app directory`
+- `docs: rewrite the contributing manual to kiswahili`
+
+Here are some we don't like:
+
+- `made some changes`
+- `didn't manage to get the code to do what I wanted but doing a commit anyways`
+- `twiga sucks`
+
+## Licensing
+
+By contributing to Twiga, you agree that your contributions will be licensed under the [License](https://github.com/Tanzania-AI-Community/twiga/blob/main/LICENSE) of the project.
+
+Thank you for your interest in contributing to Twiga! We look forward to your contributions.
