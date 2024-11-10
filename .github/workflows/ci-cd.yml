@@ -12,6 +12,8 @@ on:
 
 jobs:
   pre-commit:
+    permissions:
+      contents: write
     uses: ./.github/workflows/pre-commit.yml
 
   gitguardian:
