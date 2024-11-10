@@ -19,12 +19,19 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     try:
         # Initialize database during startup
-        await init_db(db_engine)
+        await init_db()
+        logger.info("Database initialized successfully")
+
+        # Additional startup tasks can go here
         logger.info("Application startup completed")
         yield
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
     finally:
+        # Cleanup
         await db_engine.dispose()
-        logger.info("Database connection closed")
+        logger.info("Database connections closed")
 
 
 # Create a FastAPI application instance

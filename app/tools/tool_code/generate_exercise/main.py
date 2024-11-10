@@ -2,41 +2,46 @@ import logging
 from typing import List, Optional
 
 from app.utils.llm_utils import async_llm_request
-from assets.preprompts.prompts import (
-    PIPELINE_QUESTION_GENERATOR_PROMPT,
-    PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
-)
+from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
-from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject
+from app.database.models import Chunk, ChunkType, Resource, User
 from app.config import llm_settings
+from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
 
 
 async def generate_exercise(
     query: str,
-    subject: Subject = Subject.geography,
-    grade_level: GradeLevel = GradeLevel.os2,
+    user: User,
+    resources: List[int],
+    # subject: Subject = Subject.geography,
+    # grade_level: GradeLevel = GradeLevel.os2,
 ) -> str:
 
-    # TODO: Add a global setting to store the resource ID for the user
     # TODO: Redesign this function to search on only the relevant resources
     try:
+        # TODO: Technically only send this once in case multiple tools called at once, but for now it's fine
+        await whatsapp_client.send_message(
+            user.wa_id, strings.get_string(StringCategory.TOOLS, "exercise_generator")
+        )
+
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
             query=query,
             n_results=7,
             where={
                 "content_type": [ChunkType.text],
-                "resource_id": [4],
-            },  # TODO: Change this to the relevant resource IDs for the subject, grade_level, and user
+                "resource_id": resources,
+            },
         )
         retrieved_exercises = await vector_search(
             query=query,
             n_results=3,
             where={
                 "content_type": [ChunkType.exercise],
-                "resource_id": [4],
+                "resource_id": resources,
             },
         )
 
@@ -49,9 +54,10 @@ async def generate_exercise(
 
         # Format the context and prompt
         context = _format_context(retrieved_content, retrieved_exercises)
-        system_prompt = PIPELINE_QUESTION_GENERATOR_PROMPT.format()
-        user_prompt = PIPELINE_QUESTION_GENERATOR_USER_PROMPT.format(
-            query=query, context_str=context
+        system_prompt = prompt_manager.get_prompt("exercise_generator_system")
+
+        user_prompt = prompt_manager.format_prompt(
+            "exercise_generator_user", query=query, context_str=context
         )
 
         # Generate a question based on the context
@@ -69,9 +75,9 @@ async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
         ]
 
         if verbose:
-            print(f"--------------------------")
+            print("--------------------------")
             print(f"System prompt: \n{prompt}")
-            print(f"--------------------------")
+            print("--------------------------")
             print(f"User prompt: \n{query}")
 
         res = await async_llm_request(

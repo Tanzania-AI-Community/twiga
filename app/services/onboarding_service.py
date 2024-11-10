@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 from app.database.models import User, OnboardingState, UserState
 from app.services.flow_service import flow_client
-from app.database.db import UserUpdateError, update_user, get_user_by_waid
+from app.database.db import update_user, get_user_by_waid
 
 
 class OnboardingHandler:
@@ -73,7 +73,7 @@ class OnboardingHandler:
         existing_user = await get_user_by_waid(user.wa_id)
         if existing_user is None:
             self.logger.error(f"User with wa_id {user.wa_id} does not exist")
-            raise UserUpdateError(f"User with wa_id {user.wa_id} does not exist")
+            raise Exception(f"User with wa_id {user.wa_id} does not exist")
 
         # Update the user state to onboarding, only if the user is not already in the onboarding state
         if user_state != UserState.onboarding:

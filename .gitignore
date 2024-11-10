@@ -122,7 +122,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-*.env
+.env
 .venv
 env/
 venv/
@@ -166,13 +166,5 @@ cython_debug/
 #.idea/
 
 ##################### New Additions #####################
-# Ignore all .db files
-*.db
-
 # Ignore DS_Store files
 .DS_Store
-
-# Ignore vector store
-twiga_vector_store/
-private.pem
-public.pem

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         case_sensitive=False,
         env_nested_delimiter="__",
     )
+    env_file: str = os.getenv("TWIGA_ENV", ".env")
+
     # Meta settings
     meta_api_version: str
     meta_app_id: str
@@ -41,10 +43,6 @@ class Settings(BaseSettings):
     # Database settings
     database_url: SecretStr
     migrations_url: Optional[SecretStr] = None
-
-    # Debug settings
-    # TODO: Determine if we need this
-    debug: bool = False
 
     # Business environment
     business_env: bool = False  # Default if not found in .env

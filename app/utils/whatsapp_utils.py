@@ -1,10 +1,9 @@
 from datetime import datetime
+from enum import Enum, auto
 import json
 import re
 from typing import Any, List, Literal, Optional
 import logging
-
-import httpx
 
 from app.models.message_models import (
     Row,
@@ -20,8 +19,22 @@ from app.models.message_models import (
     Section,
     ListAction,
 )
-from app.utils.logging_utils import log_httpx_response
 from app.config import settings
+
+
+class RequestType(Enum):
+    FLOW_EVENT = auto()
+    MESSAGE_STATUS_UPDATE = auto()
+    FLOW_COMPLETE = auto()
+    INVALID_MESSAGE = auto()
+    OUTDATED = auto()
+    VALID_MESSAGE = auto()
+
+
+class ValidMessageType(Enum):
+    SETTINGS_FLOW_SELECTION = auto()
+    COMMAND = auto()
+    CHAT = auto()
 
 
 logger = logging.getLogger(__name__)
@@ -109,59 +122,77 @@ def _format_text_for_whatsapp(text: str) -> str:
     return text
 
 
-def is_whatsapp_user_message(body: Any) -> bool:
-    return (
-        body.get("object")
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("messages")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]
-    )
+def is_invalid_whatsapp_message(body: Any) -> bool:
+    try:
+        return not (
+            body.get("object")
+            and body.get("entry")
+            and body["entry"][0].get("changes")
+            and body["entry"][0]["changes"][0].get("value")
+            and body["entry"][0]["changes"][0]["value"].get("messages")
+            and body["entry"][0]["changes"][0]["value"]["messages"][0]
+        )
+    except (IndexError, AttributeError, TypeError) as e:
+        logger.error(f"Error validating WhatsApp message: {e}")
+        return True  # Return True since an error means the message is invalid
 
 
 def is_flow_complete_message(body: Any) -> bool:
-    return (
-        body.get("object")
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("messages")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0].get("interactive")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
-            "type"
+    try:
+        return (
+            body.get("object")
+            and body.get("entry")
+            and body["entry"][0].get("changes")
+            and body["entry"][0]["changes"][0].get("value")
+            and body["entry"][0]["changes"][0]["value"].get("messages")
+            and body["entry"][0]["changes"][0]["value"]["messages"][0].get(
+                "interactive"
+            )
+            and body["entry"][0]["changes"][0]["value"]["messages"][0][
+                "interactive"
+            ].get("type")
+            == "nfm_reply"
+            and body["entry"][0]["changes"][0]["value"]["messages"][0][
+                "interactive"
+            ].get("nfm_reply")
+            and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+                "nfm_reply"
+            ].get("response_json")
+            and "flow_token"
+            in body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
+                "nfm_reply"
+            ]["response_json"]
         )
-        == "nfm_reply"
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"].get(
-            "nfm_reply"
-        )
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
-            "nfm_reply"
-        ].get("response_json")
-        and "flow_token"
-        in body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"][
-            "nfm_reply"
-        ]["response_json"]
-    )
+    except (IndexError, AttributeError, TypeError, KeyError) as e:
+        logger.error(f"Error checking flow complete message: {e}")
+        return False
 
 
-def is_event(body: dict) -> bool:
-    return (
-        body.get("object") == "whatsapp_business_account"
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("event")
-    )
+def is_flow_event(body: dict) -> bool:
+    try:
+        return (
+            body.get("object") == "whatsapp_business_account"
+            and body.get("entry")
+            and body["entry"][0].get("changes")
+            and body["entry"][0]["changes"][0].get("value")
+            and body["entry"][0]["changes"][0]["value"].get("event")
+        )
+    except (IndexError, AttributeError, TypeError) as e:
+        logger.error(f"Error checking flow event: {e}")
+        return False
 
 
 def is_status_update(body: dict) -> bool:
-    return (
-        body.get("entry", [{}])[0]
-        .get("changes", [{}])[0]
-        .get("value", {})
-        .get("statuses")
-    ) is not None
+    try:
+        return (
+            body.get("entry", [{}])[0]
+            .get("changes", [{}])[0]
+            .get("value", {})
+            .get("statuses")
+        ) is not None
+    except (IndexError, AttributeError, TypeError) as e:
+        logger.error(f"Error checking status update: {e}")
+        return False
 
 
 def extract_message_info(body: dict) -> dict:
@@ -174,12 +205,12 @@ def extract_message_info(body: dict) -> dict:
     }
 
 
-def is_message_recent(message_timestamp: int) -> bool:
+def is_message_outdated(message_timestamp: int) -> bool:
     current_timestamp = int(datetime.now().timestamp())
-    return current_timestamp - message_timestamp <= 10
+    return current_timestamp - message_timestamp >= 10
 
 
-def extract_message_body(message: dict) -> str:
+def extract_message(message: dict) -> str:
     message_type = message.get("type")
     if message_type == "text":
         return message["text"]["body"]
@@ -191,6 +222,23 @@ def extract_message_body(message: dict) -> str:
             return message["interactive"]["list_reply"]["title"]
 
     raise ValueError(f"Unsupported message type: {message_type}")
+
+
+def is_interactive_message(message_info: dict) -> bool:
+    message = message_info.get("message", {})
+    return message.get("type") == "interactive"
+
+
+COMMAND_OPTIONS = ["settings", "help"]
+
+
+def is_command_message(message_info: dict) -> bool:
+    logger.debug(f"Checking if message is a command: {message_info}")
+    message = message_info.get("message", {}).get("text", {}).get("body", "")
+
+    if isinstance(message, str):
+        return message.lower() in COMMAND_OPTIONS
+    return False
 
 
 def generate_payload(
@@ -238,3 +286,37 @@ def get_flow_payload(wa_id: str, flow: dict) -> str:
         },
     }
     return json.dumps(payload)
+
+
+def get_valid_message_type(message_info: dict) -> ValidMessageType:
+
+    if is_interactive_message(message_info):
+        return ValidMessageType.SETTINGS_FLOW_SELECTION
+    if is_command_message(message_info):
+        return ValidMessageType.COMMAND
+
+    return ValidMessageType.CHAT
+
+
+def get_request_type(body: dict) -> RequestType:
+    try:
+        if is_flow_event(body):  # Various standard Flow events
+            return RequestType.FLOW_EVENT
+        if is_status_update(body):  # WhatsApp status update (sent, delivered, read)
+            return RequestType.MESSAGE_STATUS_UPDATE
+        if is_flow_complete_message(body):  # Flow completion message
+            return RequestType.FLOW_COMPLETE
+        if is_invalid_whatsapp_message(body):  # Non-status updates (message, other)
+            return RequestType.INVALID_MESSAGE
+
+        # For valid WhatsApp messages, extract the message info
+        message_info = extract_message_info(body)
+
+        if is_message_outdated(message_info["timestamp"]):
+            return RequestType.OUTDATED
+
+    except Exception as e:
+        logger.error(f"Error determining request type: {e}")
+        raise
+
+    return RequestType.VALID_MESSAGE

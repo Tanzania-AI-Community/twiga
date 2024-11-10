@@ -5,7 +5,6 @@ from sqlalchemy import pool
 from sqlmodel import SQLModel
 from alembic import context
 
-from app.database.models import User, Message, Class, TeacherClass
 from app.config import settings
 
 # this is the Alembic Config object, which provides

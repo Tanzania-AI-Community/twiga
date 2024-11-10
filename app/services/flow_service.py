@@ -8,7 +8,7 @@ from app.utils.flows_util import (
 from app.database.db import get_user_by_waid, update_user
 from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
-from app.utils.whatsapp_utils import generate_payload
+from app.utils.string_manager import strings, StringCategory
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -226,11 +226,12 @@ class FlowService:
             },
         }
 
-        response_text = "Thank you for submitting your personal and school information. Your onboarding is almost complete."
+        response_text = strings.get_string(
+            StringCategory.ONBOARDING, "personal_info_submitted"
+        )
         options = None
 
-        payload = generate_payload(user.wa_id, response_text, options)
-        await whatsapp_client.send_message(payload)
+        await whatsapp_client.send_message(user.wa_id, response_text, options)
         # send class and subject info flow
         await self.send_class_and_subject_info_flow(user.wa_id, user.name)
 
@@ -396,11 +397,12 @@ class FlowService:
 
             await update_user(user)
 
-            response_text = f"Hurray! {user.name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start using Twiga 🦒."
+            response_text = strings.get_template(
+                StringCategory.ONBOARDING, "completed", user_name=user.name
+            )
             options = None
 
-            payload = generate_payload(user.wa_id, response_text, options)
-            await whatsapp_client.send_message(payload)
+            await whatsapp_client.send_message(user.wa_id, response_text, options)
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )
@@ -452,10 +454,23 @@ class FlowService:
             self.logger.error(f"Error encrypting response: {e}")
             return PlainTextResponse(content="Encryption failed", status_code=500)
 
-    async def send_personal_and_school_info_flow(self, wa_id: str, name: str) -> None:
+    async def send_personal_and_school_info_flow(
+        self, wa_id: str, name: str, is_update: bool = False
+    ) -> None:
         flow_token = encrypt_flow_token(
             wa_id, settings.personal_and_school_info_flow_id
         )
+        header_text = (
+            "Update your personal and school information 📝"
+            if is_update
+            else "Start onboarding to Twiga 🦒"
+        )
+        body_text = (
+            "Let's update your personal and school information."
+            if is_update
+            else "Welcome to Twiga! Let's get started with your onboarding process."
+        )
+
         payload = {
             "messaging_product": "whatsapp",
             "to": wa_id,
@@ -465,13 +480,13 @@ class FlowService:
                 "type": "flow",
                 "header": {
                     "type": "text",
-                    "text": "Start onboarding to Twiga 🦒",
+                    "text": header_text,
                 },
                 "body": {
-                    "text": "Welcome to Twiga! Let's get started with your onboarding process. ",
+                    "text": body_text,
                 },
                 "footer": {
-                    "text": "Please follow the the instructions.",
+                    "text": "Please follow the instructions.",
                 },
                 "action": {
                     "name": "flow",
@@ -480,7 +495,9 @@ class FlowService:
                         "flow_action": "navigate",
                         "flow_token": flow_token,
                         "flow_id": settings.personal_and_school_info_flow_id,
-                        "flow_cta": "Start Onboarding",
+                        "flow_cta": (
+                            "Update Information" if is_update else "Start Onboarding"
+                        ),
                         "mode": "published",
                         "flow_action_payload": {
                             "screen": "personal_info",
@@ -561,6 +578,21 @@ class FlowService:
             )
             self.logger.info(
                 f"WhatsApp API response: {response.status_code} - {response.text}"
+            )
+
+    async def send_update_personal_and_school_info_flow(
+        self, user: User
+    ) -> JSONResponse:
+        try:
+            return await self.send_personal_and_school_info_flow(
+                user.wa_id, user.name, is_update=True
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating personal info: {e}")
+            return JSONResponse(
+                content={"status": "error", "message": "Internal server error"},
+                status_code=500,
             )
 
 

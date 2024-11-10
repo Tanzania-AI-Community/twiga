@@ -5,7 +5,7 @@
 
 </div>
 
-This diagram is an overview of the infrastructure for the first iteration of Twiga in production. We appreciate simple architectures and want to minimize the number of platforms we use all while maintaining good performance. 
+This diagram is an overview of the infrastructure for the first iteration of Twiga in production. We appreciate simple architectures and want to minimize the number of platforms we use all while maintaining good performance.
 
 # Code infrastructure
 ...tbd

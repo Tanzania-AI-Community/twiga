@@ -1,0 +1,22 @@
+error:
+  general: "Sorry, something went wrong on my end. Please try again later."
+  command_not_found: "Sorry, I don't understand that command."
+  rate_limited: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Let's talk more tomorrow!"
+  blocked: "Your account is currently blocked. Please contact support (dev@ai.or.tz) for assistance."
+
+info:
+  help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."
+
+onboarding:
+  welcome: "Welcome to Twiga! I'm here to help you with your teaching journey."
+  personal_info_submitted: "Thanks for submitting your personal information. Let's continue with your class and subject information to complete your onboarding."
+  completion: "Hurray! {user_name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start talking to Twiga 🦒."
+
+settings:
+  intro: "Welcome to the Settings Menu, please select what you want to update."
+  personal_info: "Personal Info"
+  class_subject_info: "Classes and Subjects"
+
+tools:
+  exercise_generator: "🏋️ Generating an exercise using the course literature, please hold..."
+  search_knowledge: "🔍 Searching for relevant knowledge, please hold..."
