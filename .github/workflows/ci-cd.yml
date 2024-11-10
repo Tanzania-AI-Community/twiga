@@ -12,7 +12,7 @@ on:
 
 jobs:
   pre-commit:
-    uses: ./.github/workflows/pre_commit.yml
+    uses: ./.github/workflows/pre-commit.yml
 
   gitguardian:
     uses: ./.github/workflows/gitguardian.yml
