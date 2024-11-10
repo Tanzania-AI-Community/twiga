@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
-from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
+from app.database.models import Chunk, ChunkType, Resource, User
 from app.config import llm_settings
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
@@ -75,9 +75,9 @@ async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
         ]
 
         if verbose:
-            print(f"--------------------------")
+            print("--------------------------")
             print(f"System prompt: \n{prompt}")
-            print(f"--------------------------")
+            print("--------------------------")
             print(f"User prompt: \n{query}")
 
         res = await async_llm_request(

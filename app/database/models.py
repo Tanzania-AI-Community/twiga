@@ -3,7 +3,6 @@ from datetime import datetime, timezone, date
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlmodel import (
     Index,
-    Enum,
     Integer,
     Field,
     SQLModel,
@@ -67,13 +66,6 @@ class UserState(str, Enum):
     new = "new"
     onboarding = "onboarding"
     active = "active"
-
-
-class ResourceType(str, Enum):
-    textbook = "textbook"
-    curriculum = "curriculum"
-    document = "document"
-    # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
 class Subject(str, Enum):

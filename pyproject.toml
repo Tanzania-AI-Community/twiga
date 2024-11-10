@@ -19,6 +19,7 @@ dependencies = [
     "langchain-openai>=0.2.6",
     "openai>=1.51.2",
     "pgvector>=0.3.5",
+    "pre-commit>=4.0.1",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",
     "sqlmodel>=0.0.22",

@@ -1,24 +1,18 @@
 import asyncio
-import os
 import json
 from pathlib import Path
 import re
 from sqlalchemy import text
 from sqlmodel import SQLModel, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.schema import CreateTable
 import logging
 from typing import List, Dict, Any, Optional
 
 # Import all your models
 from app.database.models import (
-    User,
     Class,
-    TeacherClass,
-    Message,
     Resource,
     ClassResource,
-    Section,
     Chunk,
     ResourceType,
     Subject,
@@ -160,7 +154,7 @@ async def create_dummy_classes():
                 session.add(class_resource)
                 await session.commit()
 
-                logger.info(f"Created class-resource relationship for Form 2 Geography")
+                logger.info("Created class-resource relationship for Form 2 Geography")
 
             return geography_class
 
@@ -256,7 +250,7 @@ async def create_dummy_resources():
         resource_id = await get_or_create_resource()
 
         # Process JSON files
-        content_path = Path("assets/sample_resource/tie-geography-f2-content.json")
+        # content_path = Path("assets/sample_resource/tie-geography-f2-content.json")
         exercises_path = Path("assets/sample_resource/tie-geography-f2-exercises.json")
 
         # Load and process content if no chunks exist

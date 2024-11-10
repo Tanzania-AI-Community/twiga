@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from functools import cached_property
-import os
 
 
 class ProjectPaths:

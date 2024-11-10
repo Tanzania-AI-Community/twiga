@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List
 import json
 import logging
 
@@ -76,7 +76,7 @@ async def async_llm_request(
         completion = await llm_client.chat.completions.create(**params)
 
         return completion
-    except openai.RateLimitError as e:
+    except openai.RateLimitError:
         raise
     except Exception as e:
         raise Exception(f"Failed to retrieve completion: {str(e)}")

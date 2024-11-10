@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlmodel import text
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
-from app.database.models import *
 import logging
 
 
@@ -42,7 +41,7 @@ async def get_session():
     try:
         yield session
         await session.commit()
-    except Exception as e:
+    except Exception:
         await session.rollback()
         raise
     finally:

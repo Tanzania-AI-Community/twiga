@@ -9,7 +9,7 @@ from app.security import flows_signature_required
 from app.services.whatsapp_service import whatsapp_client
 from app.services.messaging_service import handle_request
 from app.services.flow_service import flow_client
-from app.database.engine import db_engine, get_session, init_db
+from app.database.engine import db_engine, init_db
 from app.utils.flows_util import decrypt_flow_token
 
 logger = logging.getLogger(__name__)

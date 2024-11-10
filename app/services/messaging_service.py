@@ -14,7 +14,6 @@ from app.utils.whatsapp_utils import (
     ValidMessageType,
     extract_message,
     extract_message_info,
-    generate_payload,
     get_request_type,
     get_valid_message_type,
 )

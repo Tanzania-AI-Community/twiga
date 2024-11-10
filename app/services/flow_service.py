@@ -9,7 +9,6 @@ from app.database.db import get_user_by_waid, update_user
 from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
-from app.utils.whatsapp_utils import generate_payload
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend

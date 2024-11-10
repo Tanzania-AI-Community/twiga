@@ -1,9 +1,19 @@
+from typing import List, Optional
 from sqlalchemy import text
 from sqlmodel import select
 import logging
-from datetime import datetime
 
-from app.database.models import *
+from app.database.models import (
+    User,
+    Message,
+    TeacherClass,
+    Class,
+    Chunk,
+    Role,
+    UserState,
+    Subject,
+    GradeLevel,
+)
 from app.database.engine import get_session
 from app.utils import embedder
 
@@ -269,7 +279,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             # Use text() for a more efficient raw SQL query
             query = text(
                 """
-                SELECT DISTINCT cr.resource_id 
+                SELECT DISTINCT cr.resource_id
                 FROM teachers_classes tc
                 JOIN classes_resources cr ON tc.class_id = cr.class_id
                 WHERE tc.teacher_id = :user_id

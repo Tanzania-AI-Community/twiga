@@ -1,6 +1,5 @@
 # app/core/prompts.py
 
-from pathlib import Path
 from typing import Dict
 import logging
 from app.utils.paths import paths
