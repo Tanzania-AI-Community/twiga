@@ -2,7 +2,9 @@
 
 We welcome contributions of any size and skill level. As an open source project, we believe in giving back to our contributors and are happy to help with guidance on pull requests (PRs), technical writing, and turning any feature idea into a reality.
 
-> [!Tip] > **For new contributors 🚼:** Take a look at [first contributions](https://github.com/firstcontributions/first-contributions) for helpful information on contributing
+> [!Tip]
+>
+> **For new contributors 🚼:** Take a look at [first contributions](https://github.com/firstcontributions/first-contributions) for helpful information on contributing. You can of course ask questions in our [Discord](https://discord.gg/bCe2HfZY2C).
 
 By contributing you agree to our [**Code of Conduct**](https://github.com/Tanzania-AI-Community/twiga/blob/main/.github/CODE_OF_CONDUCT.md).
 
@@ -19,7 +21,7 @@ To start contributing to Twiga, follow these steps:
 
 1. Create a fork of this repository and clone it to your local machine
 
-> [!Note]
+> [!Important]
 > Remember to uncheck the "Copy the `main` branch only" so that you get the `development`branch too
 
 2. [Checkout](https://git-scm.com/docs/git-checkout) the `development` branch: `git checkout development`
