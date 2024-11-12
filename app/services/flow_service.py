@@ -8,13 +8,15 @@ from app.utils.flows_util import (
     encrypt_flow_token,
 )
 from app.database.db import (
-    get_classes_for_subject,
+    add_teacher_class,
+    generate_class_info,
     get_subject_and_classes,
     get_user_by_waid,
     update_user,
     get_available_subjects,
+    update_user_selected_classes,
 )
-from app.database.models import User
+from app.database.models import OnboardingState, User, UserState
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.whatsapp_utils import generate_payload
 from app.config import settings
@@ -206,18 +208,29 @@ class FlowService:
                 content={"error_msg": "No classes selected"}, status_code=422
             )
 
-        # not sure if this is right, need help to fix this
-        # Update user's class_info
-        class_info = user.class_info or {}
         # mark user as completed onboarding and state to active
         user.onboarding_state = "completed"
         user.state = "active"
-        class_info[subject_id] = selected_classes
-        user.class_info = class_info
-        self.logger.info(f"User class info after update: {user.class_info}")
-        # it will look like : User class info after update: {'1': ['1', '3']}
+        selected_classes_formatted = [int(class_id) for class_id in selected_classes]
+        user = await update_user_selected_classes(
+            user, selected_classes_formatted, int(subject_id)
+        )
+        self.logger.info(f"User after update selected classes: {user}")
+        user.state = UserState.active
+        user.onboarding_state = OnboardingState.completed
+
+        # Update the database accordingly
+        user = await update_user(user)
+        user.class_info = await generate_class_info(user)
+
+        await add_teacher_class(user, selected_classes_formatted)
 
         await update_user(user)
+
+        # send response to user
+        response_text = "Your Subject and Class selection is has been updated successfully. We are ready to assist you with your questions."
+        options = None
+        await whatsapp_client.send_message(user.wa_id, response_text, options)
 
         response_payload = {
             "screen": "SUCCESS",

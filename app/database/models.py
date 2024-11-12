@@ -76,8 +76,9 @@ class ResourceType(str, Enum):
     # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
-class Subject(str, Enum):
+class SubjectNames(str, Enum):
     geography = "geography"
+    mathematics = "mathematics"
 
 
 class ChunkType(str, Enum):
@@ -130,6 +131,9 @@ class User(SQLModel, table=True):
         default=OnboardingState.new, max_length=50
     )  # Is this really optional?
     role: str = Field(default=Role.teacher, max_length=20)
+    selected_class_ids: Optional[List[int]] = Field(
+        sa_column=Column(ARRAY(Integer)), default=[]
+    )
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
@@ -183,7 +187,9 @@ class Class(SQLModel, table=True):
         UniqueConstraint("subject_id", "grade_level", name="unique_classes"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(max_length=100)
+    name: str = Field(
+        max_length=100
+    )  # we use this when we show user the class names on the flow
     subject_id: int = Field(foreign_key="subjects.id", index=True)
     grade_level: str = Field(max_length=10, index=True)  # use GradeLevel enum
     status: str = Field(default="active")
