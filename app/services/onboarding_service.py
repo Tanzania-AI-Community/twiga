@@ -44,7 +44,7 @@ class OnboardingHandler:
         self.logger.info(f"Handling personal info submitted for user {user.wa_id}")
 
         # TODO: SEND USER AS INPUT INSTEAD
-        await self.flow_client.send_select_subject_flow(user.wa_id, user.name)
+        await self.flow_client.send_select_subject_flow(user)
 
         response_text = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
         options = None
