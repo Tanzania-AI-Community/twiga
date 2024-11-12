@@ -163,6 +163,15 @@ class User(SQLModel, table=True):
     )
 
 
+class Subject(SQLModel, table=True):
+    __tablename__ = "subjects"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=50, nullable=False)
+
+    # A subject may have entries in the classes table
+    subject_classes: Optional[List["Class"]] = Relationship(back_populates="subject_")
+
+
 class SubjectClassStatus(str, Enum):
     active = "active"
     inactive = "inactive"
@@ -171,12 +180,13 @@ class SubjectClassStatus(str, Enum):
 class Class(SQLModel, table=True):
     __tablename__ = "classes"
     __table_args__ = (
-        UniqueConstraint("subject", "grade_level", name="unique_classes"),
+        UniqueConstraint("subject_id", "grade_level", name="unique_classes"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
-    subject: str = Field(max_length=30, index=True)
+    name: str = Field(max_length=100)
+    subject_id: int = Field(foreign_key="subjects.id", index=True)
     grade_level: str = Field(max_length=10, index=True)  # use GradeLevel enum
-    status: str = Field(default=SubjectClassStatus.active)
+    status: str = Field(default="active")
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(
@@ -186,6 +196,8 @@ class Class(SQLModel, table=True):
     class_resources: Optional[List["ClassResource"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
+    # Relationship to the Subject table
+    subject_: Subject = Relationship(back_populates="subject_classes")
 
 
 class TeacherClass(SQLModel, table=True):

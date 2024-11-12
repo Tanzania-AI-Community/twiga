@@ -303,15 +303,54 @@ async def get_available_subjects() -> List[Dict[str, str]]:
     async with get_session() as session:
         try:
             statement = (
-                select(Class.id, Class.subject)
+                select(Subject.id, Subject.name)
+                .join(Class, Class.subject_id == Subject.id)
                 .where(Class.status == SubjectClassStatus.active)
                 .distinct()
             )
             result = await session.execute(statement)
             subjects = [
-                {"id": str(row.id), "title": row.subject} for row in result.fetchall()
+                {"id": str(row.id), "title": row.name} for row in result.fetchall()
             ]
             return subjects
         except Exception as e:
             logger.error(f"Failed to get available subjects: {str(e)}")
             raise Exception(f"Failed to get available subjects: {str(e)}")
+
+
+async def get_subject_and_classes(subject_id: int) -> Dict[str, Any]:
+    async with get_session() as session:
+        try:
+            statement = (
+                select(
+                    Subject.name.label("subject_name"),
+                    Class.id,
+                    Class.name,
+                    Class.grade_level,
+                )
+                .join(Class, Class.subject_id == Subject.id)
+                .where(Subject.id == subject_id)
+            )
+            result = await session.execute(statement)
+            rows = result.fetchall()
+            if not rows:
+                raise Exception(
+                    f"Subject with ID {subject_id} not found or has no classes"
+                )
+
+            subject_name = rows[0].subject_name
+            classes = [
+                {
+                    "id": str(row.id),
+                    "title": row.name,
+                }
+                for row in rows
+            ]
+            return {"subject_name": subject_name, "classes": classes}
+        except Exception as e:
+            logger.error(
+                f"Failed to get subject and classes for subject ID {subject_id}: {str(e)}"
+            )
+            raise Exception(
+                f"Failed to get subject and classes for subject ID: {str(e)}"
+            )
