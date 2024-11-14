@@ -1,9 +1,8 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, date
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlmodel import (
     Index,
-    Enum,
     Integer,
     Field,
     SQLModel,
@@ -220,13 +219,29 @@ class TeacherClass(SQLModel, table=True):
 
 
 class Message(SQLModel, table=True):
+    """
+    Message model aligned with OpenAI's chat completion format.
+    Supports standard messages, tool calls, and tool responses.
+    """
+
     __tablename__ = "messages"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
-    role: str = Field(max_length=20)
-    content: str
+    role: str = Field(max_length=20)  # system, user, assistant, tool
+    content: Optional[str] = Field(default=None)  # None when tool_calls present
 
+    # Tool call related fields
+    tool_calls: Optional[List[dict]] = Field(
+        default=None, sa_column=Column(JSON)
+    )  # For assistant messages with tool calls
+    tool_call_id: Optional[str] = Field(default=None)  # For tool response messages
+    # TODO: Make tool_name actually be used (right now its always None)
+    tool_name: Optional[str] = Field(
+        default=None, max_length=50
+    )  # Good for tracking tool usage
+
+    # Metadata
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -235,9 +250,78 @@ class Message(SQLModel, table=True):
         index=True,
     )
 
-    user_: User = Relationship(back_populates="user_messages")
-    # NOTE: add a field for message type (eg. text/image)
-    # NOTE: add a field for the content embedding for when we start doing RAG on chat history
+    # Relationships
+    user_: "User" = Relationship(back_populates="user_messages")
+
+    @field_validator("tool_calls", mode="before")
+    @classmethod
+    def validate_tool_calls(cls, v):
+
+        # Convert empty list to none
+        if v == []:
+            return None
+        """Ensure tool_calls is a list of dicts with required fields"""
+        if v is not None:
+            if not isinstance(v, list):
+                raise ValueError("tool_calls must be a list")
+            for call in v:
+                if not isinstance(call, dict):
+                    raise ValueError("Each tool call must be a dict")
+                required_fields = {"id", "type", "function"}
+                if not all(field in call for field in required_fields):
+                    raise ValueError(
+                        f"Tool call missing required fields: {required_fields}"
+                    )
+        return v
+
+    def to_api_format(self) -> dict:
+        """Convert message to OpenAI API format"""
+        message = {"role": self.role}
+        if self.tool_calls and len(self.tool_calls) > 0:
+            message["tool_calls"] = self.tool_calls
+            message["content"] = None
+        if self.content is not None:
+            message["content"] = self.content
+        if self.tool_call_id is not None:
+            message["tool_call_id"] = self.tool_call_id
+        # if self.tool_name is not None:
+        #     message["name"] = self.tool_name
+
+        return message
+
+    @classmethod
+    def from_api_format(cls, data: dict, user_id: int) -> "Message":
+        """Create message from OpenAI API format"""
+        message_data = {
+            "user_id": user_id,
+            "role": data["role"],
+            "content": data.get("content"),
+            "tool_calls": data.get("tool_calls"),
+            "tool_call_id": data.get("tool_call_id"),
+            "tool_name": data.get("name"),  # NOTE: This might not be needed
+        }
+        return cls(**message_data)
+
+
+# class Message(SQLModel, table=True):
+#     __tablename__ = "messages"
+
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
+#     role: str = Field(max_length=20)
+#     content: str
+
+#     created_at: Optional[datetime] = Field(
+#         default_factory=lambda: datetime.now(timezone.utc),
+#         sa_type=DateTime(timezone=True),  # type: ignore
+#         sa_column_kwargs={"server_default": sa.func.now()},
+#         nullable=False,
+#         index=True,
+#     )
+
+#     user_: User = Relationship(back_populates="user_messages")
+#     # NOTE: add a field for message type (eg. text/image)
+#     # NOTE: add a field for the content embedding for when we start doing RAG on chat history
 
 
 class Resource(SQLModel, table=True):

@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlmodel import text
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
-from app.database.models import *
 import logging
 
 
@@ -13,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 def get_database_url() -> str:
     """Get formatted database URL from settings"""
+    if settings.env_file == ".env.local":
+        return settings.database_url.get_secret_value()
     database_uri = urlparse(settings.database_url.get_secret_value())
     return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
 
@@ -40,7 +41,7 @@ async def get_session():
     try:
         yield session
         await session.commit()
-    except Exception as e:
+    except Exception:
         await session.rollback()
         raise
     finally:

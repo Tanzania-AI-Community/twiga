@@ -2,15 +2,12 @@ import logging
 from typing import List, Optional
 
 from app.utils.llm_utils import async_llm_request
-from app.utils.whatsapp_utils import generate_payload
-from assets.preprompts.prompts import (
-    PIPELINE_QUESTION_GENERATOR_PROMPT,
-    PIPELINE_QUESTION_GENERATOR_USER_PROMPT,
-)
+from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
-from app.database.models import Chunk, ChunkType, GradeLevel, Resource, Subject, User
+from app.database.models import Chunk, ChunkType, Resource, User
 from app.config import llm_settings
 from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +24,7 @@ async def generate_exercise(
     try:
         # TODO: Technically only send this once in case multiple tools called at once, but for now it's fine
         await whatsapp_client.send_message(
-            user.wa_id,
-            "🏋️ Generating an exercise using the course literature, please hold...",
+            user.wa_id, strings.get_string(StringCategory.TOOLS, "exercise_generator")
         )
 
         # Retrieve the relevant content and exercises
@@ -58,9 +54,10 @@ async def generate_exercise(
 
         # Format the context and prompt
         context = _format_context(retrieved_content, retrieved_exercises)
-        system_prompt = PIPELINE_QUESTION_GENERATOR_PROMPT.format()
-        user_prompt = PIPELINE_QUESTION_GENERATOR_USER_PROMPT.format(
-            query=query, context_str=context
+        system_prompt = prompt_manager.get_prompt("exercise_generator_system")
+
+        user_prompt = prompt_manager.format_prompt(
+            "exercise_generator_user", query=query, context_str=context
         )
 
         # Generate a question based on the context
@@ -78,9 +75,9 @@ async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
         ]
 
         if verbose:
-            print(f"--------------------------")
+            print("--------------------------")
             print(f"System prompt: \n{prompt}")
-            print(f"--------------------------")
+            print("--------------------------")
             print(f"User prompt: \n{query}")
 
         res = await async_llm_request(

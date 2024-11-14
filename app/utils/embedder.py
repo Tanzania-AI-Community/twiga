@@ -1,8 +1,7 @@
 # This is in scripts/database for now but will be moved to app/database
 from typing import List
-from app.config import settings, llm_settings
+from app.config import llm_settings
 from together import Together
-from together.types import EmbeddingResponse
 
 client = Together(
     api_key=llm_settings.llm_api_key.get_secret_value(),

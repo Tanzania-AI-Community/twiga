@@ -1,9 +1,19 @@
+from typing import List, Optional
 from sqlalchemy import text
 from sqlmodel import select
 import logging
-from datetime import datetime
 
-from app.database.models import *
+from app.database.models import (
+    User,
+    Message,
+    TeacherClass,
+    Class,
+    Chunk,
+    Role,
+    UserState,
+    Subject,
+    GradeLevel,
+)
 from app.database.engine import get_session
 from app.utils import embedder
 
@@ -24,6 +34,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             result = await session.execute(statement)
             user = result.scalar_one_or_none()
             if user:
+                await session.refresh(user)
                 return user
             # Create new user if they don't exist
             new_user = User(
@@ -33,12 +44,12 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
                 role=Role.teacher,
             )
             session.add(new_user)
-            await session.commit()
+            await session.flush()  # Get the ID without committing
             await session.refresh(new_user)
             logger.info(f"Created new user with wa_id: {wa_id}")
             return new_user
         except Exception as e:
-            logger.error(f"Database operation failed for wa_id {wa_id}: {str(e)}")
+            logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
             raise Exception(f"Failed to get or create user: {str(e)}")
 
 
@@ -128,24 +139,24 @@ async def get_user_message_history(
     async with get_session() as session:
         try:
             # TODO: Make the database order this by default to reduce repeated operations
-            # statement = (
-            #     select(Message)
-            #     .where(Message.user_id == user_id)
-            #     .order_by(Message.created_at.desc())
-            #     .limit(limit)
-            # )
-            query = text(
-                """
-                SELECT id, user_id, role, content, created_at
-                FROM messages
-                WHERE user_id = :user_id
-                ORDER BY created_at DESC
-                LIMIT :limit
-            """
+            statement = (
+                select(Message)
+                .where(Message.user_id == user_id)
+                .order_by(Message.created_at.desc())
+                .limit(limit)
             )
+            # query = text(
+            #     """
+            #     SELECT id, user_id, role, content, created_at
+            #     FROM messages
+            #     WHERE user_id = :user_id
+            #     ORDER BY created_at DESC
+            #     LIMIT :limit
+            # """
+            # )
 
-            result = await session.execute(query, {"user_id": user_id, "limit": limit})
-            messages = result.fetchall()
+            result = await session.execute(statement)
+            messages = result.scalars().all()
 
             # If no messages found, return empty list
             if not messages:
@@ -252,7 +263,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             # Use text() for a more efficient raw SQL query
             query = text(
                 """
-                SELECT DISTINCT cr.resource_id 
+                SELECT DISTINCT cr.resource_id
                 FROM teachers_classes tc
                 JOIN classes_resources cr ON tc.class_id = cr.class_id
                 WHERE tc.teacher_id = :user_id

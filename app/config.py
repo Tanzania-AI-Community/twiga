@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         case_sensitive=False,
         env_nested_delimiter="__",
     )
+    env_file: str = os.getenv("TWIGA_ENV", ".env")
+
     # Meta settings
     meta_api_version: str
     meta_app_id: str
