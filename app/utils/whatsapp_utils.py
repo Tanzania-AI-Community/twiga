@@ -233,8 +233,8 @@ COMMAND_OPTIONS = ["settings", "help"]
 
 
 def is_command_message(message_info: dict) -> bool:
-    logger.debug(f"Checking if message is a command: {message_info}")
     message = message_info.get("message", {}).get("text", {}).get("body", "")
+    logger.debug(f"Checking if message is a command: {message}")
 
     if isinstance(message, str):
         return message.lower() in COMMAND_OPTIONS

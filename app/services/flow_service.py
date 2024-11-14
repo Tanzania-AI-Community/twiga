@@ -441,10 +441,14 @@ class FlowService:
 
             # send message to user saying that the personal info has been submitted
             responseText = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
+            if is_updating:
+                responseText = "Your personal information has been updated successfully. To update your settings again please type 'Settings'. How can I help you today?"
+
             await whatsapp_client.send_message(user.wa_id, responseText)
 
             # send select subject flow
-            await self.send_select_subject_flow(user)
+            if not is_updating:
+                await self.send_select_subject_flow(user)
         except Exception as e:
             responseText = "An error occurred during the onboarding process. Please try again later."
             await whatsapp_client.send_message(user.wa_id, responseText)
@@ -521,13 +525,17 @@ class FlowService:
         return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def update_subject_data_background(
-        self, user: User, selected_subjects: List[str]
+        self, user: User, selected_subjects: List[str], is_updating: bool = False
     ):
         try:
             selected_subject_ids = [int(id_str) for id_str in selected_subjects]
 
             # send message to user saying that the subject info has been submitted
-            responseText = "Thanks for submitting your subject information. Let's continue with your class information for each subject so as to complete your onboarding."
+            responseText = "Thanks for submitting your subject information. Let's continue with your class information for each subject."
+            if (
+                is_updating
+            ):  # TODO update the flow to also send is_updating on payload so we can use it here to send a different message
+                responseText = "Thank you for updating your subject information. Let's also update your class information for each subject."
             await whatsapp_client.send_message(user.wa_id, responseText)
 
             for subject_id in selected_subject_ids:
@@ -610,6 +618,7 @@ class FlowService:
                     "region": user.region,
                     "birthday": user.birthday.strftime("%Y-%m-%d"),
                     "school_name": user.school_name,
+                    "is_updating": is_update,
                 }
             )
 
