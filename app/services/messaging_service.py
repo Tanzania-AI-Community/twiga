@@ -116,7 +116,7 @@ async def handle_settings_selection(user: User, message: Message) -> JSONRespons
     if message.content == "Personal Info":
         logger.debug("Sending update personal and school info flow")
         await flow_client.send_personal_and_school_info_flow(user, is_update=True)
-    elif message.content == "Class and Subject":
+    elif message.content == "Classes and Subjects":
         logger.debug("Sending update class and subject info flow")
         await flow_client.send_select_subject_flow(user, is_update=True)
     else:

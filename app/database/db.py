@@ -1,9 +1,12 @@
-from typing import List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 from sqlmodel import select
 import logging
 
 from app.database.models import (
+    SubjectClassStatus,
+    SubjectNames,
     User,
     Message,
     TeacherClass,
