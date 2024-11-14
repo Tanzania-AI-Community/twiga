@@ -349,6 +349,7 @@ async def generate_class_info(user: User) -> Dict[str, List[str]]:
     """
     async with get_session() as session:
         try:
+            logger.debug(f"Generating class info for user {user.wa_id}")
             # Fetch class details including subject names and class names
             statement = (
                 select(
@@ -371,6 +372,7 @@ async def generate_class_info(user: User) -> Dict[str, List[str]]:
                     class_info[subject_name] = []
                 class_info[subject_name].append(class_name)
 
+            logger.debug(f"Generated class info for user {user.wa_id}: {class_info}")
             return class_info
 
         except Exception as e:
@@ -484,6 +486,28 @@ async def update_user_selected_classes(
                 f"User's selected class IDs updated to: {user.selected_class_ids}"
             )
 
+            logger.debug(f"HERE HERHER ERHHRE HERE WITH USER User : {user}")
+
+            # Update the user state to active if it's not already
+            if user.state != "active":
+                user.state = "active"
+                logger.debug(f"User state updated to: {user.state}")
+
+            # Update the user onboarding state to completed if it's not already
+            if user.onboarding_state != "completed":
+                user.onboarding_state = "completed"
+                logger.debug(
+                    f"User onboarding state updated to: {user.onboarding_state}"
+                )
+
+            logger.debug(f"FINISHED UPDATING USER User : {user}")
+
+            # Update the user's class info
+            logger.debug("Generating class info for the user")
+            user.class_info = await generate_class_info(user)
+
+            logger.debug("FINISHED GENERATING CLASS INFO")
+
             user = await update_user(user)
             logger.debug(f"User {user.wa_id} updated in the database")
 
@@ -494,6 +518,7 @@ async def update_user_selected_classes(
             logger.info(
                 f"Updated user {user.wa_id} with new classes for subject ID {subject_id}"
             )
+
             return user
         except Exception as e:
             logger.error(f"Failed to update user subject classes: {str(e)}")

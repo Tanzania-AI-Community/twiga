@@ -1,15 +1,16 @@
 from datetime import datetime
+from typing import List
 from dateutil.relativedelta import relativedelta
 import logging
+from fastapi import BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
+from app.utils.background_tasks_utils import add_background_task
 from app.utils.flows_util import (
     decrypt_flow_webhook,
     decrypt_flow_token,
     encrypt_flow_token,
 )
 from app.database.db import (
-    add_teacher_class,
-    generate_class_info,
     get_subject_and_classes,
     get_user_by_waid,
     update_user,
@@ -33,7 +34,9 @@ class FlowService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    async def handle_flow_webhook(self, body: dict) -> PlainTextResponse:
+    async def handle_flow_webhook(
+        self, body: dict, background_tasks: BackgroundTasks
+    ) -> PlainTextResponse:
         try:
             decrypted_data = decrypt_flow_webhook(body)
             self.logger.info(f"Decrypted data: {decrypted_data}")
@@ -75,7 +78,16 @@ class FlowService:
             )
 
         handler = self.get_action_handler(action, flow_id)
-        return await handler(decrypted_payload, aes_key, initial_vector)
+        # Check if the action is a data exchange action and handle accordingly
+        if action in ["data_exchange", "INIT"]:
+            if action == "data_exchange":
+                return await handler(
+                    decrypted_payload, aes_key, initial_vector, background_tasks
+                )
+            else:
+                return await handler(decrypted_payload, aes_key, initial_vector)
+        else:
+            return await handler(decrypted_payload, aes_key, initial_vector)
 
     def get_action_handler(self, action: str, flow_id: str):
         if flow_id == settings.onboarding_flow_id:
@@ -164,20 +176,20 @@ class FlowService:
         return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_classes_data_exchange_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+        self,
+        decrypted_payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
     ) -> PlainTextResponse:
         self.logger.info("Handling classes data exchange action", decrypted_payload)
-        # log aes_key
         self.logger.info(f"AES Key: {aes_key}")
-
         data = decrypted_payload.get("data", {})
         self.logger.info("Data from payload : %s", data)
         selected_classes = data.get("selected_classes", [])
-        subject_id = data.get("subject_id")  # Add this line to get the subject_id
-
+        subject_id = data.get("subject_id")
         self.logger.info("Selected classes: %s", selected_classes)
-        self.logger.info("Subject ID: %s", subject_id)  # Log the subject_id
-
+        self.logger.info("Subject ID: %s", subject_id)
         encrypted_flow_token = decrypted_payload.get("flow_token")
         if not encrypted_flow_token:
             self.logger.error("Missing flow token")
@@ -194,43 +206,36 @@ class FlowService:
                 content={"error_msg": "Your request has expired please start again"},
                 status_code=422,
             )
-
         user = await get_user_by_waid(wa_id)
         if not user:
             self.logger.error(f"User data not found for wa_id {wa_id}")
             return JSONResponse(
                 content={"error_msg": "User data not found"}, status_code=422
             )
-
         if not selected_classes:
             self.logger.error("No classes selected")
             return JSONResponse(
                 content={"error_msg": "No classes selected"}, status_code=422
             )
 
-        # mark user as completed onboarding and state to active
-        user.onboarding_state = "completed"
-        user.state = "active"
+        # Convert selected classes to integers
         selected_classes_formatted = [int(class_id) for class_id in selected_classes]
-        user = await update_user_selected_classes(
-            user, selected_classes_formatted, int(subject_id)
+
+        # send message to user saying that the class info has been submitted
+        responseText = (
+            "Thanks for submitting your class information, let me process that for you."
         )
-        self.logger.info(f"User after update selected classes: {user}")
-        user.state = UserState.active
-        user.onboarding_state = OnboardingState.completed
+        await whatsapp_client.send_message(user.wa_id, responseText)
 
-        # Update the database accordingly
-        user = await update_user(user)
-        user.class_info = await generate_class_info(user)
-
-        await add_teacher_class(user, selected_classes_formatted)
-
-        await update_user(user)
-
-        # send response to user
-        response_text = "Your Subject and Class selection is has been updated successfully. We are ready to assist you with your questions."
-        options = None
-        await whatsapp_client.send_message(user.wa_id, response_text, options)
+        # Add the database update task to the background tasks
+        self.logger.info(f"Creating background task for classes data update")
+        add_background_task(
+            background_tasks,
+            self.update_user_classes_background,
+            user,
+            selected_classes_formatted,
+            int(subject_id),
+        )
 
         response_payload = {
             "screen": "SUCCESS",
@@ -242,8 +247,29 @@ class FlowService:
                 },
             },
         }
-
         return await self.process_response(response_payload, aes_key, initial_vector)
+
+    async def update_user_classes_background(
+        self, user: User, selected_classes: List[int], subject_id: int
+    ):
+        try:
+            # Update user classes in the database
+            user = await update_user_selected_classes(
+                user, selected_classes, subject_id
+            )
+
+            self.logger.info(
+                f"FINAL User after update: {user}, Selected classes: {selected_classes}"
+            )
+
+            # send message to user saying that the class info has been submitted
+            responseText = "Thanks for submitting your subject and classes information. How can I help you today?"
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update user subject classes: {str(e)}")
 
     async def handle_unknown_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -332,16 +358,18 @@ class FlowService:
         return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_onboarding_data_exchange_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+        self,
+        decrypted_payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
     ) -> PlainTextResponse:
         self.logger.debug(
             "Handling data exchange action, with data: %s", decrypted_payload
         )
-
         data = decrypted_payload.get("data", {})
         is_updating = data.get("is_updating", False)
         logger.debug(f"Is updating: {is_updating}")
-
         encrypted_flow_token = decrypted_payload.get("flow_token")
         if not encrypted_flow_token:
             self.logger.error("Missing flow token")
@@ -349,7 +377,6 @@ class FlowService:
                 content={"error_msg": "Your request has expired please start again"},
                 status_code=422,
             )
-
         try:
             wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
             self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
@@ -359,32 +386,22 @@ class FlowService:
                 content={"error_msg": "Your request has expired please start again"},
                 status_code=422,
             )
-
         user = await get_user_by_waid(wa_id)
-        self.logger.info(f"User after get: {user}")
         if not user:
             self.logger.error(f"User data not found for wa_id {wa_id}")
             return JSONResponse(
                 content={"error_msg": "User data not found"}, status_code=422
             )
 
-        full_name = (
-            data.get("update_full_name") if is_updating else data.get("full_name")
+        # Add the database update task to the background tasks
+        self.logger.info(f"Creating background task for onboarding data update")
+        add_background_task(
+            background_tasks,
+            self.update_onboarding_data_background,
+            user,
+            data,
+            is_updating,
         )
-        birthday = data.get("update_birthday") if is_updating else data.get("birthday")
-        region = data.get("update_region") if is_updating else data.get("region")
-        school_name = (
-            data.get("update_school_name") if is_updating else data.get("school_name")
-        )
-
-        user.name = full_name or user.name
-        user.birthday = birthday
-        user.region = region
-        user.school_name = school_name
-        user.onboarding_state = "personal_info_submitted"
-
-        await update_user(user)
-        # self.logger.info(f"User after update: {user}")
 
         response_payload = {
             "screen": "SUCCESS",
@@ -396,35 +413,58 @@ class FlowService:
                 },
             },
         }
-
-        response_text = "Thank you for submitting your information. Your onboarding is almost complete."
-        options = None
-
-        await whatsapp_client.send_message(user.wa_id, response_text, options)
-        await self.send_select_subject_flow(user)
-
-        # log response_payload
-        self.logger.info(f"Final Response payload: {response_payload}")
-
         return await self.process_response(response_payload, aes_key, initial_vector)
 
+    async def update_onboarding_data_background(
+        self, user: User, data: dict, is_updating: bool
+    ):
+        try:
+            full_name = (
+                data.get("update_full_name") if is_updating else data.get("full_name")
+            )
+            birthday = (
+                data.get("update_birthday") if is_updating else data.get("birthday")
+            )
+            region = data.get("update_region") if is_updating else data.get("region")
+            school_name = (
+                data.get("update_school_name")
+                if is_updating
+                else data.get("school_name")
+            )
+            user.name = full_name or user.name
+            user.birthday = birthday
+            user.region = region
+            user.school_name = school_name
+            user.onboarding_state = "personal_info_submitted"
+            await update_user(user)
+            self.logger.info(f"User after update: {user}")
+
+            # send message to user saying that the personal info has been submitted
+            responseText = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            # send select subject flow
+            await self.send_select_subject_flow(user)
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update onboarding data: {str(e)}")
+
     async def handle_subject_data_exchange_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+        self,
+        decrypted_payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
     ) -> PlainTextResponse:
         self.logger.info(
             "Handling subject class info data exchange action", decrypted_payload
         )
-        # log aes_key
         self.logger.info(f"AES Key: {aes_key}")
-
         data = decrypted_payload.get("data", {})
         self.logger.info("Data from payload : %s", data)
         selected_subjects = data.get("selected_subjects", [])
-        subject_id = data.get("subject_id")  # Add this line to get the subject_id
-
         self.logger.info("Selected subjects: %s", selected_subjects)
-        self.logger.info("Subject ID: %s", subject_id)  # Log the subject_id
-
         encrypted_flow_token = decrypted_payload.get("flow_token")
         if not encrypted_flow_token:
             self.logger.error("Missing flow token")
@@ -441,26 +481,28 @@ class FlowService:
                 content={"error_msg": "Your request has expired please start again"},
                 status_code=422,
             )
-
         user = await get_user_by_waid(wa_id)
         if not user:
             self.logger.error(f"User data not found for wa_id {wa_id}")
             return JSONResponse(
                 content={"error_msg": "User data not found"}, status_code=422
             )
-
         if not selected_subjects:
             self.logger.error("No subjects selected")
             return JSONResponse(
                 content={"error_msg": "No subjects selected"}, status_code=422
             )
 
-        # Get the selected subject ids
-        selected_subject_ids = [int(id_str) for id_str in selected_subjects]
+        # Add the database update task to the background tasks
+        self.logger.info(f"Creating background task for subject data update")
+        add_background_task(
+            background_tasks,
+            self.update_subject_data_background,
+            user,
+            selected_subjects,
+        )
 
-        for subject_id in selected_subject_ids:
-            self.logger.info(f"Subject id to get subjects for: {subject_id}")
-            await self.send_select_classes_flow(user, subject_id)
+        self.logger.info(f"CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
 
         response_payload = {
             "screen": "SUCCESS",
@@ -473,7 +515,29 @@ class FlowService:
             },
         }
 
+        self.logger.info(
+            f"SENDING RESPONSE PAYLOAD FOR SUBJECT DATA UPDATE: {response_payload}"
+        )
         return await self.process_response(response_payload, aes_key, initial_vector)
+
+    async def update_subject_data_background(
+        self, user: User, selected_subjects: List[str]
+    ):
+        try:
+            selected_subject_ids = [int(id_str) for id_str in selected_subjects]
+
+            # send message to user saying that the subject info has been submitted
+            responseText = "Thanks for submitting your subject information. Let's continue with your class information for each subject so as to complete your onboarding."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            for subject_id in selected_subject_ids:
+                await self.send_select_classes_flow(user, subject_id)
+            self.logger.info(f"User after update: {user}")
+
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update subject data: {str(e)}")
 
     async def handle_health_check(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -688,34 +752,6 @@ class FlowService:
             )
             self.logger.info(
                 f"WhatsApp API response: {response.status_code} - {response.text}"
-            )
-
-    async def send_update_personal_and_school_info_flow(
-        self, user: User
-    ) -> JSONResponse:
-        try:
-            return await self.send_personal_and_school_info_flow(
-                user.wa_id, user.name, is_update=True
-            )
-
-        except Exception as e:
-            logger.error(f"Error updating personal info: {e}")
-            return JSONResponse(
-                content={"status": "error", "message": "Internal server error"},
-                status_code=500,
-            )
-
-    async def send_update_select_subject_flow(self, user: User) -> JSONResponse:
-        try:
-            return await self.send_update_select_subject_flow(
-                user.wa_id, user.name, is_update=True
-            )
-
-        except Exception as e:
-            logger.error(f"Error updating select subject info: {e}")
-            return JSONResponse(
-                content={"status": "error", "message": "Internal server error"},
-                status_code=500,
             )
 
     async def send_select_classes_flow(

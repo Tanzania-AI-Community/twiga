@@ -85,9 +85,9 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
     match user.state:
         case UserState.blocked:
-            return await state_client.handle_blocked()
+            return await state_client.handle_blocked(user)
         case UserState.rate_limited:
-            return await state_client.handle_rate_limited()
+            return await state_client.handle_rate_limited(user)
         case UserState.onboarding:
             return await state_client.handle_onboarding(user)
         case UserState.new:
@@ -115,10 +115,10 @@ async def handle_settings_selection(user: User, message: Message) -> JSONRespons
     logger.debug(f"Handling interactive message with title: {message.content}")
     if message.content == "Personal Info":
         logger.debug("Sending update personal and school info flow")
-        await flow_client.send_update_personal_and_school_info_flow(user)
+        await flow_client.send_personal_and_school_info_flow(user, is_update=True)
     elif message.content == "Class and Subject":
         logger.debug("Sending update class and subject info flow")
-        await flow_client.send_update_select_subject_flow(user)
+        await flow_client.send_select_subject_flow(user, is_update=True)
     else:
         raise Exception(f"Unrecognized user reply: {message.content}")
     return JSONResponse(

@@ -20,9 +20,7 @@ class OnboardingHandler:
         try:
             self.logger.info(f"Handling new user {user.wa_id}")
             # Call the send_personal_and_school_info_flow method from FlowService
-            await self.flow_client.send_personal_and_school_info_flow(
-                user, is_update=False
-            )
+            await flow_client.send_personal_and_school_info_flow(user, is_update=False)
 
             self.logger.info(
                 f"Triggered send_personal_and_school_info_flow for user {user.wa_id}"

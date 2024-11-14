@@ -70,7 +70,6 @@ class StateHandler:
         )
         user.state = UserState.active
         user.onboarding_state = OnboardingState.completed
-        user.class_info = await db.generate_class_info(user)
 
         # Update the database accordingly
         user = await db.update_user(user)
