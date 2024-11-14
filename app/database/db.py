@@ -486,8 +486,6 @@ async def update_user_selected_classes(
                 f"User's selected class IDs updated to: {user.selected_class_ids}"
             )
 
-            logger.debug(f"HERE HERHER ERHHRE HERE WITH USER User : {user}")
-
             # Update the user state to active if it's not already
             if user.state != "active":
                 user.state = "active"
@@ -505,8 +503,6 @@ async def update_user_selected_classes(
             # Update the user's class info
             logger.debug("Generating class info for the user")
             user.class_info = await generate_class_info(user)
-
-            logger.debug("FINISHED GENERATING CLASS INFO")
 
             user = await update_user(user)
             logger.debug(f"User {user.wa_id} updated in the database")
