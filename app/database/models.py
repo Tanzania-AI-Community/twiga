@@ -68,8 +68,16 @@ class UserState(str, Enum):
     active = "active"
 
 
-class Subject(str, Enum):
+class ResourceType(str, Enum):
+    textbook = "textbook"
+    curriculum = "curriculum"
+    document = "document"
+    # NOTE: add more types as needed, but keep clean structure with good segregation
+
+
+class SubjectNames(str, Enum):
     geography = "geography"
+    mathematics = "mathematics"
 
 
 class ChunkType(str, Enum):
@@ -122,12 +130,13 @@ class User(SQLModel, table=True):
         default=OnboardingState.new, max_length=50
     )  # Is this really optional?
     role: str = Field(default=Role.teacher, max_length=20)
+    selected_class_ids: Optional[List[int]] = Field(
+        sa_column=Column(ARRAY(Integer)), default=[]
+    )
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
-    # school_location: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
-    # location: Optional[str] = Field(default=None, max_length=100)
     last_message_at: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True)
     )  # user.last_message_at = datetime.now(timezone.utc) (this is how to set it when updating later)
@@ -157,14 +166,32 @@ class User(SQLModel, table=True):
     )
 
 
+class Subject(SQLModel, table=True):
+    __tablename__ = "subjects"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=50, nullable=False)
+
+    # A subject may have entries in the classes table
+    subject_classes: Optional[List["Class"]] = Relationship(back_populates="subject_")
+
+
+class SubjectClassStatus(str, Enum):
+    active = "active"
+    inactive = "inactive"
+
+
 class Class(SQLModel, table=True):
     __tablename__ = "classes"
     __table_args__ = (
-        UniqueConstraint("subject", "grade_level", name="unique_classes"),
+        UniqueConstraint("subject_id", "grade_level", name="unique_classes"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
-    subject: str = Field(max_length=30, index=True)
+    name: str = Field(
+        max_length=100
+    )  # we use this when we show user the class names on the flow
+    subject_id: int = Field(foreign_key="subjects.id", index=True)
     grade_level: str = Field(max_length=10, index=True)  # use GradeLevel enum
+    status: str = Field(default="active")
 
     # A class may have entries in the teachers_classes table
     class_teachers: Optional[List["TeacherClass"]] = Relationship(
@@ -174,6 +201,8 @@ class Class(SQLModel, table=True):
     class_resources: Optional[List["ClassResource"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
+    # Relationship to the Subject table
+    subject_: Subject = Relationship(back_populates="subject_classes")
 
 
 class TeacherClass(SQLModel, table=True):

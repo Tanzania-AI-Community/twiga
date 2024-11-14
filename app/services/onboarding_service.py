@@ -20,10 +20,7 @@ class OnboardingHandler:
         try:
             self.logger.info(f"Handling new user {user.wa_id}")
             # Call the send_personal_and_school_info_flow method from FlowService
-            # TODO: PUT USER AS INPUT INSTEAD
-            await self.flow_client.send_personal_and_school_info_flow(
-                user.wa_id, user.name
-            )
+            await flow_client.send_personal_and_school_info_flow(user, is_update=False)
 
             self.logger.info(
                 f"Triggered send_personal_and_school_info_flow for user {user.wa_id}"
@@ -45,7 +42,7 @@ class OnboardingHandler:
         self.logger.info(f"Handling personal info submitted for user {user.wa_id}")
 
         # TODO: SEND USER AS INPUT INSTEAD
-        await self.flow_client.send_class_and_subject_info_flow(user.wa_id, user.name)
+        await self.flow_client.send_select_subject_flow(user)
 
         response_text = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
         options = None

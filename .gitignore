@@ -168,3 +168,5 @@ cython_debug/
 ##################### New Additions #####################
 # Ignore DS_Store files
 .DS_Store
+private.pem
+public.pem
