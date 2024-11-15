@@ -1,14 +1,11 @@
 import logging
-from typing import List, Optional, Tuple, Dict, Callable
 
 from fastapi.responses import JSONResponse
 
 from app.database.models import Message, MessageRole, OnboardingState, User, UserState
-from app.database.models import ClassInfo, GradeLevel, Role, Subject, User, UserState
+from app.database.models import Role
 from app.services.onboarding_service import onboarding_client
-from app.config import settings
 from app.database import db
-from app.utils.whatsapp_utils import generate_payload
 from app.services.whatsapp_service import whatsapp_client
 
 

@@ -17,9 +17,8 @@ from app.database.db import (
     get_available_subjects,
     update_user_selected_classes,
 )
-from app.database.models import OnboardingState, User, UserState
+from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
-from app.utils.whatsapp_utils import generate_payload
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -228,7 +227,7 @@ class FlowService:
         await whatsapp_client.send_message(user.wa_id, responseText)
 
         # Add the database update task to the background tasks
-        self.logger.info(f"Creating background task for classes data update")
+        self.logger.info("Creating background task for classes data update")
         add_background_task(
             background_tasks,
             self.update_user_classes_background,
@@ -394,7 +393,7 @@ class FlowService:
             )
 
         # Add the database update task to the background tasks
-        self.logger.info(f"Creating background task for onboarding data update")
+        self.logger.info("Creating background task for onboarding data update")
         add_background_task(
             background_tasks,
             self.update_onboarding_data_background,
@@ -498,7 +497,7 @@ class FlowService:
             )
 
         # Add the database update task to the background tasks
-        self.logger.info(f"Creating background task for subject data update")
+        self.logger.info("Creating background task for subject data update")
         add_background_task(
             background_tasks,
             self.update_subject_data_background,
@@ -506,7 +505,7 @@ class FlowService:
             selected_subjects,
         )
 
-        self.logger.info(f"CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
+        self.logger.info("CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
 
         response_payload = {
             "screen": "SUCCESS",

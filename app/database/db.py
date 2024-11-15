@@ -117,7 +117,7 @@ async def update_user(user: User) -> User:
     if isinstance(user.birthday, str):
         try:
             user.birthday = datetime.strptime(user.birthday, "%Y-%m-%d").date()
-        except ValueError as e:
+        except ValueError:
             logger.error(f"Invalid date format for birthday: {user.birthday}")
             raise Exception(f"Invalid date format for birthday: {user.birthday}")
 

@@ -68,13 +68,6 @@ class UserState(str, Enum):
     active = "active"
 
 
-class ResourceType(str, Enum):
-    textbook = "textbook"
-    curriculum = "curriculum"
-    document = "document"
-    # NOTE: add more types as needed, but keep clean structure with good segregation
-
-
 class SubjectNames(str, Enum):
     geography = "geography"
     mathematics = "mathematics"

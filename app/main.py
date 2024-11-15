@@ -9,7 +9,6 @@ from app.services.whatsapp_service import whatsapp_client
 from app.services.messaging_service import handle_request
 from app.services.flow_service import flow_client
 from app.database.engine import db_engine, init_db
-from app.database.engine import db_engine, init_db
 
 logger = logging.getLogger(__name__)
 
