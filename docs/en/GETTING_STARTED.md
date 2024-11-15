@@ -1,26 +1,41 @@
 > [!Warning]
 > This document is not yet up to date and is based on an older version of Twiga. Ask the team for advice if you run into difficulties. We plan to update this ASAP!
 
-## 🖥️ Local Development Quick Guide
+# 🐣 Getting Started Guide
 
-As this project uses a combination of cloud services, dependencies, and API's with authtokens we are working on making the local development experience smoother for open source contributors. In some cases you may need to use your own credentials (such as _OpenAI_ API keys).
+If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
 
-If you want to set up the project locally on your own computer we recommend to complete the following steps. Start by forking :fork*and_knife: this repository. When forking make sure to deselect "\_copy the `main` branch only*".
+> [!Warning]
+> This document assumes you have already done steps 1-3 in `docs/CONTRIBUTING.md`.
 
-Once you have forked you can clone it locally on your computer. Using Visual Studio code as your IDE is recommended but not neccessary. Run the following steps in the folder you want to keep the code.
+## 👾 Setup Prerequisites
 
-```sh
-git clone git@github.com:{USERNAME}/twiga.git
-git checkout -b {YOUR BRANCH}
-```
+> [!Note]
+>
+> We're looking into the possibility of running and trying out Twiga without a Meta API Account. For now, the long way is the only way 😬
 
-This creates a new branch under the name you decide so you can work on whatever feature / issue you're interested in.
+> [!Note]
+>
+> Many of the steps provided in the [setup prerequisites](#-setup-prerequisites) come from the [tutorial](https://github.com/daveebbelaar/python-whatsapp-bot) made by Dave Ebbelaar.
 
-### Setup prerequisites
+In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. To run Twiga on your own computer, you will have to replace the following:
 
-If you want to run a local server and test your Twiga build on WhatsApp directly, I recommend following some steps from the [tutorial](https://github.com/daveebbelaar/python-whatsapp-bot) made by Dave Ebbelaar. Note that these are all free to do.
+- Neon Postgres with your local Postgres server
+- Render with an Ngrok endpoint
 
-1. Create a Meta [developer account](https://developers.facebook.com/) and [business app](https://developers.facebook.com/docs/development/create-an-app/)
+> [!Note]
+>
+> You're welcome to test out Neon and Render as well (it's free), but it's not necessary.
+
+With that said, you also need to create a Meta API account and get a Together AI API credential (OpenAI should also work with a minor adjustment). These are needed to fill out the `.env` file properly. This document will show how to do all that.
+
+### Meta Accounts
+
+1. Create a Meta [developer account](https://business.facebook.com/business/loginpage/?cma_account_switch=true&login_options%5B0%5D=SSO&login_options%5B1%5D=FB&is_logout_from_dfc=true&request_id=1ae9fb9b-49b7-4d48-aebe-da36751cedf1) with your Facebook account
+2. Create a [business app](https://developers.facebook.com/docs/development/create-an-app/) within your developer account.
+
+Tbd...
+
 2. [Select phone numbers](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-1-select-phone-numbers)
 3. [Send messages with the API](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-2-send-messages-with-the-api)
 4. [Configure webhooks with ngrok](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-3-configure-webhooks-to-receive-messages)
@@ -29,7 +44,7 @@ If you want to run a local server and test your Twiga build on WhatsApp directly
 
 Create a `.env` file using `example.env`as a template and remove all comments and whitespace.
 
-### Own computer
+## 🖥️ Set up the coding environment
 
 Start out by installing the [**Poetry**](https://python-poetry.org/) python package manager to your computer. Make sure you're in the root directory of the repository and run the command `poetry install`. This will read the dependencies needed to run Twiga and download them into a `.venv/` folder. Next run `poetry shell` to activate a shell in your command line using the created virtual environment. Finally, run **one of** the following two commands to start the FastAPI server. They are development servers meaning you have hot reload.
 
