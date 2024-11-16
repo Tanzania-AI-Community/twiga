@@ -1,68 +1,115 @@
-> [!Warning]
-> This document is not yet up to date and is based on an older version of Twiga. Ask the team for advice if you run into difficulties. We plan to update this ASAP!
-
 # 🐣 Getting Started Guide
-
-If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
-
-> [!Warning]
-> This document assumes you have already done steps 1-3 in `docs/CONTRIBUTING.md`.
-
-## 👾 Setup Prerequisites
 
 > [!Note]
 >
 > We're looking into the possibility of running and trying out Twiga without a Meta API Account. For now, the long way is the only way 😬
 
+If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
+
+> [!Warning]
+>
+> This document assumes you have already done steps 1-3 in `docs/CONTRIBUTING.md`.
+
+### 🤫 Create a `.env`
+
+Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it. Remove the comments and whitespace. The template should be quite self-explanatory.
+
+## 👾 Setup Prerequisites
+
 > [!Note]
 >
 > Many of the steps provided in the [setup prerequisites](#-setup-prerequisites) come from the [tutorial](https://github.com/daveebbelaar/python-whatsapp-bot) made by Dave Ebbelaar.
 
-In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. To run Twiga on your own computer, you will have to replace the following:
+In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. However, it's not necessary to use Neon and Render, as these can be replaced with a 'local' version. However, you're welcome to test them out if you want since they offer quite generous free versions. With that said, you should start off by creating a Meta API account.
 
-- Neon Postgres with your local Postgres server
-- Render with an Ngrok endpoint
+### Meta Account
+
+1. Create a Meta developer account [here](https://developers.facebook.com/)
+
+2. Create a [business app](https://developers.facebook.com/docs/development/create-an-app/) within your developer account
+
+(insert create\*app video here)
+
+3. Set the app up for WhatsApp
+
+As soon as you press `Create app` from step 2 you are brought to the App Dashboard. Select `Set up` under the WhatsApp box. This will connect the WhatsApp and Webhooks "products" to your app.
+
+Go to basic **App settings** in the sidebar and copy the App ID and App Secret into the `.env` file.
+
+```bash
+META_APP_ID="<App ID>"
+META_APP_SECRET="<App Secret>"
+```
+
+2. Select phone number and generate an access token
+
+When you created the WhatsApp app you got a free Test Number from Meta that you can use to test your bot with 5 users. Go to **WhatsApp/API Setup** in the sidebar. If the Test Number isn't already selected then choose it and copy the **Phone number ID**. You can also create a 24 hour access token with **Generate access token**. These values should also be added to the `.env` file.
+
+```bash
+WHATSAPP_CLOUD_NUMBER_ID="<Phone number ID>"
+WHATSAPP_API_TOKEN="<Access token>"
+```
 
 > [!Note]
 >
-> You're welcome to test out Neon and Render as well (it's free), but it's not necessary.
+> You can create a 60 day (or longer) access token by following the steps [here](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-2-send-messages-with-the-api)
 
-With that said, you also need to create a Meta API account and get a Together AI API credential (OpenAI should also work with a minor adjustment). These are needed to fill out the `.env` file properly. This document will show how to do all that.
+You can then, within the Dashboard, add your phone number as a recipient phone number so that the App has permission to text your phone. Just follow the steps it gives you. Then you can send a template message with the API to see if it works.
 
-### Meta Accounts
+> [!Warning]
+>
+> You need to reply to this template message in your phone to activate the connection.
 
-1. Create a Meta [developer account](https://business.facebook.com/business/loginpage/?cma_account_switch=true&login_options%5B0%5D=SSO&login_options%5B1%5D=FB&is_logout_from_dfc=true&request_id=1ae9fb9b-49b7-4d48-aebe-da36751cedf1) with your Facebook account
-2. Create a [business app](https://developers.facebook.com/docs/development/create-an-app/) within your developer account.
+## 🪝 Configure webhooks with [Ngrok](https://ngrok.com/)
 
-Tbd...
+When you later run the FastAPI application, your computer will be listening for connections to your local server at `http://127.0.0.1:8000` (this is localhost). In order to make this server visible to the big broad world, we use a personal (and free) endpoint from Ngrok that redirects all requests to our localhost. So, go over to [Ngrok](https://ngrok.com/) and create an account. Then, download the Ngrok agent for your computer. It should be visible in **Getting Started** as soon as you finished creating your account.
 
-2. [Select phone numbers](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-1-select-phone-numbers)
-3. [Send messages with the API](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-2-send-messages-with-the-api)
-4. [Configure webhooks with ngrok](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-3-configure-webhooks-to-receive-messages)
-5. Create an [OpenAI API account](https://platform.openai.com/docs/quickstart) to get an **API key**
-6. Then create an [assistant](https://platform.openai.com/docs/assistants/overview) to get an **assistant ID** (give it the system prompt provided in _TBD_)
+Then copy your personal Ngrok authtoken (also within **Getting Started**) and run the following in your command line.
 
-Create a `.env` file using `example.env`as a template and remove all comments and whitespace.
-
-## 🖥️ Set up the coding environment
-
-Start out by installing the [**Poetry**](https://python-poetry.org/) python package manager to your computer. Make sure you're in the root directory of the repository and run the command `poetry install`. This will read the dependencies needed to run Twiga and download them into a `.venv/` folder. Next run `poetry shell` to activate a shell in your command line using the created virtual environment. Finally, run **one of** the following two commands to start the FastAPI server. They are development servers meaning you have hot reload.
-
-```sh
-fastapi dev app.main.py
+```bash
+ngrok config add-authtoken $YOUR_AUTHTOKEN
 ```
+
+On the left sidebar of the Ngrok dashboard, open up **Domains** and click **New Domain** to get your own free Ngrok endpoint. When this is complete run the following command in your command line.
+
+```bash
+ngrok http 8000 --domain your-free-domain.ngrok-free.app
+```
+
+If all worked smoothly, the command line output should suggest that ngrok is actively redirecting requests to the free domain to your localhost port 8000.
+
+> [!Note]
+>
+> It's not yet connected to your WhatsApp app, but we'll come back to that at the end of this guide.
+
+## 🧠 Set up your local Postgres database
+
+...tbd
+
+## 🖥️ Set up the FastAPI application
+
+Start out by installing the [**uv**](https://docs.astral.sh/uv/) python package manager to your computer. Make sure you're in the root directory of the repository and run the the following commands:
+
+```bash
+$ uv sync
+$ source .venv/bin/activate
+```
+
+> [!Note]
+> For **Windows** the second command would be `.venv\Scripts\activate`
+
+The dependencies should now be installed and your shell environment should be set to use the virtual environment just created. Now you can run the FastAPI application.
 
 ```sh
 uvicorn app.main:app --port 8000 --reload
 ```
 
-In order for the Meta API to access your local FastAPI server you need to activate the ngrok API gateway with the following command.
+## 📱 Complete WhatsApp configuration
 
-```sh
-ngrok http 8000 --domain {YOUR-GATEWAY-NAME}.ngrok-free.app
-```
+The final step is to integrate this with your WhatsApp bot. In your Meta App Dashboard, go to **WhatsApp > Configuration**.
 
-If all is set up correctly, you should be able to have a basic version of Twiga up and running that you can text with on WhatsApp.
+> [!Warning]
+> Everything from this point on is based on an older version of Twiga. Ask the team for advice if you run into difficulties. We plan to update this ASAP!
 
 ### Containerized with Docker
 
