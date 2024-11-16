@@ -28,7 +28,7 @@ In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/b
 
 2. Create a [business app](https://developers.facebook.com/docs/development/create-an-app/) within your developer account
 
-(insert create\*app video here)
+https://github.com/user-attachments/assets/34877110-2023-4520-b134-ca9efd2f76bb
 
 3. Set the app up for WhatsApp
 
