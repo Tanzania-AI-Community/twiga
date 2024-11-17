@@ -13,7 +13,7 @@ from app.database.models import (
     GradeLevel,
     Resource,
     ResourceType,
-    Subject,
+    SubjectNames,
 )
 from scripts.database.db import get_or_create_resource, save_chunks
 from app.utils.embedder import get_embeddings
@@ -157,7 +157,7 @@ async def main():
                 "Dorothy Makunda",
             ],
             grade_levels=[GradeLevel.os2],
-            subjects=[Subject.geography],
+            subjects=[SubjectNames.geography],
         )
         resource = await get_or_create_resource(resource)
 
