@@ -1,18 +1,33 @@
+> [!Warning]
+>
+> This document assumes you have already done steps 1-3 in `docs/CONTRIBUTING.md`.
+
 # 🐣 Getting Started Guide
+
+If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
 
 > [!Note]
 >
 > We're looking into the possibility of running and trying out Twiga without a Meta API Account. For now, the long way is the only way 😬
 
-If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
+## Setup the virtual environment and download dependencies
 
-> [!Warning]
+Start out by installing the [**uv**](https://docs.astral.sh/uv/) python package manager to your computer. Make sure you're in the root directory of the repository and run the the following commands:
+
+```bash
+$ uv sync
+$ source .venv/bin/activate
+```
+
+> [!Note]
 >
-> This document assumes you have already done steps 1-3 in `docs/CONTRIBUTING.md`.
+> For **Windows** the second command would be `.venv\Scripts\activate`
 
-### 🤫 Create a `.env`
+The dependencies should now be installed and your shell environment should be set to use the virtual environment just created. Now you can run the FastAPI application.
 
-Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it. Remove the comments and whitespace. The template should be quite self-explanatory.
+## 🤫 Create a `.env`
+
+Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it. Remove the comments and whitespace. The template should be quite self-explanatory. The rest of this document will help you fill out the `.env` file with your own values to get a running version of Twiga.
 
 ## 👾 Setup Prerequisites
 
@@ -41,7 +56,7 @@ META_APP_ID="<App ID>"
 META_APP_SECRET="<App Secret>"
 ```
 
-2. Select phone number and generate an access token
+4. Get phone number and generate an access token
 
 When you created the WhatsApp app you got a free Test Number from Meta that you can use to test your bot with 5 users. Go to **WhatsApp/API Setup** in the sidebar. If the Test Number isn't already selected then choose it and copy the **Phone number ID**. You can also create a 24 hour access token with **Generate access token**. These values should also be added to the `.env` file.
 
@@ -58,11 +73,11 @@ You can then, within the Dashboard, add your phone number as a recipient phone n
 
 > [!Warning]
 >
-> You need to reply to this template message in your phone to activate the connection.
+> You need to reply to this template message in your phone so that the bot is allowed to send you messages other than template messages.
 
 ## 🪝 Configure webhooks with [Ngrok](https://ngrok.com/)
 
-When you later run the FastAPI application, your computer will be listening for connections to your local server at `http://127.0.0.1:8000` (this is localhost). In order to make this server visible to the big broad world, we use a personal (and free) endpoint from Ngrok that redirects all requests to our localhost. So, go over to [Ngrok](https://ngrok.com/) and create an account. Then, download the Ngrok agent for your computer. It should be visible in **Getting Started** as soon as you finished creating your account.
+When you later run the FastAPI application, your computer will be listening for connections to your local server at `http://127.0.0.1:8000` (this is localhost). In order to make this server visible to the big broad internet, we use a personal (and free) endpoint from Ngrok that redirects all requests to our localhost. So, go over to [Ngrok](https://ngrok.com/) and create an account. Then, download the Ngrok agent for your computer. It should be visible in **Getting Started** as soon as you finished creating your account.
 
 Then copy your personal Ngrok authtoken (also within **Getting Started**) and run the following in your command line.
 
@@ -73,7 +88,7 @@ ngrok config add-authtoken $YOUR_AUTHTOKEN
 On the left sidebar of the Ngrok dashboard, open up **Domains** and click **New Domain** to get your own free Ngrok endpoint. When this is complete run the following command in your command line.
 
 ```bash
-ngrok http 8000 --domain your-free-domain.ngrok-free.app
+ngrok http 8000 --domain {your-free-domain}.ngrok-free.app
 ```
 
 If all worked smoothly, the command line output should suggest that ngrok is actively redirecting requests to the free domain to your localhost port 8000.
@@ -82,23 +97,39 @@ If all worked smoothly, the command line output should suggest that ngrok is act
 >
 > It's not yet connected to your WhatsApp app, but we'll come back to that at the end of this guide.
 
-## 🧠 Set up your local Postgres database
+## 🤖 Get a Together AI or OpenAI API token
 
 ...tbd
 
-## 🖥️ Set up the FastAPI application
+## 🧠 Set up your local Postgres database
 
-Start out by installing the [**uv**](https://docs.astral.sh/uv/) python package manager to your computer. Make sure you're in the root directory of the repository and run the the following commands:
+As any chatbot should do, Twiga keeps track of chat histories, users, classes, resources (i.e. the documents relevant to classes), a vector database, etc. Fortunately, everything (including the vector database) is stored in tables in a Postgres database. We're using Neon to host our database, but for testing purposes its completely fine to have a local Postgres database on your computer with some testing data.
 
-```bash
-$ uv sync
-$ source .venv/bin/activate
-```
+First of all, you need to install Postgres from their [official site](https://www.postgresql.org/download/) (we recommend using something between version 15 and 17). It might be easiest to follow the steps on how to download it [here](https://www.w3schools.com/postgresql/postgresql_install.php). Afterwards you want to connect to your Postgres database with the following [steps](https://www.w3schools.com/postgresql/postgresql_getstarted.php).
 
 > [!Note]
-> For **Windows** the second command would be `.venv\Scripts\activate`
+>
+> If you're on a mac, you can use [postgres.app](https://postgresapp.com/) (that's what I use)
 
-The dependencies should now be installed and your shell environment should be set to use the virtual environment just created. Now you can run the FastAPI application.
+Once you have an active database you should add this to your `.env`:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://localhost:5432/{YOUR_DB_NAME}
+```
+
+This link assumes you are running the Postgres database on port 5432, which is the standard. Next up, let's create all the tables in your local Postgres database and fill in some data to get started. While your database is running on the specified port, run the following command:
+
+> [!Warning]
+>
+> Running this command will create the embeddings of the Geography Form 2 textbook using Together AI's API (you're welcome to use OpenAI as well). Thus, it will cost around 0.05 USD. We are planning to make the pre-embedded chunks available asap (send us a reminder!).
+
+```bash
+python -m scripts.database.init_twigadb --tables --data
+```
+
+## 🖥️ Set up the FastAPI application
+
+Run the following command to run the project. Remember that you should be within the virtual environment.
 
 ```sh
 uvicorn app.main:app --port 8000 --reload
@@ -106,20 +137,39 @@ uvicorn app.main:app --port 8000 --reload
 
 ## 📱 Complete WhatsApp configuration
 
-The final step is to integrate this with your WhatsApp bot. In your Meta App Dashboard, go to **WhatsApp > Configuration**.
+The final step is to integrate your Ngrok endpoint with your WhatsApp bot.
 
-> [!Warning]
-> Everything from this point on is based on an older version of Twiga. Ask the team for advice if you run into difficulties. We plan to update this ASAP!
+Start out by going to your `.env` file and creating a **Verify Token**. It can be anything you want, like a password:
 
-### Containerized with Docker
-
-We are also using Docker for Twiga so that you can work on the project in a contained development to avoid some of the dependency and versioning issues that may occur on your own computer. Our `Dockerfile` and `docker-compose.yml` files ensure that the right version of python and poetry are installed to the system. All you need is to have [Docker](https://www.docker.com/) running on your computer.
-
-We recommend reading up on docker to learn about images, containerization, volumes, etc. We use docker compose with volumes so that you even have hot reloads in the running container (read `docker-compose.yml` and `Dockerfile` for more details). Once docker is set up you can run the following command.
-
-```sh
-docker compose up
+```bash
+WHATSAPP_VERIFY_TOKEN={YOUR_RANDOM_VERIFY_TOKEN}
 ```
+
+Now, make sure that your Ngrok endpoint is active in a command line (terminal) and restart the FastAPI application in another command line so that it will recognize the changed `.env` file. How to run these was described in sections [Configure webhooks with Ngrok](#-configure-webhooks-with-ngrok) and [Set up the FastAPI application](#️-set-up-the-fastapi-application).
+
+Now, in your Meta App Dashboard, go to **WhatsApp > Configuration**. In the **Webhook** section fill in the values for **Callback URL** and **Verify Token**.
+
+> [!Important]
+>
+> The callback url should be `https://{your-free-domain}.ngrok-free.app/webhooks` (don't forget /webhooks) and the verify token should be what you defined in the `.env` file `{YOUR_RANDOM_VERIFY_TOKEN}`
+
+Once you press **Verify and save** a confirmation request will be sent to your server via the Ngrok endpoint (you should see logs show up in both terminals). If you filled the `.env` correctly you should get a success in the logs and some visual confirmation in the Meta App Dashboard. Otherwise you're likely to see a `403 forbidden` log in your server.
+
+## 🥳 Congratulations!
+
+If you made it this far without issues, you should now have a running server for Twiga that you can text directly from your WhatsApp account. If you're encountering issues at this point still join our [Discord](https://discord.gg/bCe2HfZY2C) and write your question in `⚒-tech-support`.
+
+## Containerized with Docker
+
+> [!Note]
+>
+> If you want to run Twiga with Docker instead of creating your own virtual environment (as we described above) we plan to update the documentation and Dockerfile for this ASAP. What you see below is based on an older version of Twiga meaning the Docker file is not up to date.
+
+We are also using Docker for Twiga so that you can work on the project in a contained environment to avoid some of the dependency and versioning issues that may occur on your own computer. All you need is to have [Docker](https://www.docker.com/) running on your computer.
+
+We recommend reading up on docker to learn about images, containerization, volumes, etc. If you want to use Docker compose with volumes so that you even have hot reloads in the running container let us know (since we did that once). Once docker is set up you can run the following command.
+
+...tbd
 
 In order for the Meta API to access your local FastAPI server you need to activate the ngrok API gateway with the following command.
 
