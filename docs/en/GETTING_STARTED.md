@@ -99,7 +99,22 @@ If all worked smoothly, the command line output should suggest that ngrok is act
 
 ## 🤖 Get a Together AI or OpenAI API token
 
-...tbd
+In order to use large language and embedding models we need access to a high performance inference service. By default, this project uses Together AI, which gives us access to a wide range of open source models that can be run with OpenAI's software development kit (SDK).
+
+- If you want to use Together AI, [create an account](https://api.together.ai/) and get an API key
+- If you want to use OpenAI, [create an account](https://platform.openai.com/) and get an API key
+
+Both providers have a free tier with a starting amount of free credits. Add the key to the `.env` file.
+
+```bash
+LLM_API_KEY=$YOUR_API_KEY
+```
+
+> [!Important]
+>
+> We recommend using Together AI, but if you decide on OpenAI there are a few extra steps to fill.
+
+Search the repository for the identifier `XXX:` and make sure to update the values according to the instructions so that the FastAPI application will run OpenAI models. At the time of writing, this should be within `app/config.py` and `app/database/models.py`.
 
 ## 🧠 Set up your local Postgres database
 
@@ -114,7 +129,7 @@ First of all, you need to install Postgres from their [official site](https://ww
 Once you have an active database you should add this to your `.env`:
 
 ```bash
-DATABASE_URL=postgresql+asyncpg://localhost:5432/{YOUR_DB_NAME}
+DATABASE_URL=postgresql+asyncpg://localhost:5432/$YOUR_DB_NAME
 ```
 
 This link assumes you are running the Postgres database on port 5432, which is the standard. Next up, let's create all the tables in your local Postgres database and fill in some data to get started. While your database is running on the specified port, run the following command:
@@ -142,7 +157,7 @@ The final step is to integrate your Ngrok endpoint with your WhatsApp bot.
 Start out by going to your `.env` file and creating a **Verify Token**. It can be anything you want, like a password:
 
 ```bash
-WHATSAPP_VERIFY_TOKEN={YOUR_RANDOM_VERIFY_TOKEN}
+WHATSAPP_VERIFY_TOKEN=$YOUR_RANDOM_VERIFY_TOKEN
 ```
 
 Now, make sure that your Ngrok endpoint is active in a command line (terminal) and restart the FastAPI application in another command line so that it will recognize the changed `.env` file. How to run these was described in sections [Configure webhooks with Ngrok](#-configure-webhooks-with-ngrok) and [Set up the FastAPI application](#️-set-up-the-fastapi-application).
@@ -151,7 +166,7 @@ Now, in your Meta App Dashboard, go to **WhatsApp > Configuration**. In the **We
 
 > [!Important]
 >
-> The callback url should be `https://{your-free-domain}.ngrok-free.app/webhooks` (don't forget /webhooks) and the verify token should be what you defined in the `.env` file `{YOUR_RANDOM_VERIFY_TOKEN}`
+> The callback url should be `https://{your-free-domain}.ngrok-free.app/webhooks` (don't forget /webhooks) and the verify token should be what you defined in the `.env` file `$YOUR_RANDOM_VERIFY_TOKEN`
 
 Once you press **Verify and save** a confirmation request will be sent to your server via the Ngrok endpoint (you should see logs show up in both terminals). If you filled the `.env` correctly you should get a success in the logs and some visual confirmation in the Meta App Dashboard. Otherwise you're likely to see a `403 forbidden` log in your server.
 
@@ -174,5 +189,5 @@ We recommend reading up on docker to learn about images, containerization, volum
 In order for the Meta API to access your local FastAPI server you need to activate the ngrok API gateway with the following command.
 
 ```sh
-ngrok http 8000 --domain {YOUR-GATEWAY-NAME}.ngrok-free.app
+ngrok http 8000 --domain $YOUR_GATEWAY_NAME.ngrok-free.app
 ```
