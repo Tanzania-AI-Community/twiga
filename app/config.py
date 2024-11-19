@@ -2,7 +2,7 @@
 This module sets the env configs for our WhatsApp app.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, field_validator
@@ -66,7 +66,8 @@ class LLMSettings(BaseSettings):
         case_sensitive=False,
         env_nested_delimiter="__",
     )
-    # Together AI settings
+
+    # AI provider api key
     llm_api_key: Optional[SecretStr] = None
 
     # Model selection
@@ -74,14 +75,23 @@ class LLMSettings(BaseSettings):
         "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        "gpt-4o": "gpt-4o",
+        "gpt-4o_mini": "gpt-40-mini",
     }
+
+    embedder_model_options: dict = {
+        "bge-large": "BAAI/bge-large-en-v1.5",  # 1024 dimensions
+        "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
+    }
+
+    """
+    XXX: FILL YOUR AI PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
+     - make sure your choice of LLM, embedder, and ai_provider are compatible
+    """
+    ai_provider: Literal["together", "openai"] = "together"
     llm_model_name: str = llm_model_options["llama_405b"]
-
-    # Embedding model
-    embedding_model: str = "BAAI/bge-large-en-v1.5"
-
-    # Exercise generator model
     exercise_generator_model: str = llm_model_options["llama_70b"]
+    embedding_model: str = embedder_model_options["bge-large"]
 
 
 def initialize_settings():

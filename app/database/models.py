@@ -417,7 +417,14 @@ class Chunk(SQLModel, table=True):
     content_type: Optional[str] = Field(
         max_length=30
     )  # exercise, text, image, etc. (to define later)  - maybe add index in future
-    embedding: Any = Field(sa_column=Column(Vector(1024)))  # BAAI/bge-large-en-v1.5
+
+    """
+    XXX: FILL IN THE EMBEDDING LENGTH FOR YOUR EMBEDDINGS
+    - Default is set to 1024 (for bge-large vectors)
+    - Replace with 1536 for text-embedding-3-small if using OpenAI's embedder
+    """
+    embedding: Any = Field(sa_column=Column(Vector(1024)))
+
     top_level_section_index: Optional[str] = Field(max_length=10, default=None)
     top_level_section_title: Optional[str] = Field(max_length=100, default=None)
     created_at: Optional[datetime] = Field(
