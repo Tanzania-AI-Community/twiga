@@ -18,6 +18,7 @@ from app.database.models import (
     Subject,
     GradeLevel,
     ChunkType,
+    SubjectNames,
 )
 from app.config import settings
 from app.utils.embedder import get_embeddings
@@ -141,7 +142,7 @@ async def create_dummy_classes():
 
             # Get the resource we created
             stmt = select(Resource).where(
-                Resource.subjects.contains([Subject.geography]),
+                Resource.subjects.contains([SubjectNames.geography]),
                 Resource.grade_levels.contains([GradeLevel.os2]),
             )
             result = await session.execute(stmt)
@@ -229,7 +230,7 @@ async def get_or_create_resource() -> int:
                     "Ernest Simon",
                 ],
                 grade_levels=[GradeLevel.os2],
-                subjects=[Subject.geography],
+                subjects=[SubjectNames.geography],
             )
 
             session.add(geography_resource)
@@ -250,12 +251,16 @@ async def create_dummy_resources():
         resource_id = await get_or_create_resource()
 
         # Process JSON files
-        # content_path = Path("assets/sample_resource/tie-geography-f2-content.json")
-        exercises_path = Path("assets/sample_resource/tie-geography-f2-exercises.json")
+        content_path = Path(
+            "scripts/assets/sample_resource/tie-geography-f2-content.json"
+        )
+        exercises_path = Path(
+            "scripts/assets/sample_resource/tie-geography-f2-exercises.json"
+        )
 
         # Load and process content if no chunks exist
         logger.info("No existing chunks found. Processing content...")
-        # content_data = await load_json_file(str(content_path))
+        content_data = await load_json_file(str(content_path))
         exercises_data = await load_json_file(str(exercises_path))
 
         # Create a new session for processing chunks
@@ -265,6 +270,13 @@ async def create_dummy_resources():
             await process_chunks(
                 session=session,
                 json_data=exercises_data,
+                resource_id=resource_id,
+                default_type=ChunkType.exercise,
+            )
+            logger.info("Processing content chunks...")
+            await process_chunks(
+                session=session,
+                json_data=content_data,
                 resource_id=resource_id,
                 default_type=ChunkType.exercise,
             )
@@ -283,7 +295,7 @@ async def create_or_get_class(resource_id: int):
         async with AsyncSession(engine) as session:
             # Check for existing class
             stmt = select(Class).where(
-                Class.subject == Subject.geography,
+                Class.subject == SubjectNames.geography,
                 Class.grade_level == GradeLevel.os2,
             )
             result = await session.execute(stmt)
@@ -363,7 +375,7 @@ if __name__ == "__main__":
                 print(
                     """
 Usage:
-  python setup_db.py [options]
+  python init_twigadb.py [options]
 
 Options:
   --drop     Drop existing tables and create new ones
@@ -371,9 +383,9 @@ Options:
   --data     Add dummy data (can be used with existing tables)
 
 Examples:
-  python setup_db.py --drop --data    # Reset everything and add new data
-  python setup_db.py --tables         # Just create tables
-  python setup_db.py --data           # Just add data to existing tables
+  python init_twigadb.py --drop --data    # Reset everything and add new data
+  python init_twigadb.py --tables         # Just create tables
+  python init_twigadb.py --data           # Just add data to existing tables
 """
                 )
 

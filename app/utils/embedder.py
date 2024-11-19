@@ -1,10 +1,12 @@
-# This is in scripts/database for now but will be moved to app/database
 from typing import List
 from app.config import llm_settings
 from together import Together
+from openai import OpenAI
 
-client = Together(
-    api_key=llm_settings.llm_api_key.get_secret_value(),
+client = (
+    OpenAI(api_key=llm_settings.llm_api_key.get_secret_value())
+    if llm_settings.ai_provider == "openai"
+    else Together(api_key=llm_settings.llm_api_key.get_secret_value())
 )
 
 
