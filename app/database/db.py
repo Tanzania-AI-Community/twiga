@@ -5,8 +5,6 @@ from sqlmodel import select
 import logging
 
 from app.database.models import (
-    SubjectClassStatus,
-    SubjectNames,
     User,
     Message,
     TeacherClass,
@@ -15,8 +13,8 @@ from app.database.models import (
     Role,
     UserState,
     Subject,
-    GradeLevel,
 )
+from app.database.enums import SubjectClassStatus
 from app.database.engine import get_session
 from app.utils import embedder
 
@@ -148,15 +146,6 @@ async def get_user_message_history(
                 .order_by(Message.created_at.desc())
                 .limit(limit)
             )
-            # query = text(
-            #     """
-            #     SELECT id, user_id, role, content, created_at
-            #     FROM messages
-            #     WHERE user_id = :user_id
-            #     ORDER BY created_at DESC
-            #     LIMIT :limit
-            # """
-            # )
 
             result = await session.execute(statement)
             messages = result.scalars().all()
@@ -394,58 +383,58 @@ async def generate_class_info(user: User) -> Dict[str, List[str]]:
             raise Exception(f"Failed to generate class info: {str(e)}")
 
 
-async def add_default_subjects_and_classes() -> None:
-    """
-    Add a default subject called Geography with ID 1 and a class called Secondary Form 2 with ID 1.
-    """
-    async with get_session() as session:
-        try:
-            # Check if the default subject already exists with the correct ID and name
-            statement = select(Subject).where(Subject.id == 1)
-            result = await session.execute(statement)
-            subject = result.scalar_one_or_none()
+# async def add_default_subjects_and_classes() -> None:
+#     """
+#     Add a default subject called Geography with ID 1 and a class called Secondary Form 2 with ID 1.
+#     """
+#     async with get_session() as session:
+#         try:
+#             # Check if the default subject already exists with the correct ID and name
+#             statement = select(Subject).where(Subject.id == 1)
+#             result = await session.execute(statement)
+#             subject = result.scalar_one_or_none()
 
-            if subject and subject.name != SubjectNames.geography.value:
-                # Delete the existing subject with the incorrect name
-                logger.info(f"Deleting existing subject with ID 1: {subject.name}")
-                await session.delete(subject)
-                await session.commit()
-                subject = None
+#             if subject and subject.name != SubjectNames.geography.value:
+#                 # Delete the existing subject with the incorrect name
+#                 logger.info(f"Deleting existing subject with ID 1: {subject.name}")
+#                 await session.delete(subject)
+#                 await session.commit()
+#                 subject = None
 
-            if not subject:
-                # Add the default subject
-                default_subject = Subject(id=1, name=SubjectNames.geography.value)
-                session.add(default_subject)
-                await session.commit()
-                logger.info(f"Added default subject: {SubjectNames.geography.value}")
+#             if not subject:
+#                 # Add the default subject
+#                 default_subject = Subject(id=1, name=SubjectNames.geography.value)
+#                 session.add(default_subject)
+#                 await session.commit()
+#                 logger.info(f"Added default subject: {SubjectNames.geography.value}")
 
-            # Check if the default class already exists with the correct ID and grade level
-            statement = select(Class).where(Class.id == 1)
-            result = await session.execute(statement)
-            class_ = result.scalar_one_or_none()
+#             # Check if the default class already exists with the correct ID and grade level
+#             statement = select(Class).where(Class.id == 1)
+#             result = await session.execute(statement)
+#             class_ = result.scalar_one_or_none()
 
-            if class_ and class_.grade_level != GradeLevel.os2:
-                # Delete the existing class with the incorrect grade level
-                await session.delete(class_)
-                await session.commit()
-                class_ = None
+#             if class_ and class_.grade_level != GradeLevel.os2:
+#                 # Delete the existing class with the incorrect grade level
+#                 await session.delete(class_)
+#                 await session.commit()
+#                 class_ = None
 
-            if not class_:
-                # Add the default class
-                default_class = Class(
-                    id=1,
-                    name="Secondary Form 2",
-                    subject_id=1,
-                    grade_level=GradeLevel.os2,
-                    status=SubjectClassStatus.active,
-                )
-                session.add(default_class)
-                await session.commit()
-                logger.info("Added default class: Secondary Form 2")
+#             if not class_:
+#                 # Add the default class
+#                 default_class = Class(
+#                     id=1,
+#                     name="Secondary Form 2",
+#                     subject_id=1,
+#                     grade_level=GradeLevel.os2,
+#                     status=SubjectClassStatus.active,
+#                 )
+#                 session.add(default_class)
+#                 await session.commit()
+#                 logger.info("Added default class: Secondary Form 2")
 
-        except Exception as e:
-            logger.error(f"Failed to add default subjects and classes: {str(e)}")
-            raise Exception(f"Failed to add default subjects and classes: {str(e)}")
+#         except Exception as e:
+#             logger.error(f"Failed to add default subjects and classes: {str(e)}")
+#             raise Exception(f"Failed to add default subjects and classes: {str(e)}")
 
 
 async def update_user_selected_classes(

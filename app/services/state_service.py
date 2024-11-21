@@ -8,6 +8,7 @@ from app.services.onboarding_service import onboarding_client
 from app.database import db
 from app.services.whatsapp_service import whatsapp_client
 from app.database.enums import MessageRole
+from app.utils.string_manager import strings, StringCategory
 
 
 class StateHandler:
@@ -55,7 +56,6 @@ class StateHandler:
     async def handle_new_dummy(self, user: User) -> JSONResponse:
         user.state = UserState.active
         user.role = Role.teacher
-        await db.add_default_subjects_and_classes()
         dummy_selected_classes = ["1"]
         dummy_selected_subject = "1"
         dummy_selected_subject_formatted = int(dummy_selected_subject)
@@ -73,7 +73,9 @@ class StateHandler:
         user = await db.update_user(user)
         await db.add_teacher_class(user, dummy_selected_classes_formatted)
 
-        response_text = "Welcome to Twiga! 🦒 Looks like Auto Onboarding is on, Default Subject and Classes have been set for you. 🎉. You may as your questions"
+        response_text = strings.get_string(
+            StringCategory.ONBOARDING, "onboarding_override"
+        )
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
             Message(
