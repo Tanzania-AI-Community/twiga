@@ -1,81 +1,124 @@
 import asyncio
 import json
 from pathlib import Path
-import re
 from sqlalchemy import text
 from sqlmodel import SQLModel, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
+import argparse
+
+import yaml
 
 # Import all your models
+from scripts.database.utils import check_existing_chunks, extract_chapter_number
 from app.database.models import (
     Class,
     Resource,
     ClassResource,
     Chunk,
-    ResourceType,
     Subject,
-    GradeLevel,
-    ChunkType,
-    SubjectNames,
 )
+from app.database.enums import GradeLevel, ChunkType, SubjectNames, ResourceType
 from app.config import settings
 from app.utils.embedder import get_embeddings
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get database URL from environment
-database_url = settings.database_url.get_secret_value()
-if not database_url:
-    raise ValueError("DATABASE_URL environment variable is not set")
 
-# Create async engine
-engine = create_async_engine(database_url, echo=False)
-
-
-def extract_chapter_number(chapter_text: Optional[str]) -> Optional[str]:
-    """Extract chapter number from text like "Chapter One (Human Activities)" """
-    WORD_TO_NUM = {
-        "one": "1",
-        "two": "2",
-        "three": "3",
-        "four": "4",
-        "five": "5",
-        "six": "6",
-        "seven": "7",
-        "eight": "8",
-        "nine": "9",
-        "ten": "10",
-    }
-    if not chapter_text:
-        return None
-
-    match = re.search(r"Chapter\s+(\w+)", chapter_text, re.IGNORECASE)
-    if not match:
-        return None
-
-    word_num = match.group(1).lower()
-    return WORD_TO_NUM.get(word_num)
-
-
-async def load_json_file(file_path: str) -> List[Dict[str, Any]]:
-    """Load and parse a JSON file"""
+async def init_db(drop_all: bool = False):
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        """Initialize the database with tables."""
+        engine = create_async_engine(settings.database_url.get_secret_value())
+
+        async with engine.begin() as conn:
+            if drop_all:
+                logger.info("Dropping all existing tables...")
+                await conn.run_sync(SQLModel.metadata.drop_all)
+
+            logger.info("Creating tables and pgvector extension...")
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(SQLModel.metadata.create_all)
     except Exception as e:
-        logger.error(f"Failed to load JSON file {file_path}: {str(e)}")
+        logger.error(f"Error initializing database: {str(e)}")
         raise
+    finally:
+        await engine.dispose()
+
+
+async def inject_sample_data():
+    try:
+        """Load sample data into the database."""
+        # Load sample data from YAML
+        sample_data_path = (
+            Path(__file__).parent / "assets" / "sample_data" / "data.yaml"
+        )
+        with open(sample_data_path) as f:
+            data = yaml.safe_load(f)
+
+        engine = create_async_engine(settings.database_url.get_secret_value())
+
+        async with AsyncSession(engine) as session:
+            # 1. Create the dummy subject
+            subject_data = data["geography_subject"]
+            subject = Subject(name=subject_data["name"])
+            session.add(subject)
+            await session.flush()  # Get ID without committing
+            logger.info(f"Created subject: {subject.name} (ID: {subject.id})")
+
+            # 2. Create the dummy class
+            class_data = data["geography_class"]
+            class_obj = Class(
+                subject_id=subject.id,  # Use the actual subject ID
+                grade_level=GradeLevel[class_data["grade_level"]],
+                status=class_data["status"],
+                name=class_data["name"],
+            )
+            session.add(class_obj)
+            await session.flush()
+            logger.info(f"Created class: {class_obj.name} (ID: {class_obj.id})")
+
+            # 3. Create the dummy resource
+            resource_data = data["geography_resource"]
+            resource = Resource(
+                name=resource_data["name"],
+                type=ResourceType[resource_data["type"]],
+                authors=resource_data["authors"],
+                grade_levels=[
+                    GradeLevel[level] for level in resource_data["grade_levels"]
+                ],
+                subjects=[
+                    SubjectNames[subject] for subject in resource_data["subjects"]
+                ],
+                class_id=class_obj.id,  # Link to the class we just created
+            )
+            session.add(resource)
+            await session.flush()
+            logger.info(f"Created resource: {resource.name} (ID: {resource.id})")
+
+            # 4. Create the dummy class-resource relationship (this connects the textbook to the class)
+            class_resource = ClassResource(
+                class_id=class_obj.id, resource_id=resource.id
+            )
+            session.add(class_resource)
+            await session.flush()
+            logger.info(
+                f"Created class-resource relationship (ID: {class_resource.id})"
+            )
+
+            await session.commit()
+    except Exception as e:
+        logger.error(f"Error injecting sample data: {str(e)}")
+        raise
+    finally:
+        await engine.dispose()
 
 
 async def process_chunks(
     session: AsyncSession,
     json_data: List[Dict[str, Any]],
     resource_id: int,
-    default_type: ChunkType,
     batch_size: int = 30,
 ):
     """Process chunks in batches to create Chunk models with embeddings"""
@@ -103,7 +146,10 @@ async def process_chunks(
                 elif metadata.get("doc_type") == "Content":
                     content_type = ChunkType.text
                 else:
-                    content_type = default_type
+                    logger.warning(
+                        f"Unknown document type: {metadata.get('doc_type')}. Skipping chunk."
+                    )
+                    continue
 
                 chunk = Chunk(
                     resource_id=resource_id,
@@ -125,272 +171,108 @@ async def process_chunks(
         raise
 
 
-async def create_dummy_classes():
-    """Create dummy classes and link them to resources"""
+async def inject_vector_data():
+    """Inject vector data into the database with existence checking."""
     try:
-        logger.info("Creating dummy classes...")
+        engine = create_async_engine(settings.database_url.get_secret_value())
+
+        # Load sample data from YAML to get resource name
+        sample_data_path = (
+            Path(__file__).parent / "assets" / "sample_data" / "data.yaml"
+        )
+        with open(sample_data_path) as f:
+            yaml_data = yaml.safe_load(f)
+            resource_name = yaml_data["geography_resource"]["name"]
+
+        # First check for existing chunks
         async with AsyncSession(engine) as session:
-            # Create class for Form 2 Geography
-            geography_class = Class(
-                subject=Subject.geography,
-                grade_level=GradeLevel.os2,
-            )
-
-            session.add(geography_class)
-            await session.commit()
-            await session.refresh(geography_class)
-
-            # Get the resource we created
-            stmt = select(Resource).where(
-                Resource.subjects.contains([SubjectNames.geography]),
-                Resource.grade_levels.contains([GradeLevel.os2]),
-            )
-            result = await session.execute(stmt)
-            resource = result.scalar_one_or_none()
-
-            if resource:
-                class_resource = ClassResource(
-                    class_id=geography_class.id, resource_id=resource.id
+            existing_chunks = await check_existing_chunks(session)
+            if existing_chunks > 0:
+                logger.warning(
+                    f"Found {existing_chunks} existing chunks in the database."
                 )
-                session.add(class_resource)
-                await session.commit()
+                response = input(
+                    "Do you want to proceed with adding more chunks? [y/N]: "
+                ).lower()
+                if response != "y":
+                    logger.info("Aborting vector data injection.")
+                    return
 
-                logger.info("Created class-resource relationship for Form 2 Geography")
-
-            return geography_class
-
-    except Exception as e:
-        logger.error(f"Error creating dummy classes: {str(e)}")
-        raise
-
-
-async def create_tables():
-    """Create all tables in the database"""
-    try:
-        logger.info("Creating tables...")
-
-        # Create pgvector extension
-        async with engine.begin() as conn:
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-
-        # Create tables
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
-
-        logger.info("Tables created successfully!")
-
-    except Exception as e:
-        logger.error(f"Error creating tables: {str(e)}")
-        raise
-    finally:
-        await engine.dispose()
-
-
-async def drop_tables():
-    """Drop all tables in the database"""
-    try:
-        logger.info("Dropping tables...")
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.drop_all)
-        logger.info("Tables dropped successfully!")
-    except Exception as e:
-        logger.error(f"Error dropping tables: {str(e)}")
-        raise
-    finally:
-        await engine.dispose()
-
-
-async def get_or_create_resource() -> int:
-    """Get existing resource or create if it doesn't exist"""
-    try:
-        logger.info("Checking for existing geography resource...")
-        async with AsyncSession(engine) as session:
-            # Try to find existing resource
-            stmt = select(Resource).where(
-                Resource.name
-                == "Geography for Secondary Schools Student's Book Form Two"
-            )
+            # Get resource ID using name from YAML
+            stmt = select(Resource).where(Resource.name == resource_name)
             result = await session.execute(stmt)
             resource = result.scalar_one_or_none()
 
-            if resource:
-                logger.info(f"Found existing resource: {resource.name}")
-                return resource.id
+            if not resource:
+                raise ValueError(
+                    "Geography resource not found. Please run --sample-data first."
+                )
 
-            # Create new resource if it doesn't exist
-            logger.info("Resource not found, creating new one...")
-            geography_resource = Resource(
-                name="Geography for Secondary Schools Student's Book Form Two",
-                type=ResourceType.textbook,
-                authors=[
-                    "Thaudensia Ndeskoi",
-                    "Innocent Rugambuka",
-                    "Matilda Sabayi",
-                    "Laurence Musatta",
-                    "Ernest Simon",
-                ],
-                grade_levels=[GradeLevel.os2],
-                subjects=[SubjectNames.geography],
-            )
+            resource_id = resource.id
 
-            session.add(geography_resource)
-            await session.commit()
-            await session.refresh(geography_resource)
-            logger.info(f"Created new resource: {geography_resource.name}")
-            return geography_resource.id
-
-    except Exception as e:
-        logger.error(f"Error getting or creating resource: {str(e)}")
-        raise
-
-
-async def create_dummy_resources():
-    """Load content into existing or new resource"""
-    try:
-        # Get or create resource
-        resource_id = await get_or_create_resource()
-
-        # Process JSON files
-        content_path = Path(
-            "scripts/assets/sample_resource/tie-geography-f2-content.json"
-        )
-        exercises_path = Path(
-            "scripts/assets/sample_resource/tie-geography-f2-exercises.json"
-        )
-
-        # Load and process content if no chunks exist
-        logger.info("No existing chunks found. Processing content...")
-        content_data = await load_json_file(str(content_path))
-        exercises_data = await load_json_file(str(exercises_path))
+        # Load data files
+        chunks_path = Path(__file__).parent / "assets" / "sample_data" / "chunks.json"
+        with open(chunks_path, "r") as f:
+            chunks_data = json.load(f)
 
         # Create a new session for processing chunks
         async with AsyncSession(engine) as session:
-            # Process exercise chunks
-            logger.info("Processing exercise chunks...")
-            await process_chunks(
-                session=session,
-                json_data=exercises_data,
-                resource_id=resource_id,
-                default_type=ChunkType.exercise,
-            )
             logger.info("Processing content chunks...")
             await process_chunks(
                 session=session,
-                json_data=content_data,
+                json_data=chunks_data,
                 resource_id=resource_id,
-                default_type=ChunkType.exercise,
             )
 
-        return resource_id
+            # Get final count
+            final_count = await check_existing_chunks(session)
+            logger.info(
+                f"Vector data injection complete. Total chunks in database: {final_count}"
+            )
 
     except Exception as e:
-        logger.error(f"Error creating dummy resources: {str(e)}")
+        logger.error(f"Error injecting vector data: {str(e)}")
         raise
+    finally:
+        await engine.dispose()
 
 
-async def create_or_get_class(resource_id: int):
-    """Create class if it doesn't exist and link to resource"""
+def main():
     try:
-        logger.info("Checking for existing Form 2 Geography class...")
-        async with AsyncSession(engine) as session:
-            # Check for existing class
-            stmt = select(Class).where(
-                Class.subject == SubjectNames.geography,
-                Class.grade_level == GradeLevel.os2,
-            )
-            result = await session.execute(stmt)
-            existing_class = result.scalar_one_or_none()
+        # Parse command line arguments
+        parser = argparse.ArgumentParser(
+            description="Initialize the database for Twiga development."
+        )
+        parser.add_argument(
+            "--drop",
+            action="store_true",
+            help="Drop the existing tables before creation",
+        )
+        parser.add_argument(
+            "--sample-data", action="store_true", help="Add sample data to the database"
+        )
+        parser.add_argument(
+            "--vector-data",
+            action="store_true",
+            help="Populate the vector database (chunks table) with the sample data",
+        )
 
-            if existing_class:
-                logger.info("Found existing class")
-                # Check if class-resource relationship exists
-                stmt = select(ClassResource).where(
-                    ClassResource.class_id == existing_class.id,
-                    ClassResource.resource_id == resource_id,
-                )
-                result = await session.execute(stmt)
-                existing_relation = result.scalar_one_or_none()
+        args = parser.parse_args()
 
-                if not existing_relation:
-                    logger.info("Creating class-resource relationship...")
-                    class_resource = ClassResource(
-                        class_id=existing_class.id, resource_id=resource_id
-                    )
-                    session.add(class_resource)
-                    await session.commit()
+        asyncio.run(init_db(drop_all=args.drop))
 
-                return existing_class
+        if args.sample_data:
+            logger.info("Starting data injection...")
+            asyncio.run(inject_sample_data())
 
-            # Create new class if it doesn't exist
-            logger.info("Creating new Form 2 Geography class...")
-            geography_class = Class(
-                subject=Subject.geography,
-                grade_level=GradeLevel.os2,
-            )
+        if args.vector_data:
+            logger.info("Starting vector data injection...")
+            asyncio.run(inject_vector_data())
 
-            session.add(geography_class)
-            await session.commit()
-            await session.refresh(geography_class)
-
-            # Create class-resource relationship
-            class_resource = ClassResource(
-                class_id=geography_class.id, resource_id=resource_id
-            )
-            session.add(class_resource)
-            await session.commit()
-
-            logger.info("Created new class and class-resource relationship")
-            return geography_class
-
+        logger.info("Complete.")
     except Exception as e:
-        logger.error(f"Error creating or getting class: {str(e)}")
-        raise
+        logger.error(f"Setup failed: {e}")
 
 
 if __name__ == "__main__":
-    import sys
-
-    async def main():
-        try:
-            # Parse command line arguments
-            args = sys.argv[1:]
-
-            if "--drop" in args:
-                logger.info("Dropping existing tables...")
-                await drop_tables()
-                logger.info("Creating new tables...")
-                await create_tables()
-
-            if "--tables" in args:
-                logger.info("Creating tables...")
-                await create_tables()
-
-            if "--data" in args:
-                logger.info("Setting up data...")
-                resource_id = await create_dummy_resources()
-                await create_or_get_class(resource_id)
-
-            # If no args provided, show usage
-            if not args:
-                print(
-                    """
-Usage:
-  python init_twigadb.py [options]
-
-Options:
-  --drop     Drop existing tables and create new ones
-  --tables   Just create tables if they don't exist
-  --data     Add dummy data (can be used with existing tables)
-
-Examples:
-  python init_twigadb.py --drop --data    # Reset everything and add new data
-  python init_twigadb.py --tables         # Just create tables
-  python init_twigadb.py --data           # Just add data to existing tables
-"""
-                )
-
-        except Exception as e:
-            logger.error(f"Setup failed: {e}")
-            sys.exit(1)
-
-    asyncio.run(main())
+    main()
