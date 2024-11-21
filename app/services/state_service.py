@@ -2,11 +2,12 @@ import logging
 
 from fastapi.responses import JSONResponse
 
-from app.database.models import Message, MessageRole, OnboardingState, User, UserState
+from app.database.models import Message, OnboardingState, User, UserState
 from app.database.models import Role
 from app.services.onboarding_service import onboarding_client
 from app.database import db
 from app.services.whatsapp_service import whatsapp_client
+from app.database.enums import MessageRole
 
 
 class StateHandler:

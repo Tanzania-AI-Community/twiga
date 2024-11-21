@@ -19,11 +19,12 @@ from app.database.models import (
     Chunk,
     Subject,
 )
-from app.database.enums import GradeLevel, ChunkType, SubjectNames, ResourceType
+from app.database.enums import ChunkType
 from app.config import settings
 from app.utils.embedder import get_embeddings
 
 # Set up logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -52,7 +53,7 @@ async def inject_sample_data():
         """Load sample data into the database."""
         # Load sample data from YAML
         sample_data_path = (
-            Path(__file__).parent / "assets" / "sample_data" / "data.yaml"
+            Path(__file__).parent.parent / "assets" / "sample_data" / "data.yaml"
         )
         with open(sample_data_path) as f:
             data = yaml.safe_load(f)
@@ -71,7 +72,7 @@ async def inject_sample_data():
             class_data = data["geography_class"]
             class_obj = Class(
                 subject_id=subject.id,  # Use the actual subject ID
-                grade_level=GradeLevel[class_data["grade_level"]],
+                grade_level=class_data["grade_level"],
                 status=class_data["status"],
                 name=class_data["name"],
             )
@@ -83,14 +84,10 @@ async def inject_sample_data():
             resource_data = data["geography_resource"]
             resource = Resource(
                 name=resource_data["name"],
-                type=ResourceType[resource_data["type"]],
+                type=resource_data["type"],
                 authors=resource_data["authors"],
-                grade_levels=[
-                    GradeLevel[level] for level in resource_data["grade_levels"]
-                ],
-                subjects=[
-                    SubjectNames[subject] for subject in resource_data["subjects"]
-                ],
+                grade_levels=[level for level in resource_data["grade_levels"]],
+                subjects=[subject for subject in resource_data["subjects"]],
                 class_id=class_obj.id,  # Link to the class we just created
             )
             session.add(resource)
@@ -172,32 +169,19 @@ async def process_chunks(
 
 
 async def inject_vector_data():
-    """Inject vector data into the database with existence checking."""
+    """Inject vector data into the database with existence checking and continuation."""
     try:
         engine = create_async_engine(settings.database_url.get_secret_value())
 
         # Load sample data from YAML to get resource name
         sample_data_path = (
-            Path(__file__).parent / "assets" / "sample_data" / "data.yaml"
+            Path(__file__).parent.parent / "assets" / "sample_data" / "data.yaml"
         )
         with open(sample_data_path) as f:
             yaml_data = yaml.safe_load(f)
             resource_name = yaml_data["geography_resource"]["name"]
 
-        # First check for existing chunks
         async with AsyncSession(engine) as session:
-            existing_chunks = await check_existing_chunks(session)
-            if existing_chunks > 0:
-                logger.warning(
-                    f"Found {existing_chunks} existing chunks in the database."
-                )
-                response = input(
-                    "Do you want to proceed with adding more chunks? [y/N]: "
-                ).lower()
-                if response != "y":
-                    logger.info("Aborting vector data injection.")
-                    return
-
             # Get resource ID using name from YAML
             stmt = select(Resource).where(Resource.name == resource_name)
             result = await session.execute(stmt)
@@ -210,22 +194,35 @@ async def inject_vector_data():
 
             resource_id = resource.id
 
+            # Check existing chunks
+            processed_chunks = await check_existing_chunks(session, resource_id)
+
         # Load data files
-        chunks_path = Path(__file__).parent / "assets" / "sample_data" / "chunks.json"
+        chunks_path = (
+            Path(__file__).parent.parent / "assets" / "sample_data" / "chunks.json"
+        )
         with open(chunks_path, "r") as f:
             chunks_data = json.load(f)
 
-        # Create a new session for processing chunks
+        remaining_chunks = chunks_data[processed_chunks:]
+
+        if not remaining_chunks:
+            logger.info("No new chunks to process.")
+            return
+
+        logger.info(f"Found {processed_chunks} existing chunks")
+        logger.info(f"Processing {len(remaining_chunks)} remaining chunks...")
+
+        # Process remaining chunks
         async with AsyncSession(engine) as session:
-            logger.info("Processing content chunks...")
             await process_chunks(
                 session=session,
-                json_data=chunks_data,
+                json_data=remaining_chunks,
                 resource_id=resource_id,
             )
 
             # Get final count
-            final_count = await check_existing_chunks(session)
+            final_count = await check_existing_chunks(session, resource_id)
             logger.info(
                 f"Vector data injection complete. Total chunks in database: {final_count}"
             )

@@ -4,7 +4,8 @@ import asyncio
 from typing import List, Optional
 from openai.types.chat import ChatCompletionMessageToolCall
 
-from app.database.models import Message, MessageRole, User
+from app.database.models import Message, User
+from app.database.enums import MessageRole
 from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request

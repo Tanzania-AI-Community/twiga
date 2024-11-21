@@ -139,7 +139,7 @@ This link assumes you are running the Postgres database on port 5432, which is t
 > Running this command will create the embeddings of the Geography Form 2 textbook using Together AI's API (you're welcome to use OpenAI as well). Thus, it will cost around 0.05 USD. We are planning to make the pre-embedded chunks available asap (send us a reminder!).
 
 ```bash
-python -m scripts.database.init_twigadb --tables --data
+python -m scripts.database.init_twigadb --sample-data
 ```
 
 ## 🖥️ Set up the FastAPI application

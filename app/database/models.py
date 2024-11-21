@@ -1,6 +1,6 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, date
-from pydantic import field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlmodel import (
     Index,
     Integer,
@@ -19,10 +19,40 @@ from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
 from app.database.enums import (
+    GradeLevel,
     OnboardingState,
     Role,
     UserState,
 )
+
+
+class ClassInfo(BaseModel):
+    """Maps subjects to their grade levels for a teacher"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    subjects: Dict[str, List[str]]  # keys=Subject, values=List[GradeLevel]
+
+    """ METHODS """
+
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+        return {
+            subject: [grade for grade in grades]
+            for subject, grades in data["subjects"].items()
+        }
+
+    # TODO: Double check this validator
+    @classmethod
+    def model_validate(cls, data: Dict):
+        if data is None:
+            return None
+        return cls(
+            subjects={
+                Subject(subject): [GradeLevel(grade) for grade in grades]
+                for subject, grades in data.items()
+            }
+        )
 
 
 class User(SQLModel, table=True):
