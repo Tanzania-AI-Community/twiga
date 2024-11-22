@@ -124,7 +124,7 @@ First of all, you need to install Postgres from their [official site](https://ww
 
 > [!Note]
 >
-> If you're on a mac, you can use [postgres.app](https://postgresapp.com/) (that's what I use)
+> You can try out [TablePlus](https://tableplus.com/) to visualize your databases.
 
 Once you have an active database you should add this to your `.env`:
 
