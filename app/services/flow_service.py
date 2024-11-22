@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
 from app.utils.background_tasks_utils import add_background_task
 from app.utils.flows_util import (
+    create_flow_response_payload,
     decrypt_flow_webhook,
     decrypt_flow_token,
     encrypt_flow_token,
@@ -152,9 +153,9 @@ class FlowService:
         )
         has_classes = len(classes) > 0
 
-        response_payload = {
-            "screen": "select_classes",
-            "data": {
+        response_payload = create_flow_response_payload(
+            screen="select_classes",
+            data={
                 "classes": (
                     classes
                     if has_classes
@@ -171,7 +172,7 @@ class FlowService:
                 "select_class_question_text": select_class_question_text,
                 "subject_id": str(subject_id),
             },
-        }
+        )
 
         return await self.process_response(response_payload, aes_key, initial_vector)
 
@@ -231,45 +232,16 @@ class FlowService:
         self.logger.info(f"Creating background task for classes data update")
         add_background_task(
             background_tasks,
-            self.update_user_classes_background,
+            self.update_user_classes_data_background,
             user,
             selected_classes_formatted,
             int(subject_id),
         )
 
-        response_payload = {
-            "screen": "SUCCESS",
-            "data": {
-                "extension_message_response": {
-                    "params": {
-                        "flow_token": encrypted_flow_token,
-                    },
-                },
-            },
-        }
+        response_payload = create_flow_response_payload(
+            screen="SUCCESS", data={}, flow_token=encrypted_flow_token
+        )
         return await self.process_response(response_payload, aes_key, initial_vector)
-
-    async def update_user_classes_background(
-        self, user: User, selected_classes: List[int], subject_id: int
-    ):
-        try:
-            # Update user classes in the database
-            user = await update_user_selected_classes(
-                user, selected_classes, subject_id
-            )
-
-            self.logger.info(
-                f"FINAL User after update: {user}, Selected classes: {selected_classes}"
-            )
-
-            # send message to user saying that the class info has been submitted
-            responseText = "Thanks for submitting your subject and classes information. How can I help you today?"
-            await whatsapp_client.send_message(user.wa_id, responseText)
-
-        except Exception as e:
-            responseText = "An error occurred during the onboarding process. Please try again later."
-            await whatsapp_client.send_message(user.wa_id, responseText)
-            self.logger.error(f"Failed to update user subject classes: {str(e)}")
 
     async def handle_unknown_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -306,12 +278,12 @@ class FlowService:
                 content={"error_msg": "User data not found"}, status_code=422
             )
 
-        response_payload = {
-            "screen": "personal_info",
-            "data": {
+        response_payload = create_flow_response_payload(
+            screen="personal_info",
+            data={
                 "full_name": user.name,
             },
-        }
+        )
 
         return await self.process_response(response_payload, aes_key, initial_vector)
 
@@ -342,9 +314,9 @@ class FlowService:
         select_subject_text = "This helps us find the best answers for your questions."
         no_subjects_text = "Sorry, currently there are no active subjects."
         has_subjects = len(subjects) > 0
-        response_payload = {
-            "screen": "select_subjects",
-            "data": {
+        response_payload = create_flow_response_payload(
+            screen="select_subjects",
+            data={
                 "subjects": (
                     subjects
                     if has_subjects
@@ -354,7 +326,7 @@ class FlowService:
                 "no_subjects_text": no_subjects_text,
                 "select_subject_text": select_subject_text,
             },
-        }
+        )
         return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_onboarding_data_exchange_action(
@@ -403,56 +375,12 @@ class FlowService:
             is_updating,
         )
 
-        response_payload = {
-            "screen": "SUCCESS",
-            "data": {
-                "extension_message_response": {
-                    "params": {
-                        "flow_token": encrypted_flow_token,
-                    },
-                },
-            },
-        }
+        response_payload = create_flow_response_payload(
+            screen="SUCCESS",
+            data={},  # Empty data since SUCCESS screen handles its own structure
+            flow_token=encrypted_flow_token,
+        )
         return await self.process_response(response_payload, aes_key, initial_vector)
-
-    async def update_onboarding_data_background(
-        self, user: User, data: dict, is_updating: bool
-    ):
-        try:
-            full_name = (
-                data.get("update_full_name") if is_updating else data.get("full_name")
-            )
-            birthday = (
-                data.get("update_birthday") if is_updating else data.get("birthday")
-            )
-            region = data.get("update_region") if is_updating else data.get("region")
-            school_name = (
-                data.get("update_school_name")
-                if is_updating
-                else data.get("school_name")
-            )
-            user.name = full_name or user.name
-            user.birthday = birthday
-            user.region = region
-            user.school_name = school_name
-            user.onboarding_state = "personal_info_submitted"
-            await update_user(user)
-            self.logger.info(f"User after update: {user}")
-
-            # send message to user saying that the personal info has been submitted
-            responseText = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
-            if is_updating:
-                responseText = "Your personal information has been updated successfully. To update your settings again please type 'Settings'. How can I help you today?"
-
-            await whatsapp_client.send_message(user.wa_id, responseText)
-
-            # send select subject flow
-            if not is_updating:
-                await self.send_select_subject_flow(user)
-        except Exception as e:
-            responseText = "An error occurred during the onboarding process. Please try again later."
-            await whatsapp_client.send_message(user.wa_id, responseText)
-            self.logger.error(f"Failed to update onboarding data: {str(e)}")
 
     async def handle_subject_data_exchange_action(
         self,
@@ -508,21 +436,53 @@ class FlowService:
 
         self.logger.info(f"CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
 
-        response_payload = {
-            "screen": "SUCCESS",
-            "data": {
-                "extension_message_response": {
-                    "params": {
-                        "flow_token": encrypted_flow_token,
-                    },
-                },
-            },
-        }
+        response_payload = create_flow_response_payload(
+            screen="SUCCESS", data={}, flow_token=encrypted_flow_token
+        )
 
         self.logger.info(
             f"SENDING RESPONSE PAYLOAD FOR SUBJECT DATA UPDATE: {response_payload}"
         )
         return await self.process_response(response_payload, aes_key, initial_vector)
+
+    async def update_onboarding_data_background(
+        self, user: User, data: dict, is_updating: bool
+    ):
+        try:
+            full_name = (
+                data.get("update_full_name") if is_updating else data.get("full_name")
+            )
+            birthday = (
+                data.get("update_birthday") if is_updating else data.get("birthday")
+            )
+            region = data.get("update_region") if is_updating else data.get("region")
+            school_name = (
+                data.get("update_school_name")
+                if is_updating
+                else data.get("school_name")
+            )
+            user.name = full_name or user.name
+            user.birthday = birthday
+            user.region = region
+            user.school_name = school_name
+            user.onboarding_state = "personal_info_submitted"
+            await update_user(user)
+            self.logger.info(f"User after update: {user}")
+
+            # send message to user saying that the personal info has been submitted
+            responseText = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
+            if is_updating:
+                responseText = "Your personal information has been updated successfully. To update your settings again please type 'Settings'. How can I help you today?"
+
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            # send select subject flow
+            if not is_updating:
+                await self.send_select_subject_flow(user)
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update onboarding data: {str(e)}")
 
     async def update_subject_data_background(
         self, user: User, selected_subjects: List[str], is_updating: bool = False
@@ -546,6 +506,28 @@ class FlowService:
             responseText = "An error occurred during the onboarding process. Please try again later."
             await whatsapp_client.send_message(user.wa_id, responseText)
             self.logger.error(f"Failed to update subject data: {str(e)}")
+
+    async def update_user_classes_data_background(
+        self, user: User, selected_classes: List[int], subject_id: int
+    ):
+        try:
+            # Update user classes in the database
+            user = await update_user_selected_classes(
+                user, selected_classes, subject_id
+            )
+
+            self.logger.info(
+                f"FINAL User after update: {user}, Selected classes: {selected_classes}"
+            )
+
+            # send message to user saying that the class info has been submitted
+            responseText = "Thanks for submitting your subject and classes information. How can I help you today?"
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update user subject classes: {str(e)}")
 
     async def handle_health_check(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -700,9 +682,9 @@ class FlowService:
             else "Congratulations! You have completed the first step of onboarding. Let's proceed with selecting your classes and subjects."
         )
 
-        response_payload = {
-            "screen": "select_subjects",
-            "data": {
+        response_payload = create_flow_response_payload(
+            screen="select_subjects",
+            data={
                 "subjects": (
                     subjects
                     if has_subjects
@@ -712,7 +694,7 @@ class FlowService:
                 "no_subjects_text": no_subjects_text,
                 "select_subject_text": select_subject_text,
             },
-        }
+        )
 
         payload = {
             "messaging_product": "whatsapp",
@@ -796,9 +778,9 @@ class FlowService:
             else f"Let's proceed with updating your classes for {subject_title}."
         )
 
-        response_payload = {
-            "screen": "select_classes",
-            "data": {
+        response_payload = create_flow_response_payload(
+            screen="select_classes",
+            data={
                 "classes": (
                     classes
                     if has_classes
@@ -815,7 +797,7 @@ class FlowService:
                 "select_class_question_text": select_class_question_text,
                 "subject_id": str(subject_id),  # Include the subject_id in the payload
             },
-        }
+        )
 
         payload = {
             "messaging_product": "whatsapp",
