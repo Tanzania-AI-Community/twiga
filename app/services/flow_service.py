@@ -10,6 +10,7 @@ from app.utils.flows_util import (
     decrypt_flow_webhook,
     decrypt_flow_token,
     encrypt_flow_token,
+    send_whatsapp_flow_message,
 )
 from app.database.db import (
     get_subject_and_classes,
@@ -18,15 +19,13 @@ from app.database.db import (
     get_available_subjects,
     update_user_selected_classes,
 )
-from app.database.models import OnboardingState, User, UserState
+from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
-from app.utils.whatsapp_utils import generate_payload
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import base64
 import json
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -606,55 +605,17 @@ class FlowService:
 
         logger.debug(f"Screen Data for send_personal_and_school_info_flow: {data}")
 
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": user.wa_id,
-            "recipient_type": "individual",
-            "type": "interactive",
-            "interactive": {
-                "type": "flow",
-                "header": {
-                    "type": "text",
-                    "text": header_text,
-                },
-                "body": {
-                    "text": body_text,
-                },
-                "footer": {
-                    "text": "Please follow the instructions.",
-                },
-                "action": {
-                    "name": "flow",
-                    "parameters": {
-                        "flow_message_version": "3",
-                        "flow_action": "navigate",
-                        "flow_token": flow_token,
-                        "flow_id": settings.onboarding_flow_id,
-                        "flow_cta": (
-                            "Update Information" if is_update else "Start Onboarding"
-                        ),
-                        "mode": "published",
-                        "flow_action_payload": {
-                            "screen": "personal_info",
-                            "data": data,
-                        },
-                    },
-                },
+        await send_whatsapp_flow_message(
+            user=user,
+            flow_id=settings.onboarding_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+            action_payload={
+                "screen": "personal_info",
+                "data": data,
             },
-        }
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-                },
-                json=payload,
-            )
-            self.logger.info(
-                f"WhatsApp API response: {response.status_code} - {response.text}"
-            )
+            flow_cta="Update Information" if is_update else "Start Onboarding",
+        )
 
     async def send_select_subject_flow(
         self, user: User, is_update: bool = False
@@ -696,54 +657,16 @@ class FlowService:
             },
         )
 
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": user.wa_id,
-            "recipient_type": "individual",
-            "type": "interactive",
-            "interactive": {
-                "type": "flow",
-                "header": {
-                    "type": "text",
-                    "text": header_text,
-                },
-                "body": {
-                    "text": body_text,
-                },
-                "footer": {
-                    "text": "Please follow the instructions.",
-                },
-                "action": {
-                    "name": "flow",
-                    "parameters": {
-                        "flow_message_version": "3",
-                        "flow_action": "navigate",
-                        "flow_token": flow_token,
-                        "flow_id": settings.select_subjects_flow_id,
-                        "flow_cta": (
-                            "Update subjects selection"
-                            if is_update
-                            else "Start subjects selection"
-                        ),
-                        "mode": "published",
-                        "flow_action_payload": response_payload,
-                    },
-                },
-            },
-        }
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-                },
-                json=payload,
-            )
-            self.logger.info(
-                f"WhatsApp API response: {response.status_code} - {response.text}"
-            )
+        await send_whatsapp_flow_message(
+            user=user,
+            flow_id=settings.select_subjects_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+            action_payload=response_payload,
+            flow_cta=(
+                "Update subjects selection" if is_update else "Start subjects selection"
+            ),
+        )
 
     async def send_select_classes_flow(
         self, user: User, subject_id: int, is_update: bool = False
@@ -799,54 +722,16 @@ class FlowService:
             },
         )
 
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": user.wa_id,
-            "recipient_type": "individual",
-            "type": "interactive",
-            "interactive": {
-                "type": "flow",
-                "header": {
-                    "type": "text",
-                    "text": header_text,
-                },
-                "body": {
-                    "text": body_text,
-                },
-                "footer": {
-                    "text": "Please follow the instructions.",
-                },
-                "action": {
-                    "name": "flow",
-                    "parameters": {
-                        "flow_message_version": "3",
-                        "flow_action": "navigate",
-                        "flow_token": flow_token,
-                        "flow_id": settings.select_classes_flow_id,
-                        "flow_cta": (
-                            "Update classes selection"
-                            if is_update
-                            else "Start classes selection"
-                        ),
-                        "mode": "published",
-                        "flow_action_payload": response_payload,
-                    },
-                },
-            },
-        }
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-                },
-                json=payload,
-            )
-            self.logger.info(
-                f"WhatsApp API response: {response.status_code} - {response.text}"
-            )
+        await send_whatsapp_flow_message(
+            user=user,
+            flow_id=settings.select_classes_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+            action_payload=response_payload,
+            flow_cta=(
+                "Update classes selection" if is_update else "Start classes selection"
+            ),
+        )
 
 
 flow_client = FlowService()
