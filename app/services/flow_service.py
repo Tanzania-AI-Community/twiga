@@ -120,8 +120,8 @@ class FlowService:
         try:
             # Use helper functions for token and user validation
             encrypted_flow_token = decrypted_payload.get("flow_token")
-            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
-            user = await validate_user(self.logger, wa_id)
+            wa_id, _ = handle_token_validation(self.logger, encrypted_flow_token)
+            await validate_user(self.logger, wa_id)
 
             subject_id = 1  # Hardcoded subject_id as 1, because init action is only used when testing
             subject_data = await get_subject_and_classes(subject_id)
@@ -316,7 +316,7 @@ class FlowService:
             user = await validate_user(self.logger, wa_id)
 
             # Add the database update task to the background tasks
-            self.logger.info(f"Creating background task for onboarding data update")
+            self.logger.info("Creating background task for onboarding data update")
             add_background_task(
                 background_tasks,
                 self.update_onboarding_data_background,
@@ -365,7 +365,7 @@ class FlowService:
                 )
 
             # Add the database update task to the background tasks
-            self.logger.info(f"Creating background task for subject data update")
+            self.logger.info("Creating background task for subject data update")
             add_background_task(
                 background_tasks,
                 self.update_subject_data_background,
@@ -373,7 +373,7 @@ class FlowService:
                 selected_subjects,
             )
 
-            self.logger.info(f"CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
+            self.logger.info("CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
 
             response_payload = create_flow_response_payload(
                 screen="SUCCESS", data={}, flow_token=encrypted_flow_token
@@ -517,7 +517,7 @@ class FlowService:
     async def send_personal_and_school_info_flow(
         self, user: User, is_update: bool = False
     ) -> None:
-        flow_token = encrypt_flow_token(user.wa_id, settings.onboarding_flow_id)
+        encrypt_flow_token(user.wa_id, settings.onboarding_flow_id)
         header_text = get_flow_text(
             is_update,
             "Update your personal and school information 📝",
@@ -565,7 +565,7 @@ class FlowService:
     async def send_select_subject_flow(
         self, user: User, is_update: bool = False
     ) -> None:
-        flow_token = encrypt_flow_token(user.wa_id, settings.select_subjects_flow_id)
+        encrypt_flow_token(user.wa_id, settings.select_subjects_flow_id)
         logger.debug(f"Sending select subject flow to {user}")
 
         # Get available subjects from the database
@@ -616,7 +616,7 @@ class FlowService:
     async def send_select_classes_flow(
         self, user: User, subject_id: int, is_update: bool = False
     ) -> None:
-        flow_token = encrypt_flow_token(user.wa_id, settings.select_classes_flow_id)
+        encrypt_flow_token(user.wa_id, settings.select_classes_flow_id)
         logger.debug(
             f"Sending select classes flow to {user} for subject ID {subject_id}"
         )
@@ -628,12 +628,12 @@ class FlowService:
         logger.debug(f"Subject title for subject ID {subject_id}: {subject_title}")
         logger.debug(f"Available classes for subject ID {subject_id}: {classes}")
 
-        select_class_question_text = f"Select the class you are in for {subject_title}."
-        select_class_text = f"This helps us find the best answers for your questions in {subject_title}."
-        no_classes_text = (
-            f"Sorry, currently there are no active classes for {subject_title}."
-        )
-        has_classes = len(classes) > 0
+        # select_class_question_text = f"Select the class you are in for {subject_title}."
+        # select_class_text = f"This helps us find the best answers for your questions in {subject_title}."
+        # no_classes_text = (
+        #     f"Sorry, currently there are no active classes for {subject_title}."
+        # )
+        # has_classes = len(classes) > 0
 
         header_text = get_flow_text(
             is_update,
