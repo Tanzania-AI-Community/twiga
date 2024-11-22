@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -10,7 +10,6 @@ from app.database.db import get_user_by_waid
 from app.services.whatsapp_service import whatsapp_client
 
 import httpx
-from sqlalchemy import Tuple
 from app.config import settings
 from cryptography.fernet import Fernet
 
@@ -198,4 +197,75 @@ def create_flow_response_payload(
     return {
         "screen": screen,
         "data": data,
+    }
+
+
+def handle_token_validation(
+    logger: logging.Logger, encrypted_flow_token: str
+) -> Tuple[str, str]:
+    """
+    Validate and decrypt flow token
+    Returns (wa_id, flow_id) or raises exception
+    """
+    if not encrypted_flow_token:
+        logger.error("Missing flow token")
+        raise ValueError("Missing flow token")
+
+    try:
+        wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
+        logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
+        return wa_id, flow_id
+    except Exception as e:
+        logger.error(f"Error decrypting flow token: {e}")
+        raise ValueError("Invalid flow token")
+
+
+async def validate_user(logger: logging.Logger, wa_id: str) -> User:
+    """
+    Validate and retrieve user
+    """
+    user = await get_user_by_waid(wa_id)
+    if not user:
+        logger.error(f"User data not found for wa_id {wa_id}")
+        raise ValueError("User not found")
+    return user
+
+
+def get_flow_text(is_update: bool, update_text: str, new_text: str) -> str:
+    """
+    Get appropriate flow text based on update state
+    """
+    return update_text if is_update else new_text
+
+
+async def handle_error_response(
+    wa_id: str, error_message: str, logger: logging.Logger
+) -> None:
+    """
+    Handle error responses consistently
+    """
+    await whatsapp_client.send_message(wa_id, error_message)
+    logger.error(error_message)
+
+
+def create_subject_class_payload(
+    subject_title: str, classes: List[dict], is_update: bool, subject_id: str
+) -> Dict[str, Any]:
+    """
+    Create standardized subject/class selection payload
+    """
+    has_items = len(classes) > 0
+    return {
+        "classes": (
+            classes
+            if has_items
+            else [
+                {"id": "0", "title": "No classes available"}
+            ]  # if no classes, show a dummy class it is required for the client
+        ),
+        "has_classes": has_items,
+        "no_classes_text": f"Sorry, currently there are no active classes for {subject_title}.",
+        "select_class_text": f"This helps us find the best answers for your questions in {subject_title}.",
+        "select_class_question_text": f"Select the class you are in for {subject_title}.",
+        "subject_id": str(subject_id),
     }

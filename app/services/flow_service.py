@@ -10,7 +10,9 @@ from app.utils.flows_util import (
     decrypt_flow_webhook,
     decrypt_flow_token,
     encrypt_flow_token,
+    handle_token_validation,
     send_whatsapp_flow_message,
+    validate_user,
 )
 from app.database.db import (
     get_subject_and_classes,
@@ -114,66 +116,58 @@ class FlowService:
     async def handle_select_classes_init_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            subject_id = 1  # Hardcoded subject_id as 1, because init action is only used when testing
+            subject_data = await get_subject_and_classes(subject_id)
+            subject_title = subject_data["subject_name"]
+            classes = subject_data["classes"]
+            logger.debug(f"Subject title for subject ID {subject_id}: {subject_title}")
+            logger.debug(f"Available classes for subject ID {subject_id}: {classes}")
+
+            select_class_question_text = (
+                f"Select the class you are in for {subject_title}."
+            )
+            select_class_text = f"This helps us find the best answers for your questions in {subject_title}."
+            no_classes_text = (
+                f"Sorry, currently there are no active classes for {subject_title}."
+            )
+            has_classes = len(classes) > 0
+
+            response_payload = create_flow_response_payload(
+                screen="select_classes",
+                data={
+                    "classes": (
+                        classes
+                        if has_classes
+                        else [
+                            {
+                                "id": "0",
+                                "title": "No classes available",
+                            }
+                        ]
+                    ),
+                    "has_classes": has_classes,
+                    "no_classes_text": no_classes_text,
+                    "select_class_text": select_class_text,
+                    "select_class_question_text": select_class_question_text,
+                    "subject_id": str(subject_id),
+                },
+            )
+
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
             return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
+                content={"error_msg": str(e)},
                 status_code=422,
             )
-
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
-            )
-
-        # Get the subject title and classes for the given subject_id from the database
-        subject_id = 1  # Hardcoded subject_id as 1, because init action is only used when testing
-        subject_data = await get_subject_and_classes(subject_id)
-        subject_title = subject_data["subject_name"]
-        classes = subject_data["classes"]
-        logger.debug(f"Subject title for subject ID {subject_id}: {subject_title}")
-        logger.debug(f"Available classes for subject ID {subject_id}: {classes}")
-
-        select_class_question_text = f"Select the class you are in for {subject_title}."
-        select_class_text = f"This helps us find the best answers for your questions in {subject_title}."
-        no_classes_text = (
-            f"Sorry, currently there are no active classes for {subject_title}."
-        )
-        has_classes = len(classes) > 0
-
-        response_payload = create_flow_response_payload(
-            screen="select_classes",
-            data={
-                "classes": (
-                    classes
-                    if has_classes
-                    else [
-                        {
-                            "id": "0",
-                            "title": "No classes available",
-                        }
-                    ]
-                ),  # doing this because the response in whatsapp flows expects a list of classes with id, title, and grade_level
-                "has_classes": has_classes,
-                "no_classes_text": no_classes_text,
-                "select_class_text": select_class_text,
-                "select_class_question_text": select_class_question_text,
-                "subject_id": str(subject_id),
-            },
-        )
-
-        return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_classes_data_exchange_action(
         self,
@@ -182,65 +176,53 @@ class FlowService:
         initial_vector: str,
         background_tasks: BackgroundTasks,
     ) -> PlainTextResponse:
-        self.logger.info("Handling classes data exchange action", decrypted_payload)
-        self.logger.info(f"AES Key: {aes_key}")
-        data = decrypted_payload.get("data", {})
-        self.logger.info("Data from payload : %s", data)
-        selected_classes = data.get("selected_classes", [])
-        subject_id = data.get("subject_id")
-        self.logger.info("Selected classes: %s", selected_classes)
-        self.logger.info("Subject ID: %s", subject_id)
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-            self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
+            self.logger.info("Handling classes data exchange action", decrypted_payload)
+            data = decrypted_payload.get("data", {})
+            selected_classes = data.get("selected_classes", [])
+            subject_id = data.get("subject_id")
+            self.logger.info("Selected classes: %s", selected_classes)
+            self.logger.info("Subject ID: %s", subject_id)
+
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            if not selected_classes:
+                self.logger.error("No classes selected")
+                return JSONResponse(
+                    content={"error_msg": "No classes selected"}, status_code=422
+                )
+
+            # Convert selected classes to integers
+            selected_classes_formatted = [
+                int(class_id) for class_id in selected_classes
+            ]
+
+            # Send message to user
+            responseText = "Thanks for submitting your class information, let me process that for you."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            # Add background task
+            self.logger.info("Creating background task for classes data update")
+            add_background_task(
+                background_tasks,
+                self.update_user_classes_data_background,
+                user,
+                selected_classes_formatted,
+                int(subject_id),
             )
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
+
+            response_payload = create_flow_response_payload(
+                screen="SUCCESS", data={}, flow_token=encrypted_flow_token
             )
-        if not selected_classes:
-            self.logger.error("No classes selected")
-            return JSONResponse(
-                content={"error_msg": "No classes selected"}, status_code=422
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
             )
 
-        # Convert selected classes to integers
-        selected_classes_formatted = [int(class_id) for class_id in selected_classes]
-
-        # send message to user saying that the class info has been submitted
-        responseText = (
-            "Thanks for submitting your class information, let me process that for you."
-        )
-        await whatsapp_client.send_message(user.wa_id, responseText)
-
-        # Add the database update task to the background tasks
-        self.logger.info(f"Creating background task for classes data update")
-        add_background_task(
-            background_tasks,
-            self.update_user_classes_data_background,
-            user,
-            selected_classes_formatted,
-            int(subject_id),
-        )
-
-        response_payload = create_flow_response_payload(
-            screen="SUCCESS", data={}, flow_token=encrypted_flow_token
-        )
-        return await self.process_response(response_payload, aes_key, initial_vector)
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
     async def handle_unknown_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -254,79 +236,63 @@ class FlowService:
     async def handle_onboarding_init_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            response_payload = create_flow_response_payload(
+                screen="personal_info",
+                data={
+                    "full_name": user.name,
+                },
             )
 
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
             )
 
-        response_payload = create_flow_response_payload(
-            screen="personal_info",
-            data={
-                "full_name": user.name,
-            },
-        )
-
-        return await self.process_response(response_payload, aes_key, initial_vector)
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
     async def handle_select_subjects_init_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
+            # Use helper function for token validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+
+            # Get available subjects from the database
+            subjects = await get_available_subjects()
+            logger.debug(f"Available subjects: {subjects}")
+
+            select_subject_text = (
+                "This helps us find the best answers for your questions."
+            )
+            no_subjects_text = "Sorry, currently there are no active subjects."
+            has_subjects = len(subjects) > 0
+
+            response_payload = create_flow_response_payload(
+                screen="select_subjects",
+                data={
+                    "subjects": (
+                        subjects
+                        if has_subjects
+                        else [{"id": "0", "title": "No subjects available"}]
+                    ),  # doing this because the response in whatsapp flows expects a list of subjects with id and title
+                    "has_subjects": has_subjects,
+                    "no_subjects_text": no_subjects_text,
+                    "select_subject_text": select_subject_text,
+                },
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
             )
 
-        # Get available subjects from the database
-        subjects = await get_available_subjects()
-
-        logger.debug(f"Available subjects: {subjects}")
-
-        select_subject_text = "This helps us find the best answers for your questions."
-        no_subjects_text = "Sorry, currently there are no active subjects."
-        has_subjects = len(subjects) > 0
-        response_payload = create_flow_response_payload(
-            screen="select_subjects",
-            data={
-                "subjects": (
-                    subjects
-                    if has_subjects
-                    else [{"id": "0", "title": "No subjects available"}]
-                ),  # doing this because the response in whatsapp flows expects a list of subjects with id and title
-                "has_subjects": has_subjects,
-                "no_subjects_text": no_subjects_text,
-                "select_subject_text": select_subject_text,
-            },
-        )
-        return await self.process_response(response_payload, aes_key, initial_vector)
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
     async def handle_onboarding_data_exchange_action(
         self,
@@ -335,51 +301,40 @@ class FlowService:
         initial_vector: str,
         background_tasks: BackgroundTasks,
     ) -> PlainTextResponse:
-        self.logger.debug(
-            "Handling data exchange action, with data: %s", decrypted_payload
-        )
-        data = decrypted_payload.get("data", {})
-        is_updating = data.get("is_updating", False)
-        logger.debug(f"Is updating: {is_updating}")
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-            self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
+            self.logger.debug(
+                "Handling data exchange action, with data: %s", decrypted_payload
             )
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
+            data = decrypted_payload.get("data", {})
+            is_updating = data.get("is_updating", False)
+            logger.debug(f"Is updating: {is_updating}")
+
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            # Add the database update task to the background tasks
+            self.logger.info(f"Creating background task for onboarding data update")
+            add_background_task(
+                background_tasks,
+                self.update_onboarding_data_background,
+                user,
+                data,
+                is_updating,
             )
 
-        # Add the database update task to the background tasks
-        self.logger.info(f"Creating background task for onboarding data update")
-        add_background_task(
-            background_tasks,
-            self.update_onboarding_data_background,
-            user,
-            data,
-            is_updating,
-        )
+            response_payload = create_flow_response_payload(
+                screen="SUCCESS",
+                data={},  # Empty data since SUCCESS screen handles its own structure
+                flow_token=encrypted_flow_token,
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
 
-        response_payload = create_flow_response_payload(
-            screen="SUCCESS",
-            data={},  # Empty data since SUCCESS screen handles its own structure
-            flow_token=encrypted_flow_token,
-        )
-        return await self.process_response(response_payload, aes_key, initial_vector)
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
     async def handle_subject_data_exchange_action(
         self,
@@ -388,61 +343,50 @@ class FlowService:
         initial_vector: str,
         background_tasks: BackgroundTasks,
     ) -> PlainTextResponse:
-        self.logger.info(
-            "Handling subject class info data exchange action", decrypted_payload
-        )
-        self.logger.info(f"AES Key: {aes_key}")
-        data = decrypted_payload.get("data", {})
-        self.logger.info("Data from payload : %s", data)
-        selected_subjects = data.get("selected_subjects", [])
-        self.logger.info("Selected subjects: %s", selected_subjects)
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-            self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
+            self.logger.info(
+                "Handling subject class info data exchange action", decrypted_payload
             )
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
+            data = decrypted_payload.get("data", {})
+            # self.logger.info("Data from payload : %s", data)
+            selected_subjects = data.get("selected_subjects", [])
+            self.logger.info("Selected subjects: %s", selected_subjects)
+
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            if not selected_subjects:
+                self.logger.error("No subjects selected")
+                return JSONResponse(
+                    content={"error_msg": "No subjects selected"}, status_code=422
+                )
+
+            # Add the database update task to the background tasks
+            self.logger.info(f"Creating background task for subject data update")
+            add_background_task(
+                background_tasks,
+                self.update_subject_data_background,
+                user,
+                selected_subjects,
             )
-        if not selected_subjects:
-            self.logger.error("No subjects selected")
-            return JSONResponse(
-                content={"error_msg": "No subjects selected"}, status_code=422
+
+            self.logger.info(f"CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
+
+            response_payload = create_flow_response_payload(
+                screen="SUCCESS", data={}, flow_token=encrypted_flow_token
             )
 
-        # Add the database update task to the background tasks
-        self.logger.info(f"Creating background task for subject data update")
-        add_background_task(
-            background_tasks,
-            self.update_subject_data_background,
-            user,
-            selected_subjects,
-        )
+            self.logger.info(
+                f"SENDING RESPONSE PAYLOAD FOR SUBJECT DATA UPDATE: {response_payload}"
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
 
-        self.logger.info(f"CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
-
-        response_payload = create_flow_response_payload(
-            screen="SUCCESS", data={}, flow_token=encrypted_flow_token
-        )
-
-        self.logger.info(
-            f"SENDING RESPONSE PAYLOAD FOR SUBJECT DATA UPDATE: {response_payload}"
-        )
-        return await self.process_response(response_payload, aes_key, initial_vector)
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
     async def update_onboarding_data_background(
         self, user: User, data: dict, is_updating: bool
