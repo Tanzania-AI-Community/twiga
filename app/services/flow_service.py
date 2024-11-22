@@ -7,16 +7,17 @@ from fastapi.responses import PlainTextResponse, JSONResponse
 from app.utils.background_tasks_utils import add_background_task
 from app.utils.flows_util import (
     create_flow_response_payload,
+    create_subject_class_payload,
     decrypt_flow_webhook,
     decrypt_flow_token,
     encrypt_flow_token,
+    get_flow_text,
     handle_token_validation,
     send_whatsapp_flow_message,
     validate_user,
 )
 from app.database.db import (
     get_subject_and_classes,
-    get_user_by_waid,
     update_user,
     get_available_subjects,
     update_user_selected_classes,
@@ -517,15 +518,15 @@ class FlowService:
         self, user: User, is_update: bool = False
     ) -> None:
         flow_token = encrypt_flow_token(user.wa_id, settings.onboarding_flow_id)
-        header_text = (
-            "Update your personal and school information 📝"
-            if is_update
-            else "Start onboarding to Twiga 🦒"
+        header_text = get_flow_text(
+            is_update,
+            "Update your personal and school information 📝",
+            "Start onboarding to Twiga 🦒",
         )
-        body_text = (
-            "Let's update your personal and school information."
-            if is_update
-            else "Welcome to Twiga!, Looks like you are new here. Let's get started with your onboarding process."
+        body_text = get_flow_text(
+            is_update,
+            "Let's update your personal and school information.",
+            "Welcome to Twiga!, Looks like you are new here. Let's get started with your onboarding process.",
         )
 
         logger.debug(f"Sending personal and school info flow to {user}")
@@ -576,15 +577,15 @@ class FlowService:
         no_subjects_text = "Sorry, currently there are no active subjects."
         has_subjects = len(subjects) > 0
 
-        header_text = (
-            "Update your class and subject selection 📝"
-            if is_update
-            else "Start class and subject selection 📝"
+        header_text = get_flow_text(
+            is_update,
+            "Update your class and subject selection 📝",
+            "Start class and subject selection 📝",
         )
-        body_text = (
-            "Let's update your class and subject selection."
-            if is_update
-            else "Congratulations! You have completed the first step of onboarding. Let's proceed with selecting your classes and subjects."
+        body_text = get_flow_text(
+            is_update,
+            "Let's update your class and subject selection.",
+            "Congratulations! You have completed the first step of onboarding. Let's proceed with selecting your classes and subjects.",
         )
 
         response_payload = create_flow_response_payload(
@@ -634,36 +635,25 @@ class FlowService:
         )
         has_classes = len(classes) > 0
 
-        header_text = (
-            f"Update your class selection for {subject_title} 📝"
-            if is_update
-            else f"Start class selection for {subject_title} 📝"
+        header_text = get_flow_text(
+            is_update,
+            f"Update your class selection for {subject_title} 📝",
+            f"Start class selection for {subject_title} 📝",
         )
-        body_text = (
-            f"Let's select your class selection for {subject_title}."
-            if is_update
-            else f"Let's proceed with updating your classes for {subject_title}."
+        body_text = get_flow_text(
+            is_update,
+            f"Let's select your class selection for {subject_title}.",
+            f"Let's proceed with updating your classes for {subject_title}.",
         )
 
         response_payload = create_flow_response_payload(
             screen="select_classes",
-            data={
-                "classes": (
-                    classes
-                    if has_classes
-                    else [
-                        {
-                            "id": "0",
-                            "title": "No classes available",
-                        }
-                    ]
-                ),  # doing this because the response in whatsapp flows expects a list of classes with id, title, and grade_level
-                "has_classes": has_classes,
-                "no_classes_text": no_classes_text,
-                "select_class_text": select_class_text,
-                "select_class_question_text": select_class_question_text,
-                "subject_id": str(subject_id),  # Include the subject_id in the payload
-            },
+            data=create_subject_class_payload(
+                subject_title=subject_title,
+                classes=classes,
+                is_update=is_update,
+                subject_id=str(subject_id),
+            ),
         )
 
         await send_whatsapp_flow_message(
