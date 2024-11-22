@@ -170,6 +170,7 @@ class Subject(SQLModel, table=True):
     __tablename__ = "subjects"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=50, nullable=False)
+    status: str = Field(default="active")  # use SubjectClassStatus enum
 
     # A subject may have entries in the classes table
     subject_classes: Optional[List["Class"]] = Relationship(back_populates="subject_")
