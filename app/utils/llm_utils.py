@@ -12,10 +12,13 @@ from app.config import llm_settings
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
 
-llm_client = openai.AsyncOpenAI(
-    base_url="https://api.together.xyz/v1",
-    api_key=llm_settings.llm_api_key.get_secret_value(),
-)
+if llm_settings.ai_provider == "together":
+    llm_client = openai.AsyncOpenAI(
+        base_url="https://api.together.xyz/v1",
+        api_key=llm_settings.llm_api_key.get_secret_value(),
+    )
+else:
+    llm_client = openai.AsyncOpenAI(api_key=llm_settings.llm_api_key.get_secret_value())
 
 
 def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> int:

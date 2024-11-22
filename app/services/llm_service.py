@@ -2,10 +2,10 @@ import json
 import logging
 import asyncio
 from typing import List, Optional
-from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageToolCall
 
-from app.database.models import Message, MessageRole, User
+from app.database.models import Message, User
+from app.database.enums import MessageRole
 from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
@@ -41,10 +41,6 @@ class MessageProcessor:
 
 class LLMClient:
     def __init__(self):
-        self.client = AsyncOpenAI(
-            base_url="https://api.together.xyz/v1",
-            api_key=llm_settings.llm_api_key.get_secret_value(),
-        )
         self.logger = logging.getLogger(__name__)
         self._processors: dict[int, MessageProcessor] = {}
 

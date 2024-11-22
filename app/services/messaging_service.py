@@ -5,10 +5,10 @@ from fastapi.responses import JSONResponse
 
 from app.database.models import (
     Message,
-    MessageRole,
     User,
     UserState,
 )
+from app.database.enums import MessageRole
 from app.utils.whatsapp_utils import (
     RequestType,
     ValidMessageType,
