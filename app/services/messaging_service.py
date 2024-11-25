@@ -4,11 +4,18 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.database.models import (
+    ClassInfo,
     Message,
     User,
     UserState,
 )
-from app.database.enums import MessageRole
+from app.database.enums import (
+    GradeLevel,
+    MessageRole,
+    OnboardingState,
+    Role,
+    SubjectNames,
+)
 from app.utils.whatsapp_utils import (
     RequestType,
     ValidMessageType,
@@ -96,9 +103,10 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             if not settings.business_env:
                 logger.debug("Business environment is False")
                 logger.debug("Adding dummy data for new user")
-                return await state_client.handle_new_dummy(user)
+                return await handle_new_dummy(user)
             return await state_client.handle_onboarding(user)
         case UserState.active:
+            # TODO: create a handle_active method in the state_client instead
             message_type = get_valid_message_type(message_info)
             match message_type:
                 case ValidMessageType.SETTINGS_FLOW_SELECTION:
@@ -170,3 +178,49 @@ async def handle_chat_message(user: User, user_message: Message) -> JSONResponse
         content={"status": "ok"},
         status_code=200,
     )
+
+
+async def handle_new_dummy(user: User) -> JSONResponse:
+    try:
+        # Update the user object with dummy data
+        user.state = UserState.active
+        user.onboarding_state = OnboardingState.completed
+        user.role = Role.teacher
+        user.class_info = ClassInfo(
+            subjects={
+                SubjectNames.geography: [
+                    GradeLevel.os2
+                ]  # Using GradeLevel.os2 for Secondary Form 2
+            }
+        ).model_dump()
+
+        # Read the class IDs from the class info
+        class_ids = await db.get_class_ids_from_class_info(user.class_info)
+
+        # Update user and create teachers_classes entries
+        user = await db.update_user(user)
+        await db.assign_teacher_to_classes(user, class_ids)
+
+        # Send a welcome message to the user
+        response_text = strings.get_string(
+            StringCategory.ONBOARDING, "onboarding_override"
+        )
+        await whatsapp_client.send_message(user.wa_id, response_text)
+        await db.create_new_message(
+            Message(
+                user_id=user.id,
+                role=MessageRole.assistant,
+                content=response_text,
+            )
+        )
+        logger.warning(f"Dummy {user.wa_id} created with the data: {user}")
+        return JSONResponse(
+            content={"status": "ok"},
+            status_code=200,
+        )
+    except Exception as e:
+        logger.error(f"Error while handling new dummy user: {e}")
+        return JSONResponse(
+            content={"status": "error"},
+            status_code=500,
+        )
