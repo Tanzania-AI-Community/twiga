@@ -1,7 +1,6 @@
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import and_, select, or_, delete, insert
 import logging
 
 from app.database.models import (
@@ -46,8 +45,9 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             )
             session.add(new_user)
             await session.flush()  # Get the ID without committing
+            await session.commit()
             await session.refresh(new_user)
-            logger.info(f"Created new user with wa_id: {wa_id}")
+            logger.debug(f"Created new user with wa_id: {wa_id}")
             return new_user
         except Exception as e:
             logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
@@ -65,70 +65,18 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
             raise Exception(f"Failed to query user: {str(e)}")
 
 
-async def add_teacher_class(user: User, class_ids: List[int]) -> None:
-    """
-    Add a teacher-class to the teachers_classes table and update user's class_info
-
-    Args:
-        user: User object for the teacher
-        class_ids: List of class IDs to add for the teacher
-
-    Returns:
-        None
-    """
-    async with get_session() as session:
-        try:
-            for class_id in class_ids:
-                statement = select(TeacherClass).where(
-                    TeacherClass.teacher_id == user.id,
-                    TeacherClass.class_id == class_id,
-                )
-                result = await session.execute(statement)
-                teacher_class = result.scalar_one_or_none()
-                # Add teacher-class relationship if it doesn't exist
-                if not teacher_class:
-                    teacher_class = TeacherClass(teacher_id=user.id, class_id=class_id)
-                    session.add(teacher_class)
-            await session.commit()
-            logger.info(f"Added classes {class_ids} for user {user.id}")
-        except Exception as e:
-            logger.error(f"Failed to add teacher class: {str(e)}")
-            raise Exception(f"Failed to add teacher class: {str(e)}")
-
-
 async def update_user(user: User) -> User:
     """
     Update any information about an existing user and return the updated user.
-
-    Args:
-        user (User): User object with updated information
-
-    Returns:
-        User: Updated user object
-
     """
-    if user is None:
-        logger.error("Cannot update user: user object is None")
-        raise Exception("Cannot update user: user object is None")
-
-    # Ensure birthday is a date object
-    if isinstance(user.birthday, str):
-        try:
-            user.birthday = datetime.strptime(user.birthday, "%Y-%m-%d").date()
-        except ValueError:
-            logger.error(f"Invalid date format for birthday: {user.birthday}")
-            raise Exception(f"Invalid date format for birthday: {user.birthday}")
-
     async with get_session() as session:
         try:
             # Add user to session and refresh to ensure we have latest data
             session.add(user)
             await session.commit()
             await session.refresh(user)
-
-            logger.info(f"Updated user {user.wa_id}")
+            logger.debug(f"Updated user {user.wa_id}: {user}")
             return user
-
         except Exception as e:
             logger.error(f"Failed to update user {user.wa_id}: {str(e)}")
             raise Exception(f"Failed to update user: {str(e)}")
@@ -383,58 +331,38 @@ async def generate_class_info(user: User) -> Dict[str, List[str]]:
             raise Exception(f"Failed to generate class info: {str(e)}")
 
 
-# async def add_default_subjects_and_classes() -> None:
-#     """
-#     Add a default subject called Geography with ID 1 and a class called Secondary Form 2 with ID 1.
-#     """
-#     async with get_session() as session:
-#         try:
-#             # Check if the default subject already exists with the correct ID and name
-#             statement = select(Subject).where(Subject.id == 1)
-#             result = await session.execute(statement)
-#             subject = result.scalar_one_or_none()
+async def get_class_ids_from_class_info(
+    class_info: Dict[str, List[str]]
+) -> Optional[List[int]]:
+    """
+    Get class IDs from a class_info dictionary structure in a single query
 
-#             if subject and subject.name != SubjectNames.geography.value:
-#                 # Delete the existing subject with the incorrect name
-#                 logger.info(f"Deleting existing subject with ID 1: {subject.name}")
-#                 await session.delete(subject)
-#                 await session.commit()
-#                 subject = None
+    Args:
+        class_info: Dictionary mapping subject names to lists of grade levels
+        Example: {"geography": ["os2"], "mathematics": ["os1", "os2"]}
 
-#             if not subject:
-#                 # Add the default subject
-#                 default_subject = Subject(id=1, name=SubjectNames.geography.value)
-#                 session.add(default_subject)
-#                 await session.commit()
-#                 logger.info(f"Added default subject: {SubjectNames.geography.value}")
+    Returns:
+        List of class IDs matching the subject-grade combinations
+    """
+    async with get_session() as session:
+        # Build OR conditions for each subject and its grade levels
+        conditions = [
+            and_(Subject.name == subject_name, Class.grade_level.in_(grade_levels))
+            for subject_name, grade_levels in class_info.items()
+        ]
 
-#             # Check if the default class already exists with the correct ID and grade level
-#             statement = select(Class).where(Class.id == 1)
-#             result = await session.execute(statement)
-#             class_ = result.scalar_one_or_none()
+        query = (
+            select(Class.id)
+            .join(Subject, Class.subject_id == Subject.id)
+            .where(or_(*conditions), Class.status == SubjectClassStatus.active)
+        )
 
-#             if class_ and class_.grade_level != GradeLevel.os2:
-#                 # Delete the existing class with the incorrect grade level
-#                 await session.delete(class_)
-#                 await session.commit()
-#                 class_ = None
+        result = await session.execute(query)
+        if not result:
+            logger.warning(f"No classes found for class info: {class_info}")
+            return None
 
-#             if not class_:
-#                 # Add the default class
-#                 default_class = Class(
-#                     id=1,
-#                     name="Secondary Form 2",
-#                     subject_id=1,
-#                     grade_level=GradeLevel.os2,
-#                     status=SubjectClassStatus.active,
-#                 )
-#                 session.add(default_class)
-#                 await session.commit()
-#                 logger.info("Added default class: Secondary Form 2")
-
-#         except Exception as e:
-#             logger.error(f"Failed to add default subjects and classes: {str(e)}")
-#             raise Exception(f"Failed to add default subjects and classes: {str(e)}")
+        return [row[0] for row in result]
 
 
 async def update_user_selected_classes(
@@ -522,3 +450,54 @@ async def update_user_selected_classes(
         except Exception as e:
             logger.error(f"Failed to update user subject classes: {str(e)}")
             raise Exception(f"Failed to update user subject classes: {str(e)}")
+
+
+async def assign_teacher_to_classes(user: User, class_ids: List[int]):
+    """
+    Assign a teacher to a list of classes by creating teacher-class relationships
+    """
+    async with get_session() as session:
+        try:
+            # Delete existing relationships
+            await session.execute(
+                delete(TeacherClass).where(TeacherClass.teacher_id == user.id)
+            )
+
+            # Bulk insert new relationships
+            if class_ids:
+                values = [
+                    {"teacher_id": user.id, "class_id": class_id}
+                    for class_id in class_ids
+                ]
+                await session.execute(insert(TeacherClass), values)
+            else:
+                logger.warning(f"No classes to assign for teacher {user.wa_id}")
+
+        except Exception as e:
+            logger.error(
+                f"Failed to assign teacher {user.wa_id} to classes {class_ids}: {str(e)}"
+            )
+            raise Exception(f"Failed to assign teacher to classes: {str(e)}")
+
+
+async def add_teacher_class(user: User, class_ids: List[int]) -> None:
+    """
+    Add a teacher-class to the teachers_classes table
+    """
+    async with get_session() as session:
+        try:
+            for class_id in class_ids:
+                statement = select(TeacherClass).where(
+                    TeacherClass.teacher_id == user.id,
+                    TeacherClass.class_id == class_id,
+                )
+                result = await session.execute(statement)
+                teacher_class = result.scalar_one_or_none()
+                # Add teacher-class relationship if it doesn't exist
+                if not teacher_class:
+                    teacher_class = TeacherClass(teacher_id=user.id, class_id=class_id)
+                    session.add(teacher_class)
+            logger.debug(f"Added classes {class_ids} for user {user.id}")
+        except Exception as e:
+            logger.error(f"Failed to add teacher class: {str(e)}")
+            raise Exception(f"Failed to add teacher class: {str(e)}")
