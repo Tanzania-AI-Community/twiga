@@ -1,9 +1,10 @@
 import logging
 from typing import List, Optional
 from app.database.db import vector_search
-from app.database.models import Chunk, ChunkType, Resource, User
+from app.database.models import Chunk, Resource, User
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
+from app.database.enums import ChunkType
 
 logger = logging.getLogger(__name__)
 

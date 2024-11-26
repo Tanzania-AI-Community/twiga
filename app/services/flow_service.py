@@ -1,38 +1,48 @@
+from datetime import datetime
+from typing import List
+from dateutil.relativedelta import relativedelta
 import logging
+from fastapi import BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
+from app.utils.background_tasks_utils import add_background_task
 from app.utils.flows_util import (
+    create_flow_response_payload,
+    create_subject_class_payload,
     decrypt_flow_webhook,
     decrypt_flow_token,
     encrypt_flow_token,
+    get_flow_text,
+    handle_token_validation,
+    send_whatsapp_flow_message,
+    validate_user,
 )
-from app.database.db import get_user_by_waid, update_user
+from app.database.db import (
+    get_subject_and_classes,
+    update_user,
+    get_available_subjects,
+    update_user_selected_classes,
+)
 from app.database.models import User
 from app.services.whatsapp_service import whatsapp_client
-from app.utils.string_manager import strings, StringCategory
 from app.config import settings
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import base64
 import json
-import httpx
 
 logger = logging.getLogger(__name__)
-
-# Example config file for subjects and classes
-SUBJECTS_CONFIG = {
-    "Mathematics": ["Math 1", "Class 2", "Class 3"],
-    "Geography": ["Class 1", "Geo 2", "Class 3"],
-    "History": ["Class 1", "Class 2", "His 3"],
-}
 
 
 class FlowService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    async def handle_flow_webhook(self, body: dict) -> PlainTextResponse:
+    async def handle_flow_webhook(
+        self, body: dict, background_tasks: BackgroundTasks
+    ) -> PlainTextResponse:
         try:
             decrypted_data = decrypt_flow_webhook(body)
+            self.logger.info(f"Decrypted data: {decrypted_data}")
             decrypted_payload = decrypted_data["decrypted_payload"]
             aes_key = decrypted_data["aes_key"]
             initial_vector = decrypted_data["initial_vector"]
@@ -71,21 +81,149 @@ class FlowService:
             )
 
         handler = self.get_action_handler(action, flow_id)
-        return await handler(decrypted_payload, aes_key, initial_vector)
+        # Check if the action is a data exchange action and handle accordingly
+        if action in ["data_exchange", "INIT"]:
+            if action == "data_exchange":
+                return await handler(
+                    decrypted_payload, aes_key, initial_vector, background_tasks
+                )
+            else:
+                return await handler(decrypted_payload, aes_key, initial_vector)
+        else:
+            return await handler(decrypted_payload, aes_key, initial_vector)
 
     def get_action_handler(self, action: str, flow_id: str):
-        if flow_id == settings.subject_class_info_flow_id:
+        if flow_id == settings.onboarding_flow_id:
             return {
                 "ping": self.handle_health_check,
-                "INIT": self.handle_subject_class_info_init_action,
-                "data_exchange": self.handle_subject_class_info_data_exchange_action,
+                "INIT": self.handle_onboarding_init_action,
+                "data_exchange": self.handle_onboarding_data_exchange_action,
             }.get(action, self.handle_unknown_action)
-        else:
+
+        if flow_id == settings.select_subjects_flow_id:
             return {
                 "ping": self.handle_health_check,
-                "INIT": self.handle_personal_and_school_info_flow_init_action,
-                "data_exchange": self.handle_personal_and_school_info_flow_data_exchange_action,
+                "INIT": self.handle_select_subjects_init_action,
+                "data_exchange": self.handle_subject_data_exchange_action,
             }.get(action, self.handle_unknown_action)
+
+        if flow_id == settings.select_classes_flow_id:
+            return {
+                "ping": self.handle_health_check,
+                "INIT": self.handle_select_classes_init_action,
+                "data_exchange": self.handle_classes_data_exchange_action,
+            }.get(action, self.handle_unknown_action)
+
+    async def handle_select_classes_init_action(
+        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+    ) -> PlainTextResponse:
+        try:
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, _ = handle_token_validation(self.logger, encrypted_flow_token)
+            await validate_user(self.logger, wa_id)
+
+            subject_id = 1  # Hardcoded subject_id as 1, because init action is only used when testing
+            subject_data = await get_subject_and_classes(subject_id)
+            subject_title = subject_data["subject_name"]
+            classes = subject_data["classes"]
+            logger.debug(f"Subject title for subject ID {subject_id}: {subject_title}")
+            logger.debug(f"Available classes for subject ID {subject_id}: {classes}")
+
+            select_class_question_text = (
+                f"Select the class you are in for {subject_title}."
+            )
+            select_class_text = f"This helps us find the best answers for your questions in {subject_title}."
+            no_classes_text = (
+                f"Sorry, currently there are no active classes for {subject_title}."
+            )
+            has_classes = len(classes) > 0
+
+            response_payload = create_flow_response_payload(
+                screen="select_classes",
+                data={
+                    "classes": (
+                        classes
+                        if has_classes
+                        else [
+                            {
+                                "id": "0",
+                                "title": "No classes available",
+                            }
+                        ]
+                    ),
+                    "has_classes": has_classes,
+                    "no_classes_text": no_classes_text,
+                    "select_class_text": select_class_text,
+                    "select_class_question_text": select_class_question_text,
+                    "subject_id": str(subject_id),
+                },
+            )
+
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
+            return JSONResponse(
+                content={"error_msg": str(e)},
+                status_code=422,
+            )
+
+    async def handle_classes_data_exchange_action(
+        self,
+        decrypted_payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        try:
+            self.logger.info("Handling classes data exchange action", decrypted_payload)
+            data = decrypted_payload.get("data", {})
+            selected_classes = data.get("selected_classes", [])
+            subject_id = data.get("subject_id")
+            self.logger.info("Selected classes: %s", selected_classes)
+            self.logger.info("Subject ID: %s", subject_id)
+
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            if not selected_classes:
+                self.logger.error("No classes selected")
+                return JSONResponse(
+                    content={"error_msg": "No classes selected"}, status_code=422
+                )
+
+            # Convert selected classes to integers
+            selected_classes_formatted = [
+                int(class_id) for class_id in selected_classes
+            ]
+
+            # Send message to user
+            responseText = "Thanks for submitting your class information, let me process that for you."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            # Add background task
+            self.logger.info("Creating background task for classes data update")
+            add_background_task(
+                background_tasks,
+                self.update_user_classes_data_background,
+                user,
+                selected_classes_formatted,
+                int(subject_id),
+            )
+
+            response_payload = create_flow_response_payload(
+                screen="SUCCESS", data={}, flow_token=encrypted_flow_token
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
     async def handle_unknown_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -96,322 +234,244 @@ class FlowService:
         response_payload = {"unknown": "event"}
         return await self.process_response(response_payload, aes_key, initial_vector)
 
-    async def handle_personal_and_school_info_flow_init_action(
+    async def handle_onboarding_init_action(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
         try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
 
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
-            )
-
-        response_payload = {
-            "screen": "personal_info",
-            "data": {"full_name": user.get("name", "Your Name")},
-        }
-        return await self.process_response(response_payload, aes_key, initial_vector)
-
-    async def handle_subject_class_info_init_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
-    ) -> PlainTextResponse:
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
-        try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
-
-        # Get available subjects from the config
-        subjects = [
-            {"id": str(i + 1), "title": subject}
-            for i, subject in enumerate(SUBJECTS_CONFIG.keys())
-        ]
-
-        response_payload = {
-            "screen": "select_subject",
-            "data": {
-                "subjects": subjects,
-                "selected_classes_text": "Please select a subject to proceed",
-                "select_class_text": "Please select a class to proceed",
-            },
-        }
-        return await self.process_response(response_payload, aes_key, initial_vector)
-
-    async def handle_personal_and_school_info_flow_data_exchange_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
-    ) -> PlainTextResponse:
-        self.logger.info(
-            "Handling data exchange action, with data: %s", decrypted_payload
-        )
-
-        data = decrypted_payload.get("data", {})
-        full_name = data.get("personal_info_full_name")
-        birthday = data.get("personal_info_birthday")
-        location = data.get("personal_info_location")
-        school_name = data.get(
-            "school_info_personal_birthday"
-        )  # should be school_info_school_name, we need to update the published flow too
-        school_location = data.get("school_info_school_location")
-
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
-        try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-            self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
-
-        user = await get_user_by_waid(wa_id)
-        self.logger.info(f"User after get: {user}")
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
-            )
-
-        user.name = full_name if full_name else user.name
-        user.birthday = birthday
-        user.location = location
-        user.school_name = school_name
-        user.school_location = school_location
-        user.onboarding_state = "personal_info_submitted"
-
-        self.logger.info(f"Going to update user: {user}")
-        await update_user(user)
-        self.logger.info(f"User after update: {user}")
-
-        response_payload = {
-            "screen": "SUCCESS",
-            "data": {
-                "extension_message_response": {
-                    "params": {
-                        "flow_token": encrypted_flow_token,
-                    },
+            response_payload = create_flow_response_payload(
+                screen="personal_info",
+                data={
+                    "full_name": user.name,
                 },
-            },
-        }
-
-        response_text = strings.get_string(
-            StringCategory.ONBOARDING, "personal_info_submitted"
-        )
-        options = None
-
-        await whatsapp_client.send_message(user.wa_id, response_text, options)
-        # send class and subject info flow
-        await self.send_class_and_subject_info_flow(user.wa_id, user.name)
-
-        return await self.process_response(response_payload, aes_key, initial_vector)
-
-    async def handle_subject_class_info_data_exchange_action(
-        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
-    ) -> PlainTextResponse:
-        self.logger.info(
-            "Handling subject class info data exchange action", decrypted_payload
-        )
-
-        data = decrypted_payload.get("data", {})
-        self.logger.info("Data from payload : %s", data)
-        subject_id = data.get("subject_id")
-        class_ids = data.get("class_ids", [])
-        type = data.get("type")
-
-        self.logger.info("Type is: , %s", type)
-
-        encrypted_flow_token = decrypted_payload.get("flow_token")
-        if not encrypted_flow_token:
-            self.logger.error("Missing flow token")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
-            )
-        try:
-            wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-            self.logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
-        except Exception as e:
-            self.logger.error(f"Error decrypting flow token: {e}")
-            return JSONResponse(
-                content={"error_msg": "Your request has expired please start again"},
-                status_code=422,
             )
 
-        user = await get_user_by_waid(wa_id)
-        if not user:
-            self.logger.error(f"User data not found for wa_id {wa_id}")
-            return JSONResponse(
-                content={"error_msg": "User data not found"}, status_code=422
-            )
-
-        classes = SUBJECTS_CONFIG[list(SUBJECTS_CONFIG.keys())[0]]
-
-        classes_data = [
-            {"id": str(i + 1), "title": cls} for i, cls in enumerate(classes)
-        ]
-
-        if type == "subject_selected":
-            self.logger.info(f"Subject selected Action in exchange: {subject_id}")
-            # make sure we have a valid subject id
-            if not subject_id:
-                self.logger.error("Missing subject id")
-                # Get available subjects from the config
-                subjects = [
-                    {"id": str(i + 1), "title": subject}
-                    for i, subject in enumerate(SUBJECTS_CONFIG.keys())
-                ]
-                response_payload = {
-                    "screen": "select_subject",
-                    "data": {
-                        "subjects": subjects,
-                        "selected_classes_text": "Please select a subject to proceed",
-                        "select_class_text": "Please select a class to proceed",
-                        "classes": classes_data,
-                    },
-                }
-
-            # Get Subject Classes
-            subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
-            subject_classes = SUBJECTS_CONFIG[subject_name]
-
-            # TODO Get the classes the user has selected for the subject (or for all subjects), then pass it to the
-            # user_selected_classes = []
-            # for now we will use the classes from the config
-            user_selected_classes = subject_classes
-
-            response_payload = {
-                "screen": "select_subject",
-                "subject_id": subject_id,
-                "data": {
-                    "data-" "selected_subject": subject_id,
-                    "selected_subject_name": subject_name,
-                    "selected_classes_text": f"Selected classes for {subject_name} are: {', '.join(user_selected_classes)}",
-                    "classes": classes_data,
-                },
-            }
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )
 
-        if type == "selected_classes":
-            self.logger.info(f"Class selected Action in exchange: {class_ids}")
-            # make sure we have a valid class id
-            if not class_ids:
-                self.logger.error("Missing class id")
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
+
+    async def handle_select_subjects_init_action(
+        self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
+    ) -> PlainTextResponse:
+        try:
+            # Use helper function for token validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+
+            # Get available subjects from the database
+            subjects = await get_available_subjects()
+            logger.debug(f"Available subjects: {subjects}")
+
+            select_subject_text = (
+                "This helps us find the best answers for your questions."
+            )
+            no_subjects_text = "Sorry, currently there are no active subjects."
+            has_subjects = len(subjects) > 0
+
+            response_payload = create_flow_response_payload(
+                screen="select_subjects",
+                data={
+                    "subjects": (
+                        subjects
+                        if has_subjects
+                        else [{"id": "0", "title": "No subjects available"}]
+                    ),  # doing this because the response in whatsapp flows expects a list of subjects with id and title
+                    "has_subjects": has_subjects,
+                    "no_subjects_text": no_subjects_text,
+                    "select_subject_text": select_subject_text,
+                },
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
+
+    async def handle_onboarding_data_exchange_action(
+        self,
+        decrypted_payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        try:
+            self.logger.debug(
+                "Handling data exchange action, with data: %s", decrypted_payload
+            )
+            data = decrypted_payload.get("data", {})
+            is_updating = data.get("is_updating", False)
+            logger.debug(f"Is updating: {is_updating}")
+
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            # Add the database update task to the background tasks
+            self.logger.info("Creating background task for onboarding data update")
+            add_background_task(
+                background_tasks,
+                self.update_onboarding_data_background,
+                user,
+                data,
+                is_updating,
+            )
+
+            response_payload = create_flow_response_payload(
+                screen="SUCCESS",
+                data={},  # Empty data since SUCCESS screen handles its own structure
+                flow_token=encrypted_flow_token,
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
+
+    async def handle_subject_data_exchange_action(
+        self,
+        decrypted_payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        try:
+            self.logger.info(
+                "Handling subject class info data exchange action", decrypted_payload
+            )
+            data = decrypted_payload.get("data", {})
+            # self.logger.info("Data from payload : %s", data)
+            selected_subjects = data.get("selected_subjects", [])
+            self.logger.info("Selected subjects: %s", selected_subjects)
+
+            # Use helper functions for token and user validation
+            encrypted_flow_token = decrypted_payload.get("flow_token")
+            wa_id, flow_id = handle_token_validation(self.logger, encrypted_flow_token)
+            user = await validate_user(self.logger, wa_id)
+
+            if not selected_subjects:
+                self.logger.error("No subjects selected")
                 return JSONResponse(
-                    content={"error_msg": "Missing class id"}, status_code=422
+                    content={"error_msg": "No subjects selected"}, status_code=422
                 )
 
-            # Get Subject Classes
-            subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
-            subject_classes = SUBJECTS_CONFIG[subject_name]
+            # Add the database update task to the background tasks
+            self.logger.info("Creating background task for subject data update")
+            add_background_task(
+                background_tasks,
+                self.update_subject_data_background,
+                user,
+                selected_subjects,
+            )
 
-            # TODO Get the classes the user has selected for the subject (or for all subjects), then pass it to the
-            # user_selected_classes = []
-            # for now we will use the all classes from the config
-            user_selected_classes = subject_classes
+            self.logger.info("CREATED BACKGROUND TASK FOR SUBJECT DATA UPDATE")
 
-            response_payload = {
-                "screen": "select_subject",
-                "subject_id": subject_id,
-                "data": {
-                    "selected_subject": subject_id,
-                    "selected_subject_name": subject_name,
-                    "selected_classes_text": f"Selected classes for {subject_name} are: {', '.join(user_selected_classes)}",
-                    "classes": classes_data,
-                },
-            }
+            response_payload = create_flow_response_payload(
+                screen="SUCCESS", data={}, flow_token=encrypted_flow_token
+            )
+
+            self.logger.info(
+                f"SENDING RESPONSE PAYLOAD FOR SUBJECT DATA UPDATE: {response_payload}"
+            )
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )
 
-        if type == "selecting_classes":
-            # Get the subject name from the subject ID
-            subject_name = list(SUBJECTS_CONFIG.keys())[int(subject_id) - 1]
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
 
-            # Get the classes for the selected subject
-            classes = SUBJECTS_CONFIG[subject_name]
-            classes_data = [
-                {"id": str(i + 1), "title": cls} for i, cls in enumerate(classes)
-            ]
-
-            response_payload = {
-                "screen": "select_classes",
-                "data": {
-                    "classes": classes_data,
-                    "selected_subject_name": subject_name,
-                    "selected_subject": subject_id,
-                    "selected_classes_info": f"Select the classes you teach for {subject_name} subject",
-                },
-            }
-            return await self.process_response(
-                response_payload, aes_key, initial_vector
+    async def update_onboarding_data_background(
+        self, user: User, data: dict, is_updating: bool
+    ):
+        try:
+            full_name = (
+                data.get("update_full_name") if is_updating else data.get("full_name")
             )
-
-        if type == "completed":
-            self.logger.info("Flow completed")
-            response_payload = {
-                "screen": "SUCCESS",
-                "data": {
-                    "extension_message_response": {
-                        "params": {
-                            "flow_token": encrypted_flow_token,
-                        },
-                    },
-                },
-            }
-
-            user = User(wa_id=wa_id, onboarding_state="completed", state="active")
-
+            birthday = (
+                data.get("update_birthday") if is_updating else data.get("birthday")
+            )
+            region = data.get("update_region") if is_updating else data.get("region")
+            school_name = (
+                data.get("update_school_name")
+                if is_updating
+                else data.get("school_name")
+            )
+            user.name = full_name or user.name
+            user.birthday = birthday
+            user.region = region
+            user.school_name = school_name
+            user.onboarding_state = "personal_info_submitted"
             await update_user(user)
+            self.logger.info(f"User after update: {user}")
 
-            response_text = strings.get_template(
-                StringCategory.ONBOARDING, "completed", user_name=user.name
-            )
-            options = None
+            # send message to user saying that the personal info has been submitted
+            responseText = "Thanks for submitting your personal information. Let's continue with your class and subject information so as to complete your onboarding."
+            if is_updating:
+                responseText = "Your personal information has been updated successfully. To update your settings again please type 'Settings'. How can I help you today?"
 
-            await whatsapp_client.send_message(user.wa_id, response_text, options)
-            return await self.process_response(
-                response_payload, aes_key, initial_vector
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            # send select subject flow
+            if not is_updating:
+                await self.send_select_subject_flow(user)
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update onboarding data: {str(e)}")
+
+    async def update_subject_data_background(
+        self, user: User, selected_subjects: List[str], is_updating: bool = False
+    ):
+        try:
+            selected_subject_ids = [int(id_str) for id_str in selected_subjects]
+
+            # send message to user saying that the subject info has been submitted
+            responseText = "Thanks for submitting your subject information. Let's continue with your class information for each subject."
+            if (
+                is_updating
+            ):  # TODO update the flow to also send is_updating on payload so we can use it here to send a different message
+                responseText = "Thank you for updating your subject information. Let's also update your class information for each subject."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+            for subject_id in selected_subject_ids:
+                await self.send_select_classes_flow(user, subject_id)
+            self.logger.info(f"User after update: {user}")
+
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update subject data: {str(e)}")
+
+    async def update_user_classes_data_background(
+        self, user: User, selected_classes: List[int], subject_id: int
+    ):
+        try:
+            # Update user classes in the database
+            user = await update_user_selected_classes(
+                user, selected_classes, subject_id
             )
 
-        else:
-            return JSONResponse(
-                content={"status": "error", "message": "Invalid type provided"},
-                status_code=400,
+            self.logger.info(
+                f"FINAL User after update: {user}, Selected classes: {selected_classes}"
             )
+
+            # send message to user saying that the class info has been submitted
+            responseText = "Thanks for submitting your subject and classes information. How can I help you today?"
+            await whatsapp_client.send_message(user.wa_id, responseText)
+
+        except Exception as e:
+            responseText = "An error occurred during the onboarding process. Please try again later."
+            await whatsapp_client.send_message(user.wa_id, responseText)
+            self.logger.error(f"Failed to update user subject classes: {str(e)}")
 
     async def handle_health_check(
         self, decrypted_payload: dict, aes_key: bytes, initial_vector: str
@@ -455,145 +515,157 @@ class FlowService:
             return PlainTextResponse(content="Encryption failed", status_code=500)
 
     async def send_personal_and_school_info_flow(
-        self, wa_id: str, name: str, is_update: bool = False
+        self, user: User, is_update: bool = False
     ) -> None:
-        flow_token = encrypt_flow_token(
-            wa_id, settings.personal_and_school_info_flow_id
+        encrypt_flow_token(user.wa_id, settings.onboarding_flow_id)
+        header_text = get_flow_text(
+            is_update,
+            "Update your personal and school information 📝",
+            "Start onboarding to Twiga 🦒",
         )
-        header_text = (
-            "Update your personal and school information 📝"
-            if is_update
-            else "Start onboarding to Twiga 🦒"
-        )
-        body_text = (
-            "Let's update your personal and school information."
-            if is_update
-            else "Welcome to Twiga! Let's get started with your onboarding process."
+        body_text = get_flow_text(
+            is_update,
+            "Let's update your personal and school information.",
+            "Welcome to Twiga!, Looks like you are new here. Let's get started with your onboarding process.",
         )
 
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": wa_id,
-            "recipient_type": "individual",
-            "type": "interactive",
-            "interactive": {
-                "type": "flow",
-                "header": {
-                    "type": "text",
-                    "text": header_text,
-                },
-                "body": {
-                    "text": body_text,
-                },
-                "footer": {
-                    "text": "Please follow the instructions.",
-                },
-                "action": {
-                    "name": "flow",
-                    "parameters": {
-                        "flow_message_version": "3",
-                        "flow_action": "navigate",
-                        "flow_token": flow_token,
-                        "flow_id": settings.personal_and_school_info_flow_id,
-                        "flow_cta": (
-                            "Update Information" if is_update else "Start Onboarding"
-                        ),
-                        "mode": "published",
-                        "flow_action_payload": {
-                            "screen": "personal_info",
-                            "data": {"full_name": name},
-                        },
-                    },
-                },
-            },
+        logger.debug(f"Sending personal and school info flow to {user}")
+
+        data = {
+            "full_name": user.name if user.name else "User name",
+            "min_date": "1900-01-01",
+            "max_date": (datetime.now() - relativedelta(years=18)).strftime("%Y-%m-%d"),
+            "is_updating": is_update,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-                },
-                json=payload,
-            )
-            self.logger.info(
-                f"WhatsApp API response: {response.status_code} - {response.text}"
+
+        if is_update:
+            data.update(
+                {
+                    "region": user.region,
+                    "birthday": user.birthday.strftime("%Y-%m-%d"),
+                    "school_name": user.school_name,
+                    "is_updating": is_update,
+                }
             )
 
-    async def send_class_and_subject_info_flow(self, wa_id: str, name: str) -> None:
-        flow_token = encrypt_flow_token(wa_id, settings.subject_class_info_flow_id)
+        logger.debug(f"Screen Data for send_personal_and_school_info_flow: {data}")
 
-        # Get available subjects from the config
-        subjects = [
-            {"id": str(i + 1), "title": subject}
-            for i, subject in enumerate(SUBJECTS_CONFIG.keys())
-        ]
-
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": wa_id,
-            "recipient_type": "individual",
-            "type": "interactive",
-            "interactive": {
-                "type": "flow",
-                "header": {
-                    "type": "text",
-                    "text": "Start class and subject selection 📝",
-                },
-                "body": {
-                    "text": "Congratulations! You have completed the first step of onboarding. Let's proceed with selecting your classes and subjects.",
-                },
-                "footer": {
-                    "text": "Please follow the instructions.",
-                },
-                "action": {
-                    "name": "flow",
-                    "parameters": {
-                        "flow_message_version": "3",
-                        "flow_action": "navigate",
-                        "flow_token": flow_token,
-                        "flow_id": settings.subject_class_info_flow_id,
-                        "flow_cta": "Start Selection",
-                        "mode": "published",
-                        "flow_action_payload": {
-                            "screen": "select_subject",
-                            "data": {
-                                "subjects": subjects,
-                                "selected_classes_text": "Please select a subject to proceed",
-                                "select_class_text": "Please select a class to proceed",
-                            },
-                        },
-                    },
-                },
+        await send_whatsapp_flow_message(
+            user=user,
+            flow_id=settings.onboarding_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+            action_payload={
+                "screen": "personal_info",
+                "data": data,
             },
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-                },
-                json=payload,
-            )
-            self.logger.info(
-                f"WhatsApp API response: {response.status_code} - {response.text}"
-            )
+            flow_cta="Update Information" if is_update else "Start Onboarding",
+        )
 
-    async def send_update_personal_and_school_info_flow(
-        self, user: User
-    ) -> JSONResponse:
-        try:
-            return await self.send_personal_and_school_info_flow(
-                user.wa_id, user.name, is_update=True
-            )
+    async def send_select_subject_flow(
+        self, user: User, is_update: bool = False
+    ) -> None:
+        encrypt_flow_token(user.wa_id, settings.select_subjects_flow_id)
+        logger.debug(f"Sending select subject flow to {user}")
 
-        except Exception as e:
-            logger.error(f"Error updating personal info: {e}")
-            return JSONResponse(
-                content={"status": "error", "message": "Internal server error"},
-                status_code=500,
-            )
+        # Get available subjects from the database
+        subjects = await get_available_subjects()
+
+        logger.debug(f"Available subjects: {subjects}")
+
+        select_subject_text = "This helps us find the best answers for your questions."
+        no_subjects_text = "Sorry, currently there are no active subjects."
+        has_subjects = len(subjects) > 0
+
+        header_text = get_flow_text(
+            is_update,
+            "Update your class and subject selection 📝",
+            "Start class and subject selection 📝",
+        )
+        body_text = get_flow_text(
+            is_update,
+            "Let's update your class and subject selection.",
+            "Congratulations! You have completed the first step of onboarding. Let's proceed with selecting your classes and subjects.",
+        )
+
+        response_payload = create_flow_response_payload(
+            screen="select_subjects",
+            data={
+                "subjects": (
+                    subjects
+                    if has_subjects
+                    else [{"id": "0", "title": "No subjects available"}]
+                ),  # doing this because the response in whatsapp flows expects a list of subjects with id and title
+                "has_subjects": has_subjects,
+                "no_subjects_text": no_subjects_text,
+                "select_subject_text": select_subject_text,
+            },
+        )
+
+        await send_whatsapp_flow_message(
+            user=user,
+            flow_id=settings.select_subjects_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+            action_payload=response_payload,
+            flow_cta=(
+                "Update subjects selection" if is_update else "Start subjects selection"
+            ),
+        )
+
+    async def send_select_classes_flow(
+        self, user: User, subject_id: int, is_update: bool = False
+    ) -> None:
+        encrypt_flow_token(user.wa_id, settings.select_classes_flow_id)
+        logger.debug(
+            f"Sending select classes flow to {user} for subject ID {subject_id}"
+        )
+
+        # Get the subject title and classes for the given subject_id from the database
+        subject_data = await get_subject_and_classes(subject_id)
+        subject_title = subject_data["subject_name"]
+        classes = subject_data["classes"]
+        logger.debug(f"Subject title for subject ID {subject_id}: {subject_title}")
+        logger.debug(f"Available classes for subject ID {subject_id}: {classes}")
+
+        # select_class_question_text = f"Select the class you are in for {subject_title}."
+        # select_class_text = f"This helps us find the best answers for your questions in {subject_title}."
+        # no_classes_text = (
+        #     f"Sorry, currently there are no active classes for {subject_title}."
+        # )
+        # has_classes = len(classes) > 0
+
+        header_text = get_flow_text(
+            is_update,
+            f"Update your class selection for {subject_title} 📝",
+            f"Start class selection for {subject_title} 📝",
+        )
+        body_text = get_flow_text(
+            is_update,
+            f"Let's select your class selection for {subject_title}.",
+            f"Let's proceed with updating your classes for {subject_title}.",
+        )
+
+        response_payload = create_flow_response_payload(
+            screen="select_classes",
+            data=create_subject_class_payload(
+                subject_title=subject_title,
+                classes=classes,
+                is_update=is_update,
+                subject_id=str(subject_id),
+            ),
+        )
+
+        await send_whatsapp_flow_message(
+            user=user,
+            flow_id=settings.select_classes_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+            action_payload=response_payload,
+            flow_cta=(
+                "Update classes selection" if is_update else "Start classes selection"
+            ),
+        )
 
 
 flow_client = FlowService()

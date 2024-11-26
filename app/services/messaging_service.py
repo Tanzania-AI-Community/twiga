@@ -5,10 +5,10 @@ from fastapi.responses import JSONResponse
 
 from app.database.models import (
     Message,
-    MessageRole,
     User,
     UserState,
 )
+from app.database.enums import MessageRole
 from app.utils.whatsapp_utils import (
     RequestType,
     ValidMessageType,
@@ -85,14 +85,17 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
     match user.state:
         case UserState.blocked:
-            return await state_client.handle_blocked()
+            return await state_client.handle_blocked(user)
         case UserState.rate_limited:
-            return await state_client.handle_rate_limited()
+            return await state_client.handle_rate_limited(user)
         case UserState.onboarding:
             return await state_client.handle_onboarding(user)
         case UserState.new:
             # Dummy data for development environment if not using Flows
+            logger.debug("Handling new user")
             if not settings.business_env:
+                logger.debug("Business environment is False")
+                logger.debug("Adding dummy data for new user")
                 return await state_client.handle_new_dummy(user)
             return await state_client.handle_onboarding(user)
         case UserState.active:
@@ -112,10 +115,10 @@ async def handle_settings_selection(user: User, message: Message) -> JSONRespons
     logger.debug(f"Handling interactive message with title: {message.content}")
     if message.content == "Personal Info":
         logger.debug("Sending update personal and school info flow")
-        await flow_client.send_update_personal_and_school_info_flow(user)
-    elif message.content == "Class and Subject":
+        await flow_client.send_personal_and_school_info_flow(user, is_update=True)
+    elif message.content == "Classes and Subjects":
         logger.debug("Sending update class and subject info flow")
-        await flow_client.send_update_class_and_subject_info_flow(user)
+        await flow_client.send_select_subject_flow(user, is_update=True)
     else:
         raise Exception(f"Unrecognized user reply: {message.content}")
     return JSONResponse(

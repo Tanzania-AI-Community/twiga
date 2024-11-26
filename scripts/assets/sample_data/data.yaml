@@ -1,0 +1,22 @@
+geography_resource:
+  name: "Geography for Secondary Schools Student's Book Form Two"
+  type: "textbook"
+  authors:
+    - "Thaudensia Ndeskoi"
+    - "Innocent Rugambuka"
+    - "Matilda Sabayi"
+    - "Laurence Musatta"
+    - "Ernest Simon"
+    - "Aristarick Lekule"
+    - "Musa Mwalutanile"
+    - "Dorothy Makunda"
+  grade_levels: ["os2"]
+  subjects: ["geography"]
+
+geography_subject:
+  name: "Geography"
+
+geography_class:
+  grade_level: "os2"
+  status: "active"
+  name: "Geography Form Two"
