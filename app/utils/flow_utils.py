@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 import logging
 from app.database.db import get_user_by_waid
-from app.services.whatsapp_service import whatsapp_client
 
 import httpx
 from app.config import settings
@@ -96,27 +95,22 @@ def decrypt_flow_token(encrypted_flow_token: str) -> tuple:
 
     try:
         decrypted_data = fernet.decrypt(encrypted_flow_token.encode("utf-8"))
-        # logging.info(f"Decrypted data: {decrypted_data}")
         decrypted_str = decrypted_data.decode("utf-8")
         wa_id, flow_id = decrypted_str.split("_")
         return wa_id, flow_id
     except Exception as e:
-        logging.error(f"Decryption failed: {e}")
+        logger.error(f"Decryption failed: {e}")
         raise
 
 
 def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
     key = get_fernet_key()
-    # logging.info(f"Encryption Key: {key}")
     fernet = Fernet(key)
 
-    # log wa_id and flow_id
-    logging.info(f"going to encrypt wa_id: {wa_id} and flow_id: {flow_id}")
+    logger.debug(f"Encrypting wa_id: {wa_id} and flow_id: {flow_id}")
 
     data = f"{wa_id}_{flow_id}".encode("utf-8")
-    # logging.info(f"Data to encrypt: {data}")
     encrypted_data = fernet.encrypt(data)
-    # logging.info(f"Encrypted data: {encrypted_data}")
     return encrypted_data.decode("utf-8")
 
 
@@ -200,9 +194,7 @@ def create_flow_response_payload(
     }
 
 
-def handle_token_validation(
-    logger: logging.Logger, encrypted_flow_token: str
-) -> Tuple[str, str]:
+def handle_token_validation(encrypted_flow_token: str) -> Tuple[str, str]:
     """
     Validate and decrypt flow token
     Returns (wa_id, flow_id) or raises exception
@@ -220,7 +212,7 @@ def handle_token_validation(
         raise ValueError("Invalid flow token")
 
 
-async def validate_user(logger: logging.Logger, wa_id: str) -> User:
+async def validate_user(wa_id: str) -> User:
     """
     Validate and retrieve user
     """
@@ -236,16 +228,6 @@ def get_flow_text(is_update: bool, update_text: str, new_text: str) -> str:
     Get appropriate flow text based on update state
     """
     return update_text if is_update else new_text
-
-
-async def handle_error_response(
-    wa_id: str, error_message: str, logger: logging.Logger
-) -> None:
-    """
-    Handle error responses consistently
-    """
-    await whatsapp_client.send_message(wa_id, error_message)
-    logger.error(error_message)
 
 
 def create_subject_class_payload(
