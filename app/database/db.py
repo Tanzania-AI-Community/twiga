@@ -250,7 +250,7 @@ async def get_available_subjects() -> List[Dict[str, str]]:
             raise Exception(f"Failed to get available subjects: {str(e)}")
 
 
-async def get_subject_and_classes(subject_id: int) -> Dict[str, Any]:
+async def get_subject_grade_levels(subject_id: int) -> Dict[str, Any]:
     async with get_session() as session:
         try:
             statement = (
@@ -288,49 +288,6 @@ async def get_subject_and_classes(subject_id: int) -> Dict[str, Any]:
             )
 
 
-async def generate_class_info(user: User) -> Dict[str, List[str]]:
-    """
-    Generate a JSON-like structure with subject names and class names based on user's selected class IDs.
-
-    Args:
-        user: User object
-
-    Returns:
-        Dict[str, List[str]]: Dictionary with subject names as keys and lists of class names as values
-    """
-    async with get_session() as session:
-        try:
-            logger.debug(f"Generating class info for user {user.wa_id}")
-            # Fetch class details including subject names and class names
-            statement = (
-                select(
-                    Class.id,
-                    Class.name.label("class_name"),
-                    Subject.name.label("subject_name"),
-                )
-                .join(Subject, Class.subject_id == Subject.id)
-                .where(Class.id.in_(user.selected_class_ids))
-            )
-            result = await session.execute(statement)
-            rows = result.fetchall()
-
-            # Organize the data into a dictionary
-            class_info = {}
-            for row in rows:
-                subject_name = row.subject_name
-                class_name = row.class_name
-                if subject_name not in class_info:
-                    class_info[subject_name] = []
-                class_info[subject_name].append(class_name)
-
-            logger.debug(f"Generated class info for user {user.wa_id}: {class_info}")
-            return class_info
-
-        except Exception as e:
-            logger.error(f"Failed to generate class info: {str(e)}")
-            raise Exception(f"Failed to generate class info: {str(e)}")
-
-
 async def get_class_ids_from_class_info(
     class_info: Dict[str, List[str]]
 ) -> Optional[List[int]]:
@@ -363,93 +320,6 @@ async def get_class_ids_from_class_info(
             return None
 
         return [row[0] for row in result]
-
-
-async def update_user_selected_classes(
-    user: User, selected_classes: List[int], subject_id: int
-) -> User:
-    """
-    Update the user's classes for a given subject according to the new selected classes.
-
-    Args:
-        user: User object to update
-        selected_classes: List of class IDs selected by the user
-        subject_id: ID of the subject to update classes for
-
-    Returns:
-        User: Updated user object
-    """
-    async with get_session() as session:
-        try:
-            logger.debug(
-                f"Updating user {user.wa_id} with new classes: {selected_classes} for subject ID: {subject_id}"
-            )
-
-            # Fetch all class IDs for the given subject ID
-            statement = select(Class.id).where(Class.subject_id == subject_id)
-            result = await session.execute(statement)
-            subject_class_ids = [row[0] for row in result.fetchall()]
-            logger.debug(f"Class IDs for subject ID {subject_id}: {subject_class_ids}")
-
-            # Filter the user's selected classes to only include those not related to the subject
-            new_class_ids = [
-                class_id
-                for class_id in user.selected_class_ids or []
-                if class_id not in subject_class_ids
-            ]
-            logger.debug(
-                f"Filtered class IDs not related to subject ID {subject_id}: {new_class_ids}"
-            )
-
-            # Add the new selected classes for the subject
-            new_class_ids.extend(selected_classes)
-            logger.debug(
-                f"New class IDs after adding selected classes: {new_class_ids}"
-            )
-
-            # Remove duplicates if any
-            new_class_ids = list(set(new_class_ids))
-            logger.debug(f"Final class IDs after removing duplicates: {new_class_ids}")
-
-            # Update the user's selected classes
-            user.selected_class_ids = new_class_ids
-            logger.debug(
-                f"User's selected class IDs updated to: {user.selected_class_ids}"
-            )
-
-            # Update the user state to active if it's not already
-            if user.state != "active":
-                user.state = "active"
-                logger.debug(f"User state updated to: {user.state}")
-
-            # Update the user onboarding state to completed if it's not already
-            if user.onboarding_state != "completed":
-                user.onboarding_state = "completed"
-                logger.debug(
-                    f"User onboarding state updated to: {user.onboarding_state}"
-                )
-
-            logger.debug(f"FINISHED UPDATING USER User : {user}")
-
-            # Update the user's class info
-            logger.debug("Generating class info for the user")
-            user.class_info = await generate_class_info(user)
-
-            user = await update_user(user)
-            logger.debug(f"User {user.wa_id} updated in the database")
-
-            formatted_selected_classes = [int(class_id) for class_id in new_class_ids]
-            await add_teacher_class(user, formatted_selected_classes)
-            logger.debug(f"Teacher-class relationships updated for user {user.wa_id}")
-
-            logger.info(
-                f"Updated user {user.wa_id} with new classes for subject ID {subject_id}"
-            )
-
-            return user
-        except Exception as e:
-            logger.error(f"Failed to update user subject classes: {str(e)}")
-            raise Exception(f"Failed to update user subject classes: {str(e)}")
 
 
 async def assign_teacher_to_classes(user: User, class_ids: List[int]):
