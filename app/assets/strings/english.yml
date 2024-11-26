@@ -1,8 +1,9 @@
 error:
-  general: "Sorry, something went wrong on my end. Please try again later."
+  general: "Sorry, something went wrong on my end. Please try again later. If the problem persists, contact support (dev@ai.or.tz)."
   command_not_found: "Sorry, I don't understand that command."
   rate_limited: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Let's talk more tomorrow!"
   blocked: "Your account is currently blocked. Please contact support (dev@ai.or.tz) for assistance."
+  no_available_subjects: "Sorry, there are no available subjects to choose from. Please contact support (dev@ai.or.tz) for assistance."
 
 info:
   help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."
@@ -21,3 +22,18 @@ settings:
 tools:
   exercise_generator: "🏋️ Generating an exercise using the course literature, please hold..."
   search_knowledge: "🔍 Searching for relevant knowledge, please hold..."
+
+flows:
+  start_onboarding_header: "Start onboarding to Twiga 🦒"
+  start_onboarding_body: "Welcome to Twiga!, Looks like you are new here. Let's get started with your onboarding process."
+  start_onboarding_cta: "Introduction"
+  personal_settings_header: "Update your personal and school information 📝"
+  personal_settings_body: "Let's update your personal and school information."
+  personal_settings_cta: "Personal Settings"
+  subjects_flow_header: "Select your subjects 📚"
+  subjects_flow_body: "Fill this form to select the subjects you teach."
+  subjects_flow_cta: "Subjects"
+  select_subjects_text: "This helps us find the best answers for your questions."
+  classes_flow_header: "Select your classes 🏫"
+  classes_flow_body: "Fill this form to select the classes you teach."
+  classes_flow_cta: "Classes"
