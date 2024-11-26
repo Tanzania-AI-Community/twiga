@@ -25,6 +25,8 @@ from app.database.enums import (
     UserState,
 )
 
+# TODO: Use proper enums in the table fields
+
 
 class ClassInfo(BaseModel):
     """Maps subjects to their grade levels for a teacher"""
@@ -66,10 +68,7 @@ class User(SQLModel, table=True):
     state: str = Field(default=UserState.new, max_length=50)
     onboarding_state: Optional[str] = Field(default=OnboardingState.new, max_length=50)
     role: str = Field(default=Role.teacher, max_length=20)
-    # TODO: remove selected_class_ids and use the taught_classes relationship instead
-    selected_class_ids: Optional[List[int]] = Field(
-        sa_column=Column(ARRAY(Integer)), default=[]
-    )
+    # TODO: Consider replacing the subject name in class_info with subject id
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
