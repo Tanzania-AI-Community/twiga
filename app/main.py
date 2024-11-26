@@ -6,8 +6,7 @@ from contextlib import asynccontextmanager
 from app.security import signature_required
 from app.security import flows_signature_required
 from app.services.whatsapp_service import whatsapp_client
-from app.services.request_service import handle_request
-from app.services.flow_service import flow_client
+from app.services.request_service import handle_flows_request, handle_request
 from app.database.engine import db_engine, init_db
 
 logger = logging.getLogger(__name__)
@@ -52,6 +51,5 @@ async def webhook_post(request: Request) -> JSONResponse:
 
 @app.post("/flows", dependencies=[Depends(flows_signature_required)])
 async def handle_flows_webhook(request: Request, background_tasks: BackgroundTasks):
-    body = await request.json()
-    logger.debug(f"Received webhook: {body}")
-    return await flow_client.handle_flow_webhook(body, background_tasks)
+    logger.debug("flows webhook is being called")
+    return await handle_flows_request(request, background_tasks)

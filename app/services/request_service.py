@@ -1,7 +1,7 @@
 import json
 import logging
-from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi import BackgroundTasks, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from app.database.models import (
     ClassInfo,
@@ -27,6 +27,8 @@ from app.services.state_service import state_client
 import app.database.db as db
 from app.config import settings
 from app.utils.string_manager import strings, StringCategory
+import app.utils.flow_utils as futil
+from app.services.flow_service import flow_client
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,61 @@ async def handle_request(request: Request) -> JSONResponse:
         )
 
 
+async def handle_flows_request(
+    request: Request, bg_tasks: BackgroundTasks
+) -> PlainTextResponse:
+    try:
+        body = await request.json()
+        decrypted_data = futil.decrypt_flow_webhook(body)
+        logger.info(f"Decrypted data: {decrypted_data}")
+        decrypted_payload = decrypted_data["decrypted_payload"]
+        aes_key = decrypted_data["aes_key"]
+        initial_vector = decrypted_data["initial_vector"]
+        action = decrypted_payload.get("action")
+    except ValueError as e:
+        logger.error(f"Error decrypting payload: {e}")
+        return PlainTextResponse(content="Decryption failed", status_code=421)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return PlainTextResponse(content="Decryption failed", status_code=500)
+
+    logger.info(f"Flow Webhook Decrypted payload: {decrypted_payload}")
+
+    if action == "ping":
+        logger.info("Received ping action")
+        return await flow_client.handle_health_check(
+            decrypted_payload, aes_key, initial_vector
+        )
+
+    flow_token = decrypted_payload.get("flow_token")
+    if not flow_token:
+        logger.error("Missing flow token")
+        return JSONResponse(
+            content={"error_msg": "Missing flow token, Unable to process request"},
+            status_code=422,
+        )
+
+    try:
+        _, flow_id = futil.decrypt_flow_token(flow_token)
+        logger.info(f"Flow Action: {action}, Flow ID: {flow_id}")
+    except Exception as e:
+        logger.error(f"Error decrypting flow token: {e}")
+        return JSONResponse(
+            content={"error_msg": "Your request has expired please start again"},
+            status_code=422,
+        )
+
+    handler = flow_client.get_action_handler(action, flow_id)
+    # Check if the action is a data exchange action and handle accordingly
+    if action in ["data_exchange", "INIT"]:
+        if action == "data_exchange":
+            return await handler(decrypted_payload, aes_key, initial_vector, bg_tasks)
+        else:
+            return await handler(decrypted_payload, aes_key, initial_vector)
+    else:
+        return await handler(decrypted_payload, aes_key, initial_vector)
+
+
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information and create/get user
     message_info = extract_message_info(body)
@@ -95,10 +152,10 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             return await state_client.handle_onboarding(user)
         case UserState.new:
             # Dummy data for development environment if not using Flows
-            logger.debug("Handling new user")
             if not settings.business_env:
-                logger.debug("Business environment is False")
-                logger.debug("Adding dummy data for new user")
+                logger.debug(
+                    "Business environment is False, adding dummy data for new user"
+                )
                 return await handle_new_dummy(user)
             return await state_client.handle_onboarding(user)
         case UserState.active:
