@@ -35,5 +35,5 @@ flows:
   subjects_flow_cta: "Subjects"
   select_subjects_text: "This helps us find the best answers for your questions."
   classes_flow_header: "Select your {subject} classes"
-  classes_flow_body: "Fill this form to select the {subject} classes you teach."
+  classes_flow_body: "Fill this form to select the classes you teach."
   classes_flow_cta: "Classes"

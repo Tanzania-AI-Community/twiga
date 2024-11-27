@@ -6,7 +6,6 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 import logging
-from app.database.db import get_user_by_waid
 
 import httpx
 from app.config import settings
@@ -67,19 +66,36 @@ def encrypt_response(response: dict, aes_key: bytes, iv: str) -> str:
     return base64.b64encode(encrypted_data_bytes).decode("utf-8")
 
 
-def decrypt_flow_webhook(body: dict) -> dict:
-    encrypted_flow_data = body["encrypted_flow_data"]
-    encrypted_aes_key = body["encrypted_aes_key"]
-    initial_vector = body["initial_vector"]
+async def decrypt_flow_request(body: dict) -> Tuple[dict, bytes, str]:
+    try:
+        # Validate required fields exist
+        required_fields = {"encrypted_flow_data", "encrypted_aes_key", "initial_vector"}
+        missing_fields = required_fields - body.keys()
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {missing_fields}")
 
-    aes_key = decrypt_aes_key(encrypted_aes_key)
-    decrypted_payload = decrypt_payload(encrypted_flow_data, aes_key, initial_vector)
+        encrypted_flow_data = body["encrypted_flow_data"]
+        encrypted_aes_key = body["encrypted_aes_key"]
+        initial_vector = body["initial_vector"]
 
-    return {
-        "decrypted_payload": decrypted_payload,
-        "aes_key": aes_key,
-        "initial_vector": initial_vector,
-    }
+        # Validate field types and content
+        if not isinstance(encrypted_flow_data, str):
+            raise ValueError("encrypted_flow_data must be a string")
+        if not isinstance(encrypted_aes_key, str):
+            raise ValueError("encrypted_aes_key must be a string")
+        if not isinstance(initial_vector, str):
+            raise ValueError("initial_vector must be a string")
+
+        aes_key = decrypt_aes_key(encrypted_aes_key)
+        decrypted_payload = decrypt_payload(
+            encrypted_flow_data, aes_key, initial_vector
+        )
+
+        return decrypted_payload, aes_key, initial_vector
+    except ValueError as e:
+        raise ValueError(f"Invalid webhook payload: {str(e)}")
+    except Exception as e:
+        raise RuntimeError(f"Decryption error: {str(e)}")
 
 
 def get_fernet_key() -> bytes:
@@ -89,18 +105,40 @@ def get_fernet_key() -> bytes:
     return key
 
 
-def decrypt_flow_token(encrypted_flow_token: str) -> tuple:
-    key = get_fernet_key()
-    fernet = Fernet(key)
+class FlowTokenError(Exception):
+    """Base exception for flow token related errors."""
+
+    pass
+
+
+def decrypt_flow_token(encrypted_flow_token: str) -> Tuple[str, str]:
+    """
+    Decrypts a flow token and returns token details.
+
+    Args:
+        encrypted_flow_token: Encrypted token string
+    Returns:
+        Tuple of wa_id and flow_id
+    """
 
     try:
-        decrypted_data = fernet.decrypt(encrypted_flow_token.encode("utf-8"))
-        decrypted_str = decrypted_data.decode("utf-8")
-        wa_id, flow_id = decrypted_str.split("_")
+        fernet = Fernet(get_fernet_key())
+        decrypted_str = fernet.decrypt(encrypted_flow_token.encode("utf-8")).decode(
+            "utf-8"
+        )
+
+        parts = decrypted_str.split("_")
+        if len(parts) != 2:
+            raise ValueError("Invalid token format")
+
+        wa_id, flow_id = parts
         return wa_id, flow_id
+    except ValueError as e:
+        logger.error(f"Value error during token decryption: {str(e)}")
+        raise FlowTokenError("Invalid token format")
     except Exception as e:
-        logger.error(f"Decryption failed: {e}")
-        raise
+        logger.error(f"Token decryption failed: {str(e)}")
+        raise FlowTokenError("Token decryption failed")
 
 
 def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
@@ -172,7 +210,7 @@ async def send_whatsapp_flow_message(
 
 
 def create_flow_response_payload(
-    screen: str, data: Dict[str, Any], flow_token: str = None
+    screen: str, data: Dict[str, Any], encrypted_flow_token: str = None
 ) -> Dict[str, Any]:
     """
     Create standardized flow response payloads
@@ -183,7 +221,7 @@ def create_flow_response_payload(
             "data": {
                 "extension_message_response": {
                     "params": {
-                        "flow_token": flow_token,
+                        "flow_token": encrypted_flow_token,
                     },
                 },
             },
@@ -192,42 +230,6 @@ def create_flow_response_payload(
         "screen": screen,
         "data": data,
     }
-
-
-def handle_token_validation(encrypted_flow_token: str) -> Tuple[str, str]:
-    """
-    Validate and decrypt flow token
-    Returns (wa_id, flow_id) or raises exception
-    """
-    if not encrypted_flow_token:
-        logger.error("Missing flow token")
-        raise ValueError("Missing flow token")
-
-    try:
-        wa_id, flow_id = decrypt_flow_token(encrypted_flow_token)
-        logger.info(f"Decrypted flow token: {wa_id}, {flow_id}")
-        return wa_id, flow_id
-    except Exception as e:
-        logger.error(f"Error decrypting flow token: {e}")
-        raise ValueError("Invalid flow token")
-
-
-async def validate_user(wa_id: str) -> User:
-    """
-    Validate and retrieve user
-    """
-    user = await get_user_by_waid(wa_id)
-    if not user:
-        logger.error(f"User data not found for wa_id {wa_id}")
-        raise ValueError("User not found")
-    return user
-
-
-def get_flow_text(is_update: bool, update_text: str, new_text: str) -> str:
-    """
-    Get appropriate flow text based on update state
-    """
-    return update_text if is_update else new_text
 
 
 def create_subject_class_payload(

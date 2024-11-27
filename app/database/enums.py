@@ -61,7 +61,7 @@ class SubjectName(str, Enum):
     EMOJI_MAP = {"geography": "🌎", "mathematics": "🔢"}
 
     @property
-    def title(self) -> str:
+    def title_format(self) -> str:
         emoji = self.EMOJI_MAP.get(self, "")
         return f"{self.capitalize()} {emoji}"
 
