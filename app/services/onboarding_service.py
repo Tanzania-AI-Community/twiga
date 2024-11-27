@@ -1,6 +1,7 @@
 import logging
 
-from app.database.models import User, OnboardingState
+from app.database.models import User
+from app.database.enums import OnboardingState
 from app.services.flow_service import flow_client
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
