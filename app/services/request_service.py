@@ -7,15 +7,8 @@ from app.database.models import (
     ClassInfo,
     Message,
     User,
-    UserState,
 )
-from app.database.enums import (
-    GradeLevel,
-    MessageRole,
-    OnboardingState,
-    Role,
-    SubjectNames,
-)
+import app.database.enums as enums
 from app.utils.whatsapp_utils import (
     RequestType,
     extract_message,
@@ -138,19 +131,19 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
     # Create message record
     user_message = await db.create_new_message(
-        Message(user_id=user.id, role=MessageRole.user, content=message)
+        Message(user_id=user.id, role=enums.MessageRole.user, content=message)
     )
 
     logger.debug(f"Processing message for user {user.wa_id} in state {user.state}")
 
     match user.state:
-        case UserState.blocked:
+        case enums.UserState.blocked:
             return await state_client.handle_blocked(user)
-        case UserState.rate_limited:
+        case enums.UserState.rate_limited:
             return await state_client.handle_rate_limited(user)
-        case UserState.onboarding:
+        case enums.UserState.onboarding:
             return await state_client.handle_onboarding(user)
-        case UserState.new:
+        case enums.UserState.new:
             # Dummy data for development environment if not using Flows
             if not settings.business_env:
                 logger.debug(
@@ -158,7 +151,7 @@ async def handle_valid_message(body: dict) -> JSONResponse:
                 )
                 return await handle_new_dummy(user)
             return await state_client.handle_onboarding(user)
-        case UserState.active:
+        case enums.UserState.active:
             return await state_client.handle_active(user, message_info, user_message)
 
     raise Exception("Invalid user state, reached the end of handle_valid_message")
@@ -167,13 +160,13 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 async def handle_new_dummy(user: User) -> JSONResponse:
     try:
         # Update the user object with dummy data
-        user.state = UserState.active
-        user.onboarding_state = OnboardingState.completed
-        user.role = Role.teacher
+        user.state = enums.UserState.active
+        user.onboarding_state = enums.OnboardingState.completed
+        user.role = enums.Role.teacher
         user.class_info = ClassInfo(
             subjects={
-                SubjectNames.geography: [
-                    GradeLevel.os2
+                enums.SubjectName.geography: [
+                    enums.GradeLevel.os2
                 ]  # Using GradeLevel.os2 for Secondary Form 2
             }
         ).model_dump()
@@ -193,7 +186,7 @@ async def handle_new_dummy(user: User) -> JSONResponse:
         await db.create_new_message(
             Message(
                 user_id=user.id,
-                role=MessageRole.assistant,
+                role=enums.MessageRole.assistant,
                 content=response_text,
             )
         )
