@@ -9,10 +9,9 @@ from app.database.models import (
     TeacherClass,
     Class,
     Chunk,
-    Role,
-    UserState,
     Subject,
 )
+import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
 from app.database.engine import get_session
 from app.utils import embedder
@@ -40,8 +39,8 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             new_user = User(
                 name=name,
                 wa_id=wa_id,
-                state=UserState.new,
-                role=Role.teacher,
+                state=enums.UserState.new,
+                role=enums.Role.teacher,
             )
             session.add(new_user)
             await session.flush()  # Get the ID without committing
@@ -225,7 +224,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             raise Exception(f"Failed to get user resources: {str(e)}")
 
 
-async def get_available_subjects() -> List[Dict[str, str]]:
+async def get_available_subjects() -> List[Dict[str, enums.SubjectName]]:
     """
     Get all available subjects with their IDs and names.
 
@@ -242,7 +241,8 @@ async def get_available_subjects() -> List[Dict[str, str]]:
             )
             result = await session.execute(statement)
             subjects = [
-                {"id": str(row.id), "title": row.name} for row in result.fetchall()
+                {"id": str(row.id), "title": row.name}  # Capitalize subject
+                for row in result.fetchall()
             ]
             return subjects
         except Exception as e:
