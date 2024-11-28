@@ -292,7 +292,7 @@ class FlowService:
     ):
         try:
             # TODO: This is done multiple times if the teacher selected multiple subjects - oof, must fix
-            await db.assign_teacher_to_classes(user, selected_classes)
+            await db.assign_teacher_to_classes(user, selected_classes, subject_id)
             subject: Optional[models.Subject] = await db.read_subject(subject_id)
             classes = await db.read_classes(selected_classes)
 

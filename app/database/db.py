@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 from sqlalchemy import text
-from sqlmodel import and_, select, or_, delete, insert
+from sqlmodel import and_, select, or_, delete, insert, exists
 import logging
 
 from app.database.models import (
@@ -344,16 +344,34 @@ async def get_class_ids_from_class_info(
         return [row[0] for row in result]
 
 
-async def assign_teacher_to_classes(user: User, class_ids: List[int]):
+async def assign_teacher_to_classes(
+    user: User, class_ids: List[int], subject_id: Optional[int] = None
+):
     """
-    Assign a teacher to a list of classes by creating teacher-class relationships
+    Assign a teacher to a list of classes by creating teacher-class relationships.
+    If subject_id is provided, only replaces classes with that subject_id.
+    Otherwise replaces all teacher-class relationships.
     """
     async with get_session() as session:
         try:
-            # Delete existing relationships
-            await session.execute(
-                delete(TeacherClass).where(TeacherClass.teacher_id == user.id)
+            # Construct delete query based on subject_id
+            delete_query = delete(TeacherClass).where(
+                TeacherClass.teacher_id == user.id
             )
+
+            if subject_id is not None:
+                # Join with Class table to filter by subject_id
+                delete_query = delete_query.where(
+                    exists().where(
+                        and_(
+                            Class.id == TeacherClass.class_id,
+                            Class.subject_id == subject_id,
+                        )
+                    )
+                )
+
+            # Delete existing relationships
+            await session.execute(delete_query)
 
             # Bulk insert new relationships
             if class_ids:
