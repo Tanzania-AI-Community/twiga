@@ -25,7 +25,7 @@ tools:
 
 flows:
   start_onboarding_header: "Start onboarding to Twiga 🦒"
-  start_onboarding_body: "Welcome to Twiga!, Looks like you are new here. Let's get started with your onboarding process."
+  start_onboarding_body: "Welcome to Twiga! Looks like you are new here. Let's get started."
   start_onboarding_cta: "Introduction"
   personal_settings_header: "Update your personal and school information 📝"
   personal_settings_body: "Let's update your personal and school information."
