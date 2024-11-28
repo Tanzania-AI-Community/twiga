@@ -250,6 +250,28 @@ async def get_available_subjects() -> List[Dict[str, enums.SubjectName]]:
             raise Exception(f"Failed to get available subjects: {str(e)}")
 
 
+async def read_subject(subject_id: int) -> Optional[Subject]:
+    async with get_session() as session:
+        try:
+            statement = select(Subject).where(Subject.id == subject_id)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to read subject {subject_id}: {str(e)}")
+            raise Exception(f"Failed to read subject: {str(e)}")
+
+
+async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
+    async with get_session() as session:
+        try:
+            statement = select(Class).where(Class.id.in_(class_ids))
+            result = await session.execute(statement)
+            return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Failed to read classes {class_ids}: {str(e)}")
+            raise Exception(f"Failed to read classes: {str(e)}")
+
+
 async def get_subject_grade_levels(subject_id: int) -> Dict[str, Any]:
     async with get_session() as session:
         try:
