@@ -55,9 +55,10 @@ def decrypt_payload(encrypted_data: str, aes_key: bytes, iv: str) -> dict:
 def encrypt_response(response: dict, aes_key: bytes, iv: str) -> str:
     response_bytes = json.dumps(response).encode("utf-8")
     iv_bytes = base64.b64decode(iv)
+    inverted_iv_bytes = bytes(~b & 0xFF for b in iv_bytes)
     encryptor = Cipher(
         algorithms.AES(aes_key),
-        modes.GCM(iv_bytes),
+        modes.GCM(inverted_iv_bytes),
         backend=default_backend(),
     ).encryptor()
     encrypted_data = encryptor.update(response_bytes) + encryptor.finalize()

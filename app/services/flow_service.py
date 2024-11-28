@@ -1,24 +1,19 @@
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dateutil.relativedelta import relativedelta
 import logging
 from fastapi import BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-import base64
-import json
 
 import app.utils.flow_utils as futil
 import app.database.db as db
-from app.database.models import User
+from app.database.models import ClassInfo, User
 from app.services.whatsapp_service import whatsapp_client
 from app.config import settings
 from app.utils.string_manager import StringCategory, strings
 import app.database.enums as enums
 import scripts.flows.designing_flows as flows_wip
-
-logger = logging.getLogger(__name__)
+import app.database.models as models
 
 
 class FlowService:
@@ -96,6 +91,28 @@ class FlowService:
             self.logger.error(f"Unexpected error: {e}")
             return PlainTextResponse(content="Decryption failed", status_code=500)
 
+    async def handle_health_check(
+        self, aes_key: bytes, initial_vector: str
+    ) -> PlainTextResponse:
+        self.logger.debug("Received flow health check event ❤️‍🩹")
+        response_payload = {"data": {"status": "active"}}
+        return await self.process_response(response_payload, aes_key, initial_vector)
+
+    async def process_response(
+        self, response_payload: dict, aes_key: bytes, initial_vector: str
+    ) -> PlainTextResponse:
+        self.logger.debug(
+            f"Processing response: {response_payload} , AES Key: {aes_key} , IV: {initial_vector}"
+        )
+        try:
+            encrypted_response = futil.encrypt_response(
+                response_payload, aes_key, initial_vector
+            )
+            return PlainTextResponse(content=encrypted_response, status_code=200)
+        except Exception as e:
+            self.logger.error(f"Error encrypting response: {e}")
+            return PlainTextResponse(content="Encryption failed", status_code=500)
+
     async def handle_unknown_flow(
         self,
         user: User,
@@ -115,6 +132,8 @@ class FlowService:
         response_payload = {"unknown": "event"}
         return await self.process_response(response_payload, aes_key, initial_vector)
 
+    """ *************** DATA EXCHANGE HANDLERS *************** """
+
     async def handle_onboarding_data_exchange_action(
         self,
         user: User,
@@ -129,10 +148,8 @@ class FlowService:
             is_update = data.get("is_updating", False)
             encrypted_flow_token = payload.get("flow_token")
 
-            # TODO: Determine if this can be run as a background task or not
-            background_tasks.add_task(
-                self.update_onboarding_data_background, user, data, is_update
-            )
+            # Add a background task to update the user profile
+            background_tasks.add_task(self.update_user_profile, user, data, is_update)
 
             response_payload = futil.create_flow_response_payload(
                 screen="SUCCESS",
@@ -165,9 +182,9 @@ class FlowService:
                 self.logger.error("No subjects selected")
                 raise ValueError("No subjects selected")
 
-            # TODO: What about is_updating?
+            # Send the select classes flow for each selected subject
             background_tasks.add_task(
-                self.update_subject_data_background, user, selected_subject_ids
+                self.subject_background_task, user, selected_subject_ids
             )
 
             response_payload = futil.create_flow_response_payload(
@@ -203,10 +220,17 @@ class FlowService:
                 raise ValueError("No classes selected")
 
             background_tasks.add_task(
-                self.update_user_classes_data_background,
+                self.update_user_classes,
                 user,
                 selected_classes,
                 subject_id,
+            )
+
+            # Send a welcome message to the user
+            # TODO: This is also not good due to the way we are handling flows right now, to be fixed.
+            # TODO: This should not be sent when accessing the flow from the settings
+            await whatsapp_client.send_message(
+                user.wa_id, strings.get_string(StringCategory.ONBOARDING, "welcome")
             )
 
             response_payload = futil.create_flow_response_payload(
@@ -221,33 +245,26 @@ class FlowService:
         except Exception as e:
             return PlainTextResponse(content={"error_msg": str(e)}, status_code=500)
 
-    async def update_onboarding_data_background(
-        self, user: User, data: dict, is_updating: bool
-    ):
-        try:
-            full_name = (
-                data.get("update_full_name") if is_updating else data.get("full_name")
-            )
-            birthday = (
-                data.get("update_birthday") if is_updating else data.get("birthday")
-            )
-            region = data.get("update_region") if is_updating else data.get("region")
-            school_name = (
-                data.get("update_school_name")
-                if is_updating
-                else data.get("school_name")
-            )
-            user.name = full_name or user.name
-            user.birthday = (
-                datetime.strptime(birthday, "%Y-%m-%d") if birthday else None
-            )
-            user.region = region
-            user.school_name = school_name
-            user.onboarding_state = "personal_info_submitted"
-            await db.update_user(user)
-            self.logger.info(f"User after update: {user}")
+    """ *************** BACKGROUND TASKS *************** """
 
-            # send select subject flow
+    async def update_user_profile(self, user: User, data: dict, is_updating: bool):
+        try:
+            # Get field values using prefix based on update status
+            prefix = "update_" if is_updating else ""
+            user.name = data.get(f"{prefix}full_name") or user.name
+            user.birthday = (
+                datetime.strptime(data.get(f"{prefix}birthday"), "%Y-%m-%d")
+                if data.get(f"{prefix}birthday")
+                else None
+            )
+            user.region = data.get(f"{prefix}region")
+            user.school_name = data.get(f"{prefix}school_name")
+            user.onboarding_state = enums.OnboardingState.personal_info_submitted
+
+            # Update the database
+            await db.update_user(user)
+
+            # Send the select subjects flow if onboarding
             if not is_updating:
                 await self.send_select_subject_flow(user)
         except Exception as e:
@@ -256,7 +273,7 @@ class FlowService:
             )
             self.logger.error(f"Failed to update onboarding data: {str(e)}")
 
-    async def update_subject_data_background(
+    async def subject_background_task(
         self, user: User, selected_subject_ids: List[int], is_updating: bool = False
     ):
         try:
@@ -270,66 +287,36 @@ class FlowService:
             )
             self.logger.error(f"Failed to update subject data: {str(e)}")
 
-    async def update_user_classes_data_background(
+    async def update_user_classes(
         self, user: User, selected_classes: List[int], subject_id: int
     ):
         try:
-            # Update user classes in the database
-            # TODO: Replace this with a different function
-            # user = await db.update_user_selected_classes(
-            #     user, selected_classes, subject_id
-            # )
+            # TODO: This is done multiple times if the teacher selected multiple subjects - oof, must fix
+            await db.assign_teacher_to_classes(user, selected_classes)
+            subject: Optional[models.Subject] = await db.read_subject(subject_id)
+            classes = await db.read_classes(selected_classes)
 
-            self.logger.info(
-                f"FINAL User after update: {user}, Selected classes: {selected_classes}"
-            )
+            if not subject or not classes or len(classes) == 0:
+                raise ValueError("Subject or classes not found")
 
-            # send message to user saying that the class info has been submitted
-            responseText = "Thanks for submitting your subject and classes information. How can I help you today?"
-            await whatsapp_client.send_message(user.wa_id, responseText)
+            # Update the user so that the onboarding is complete
+            user.state = enums.UserState.active
+            user.onboarding_state = enums.OnboardingState.completed
+            user.class_info = ClassInfo(
+                subjects={
+                    enums.SubjectName(subject.name): [
+                        enums.GradeLevel(class_.grade_level) for class_ in classes
+                    ]
+                }
+            ).model_dump()
+            user = await db.update_user(user)
 
         except Exception as e:
-            responseText = "An error occurred during the onboarding process. Please try again later."
-            await whatsapp_client.send_message(user.wa_id, responseText)
             self.logger.error(f"Failed to update user subject classes: {str(e)}")
 
-    async def handle_health_check(
-        self, aes_key: bytes, initial_vector: str
-    ) -> PlainTextResponse:
-        self.logger.debug("Received flow health check event ❤️‍🩹")
-        response_payload = {"data": {"status": "active"}}
-        return await self.process_response(response_payload, aes_key, initial_vector)
+    """ *************** FLOW SENDING METHODS *************** """
 
-    async def process_response(
-        self, response_payload: dict, aes_key: bytes, initial_vector: str
-    ) -> PlainTextResponse:
-        self.logger.info(
-            f"Processing response: {response_payload} , AES Key: {aes_key} , IV: {initial_vector}"
-        )
-
-        try:
-            response_bytes = json.dumps(response_payload).encode("utf-8")
-
-            iv_bytes = base64.b64decode(initial_vector)
-            inverted_iv_bytes = bytes(~b & 0xFF for b in iv_bytes)
-
-            encryptor = Cipher(
-                algorithms.AES(aes_key),
-                modes.GCM(inverted_iv_bytes),
-                backend=default_backend(),
-            ).encryptor()
-            encrypted_data = encryptor.update(response_bytes) + encryptor.finalize()
-            encrypted_data_tag = encryptor.tag
-            encrypted_data_bytes = encrypted_data + encrypted_data_tag
-
-            encrypted_response = base64.b64encode(encrypted_data_bytes).decode("utf-8")
-            self.logger.info(f"Encrypted response: {encrypted_response}")
-
-            return PlainTextResponse(content=encrypted_response, status_code=200)
-        except Exception as e:
-            self.logger.error(f"Error encrypting response: {e}")
-            return PlainTextResponse(content="Encryption failed", status_code=500)
-
+    # The same flow is sent for both settings and onboarding (onboarding_flow_id)
     async def send_user_settings_flow(self, user: User) -> None:
         flow_strings = strings.get_category(StringCategory.FLOWS)
         header_text = flow_strings["personal_settings_header"]
@@ -340,8 +327,7 @@ class FlowService:
             "max_date": (datetime.now() - relativedelta(years=18)).strftime("%Y-%m-%d"),
             "is_updating": True,
             "region": user.region,
-            # TODO: what if the birthday is None?
-            "birthday": user.birthday.strftime("%Y-%m-%d"),
+            "birthday": user.birthday.strftime("%Y-%m-%d") if user.birthday else None,
             "school_name": user.school_name,
         }
         await futil.send_whatsapp_flow_message(
@@ -425,22 +411,17 @@ class FlowService:
         self, user: User, subject_id: int, is_update: bool = False
     ) -> None:
         try:
-            # TODO: Make this possible for multiple subjects
+            # Read the subject classes data from the database
             subject_data = await db.get_subject_grade_levels(subject_id)
-
             subject_title = enums.SubjectName(subject_data["subject_name"]).title_format
             classes = subject_data["classes"]
-            self.logger.warning("made it her")
 
             flow_strings = strings.get_category(StringCategory.FLOWS)
-
             header_text = flow_strings["classes_flow_header"].format(
                 subject=subject_title
             )
-            self.logger.warning("made it her 2")
             body_text = flow_strings["classes_flow_body"]
 
-            self.logger.warning("made it her3")
             response_payload = futil.create_flow_response_payload(
                 screen="select_classes",
                 data=futil.create_subject_class_payload(
@@ -451,6 +432,7 @@ class FlowService:
                 ),
             )
 
+            # Send the flow
             await futil.send_whatsapp_flow_message(
                 user=user,
                 flow_id=settings.select_classes_flow_id,
