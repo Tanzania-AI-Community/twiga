@@ -106,9 +106,9 @@ class Subject(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     # name: str = Field(max_length=50, nullable=False)
     name: enums.SubjectName = Field(sa_type=String(50), nullable=False)
-    status: enums.SubjectClassStatus = Field(
-        sa_type=String(50), default=enums.SubjectClassStatus.active
-    )
+    # status: enums.SubjectClassStatus = Field(
+    #     sa_type=String(50), default=enums.SubjectClassStatus.active
+    # )
 
     """ RELATIONSHIPS """
     # A subject may have entries in the classes table
