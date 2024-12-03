@@ -14,7 +14,7 @@ geography_resource:
   subjects: ["geography"]
 
 geography_subject:
-  name: "Geography"
+  name: "geography"
 
 geography_class:
   grade_level: "os2"

@@ -54,9 +54,16 @@ class UserState(str, Enum):
     active = "active"
 
 
-class SubjectNames(str, Enum):
+class SubjectName(str, Enum):
     geography = "geography"
     mathematics = "mathematics"
+
+    EMOJI_MAP = {"geography": "🌎", "mathematics": "🔢"}
+
+    @property
+    def title_format(self) -> str:
+        emoji = self.EMOJI_MAP.get(self, "")
+        return f"{self.capitalize()} {emoji}"
 
 
 class ChunkType(str, Enum):
