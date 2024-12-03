@@ -19,6 +19,7 @@ class StringCategory(str, Enum):
     SYSTEM = "system"
     TOOLS = "tools"
     SETTINGS = "settings"
+    FLOWS = "flows"
 
 
 class StringResources:

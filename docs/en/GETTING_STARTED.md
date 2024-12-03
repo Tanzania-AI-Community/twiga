@@ -124,7 +124,7 @@ First of all, you need to install Postgres from their [official site](https://ww
 
 > [!Note]
 >
-> If you're on a mac, you can use [postgres.app](https://postgresapp.com/) (that's what I use)
+> You can try out [TablePlus](https://tableplus.com/) to visualize your databases.
 
 Once you have an active database you should add this to your `.env`:
 
@@ -168,7 +168,12 @@ Now, in your Meta App Dashboard, go to **WhatsApp > Configuration**. In the **We
 >
 > The callback url should be `https://{your-free-domain}.ngrok-free.app/webhooks` (don't forget /webhooks) and the verify token should be what you defined in the `.env` file `$YOUR_RANDOM_VERIFY_TOKEN`
 
-Once you press **Verify and save** a confirmation request will be sent to your server via the Ngrok endpoint (you should see logs show up in both terminals). If you filled the `.env` correctly you should get a success in the logs and some visual confirmation in the Meta App Dashboard. Otherwise you're likely to see a `403 forbidden` log in your server.
+Once you press **Verify and save** a confirmation request will be sent to your server via the Ngrok endpoint (you should see logs show up in both terminals). Finally, scroll down to the Webhook Fields and **subscribe** do the _messages_ endpoint.
+
+<img width="1215" alt="Screenshot 2024-11-28 at 13 01 39" src="https://github.com/user-attachments/assets/d5f24761-710f-43fb-a075-345d546e1309">
+
+
+If you filled the `.env` correctly you should get a success in the logs and some visual confirmation in the Meta App Dashboard. Otherwise you're likely to see a `403 forbidden` log in your server.
 
 ## 🥳 Congratulations!
 

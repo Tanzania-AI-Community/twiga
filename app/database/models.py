@@ -18,12 +18,9 @@ from sqlmodel import (
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
-from app.database.enums import (
-    GradeLevel,
-    OnboardingState,
-    Role,
-    UserState,
-)
+import app.database.enums as enums
+
+# TODO: Use proper enums in the table fields
 
 
 class ClassInfo(BaseModel):
@@ -49,7 +46,7 @@ class ClassInfo(BaseModel):
             return None
         return cls(
             subjects={
-                Subject(subject): [GradeLevel(grade) for grade in grades]
+                Subject(subject): [enums.GradeLevel(grade) for grade in grades]
                 for subject, grades in data.items()
             }
         )
@@ -63,13 +60,12 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
-    state: str = Field(default=UserState.new, max_length=50)
-    onboarding_state: Optional[str] = Field(default=OnboardingState.new, max_length=50)
-    role: str = Field(default=Role.teacher, max_length=20)
-    # TODO: remove selected_class_ids and use the taught_classes relationship instead
-    selected_class_ids: Optional[List[int]] = Field(
-        sa_column=Column(ARRAY(Integer)), default=[]
+    state: str = Field(default=enums.UserState.new, max_length=50)
+    onboarding_state: Optional[str] = Field(
+        default=enums.OnboardingState.new, max_length=50
     )
+    role: str = Field(default=enums.Role.teacher, max_length=20)
+    # TODO: Consider replacing the subject name in class_info with subject id
     class_info: Optional[dict] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
@@ -104,11 +100,15 @@ class User(SQLModel, table=True):
 
 class Subject(SQLModel, table=True):
     __tablename__ = "subjects"
+    model_config = {"arbitrary_types_allowed": True}
 
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(max_length=50, nullable=False)
-    status: str = Field(default="active")  # use SubjectClassStatus enum
+    # name: str = Field(max_length=50, nullable=False)
+    name: enums.SubjectName = Field(sa_type=String(50), nullable=False)
+    # status: enums.SubjectClassStatus = Field(
+    #     sa_type=String(50), default=enums.SubjectClassStatus.active
+    # )
 
     """ RELATIONSHIPS """
     # A subject may have entries in the classes table
