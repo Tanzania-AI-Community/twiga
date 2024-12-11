@@ -17,18 +17,22 @@ We're using the [Gitflow](https://www.atlassian.com/git/tutorials/comparing-work
 
 ## From Fork to PR with Twiga
 
+> [!Important]
+>
+> Read our [Git Guidelines](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/en/GIT_GUIDELINES.md) to learn how to develop collaboratively on Twiga like a pro.
+
 To start contributing to Twiga, follow these steps:
 
 1. Create a fork of this repository and clone it to your local machine
 
-> [!Important]
-> Remember to uncheck the "Copy the `main` branch only" so that you get the `development`branch too
+> [!Warning]
+> Remember to uncheck the "Copy the `main` branch only" so that you get the `development` branch too
 
-2. [Checkout](https://git-scm.com/docs/git-checkout) the `development` branch: `git checkout development`
+2. Checkout the `development` branch: `git checkout development`
 3. Create your feature branch from the `development` branch: `git checkout -b your-branch-name`
 4. Follow the steps in our [getting started](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/en/GETTING_STARTED.md) guide to get the project up and running locally
 5. (Not yet possible) Run the tests to ensure everything is working as expected
-6. [Commit](#conventional-commits) your changes: `git commit -m "[type]: descriptive commit message"`
+6. Commit your changes: `git commit -m "[type]: descriptive commit message"`
 7. Push to your remote branch: `git push origin your-branch-name`
 8. Submit a pull request to the `development` branch of the original repository
 
@@ -139,23 +143,6 @@ trim trailing whitespace.............................(no files to check)Skipped
 ```
 
 However, you may see `pre-commit` fail in the build pipeline upon submitting a PR. The solution to this is to run `pre-commit run --all-files` to force
-
-## Conventional Commits
-
-In addition to keeping our code style clean, we encourage you to use [_conventional commits_](https://www.conventionalcommits.org/en/v1.0.0/) to keep the commit history somewhat legible. We in the core team try our best to follow this convention but sometimes don't follow it perfectly or simply forget, so we won't enforce it. Here are some examples of commit messages we like:
-
-- `build: add langchain dependency`
-- `chore: update the gitignore to hide .venv`
-- `feat: create a textbook parser`
-- `fix: remove the KeyError in the user dictionary`
-- `refactor: move the assets folder to the app directory`
-- `docs: rewrite the contributing manual to kiswahili`
-
-Here are some we don't like:
-
-- `made some changes`
-- `didn't manage to get the code to do what I wanted but doing a commit anyways`
-- `twiga sucks`
 
 ## Licensing
 
