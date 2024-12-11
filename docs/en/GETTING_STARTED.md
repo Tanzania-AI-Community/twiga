@@ -120,11 +120,11 @@ Search the repository for the identifier `XXX:` and make sure to update the valu
 
 As any chatbot should do, Twiga keeps track of chat histories, users, classes, resources (i.e. the documents relevant to classes), a vector database, etc. Fortunately, everything (including the vector database) is stored in tables in a Postgres database. We're using Neon to host our database, but for testing purposes its completely fine to have a local Postgres database on your computer with some testing data.
 
-First of all, you need to install Postgres from their [official site](https://www.postgresql.org/download/) (we recommend using something between version 15 and 17). It might be easiest to follow the steps on how to download it [here](https://www.w3schools.com/postgresql/postgresql_install.php). Afterwards you want to connect to your Postgres database with the following [steps](https://www.w3schools.com/postgresql/postgresql_getstarted.php).
+First of all, you need to install Postgres from their [official site](https://www.postgresql.org/download/) (we recommend using version 17). It might be easiest to follow the steps on how to download it [here](https://www.w3schools.com/postgresql/postgresql_install.php). Afterwards you want to connect to your Postgres database with the following [steps](https://www.w3schools.com/postgresql/postgresql_getstarted.php).
 
 > [!Note]
 >
-> You can try out [TablePlus](https://tableplus.com/) to visualize your databases.
+> Some have encountered issues with the pgvector installation and database permissions/ssl. We plan to release a Dockerized solution to replace this hassle.
 
 Once you have an active database you should add this to your `.env`:
 
@@ -136,11 +136,15 @@ This link assumes you are running the Postgres database on port 5432, which is t
 
 > [!Warning]
 >
-> Running this command will create the embeddings of the Geography Form 2 textbook using Together AI's API (you're welcome to use OpenAI as well). Thus, it will cost around 0.05 USD. We are planning to make the pre-embedded chunks available asap (send us a reminder!).
+> Running this command will create the embeddings of the Geography Form 2 textbook using Together AI's API (you're welcome to use OpenAI as well). Thus, it will cost around 0.05 USD. We are planning to make the pre-embedded chunks available asap (send us a reminder!). If you don't want to create the vector data yet you can remove the `--vector-data` flag. See `scripts/database/init_twigadb.py` for more details.
 
 ```bash
-python -m scripts.database.init_twigadb --sample-data
+python -m scripts.database.init_twigadb --sample-data --vector-data
 ```
+
+> [!Note]
+>
+> You can try out [TablePlus](https://tableplus.com/) to visualize your databases.
 
 ## 🖥️ Set up the FastAPI application
 
@@ -171,7 +175,6 @@ Now, in your Meta App Dashboard, go to **WhatsApp > Configuration**. In the **We
 Once you press **Verify and save** a confirmation request will be sent to your server via the Ngrok endpoint (you should see logs show up in both terminals). Finally, scroll down to the Webhook Fields and **subscribe** do the _messages_ endpoint.
 
 <img width="1215" alt="Screenshot 2024-11-28 at 13 01 39" src="https://github.com/user-attachments/assets/d5f24761-710f-43fb-a075-345d546e1309">
-
 
 If you filled the `.env` correctly you should get a success in the logs and some visual confirmation in the Meta App Dashboard. Otherwise you're likely to see a `403 forbidden` log in your server.
 
