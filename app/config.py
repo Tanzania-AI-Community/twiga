@@ -43,7 +43,6 @@ class Settings(BaseSettings):
 
     # Database settings
     database_url: SecretStr
-    migrations_url: Optional[SecretStr] = None
 
     # Business environment
     business_env: bool = False  # Default if not found in .env
