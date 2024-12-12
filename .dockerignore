@@ -4,6 +4,10 @@
 # Ignore .env file
 .env
 *.env
+.env.local
+.env.production
+.env.development
+.env.test
 
 # Ignore .db files
 *.db
@@ -17,3 +21,9 @@ LICENSE
 
 # Ignore .github folder
 .github/
+
+# Ignore pycache
+__pycache__/
+
+# Ignore .git folder
+.git/
