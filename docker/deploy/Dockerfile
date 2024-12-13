@@ -9,14 +9,14 @@ WORKDIR /src
 # Copy dependency files first to leverage caching
 COPY pyproject.toml uv.lock ./
 
+# Install dependencies
+RUN uv sync --frozen --no-cache
+
 # Copy application code
 COPY . .
 
 # Fastapi port
 EXPOSE 8000
-
-# Install dependencies
-RUN uv sync --frozen --no-cache
 
 # Run the application
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
