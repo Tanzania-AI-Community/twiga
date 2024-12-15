@@ -282,7 +282,12 @@ async def get_subject_grade_levels(subject_id: int) -> Dict[str, Any]:
                     Class.grade_level,
                 )
                 .join(Class, Class.subject_id == Subject.id)
-                .where(Subject.id == subject_id)
+                .where(
+                    and_(
+                        Subject.id == subject_id,
+                        Class.status == enums.SubjectClassStatus.active,
+                    )
+                )
             )
             result = await session.execute(statement)
             rows = result.fetchall()
@@ -295,7 +300,7 @@ async def get_subject_grade_levels(subject_id: int) -> Dict[str, Any]:
             classes = [
                 {
                     "id": str(row.id),
-                    "title": row.name,
+                    "title": f"{row.grade_level}",  # Create a title from subject and grade level
                 }
                 for row in rows
             ]
