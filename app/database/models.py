@@ -105,7 +105,7 @@ class Class(SQLModel, table=True):
 
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
-    subject_id: int = Field(foreign_key="subjects.id", index=True)
+    subject_id: int = Field(foreign_key="subjects.id", index=True, ondelete="CASCADE")
     grade_level: enums.GradeLevel = Field(max_length=10, index=True)
     status: enums.SubjectClassStatus = Field(default=enums.SubjectClassStatus.active)
 
@@ -119,7 +119,9 @@ class Class(SQLModel, table=True):
         back_populates="class_", cascade_delete=True
     )
     # Relationship to the Subject table (since the Subject is a foreign key)
-    subject_: Subject = Relationship(back_populates="subject_classes")
+    subject_: Subject = Relationship(
+        back_populates="subject_classes", cascade_delete=True
+    )
 
 
 class TeacherClass(SQLModel, table=True):
