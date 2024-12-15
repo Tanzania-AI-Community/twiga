@@ -139,9 +139,9 @@ async def process_chunks(
 
                 # Determine content type
                 if metadata.get("doc_type") == "Exercise":
-                    content_type = ChunkType.exercise
+                    chunk_type = ChunkType.exercise
                 elif metadata.get("doc_type") == "Content":
-                    content_type = ChunkType.text
+                    chunk_type = ChunkType.text
                 else:
                     logger.warning(
                         f"Unknown document type: {metadata.get('doc_type')}. Skipping chunk."
@@ -151,7 +151,7 @@ async def process_chunks(
                 chunk = Chunk(
                     resource_id=resource_id,
                     content=item["chunk"],
-                    content_type=content_type,
+                    chunk_type=chunk_type,
                     top_level_section_index=top_level_section_id,
                     top_level_section_title=top_level_section_title,
                     embedding=embedding,

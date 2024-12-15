@@ -119,11 +119,7 @@ async def handle_new_dummy(user: User) -> JSONResponse:
         user.onboarding_state = enums.OnboardingState.completed
         user.role = enums.Role.teacher
         user.class_info = ClassInfo(
-            subjects={
-                enums.SubjectName.geography: [
-                    enums.GradeLevel.os2
-                ]  # Using GradeLevel.os2 for Secondary Form 2
-            }
+            subjects={enums.SubjectName.geography: [enums.GradeLevel.os2]}
         ).model_dump()
 
         # Read the class IDs from the class info

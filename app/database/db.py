@@ -279,7 +279,6 @@ async def get_subject_grade_levels(subject_id: int) -> Dict[str, Any]:
                 select(
                     Subject.name.label("subject_name"),
                     Class.id,
-                    Class.name,
                     Class.grade_level,
                 )
                 .join(Class, Class.subject_id == Subject.id)
