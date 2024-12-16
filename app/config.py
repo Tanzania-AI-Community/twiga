@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     meta_app_id: str
     meta_app_secret: SecretStr
 
-    # WhatsApp settings
+    # WhatsApp settings (TODO: Set flow stuff to optional, and add business_env)
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
@@ -34,16 +34,16 @@ class Settings(BaseSettings):
 
     # Flows settings
     onboarding_flow_id: Optional[str] = None
-    subjects_classes_flow_id: Optional[str] = None
+    select_subjects_flow_id: Optional[str] = None
+    select_classes_flow_id: Optional[str] = None
+    simple_subjects_classes_flow_id: Optional[str] = None
     flow_token_encryption_key: Optional[SecretStr] = None
+
+    # Rate limit settings
+    daily_message_limit: int
 
     # Database settings
     database_url: SecretStr
-
-    @property
-    def sync_database_url(self) -> str:
-        """Get synchronous database URL for migrations"""
-        return self.database_url.get_secret_value().replace("+asyncpg", "")
 
     # Business environment
     business_env: bool = False  # Default if not found in .env
@@ -74,7 +74,6 @@ class LLMSettings(BaseSettings):
     llm_model_options: dict = {
         "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-        "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
         "gpt-4o": "gpt-4o",
         "gpt-4o_mini": "gpt-40-mini",
@@ -90,44 +89,14 @@ class LLMSettings(BaseSettings):
      - make sure your choice of LLM, embedder, and ai_provider are compatible
     """
     ai_provider: Literal["together", "openai"] = "together"
-    llm_model_name: str = llm_model_options["llama_3_3_70b"]
+    llm_model_name: str = llm_model_options["llama_405b"]
     exercise_generator_model: str = llm_model_options["llama_70b"]
     embedding_model: str = embedder_model_options["bge-large"]
 
 
 def initialize_settings():
-    settings = Settings()  # type: ignore
+    settings = Settings()
     llm_settings = LLMSettings()
-
-    # Validate required Meta settings
-    assert (
-        settings.meta_api_version and settings.meta_api_version.strip()
-    ), "META_API_VERSION is required"
-    assert (
-        settings.meta_app_id and settings.meta_app_id.strip()
-    ), "META_APP_ID is required"
-    assert (
-        settings.meta_app_secret and settings.meta_app_secret.get_secret_value().strip()
-    ), "META_APP_SECRET is required"
-
-    # Validate required WhatsApp settings
-    assert (
-        settings.whatsapp_cloud_number_id and settings.whatsapp_cloud_number_id.strip()
-    ), "WHATSAPP_CLOUD_NUMBER_ID is required"
-    assert (
-        settings.whatsapp_verify_token
-        and settings.whatsapp_verify_token.get_secret_value().strip()
-    ), "WHATSAPP_VERIFY_TOKEN is required"
-    assert (
-        settings.whatsapp_api_token
-        and settings.whatsapp_api_token.get_secret_value().strip()
-    ), "WHATSAPP_API_TOKEN is required"
-
-    # Validate other required settings
-    assert (
-        settings.database_url and settings.database_url.get_secret_value().strip()
-    ), "DATABASE_URL is required"
-
     return settings, llm_settings
 
 
