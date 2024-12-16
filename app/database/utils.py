@@ -17,14 +17,6 @@ async def log_slow_query(query_name: str, start_time: float):
 
 def get_database_url() -> str:
     """Get formatted database URL from settings"""
-    # database_url = "postgresql+asyncpg://{db_user}:{db_password}@{db_server_name}:{db_port}/{db_name}".format(
-    #     db_user=settings.database_user.get_secret_value(),
-    #     db_password=settings.database_password.get_secret_value(),
-    #     db_server_name=settings.database_server_name.get_secret_value(),
-    #     db_port=settings.database_port.get_secret_value(),
-    #     db_name=settings.database_name.get_secret_value(),
-    # )
-    # return database_url
     if settings.env_file == ".env.local":
         return settings.database_url.get_secret_value()
     database_uri = urlparse(settings.database_url.get_secret_value())
