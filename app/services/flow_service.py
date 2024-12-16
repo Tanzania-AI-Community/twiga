@@ -1,12 +1,13 @@
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Dict, List, Optional
 from dateutil.relativedelta import relativedelta
 import logging
-from fastapi import BackgroundTasks, Request
-from fastapi.responses import PlainTextResponse
+from fastapi import BackgroundTasks
+from fastapi.responses import PlainTextResponse, JSONResponse
 
 import app.utils.flow_utils as futil
 import app.database.db as db
+from app.database.models import ClassInfo, User
 from app.services.whatsapp_service import whatsapp_client
 from app.config import settings
 from app.utils.string_manager import StringCategory, strings
@@ -18,39 +19,25 @@ import app.database.models as models
 class FlowService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-
-        # Check if the business environment is set
-        if not settings.business_env:
-            return
-
-        # Check if the flow settings are set
-        assert settings.onboarding_flow_id and settings.onboarding_flow_id.strip()
-        assert (
-            settings.select_subjects_flow_id
-            and settings.select_subjects_flow_id.strip()
-        )
-        assert (
-            settings.select_classes_flow_id and settings.select_classes_flow_id.strip()
-        )
-
-        self.data_exchange_action_handlers: Dict[str, Callable[..., Any]] = {
+        self.data_exchange_action_handlers: Dict[str, callable] = {
             settings.onboarding_flow_id: self.handle_onboarding_data_exchange_action,
             settings.select_subjects_flow_id: self.handle_subject_data_exchange_action,
             settings.select_classes_flow_id: self.handle_classes_data_exchange_action,
+            settings.simple_subjects_classes_flow_id: self.handle_simple_subjects_classes_data_exchange_action,
         }
 
         # NOTE: This is only used when designing flows (i.e. work-in-progress)
-        self.init_action_handlers: Dict[str, Callable[..., Any]] = {
+        self.init_action_handlers: Dict[str, callable] = {
             settings.onboarding_flow_id: flows_wip.handle_onboarding_init_action,
             settings.select_subjects_flow_id: flows_wip.handle_select_subjects_init_action,
-            # settings.select_classes_flow_id: flows_wip.handle_select_classes_init_action,
+            settings.select_classes_flow_id: flows_wip.handle_select_classes_init_action,
+            settings.simple_subjects_classes_flow_id: flows_wip.handle_simple_subjects_classes_init_action,
         }
 
     async def handle_flow_request(
-        self, request: Request, bg_tasks: BackgroundTasks
+        self, body: dict, bg_tasks: BackgroundTasks
     ) -> PlainTextResponse:
         try:
-            body = await request.json()
             payload, aes_key, initial_vector = await futil.decrypt_flow_request(body)
             action = payload.get("action")
             flow_token = payload.get("flow_token")
@@ -130,7 +117,7 @@ class FlowService:
 
     async def handle_unknown_flow(
         self,
-        user: models.User,
+        user: User,
         payload: dict,
         aes_key: bytes,
         initial_vector: str,
@@ -141,7 +128,7 @@ class FlowService:
         return await self.process_response(response_payload, aes_key, initial_vector)
 
     async def handle_unknown_action(
-        self, user: models.User, payload: dict, aes_key: bytes, initial_vector: str
+        self, user: User, payload: dict, aes_key: bytes, initial_vector: str
     ) -> PlainTextResponse:
         self.logger.warning(f"Unknown action received: {payload.get('action')}")
         response_payload = {"unknown": "event"}
@@ -151,7 +138,7 @@ class FlowService:
 
     async def handle_onboarding_data_exchange_action(
         self,
-        user: models.User,
+        user: User,
         payload: dict,
         aes_key: bytes,
         initial_vector: str,
@@ -161,7 +148,7 @@ class FlowService:
             self.logger.debug(f"Handling onboarding data exchange: {payload}")
             data = payload.get("data", {})
             is_update = data.get("is_updating", False)
-            encrypted_flow_token = payload["flow_token"]
+            encrypted_flow_token = payload.get("flow_token")
 
             # Add a background task to update the user profile
             background_tasks.add_task(self.update_user_profile, user, data, is_update)
@@ -181,7 +168,7 @@ class FlowService:
 
     async def handle_subject_data_exchange_action(
         self,
-        user: models.User,
+        user: User,
         payload: dict,
         aes_key: bytes,
         initial_vector: str,
@@ -191,7 +178,7 @@ class FlowService:
             self.logger.info(f"Handling subject class info data exchange: {payload}")
             data = payload.get("data", {})
             selected_subject_ids = [int(id) for id in data.get("selected_subjects", [])]
-            encrypted_flow_token = payload["flow_token"]
+            encrypted_flow_token = payload.get("flow_token")
 
             if not selected_subject_ids:
                 self.logger.error("No subjects selected")
@@ -217,7 +204,7 @@ class FlowService:
 
     async def handle_classes_data_exchange_action(
         self,
-        user: models.User,
+        user: User,
         payload: dict,
         aes_key: bytes,
         initial_vector: str,
@@ -228,7 +215,7 @@ class FlowService:
             data = payload.get("data", {})
             selected_classes = [int(id) for id in data.get("selected_classes", [])]
             subject_id = int(data.get("subject_id"))  # This may raise an error
-            encrypted_flow_token = payload["flow_token"]
+            encrypted_flow_token = payload.get("flow_token")
 
             if not selected_classes:
                 self.logger.error("No classes selected")
@@ -256,24 +243,98 @@ class FlowService:
             )
 
         except ValueError as e:
-            return PlainTextResponse(content={"error_msg": str(e)}, status_code=422)
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
+        except Exception as e:
+            return PlainTextResponse(content={"error_msg": str(e)}, status_code=500)
+
+    async def handle_simple_subjects_classes_data_exchange_action(
+        self,
+        user: User,
+        payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        try:
+            self.logger.info(f"Handling subjects and classes data exchange: {payload}")
+            data = payload.get("data", {})
+
+            # Extract selected classes for each subject
+            selected_classes_for_subject1 = [
+                int(id) for id in data.get("selected_classes_for_subject1", [])
+            ]
+            selected_classes_for_subject2 = [
+                int(id) for id in data.get("selected_classes_for_subject2", [])
+            ]
+            selected_classes_for_subject3 = [
+                int(id) for id in data.get("selected_classes_for_subject3", [])
+            ]
+            selected_classes_for_subject4 = [
+                int(id) for id in data.get("selected_classes_for_subject4", [])
+            ]
+            selected_classes_for_subject5 = [
+                int(id) for id in data.get("selected_classes_for_subject5", [])
+            ]
+            selected_classes_for_subject6 = [
+                int(id) for id in data.get("selected_classes_for_subject6", [])
+            ]
+
+            # Combine all selected classes into a dictionary
+            selected_classes_by_subject = {
+                "subject1": selected_classes_for_subject1,
+                "subject2": selected_classes_for_subject2,
+                "subject3": selected_classes_for_subject3,
+                "subject4": selected_classes_for_subject4,
+                "subject5": selected_classes_for_subject5,
+                "subject6": selected_classes_for_subject6,
+            }
+
+            # Validate that at least one class is selected for any subject
+            if not any(
+                classes for classes in selected_classes_by_subject.values() if classes
+            ):
+                self.logger.error("No classes selected for any subject")
+                raise ValueError("No classes selected for any subject")
+
+            # # Update user classes for each subject in the background
+            # for subject, classes in selected_classes_by_subject.items():
+            #     if classes:  # Only update if classes are selected for the subject
+            #         background_tasks.add_task(
+            #             update_user_classes,
+            #             user,
+            #             classes,
+            #             int(subject.replace("subject", "")),  # Extract subject ID
+            #         )
+
+            # Send a welcome message to the user
+            await whatsapp_client.send_message(
+                user.wa_id, strings.get_string(StringCategory.ONBOARDING, "welcome")
+            )
+
+            # Create the response payload
+            encrypted_flow_token = payload.get("flow_token")
+            response_payload = futil.create_flow_response_payload(
+                screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
         except Exception as e:
             return PlainTextResponse(content={"error_msg": str(e)}, status_code=500)
 
     """ *************** BACKGROUND TASKS *************** """
 
-    async def update_user_profile(
-        self, user: models.User, data: dict, is_updating: bool
-    ):
+    async def update_user_profile(self, user: User, data: dict, is_updating: bool):
         try:
             # Get field values using prefix based on update status
             prefix = "update_" if is_updating else ""
             user.name = data.get(f"{prefix}full_name") or user.name
-            # Fix for birthday parsing
-            birthday_str = data.get(f"{prefix}birthday")
             user.birthday = (
-                datetime.strptime(birthday_str, "%Y-%m-%d")
-                if birthday_str is not None
+                datetime.strptime(data.get(f"{prefix}birthday"), "%Y-%m-%d")
+                if data.get(f"{prefix}birthday")
                 else None
             )
             user.region = data.get(f"{prefix}region")
@@ -281,7 +342,7 @@ class FlowService:
             user.onboarding_state = enums.OnboardingState.personal_info_submitted
 
             # Update the database
-            user = await db.update_user(user)
+            await db.update_user(user)
 
             # Send the select subjects flow if onboarding
             if not is_updating:
@@ -293,10 +354,7 @@ class FlowService:
             self.logger.error(f"Failed to update onboarding data: {str(e)}")
 
     async def subject_background_task(
-        self,
-        user: models.User,
-        selected_subject_ids: List[int],
-        is_updating: bool = False,
+        self, user: User, selected_subject_ids: List[int], is_updating: bool = False
     ):
         try:
             # NOTE: Instead of partially updating the users class_info, we send the select classes flows and update it that way
@@ -310,7 +368,7 @@ class FlowService:
             self.logger.error(f"Failed to update subject data: {str(e)}")
 
     async def update_user_classes(
-        self, user: models.User, selected_classes: List[int], subject_id: int
+        self, user: User, selected_classes: List[int], subject_id: int
     ):
         try:
             # TODO: This is done multiple times if the teacher selected multiple subjects - oof, must fix
@@ -324,8 +382,8 @@ class FlowService:
             # Update the user so that the onboarding is complete
             user.state = enums.UserState.active
             user.onboarding_state = enums.OnboardingState.completed
-            user.class_info = models.ClassInfo(
-                classes={
+            user.class_info = ClassInfo(
+                subjects={
                     enums.SubjectName(subject.name): [
                         enums.GradeLevel(class_.grade_level) for class_ in classes
                     ]
@@ -339,7 +397,7 @@ class FlowService:
     """ *************** FLOW SENDING METHODS *************** """
 
     # The same flow is sent for both settings and onboarding (onboarding_flow_id)
-    async def send_user_settings_flow(self, user: models.User) -> None:
+    async def send_user_settings_flow(self, user: User) -> None:
         flow_strings = strings.get_category(StringCategory.FLOWS)
         header_text = flow_strings["personal_settings_header"]
         body_text = flow_strings["personal_settings_body"]
@@ -352,9 +410,6 @@ class FlowService:
             "birthday": user.birthday.strftime("%Y-%m-%d") if user.birthday else None,
             "school_name": user.school_name,
         }
-
-        assert settings.onboarding_flow_id
-
         await futil.send_whatsapp_flow_message(
             user=user,
             flow_id=settings.onboarding_flow_id,
@@ -367,7 +422,7 @@ class FlowService:
             flow_cta=flow_strings["personal_settings_cta"],
         )
 
-    async def send_personal_and_school_info_flow(self, user: models.User) -> None:
+    async def send_personal_and_school_info_flow(self, user: User) -> None:
         flow_strings = strings.get_category(StringCategory.FLOWS)
         header_text = flow_strings["start_onboarding_header"]
         body_text = flow_strings["start_onboarding_body"]
@@ -377,9 +432,6 @@ class FlowService:
             "max_date": (datetime.now() - relativedelta(years=18)).strftime("%Y-%m-%d"),
             "is_updating": False,
         }
-
-        assert settings.onboarding_flow_id
-
         await futil.send_whatsapp_flow_message(
             user=user,
             flow_id=settings.onboarding_flow_id,
@@ -393,12 +445,12 @@ class FlowService:
         )
 
     # The same flow is sent for both settings and onboarding
-    async def send_select_subject_flow(self, user: models.User) -> None:
+    async def send_select_subject_flow(self, user: User) -> None:
         subjects = await db.get_available_subjects()
         formatted_subjects = [
             {
-                "id": str(subject.id),
-                "title": enums.SubjectName(subject.name).display_format,
+                "id": subject["id"],
+                "title": enums.SubjectName(subject["title"]).title_format,
             }
             for subject in subjects
         ]
@@ -425,9 +477,6 @@ class FlowService:
                 "select_subject_text": flow_strings["select_subjects_text"],
             },
         )
-
-        assert settings.select_subjects_flow_id
-
         await futil.send_whatsapp_flow_message(
             user=user,
             flow_id=settings.select_subjects_flow_id,
@@ -439,40 +488,29 @@ class FlowService:
 
     # The same flow is sent for both settings and onboarding
     async def send_select_classes_flow(
-        self, user: models.User, subject_id: int, is_update: bool = False
+        self, user: User, subject_id: int, is_update: bool = False
     ) -> None:
         try:
             # Read the subject classes data from the database
-            subject = await db.read_subject(subject_id)
-            if subject is None:
-                raise ValueError(f"Subject with id {subject_id} not found")
-            if subject.subject_classes is None:
-                raise ValueError(f"No classes found for subject {subject_id}")
-
-            classes = [
-                {
-                    "id": str(one_class.id),
-                    "title": enums.GradeLevel(one_class.grade_level).display_format,
-                }
-                for one_class in subject.subject_classes
-            ]
-            title = enums.SubjectName(subject.name).display_format
+            subject_data = await db.get_subject_grade_levels(subject_id)
+            subject_title = enums.SubjectName(subject_data["subject_name"]).title_format
+            classes = subject_data["classes"]
 
             flow_strings = strings.get_category(StringCategory.FLOWS)
-            header_text = flow_strings["classes_flow_header"].format(subject=title)
+            header_text = flow_strings["classes_flow_header"].format(
+                subject=subject_title
+            )
             body_text = flow_strings["classes_flow_body"]
 
             response_payload = futil.create_flow_response_payload(
                 screen="select_classes",
                 data=futil.create_subject_class_payload(
-                    subject_title=title,
+                    subject_title=subject_title,
                     classes=classes,
                     is_update=is_update,
                     subject_id=str(subject_id),
                 ),
             )
-
-            assert settings.select_classes_flow_id
 
             # Send the flow
             await futil.send_whatsapp_flow_message(
