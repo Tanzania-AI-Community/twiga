@@ -118,28 +118,31 @@ Search the repository for the identifier `XXX:` and make sure to update the valu
 
 ## 🧠 Set up your local Postgres database
 
-As any chatbot should do, Twiga keeps track of chat histories, users, classes, resources (i.e. the documents relevant to classes), a vector database, etc. Fortunately, everything (including the vector database) is stored in tables in a Postgres database. We're using Neon to host our database, but for testing purposes its completely fine to have a local Postgres database on your computer with some testing data.
+As any chatbot should do, Twiga keeps track of chat histories, users, classes, resources (i.e. the documents relevant to classes), a vector database, etc. Fortunately, everything (including the vector database) is stored in tables in a Postgres database. We're using Neon to host our database, but for local development we use PostgreSQL.
 
-First of all, you need to install Postgres from their [official site](https://www.postgresql.org/download/) (we recommend using version 17). It might be easiest to follow the steps on how to download it [here](https://www.w3schools.com/postgresql/postgresql_install.php). Afterwards you want to connect to your Postgres database with the following [steps](https://www.w3schools.com/postgresql/postgresql_getstarted.php).
-
-> [!Note]
->
-> Some have encountered issues with the pgvector installation and database permissions/ssl. We plan to release a Dockerized solution to replace this hassle.
-
-Once you have an active database you should add this to your `.env`:
+First of all, you need to add the required env variables to your `.env`.
 
 ```bash
-DATABASE_URL=postgresql+asyncpg://localhost:5432/$YOUR_DB_NAME
+DATABASE_USER=$YOUR_USER
+DATABASE_PASSWORD=$YOUR_PASSWORD
+DATABASE_SERVER_NAME=db
+DATABASE_PORT=5432
+DATABASE_NAME=$YOUR_DB_NAME
+DATABASE_URL=postgresql+asyncpg://$YOUR_USER:$YOUR_PASSWORD@db:5432/$YOUR_DB_NAME
 ```
 
-This link assumes you are running the Postgres database on port 5432, which is the standard. Next up, let's create all the tables in your local Postgres database and fill in some data to get started. While your database is running on the specified port, run the following command:
+This link assumes you are running the Postgres database on port 5432, which is the standard.
 
-> [!Warning]
->
-> Running this command will create the embeddings of the Geography Form 2 textbook using Together AI's API (you're welcome to use OpenAI as well). Thus, it will cost around 0.05 USD. We are planning to make the pre-embedded chunks available asap (send us a reminder!). If you don't want to create the vector data yet you can remove the `--vector-data` flag. See `scripts/database/init_twigadb.py` for more details.
+Next up, let's build all Docker images, needed for further steps and for running the app. This command will take some time, run:
 
 ```bash
-python -m scripts.database.init_twigadb --sample-data --vector-data
+make build
+```
+
+Then, run the following command for generating data in your local DB.
+
+```bash
+make generate-local-data
 ```
 
 > [!Note]
@@ -148,11 +151,19 @@ python -m scripts.database.init_twigadb --sample-data --vector-data
 
 ## 🖥️ Set up the FastAPI application
 
-Run the following command to run the project. Remember that you should be within the virtual environment.
+Run the following command to run the project.
 
 ```sh
-uvicorn app.main:app --port 8000 --reload
+docker-compose up
 ```
+
+or, alternatively,
+
+```sh
+make run
+```
+
+If everything went well, your server is ready to accept connections!
 
 ## 📱 Complete WhatsApp configuration
 
