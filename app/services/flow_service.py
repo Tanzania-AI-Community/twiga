@@ -23,6 +23,7 @@ class FlowService:
             settings.onboarding_flow_id: self.handle_onboarding_data_exchange_action,
             settings.select_subjects_flow_id: self.handle_subject_data_exchange_action,
             settings.select_classes_flow_id: self.handle_classes_data_exchange_action,
+            settings.simple_subjects_classes_flow_id: self.handle_simple_subjects_classes_data_exchange_action,
         }
 
         # NOTE: This is only used when designing flows (i.e. work-in-progress)
@@ -30,6 +31,7 @@ class FlowService:
             settings.onboarding_flow_id: flows_wip.handle_onboarding_init_action,
             settings.select_subjects_flow_id: flows_wip.handle_select_subjects_init_action,
             settings.select_classes_flow_id: flows_wip.handle_select_classes_init_action,
+            settings.simple_subjects_classes_flow_id: flows_wip.handle_simple_subjects_classes_init_action,
         }
 
     async def handle_flow_request(
@@ -233,6 +235,84 @@ class FlowService:
                 user.wa_id, strings.get_string(StringCategory.ONBOARDING, "welcome")
             )
 
+            response_payload = futil.create_flow_response_payload(
+                screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
+            )
+            return await self.process_response(
+                response_payload, aes_key, initial_vector
+            )
+
+        except ValueError as e:
+            return JSONResponse(content={"error_msg": str(e)}, status_code=422)
+        except Exception as e:
+            return PlainTextResponse(content={"error_msg": str(e)}, status_code=500)
+
+    async def handle_simple_subjects_classes_data_exchange_action(
+        self,
+        user: User,
+        payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        try:
+            self.logger.info(f"Handling subjects and classes data exchange: {payload}")
+            data = payload.get("data", {})
+
+            # Extract selected classes for each subject
+            selected_classes_for_subject1 = [
+                int(id) for id in data.get("selected_classes_for_subject1", [])
+            ]
+            selected_classes_for_subject2 = [
+                int(id) for id in data.get("selected_classes_for_subject2", [])
+            ]
+            selected_classes_for_subject3 = [
+                int(id) for id in data.get("selected_classes_for_subject3", [])
+            ]
+            selected_classes_for_subject4 = [
+                int(id) for id in data.get("selected_classes_for_subject4", [])
+            ]
+            selected_classes_for_subject5 = [
+                int(id) for id in data.get("selected_classes_for_subject5", [])
+            ]
+            selected_classes_for_subject6 = [
+                int(id) for id in data.get("selected_classes_for_subject6", [])
+            ]
+
+            # Combine all selected classes into a dictionary
+            selected_classes_by_subject = {
+                "subject1": selected_classes_for_subject1,
+                "subject2": selected_classes_for_subject2,
+                "subject3": selected_classes_for_subject3,
+                "subject4": selected_classes_for_subject4,
+                "subject5": selected_classes_for_subject5,
+                "subject6": selected_classes_for_subject6,
+            }
+
+            # Validate that at least one class is selected for any subject
+            if not any(
+                classes for classes in selected_classes_by_subject.values() if classes
+            ):
+                self.logger.error("No classes selected for any subject")
+                raise ValueError("No classes selected for any subject")
+
+            # # Update user classes for each subject in the background
+            # for subject, classes in selected_classes_by_subject.items():
+            #     if classes:  # Only update if classes are selected for the subject
+            #         background_tasks.add_task(
+            #             update_user_classes,
+            #             user,
+            #             classes,
+            #             int(subject.replace("subject", "")),  # Extract subject ID
+            #         )
+
+            # Send a welcome message to the user
+            await whatsapp_client.send_message(
+                user.wa_id, strings.get_string(StringCategory.ONBOARDING, "welcome")
+            )
+
+            # Create the response payload
+            encrypted_flow_token = payload.get("flow_token")
             response_payload = futil.create_flow_response_payload(
                 screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
             )
