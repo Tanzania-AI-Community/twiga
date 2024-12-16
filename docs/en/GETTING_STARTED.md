@@ -123,21 +123,18 @@ As any chatbot should do, Twiga keeps track of chat histories, users, classes, r
 First of all, you need to add the required env variables to your `.env`.
 
 ```bash
-DATABASE_URL=postgresql+asyncpg://$YOUR_USER:$YOUR_PASSWORD@db:5432/$YOUR_DB_NAME
+DATABASE_USER=postgres
+DATABASE_PASSWORD=$YOUR_PASSWORD
+DATABASE_NAME=twiga
+DATABASE_URL=postgresql+asyncpg://postgres:$YOUR_PASSWORD@db:5432/twiga
 ```
 
 This link assumes you are running the Postgres database on port 5432, which is the standard.
 
-Next up, let's build all Docker images, needed for further steps and for running the app. This command will take some time, run:
+Next up, let's build all Docker images and local data, needed for further steps and for running the app. This command will take some time, run:
 
 ```bash
-make build
-```
-
-Then, run the following command for generating data in your local DB.
-
-```bash
-make generate-local-data
+make setup-env
 ```
 
 > [!Note]
@@ -149,7 +146,7 @@ make generate-local-data
 Run the following command to run the project.
 
 ```sh
-docker-compose up
+docker-compose -f docker/dev/docker-compose.yml --env-file .env up
 ```
 
 or, alternatively,
