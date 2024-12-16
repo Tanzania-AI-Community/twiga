@@ -1,21 +1,13 @@
 from contextlib import asynccontextmanager
-from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlmodel import text
 from sqlalchemy.orm import sessionmaker
-from app.config import settings
 import logging
+
+from app.database.utils import get_database_url
 
 
 logger = logging.getLogger(__name__)
-
-
-def get_database_url() -> str:
-    """Get formatted database URL from settings"""
-    if settings.env_file == ".env.local":
-        return settings.database_url.get_secret_value()
-    database_uri = urlparse(settings.database_url.get_secret_value())
-    return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
 
 
 # Create the engine without running init

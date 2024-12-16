@@ -20,7 +20,7 @@ from app.database.models import (
     Subject,
 )
 from app.database.enums import ChunkType
-from app.config import settings
+from app.database.utils import get_database_url
 from app.utils.embedder import get_embeddings
 
 # Set up logging
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 async def init_db(drop_all: bool = False):
     try:
         """Initialize the database with tables."""
-        engine = create_async_engine(settings.database_url.get_secret_value())
+        engine = create_async_engine(get_database_url())
 
         async with engine.begin() as conn:
             if drop_all:
@@ -58,7 +58,7 @@ async def inject_sample_data():
         with open(sample_data_path) as f:
             data = yaml.safe_load(f)
 
-        engine = create_async_engine(settings.database_url.get_secret_value())
+        engine = create_async_engine(get_database_url())
 
         async with AsyncSession(engine) as session:
             # 1. Create the dummy subject
@@ -171,7 +171,7 @@ async def process_chunks(
 async def inject_vector_data():
     """Inject vector data into the database with existence checking and continuation."""
     try:
-        engine = create_async_engine(settings.database_url.get_secret_value())
+        engine = create_async_engine(get_database_url())
 
         # Load sample data from YAML to get resource name
         sample_data_path = (
