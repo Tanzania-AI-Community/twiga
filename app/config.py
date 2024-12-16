@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     daily_message_limit: int
 
     # Database settings
+    database_port: SecretStr
+    database_user: SecretStr
+    database_server_name: SecretStr
+    database_password: SecretStr
+    database_name: SecretStr
     database_url: SecretStr
 
     # Business environment
