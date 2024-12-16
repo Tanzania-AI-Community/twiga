@@ -184,21 +184,3 @@ If you filled the `.env` correctly you should get a success in the logs and some
 ## 🥳 Congratulations!
 
 If you made it this far without issues, you should now have a running server for Twiga that you can text directly from your WhatsApp account. If you're encountering issues at this point still join our [Discord](https://discord.gg/bCe2HfZY2C) and write your question in `⚒-tech-support`.
-
-## Containerized with Docker
-
-> [!Note]
->
-> If you want to run Twiga with Docker instead of creating your own virtual environment (as we described above) we plan to update the documentation and Dockerfile for this ASAP. What you see below is based on an older version of Twiga meaning the Docker file is not up to date.
-
-We are also using Docker for Twiga so that you can work on the project in a contained environment to avoid some of the dependency and versioning issues that may occur on your own computer. All you need is to have [Docker](https://www.docker.com/) running on your computer.
-
-We recommend reading up on docker to learn about images, containerization, volumes, etc. If you want to use Docker compose with volumes so that you even have hot reloads in the running container let us know (since we did that once). Once docker is set up you can run the following command.
-
-...tbd
-
-In order for the Meta API to access your local FastAPI server you need to activate the ngrok API gateway with the following command.
-
-```sh
-ngrok http 8000 --domain $YOUR_GATEWAY_NAME.ngrok-free.app
-```
