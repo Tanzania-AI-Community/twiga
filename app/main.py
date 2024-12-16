@@ -8,6 +8,10 @@ from app.security import flows_signature_required
 from app.services.whatsapp_service import whatsapp_client
 from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
+from fastapi import Request, HTTPException
+import app.utils.flow_utils as futil
+from app.config import settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -53,3 +57,38 @@ async def webhook_post(request: Request) -> JSONResponse:
 async def handle_flows_webhook(request: Request, background_tasks: BackgroundTasks):
     logger.debug("flows webhook is being called")
     return await handle_request(request, background_tasks, endpoint="flows")
+
+
+if settings.environment == "development":
+    # use this when testing flows, the returned token will be the flow_token. The ideal way is to use have scripts for these operations
+    # the encrypt_flow_token will help you get the flow_token which can be used when testing flows
+    # the decrypt_flow_token will help you get the wa_id and flow_id from the encrypted flow_token
+    @app.post("/encrypt_flow_token")
+    async def handle_encrypt_flow_token(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            logger.debug(f"Received request to encrypt flow token: {body}")
+            wa_id = body.get("wa_id")
+            flow_id = body.get("flow_id")
+
+            logger.info(
+                f"Encrypting flow token for wa_id {wa_id} and flow_id {flow_id}"
+            )
+
+            return futil.encrypt_flow_token(wa_id, flow_id)
+        except Exception as e:
+            logger.error(f"Error encrypting flow token: {e}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
+
+    # decrypt_flow_token
+    @app.post("/decrypt_flow_token")
+    async def handle_decrypt_flow_token(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            logger.debug(f"Received request to decrypt flow token: {body}")
+            encrypted_flow_token = body.get("encrypted-flow-token")
+
+            return futil.decrypt_flow_token(encrypted_flow_token)
+        except Exception as e:
+            logger.error(f"Error decrypting flow token: {e}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
