@@ -1,19 +1,19 @@
 build:
 	@echo 'Building images ...'
-	@docker-compose build --no-cache
+	@docker-compose -f docker/dev/docker-compose.yml --env-file .env build --no-cache
 
 run:
 	@echo 'Running containers ...'
-	@docker-compose up -d
+	@docker-compose -f docker/dev/docker-compose.yml --env-file .env up -d
 
 stop:
 	@echo 'Stopping containers ...'
-	@docker-compose down
+	@docker-compose -f docker/dev/docker-compose.yml down
 
 restart: stop run
 
 generate-local-data:
 	@echo 'Generating local data ...'
-	@docker-compose run --rm app bash -c "PYTHONPATH=/app uv run python scripts/database/init_twigadb.py --sample-data --vector-data"
+	@docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/database/init_twigadb.py --sample-data --vector-data"
 
 setup-env: build generate-local-data run
