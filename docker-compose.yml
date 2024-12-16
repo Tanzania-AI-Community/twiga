@@ -6,18 +6,9 @@ services:
       context: .
       dockerfile: docker/dev/db/Dockerfile
     ports:
-      - "${DATABASE_PORT}:5432"
-    environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
+      - "5432:5432"
     volumes:
       - db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   app:
     build:
@@ -29,7 +20,7 @@ services:
       - .:/app
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

@@ -123,11 +123,6 @@ As any chatbot should do, Twiga keeps track of chat histories, users, classes, r
 First of all, you need to add the required env variables to your `.env`.
 
 ```bash
-DATABASE_USER=$YOUR_USER
-DATABASE_PASSWORD=$YOUR_PASSWORD
-DATABASE_SERVER_NAME=db
-DATABASE_PORT=5432
-DATABASE_NAME=$YOUR_DB_NAME
 DATABASE_URL=postgresql+asyncpg://$YOUR_USER:$YOUR_PASSWORD@db:5432/$YOUR_DB_NAME
 ```
 
