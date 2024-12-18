@@ -2,13 +2,9 @@ import json
 import logging
 from typing import Literal, Optional
 from fastapi import BackgroundTasks, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-from app.database.models import (
-    ClassInfo,
-    Message,
-    User,
-)
+import app.database.models as models
 import app.database.enums as enums
 from app.utils.whatsapp_utils import (
     RequestType,
@@ -30,17 +26,16 @@ async def handle_request(
     request: Request,
     bg_tasks: Optional[BackgroundTasks] = None,
     endpoint: Literal["webhooks", "flows"] = "webhooks",
-) -> JSONResponse:
+) -> JSONResponse | PlainTextResponse:
     """
-    Handles HTTP requests to this webhook for message, sent, delivered, and read events.
-    Includes user management with database integration.
+    Handles HTTP requests to the 'webhooks' and 'flows' endpoints.
     """
     try:
 
         body = await request.json()
 
-        # Route the request to the appropriate handler
         if endpoint == "flows":
+            # Returns a PlainTextResponse
             return await flow_client.handle_flow_request(body, bg_tasks)
 
         request_type = get_request_type(body)
@@ -79,17 +74,25 @@ async def handle_request(
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information and create/get user
     message_info = extract_message_info(body)
-    message = extract_message(message_info.get("message", {}))
+    message = extract_message(message_info.get("message", None))
+
+    if not message:
+        logger.warning("Empty message received")
+        return JSONResponse(
+            content={"status": "error", "message": "Invalid message"},
+            status_code=400,
+        )
+
     user = await db.get_or_create_user(
         wa_id=message_info.get("wa_id"), name=message_info.get("name")
     )
 
     # Create message record
     user_message = await db.create_new_message(
-        Message(user_id=user.id, role=enums.MessageRole.user, content=message)
+        models.Message(user_id=user.id, role=enums.MessageRole.user, content=message)
     )
 
-    logger.debug(f"Processing message for user {user.wa_id} in state {user.state}")
+    logger.debug(f"Processing message from user {user.wa_id} in state {user.state}.")
 
     match user.state:
         case enums.UserState.blocked:
@@ -112,13 +115,13 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     raise Exception("Invalid user state, reached the end of handle_valid_message")
 
 
-async def handle_new_dummy(user: User) -> JSONResponse:
+async def handle_new_dummy(user: models.User) -> JSONResponse:
     try:
         # Update the user object with dummy data
         user.state = enums.UserState.active
         user.onboarding_state = enums.OnboardingState.completed
         user.role = enums.Role.teacher
-        user.class_info = ClassInfo(
+        user.class_info = models.ClassInfo(
             subjects={enums.SubjectName.geography: [enums.GradeLevel.os2]}
         ).model_dump()
 
@@ -135,7 +138,7 @@ async def handle_new_dummy(user: User) -> JSONResponse:
         )
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
-            Message(
+            models.Message(
                 user_id=user.id,
                 role=enums.MessageRole.assistant,
                 content=response_text,
