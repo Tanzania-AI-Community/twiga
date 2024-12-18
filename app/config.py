@@ -45,9 +45,6 @@ class Settings(BaseSettings):
     # Business environment
     business_env: bool = False  # Default if not found in .env
 
-    # Environment specific settings
-    environment: str = "development"  # Default if not found in .env
-
     @field_validator("business_env", mode="before")
     @classmethod
     def parse_business_env(cls, v):
