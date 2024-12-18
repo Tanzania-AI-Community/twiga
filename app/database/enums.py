@@ -55,7 +55,7 @@ class GradeLevel(str, Enum):
             "as1": "Form 5",
             "as2": "Form 6",
         }
-        return grade_display[self.value]
+        return grade_display[self]
 
 
 class OnboardingState(str, Enum):

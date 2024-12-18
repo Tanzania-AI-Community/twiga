@@ -36,6 +36,27 @@ class ClassInfo(BaseModel):
             for subject, grades in data["subjects"].items()
         }
 
+    def format_readable(self) -> str:
+        """
+        Formats the class info into a human-readable string.
+        Examples:
+            "Geography (Form 1, Form 3), Mathematics (Form 5)"
+            "Geography (Standard 1), English (Advanced Form 1)"
+        """
+        if not self.subjects:
+            return "No classes assigned"
+
+        formatted_subjects = []
+        for subject, grades in self.subjects.items():
+            subject_name = enums.SubjectName(subject).display_format
+            formatted_grades = sorted(
+                [enums.GradeLevel(grade).display_format for grade in grades]
+            )
+            grades_text = ", ".join(formatted_grades)
+            formatted_subjects.append(f"{subject_name} ({grades_text})")
+
+        return ", ".join(formatted_subjects)
+
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -82,6 +103,16 @@ class User(SQLModel, table=True):
         back_populates="user_", cascade_delete=True
     )
 
+    """ PROPERTIES """
+
+    @property
+    def formatted_class_info(self) -> str:
+        """Returns a human-readable string representation of the class info"""
+        if not self.class_info:
+            return "No classes assigned"
+
+        return ClassInfo(subjects=self.class_info).format_readable()
+
 
 class Subject(SQLModel, table=True):
     __tablename__ = "subjects"
@@ -93,7 +124,9 @@ class Subject(SQLModel, table=True):
 
     """ RELATIONSHIPS """
     # A subject may have entries in the classes table
-    subject_classes: Optional[List["Class"]] = Relationship(back_populates="subject_")
+    subject_classes: Optional[List["Class"]] = Relationship(
+        back_populates="subject_", cascade_delete=True
+    )
 
 
 class Class(SQLModel, table=True):
@@ -119,9 +152,7 @@ class Class(SQLModel, table=True):
         back_populates="class_", cascade_delete=True
     )
     # Relationship to the Subject table (since the Subject is a foreign key)
-    subject_: Subject = Relationship(
-        back_populates="subject_classes", cascade_delete=True
-    )
+    subject_: Subject = Relationship(back_populates="subject_classes")
 
 
 class TeacherClass(SQLModel, table=True):
