@@ -239,10 +239,13 @@ class LLMClient:
             {
                 "role": MessageRole.system,
                 "content": prompt_manager.format_prompt(
-                    "twiga_system", user_name=user.name, class_info=user.class_info
+                    "twiga_system",
+                    user_name=user.name,
+                    class_info=user.formatted_class_info,
                 ),
             }
         ]
+        print(formatted_messages)
 
         # Add history messages
         if database_messages:

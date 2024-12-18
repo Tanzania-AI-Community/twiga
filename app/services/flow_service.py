@@ -262,7 +262,7 @@ class FlowService:
             user.onboarding_state = enums.OnboardingState.personal_info_submitted
 
             # Update the database
-            await db.update_user(user)
+            user = await db.update_user(user)
 
             # Send the select subjects flow if onboarding
             if not is_updating:
@@ -369,8 +369,8 @@ class FlowService:
         subjects = await db.get_available_subjects()
         formatted_subjects = [
             {
-                "id": subject["id"],
-                "title": enums.SubjectName(subject["title"]).display_format,
+                "id": str(subject.id),
+                "title": enums.SubjectName(subject.name).display_format,
             }
             for subject in subjects
         ]
@@ -412,22 +412,24 @@ class FlowService:
     ) -> None:
         try:
             # Read the subject classes data from the database
-            subject_data = await db.get_subject_grade_levels(subject_id)
-            subject_title = enums.SubjectName(
-                subject_data["subject_name"]
-            ).display_format
-            classes = subject_data["classes"]
+            subject = await db.read_subject(subject_id)
+            classes = [
+                {
+                    "id": str(one_class.id),
+                    "title": enums.GradeLevel(one_class.grade_level).display_format,
+                }
+                for one_class in subject.subject_classes
+            ]
+            title = enums.SubjectName(subject.name).display_format
 
             flow_strings = strings.get_category(StringCategory.FLOWS)
-            header_text = flow_strings["classes_flow_header"].format(
-                subject=subject_title
-            )
+            header_text = flow_strings["classes_flow_header"].format(subject=title)
             body_text = flow_strings["classes_flow_body"]
 
             response_payload = futil.create_flow_response_payload(
                 screen="select_classes",
                 data=futil.create_subject_class_payload(
-                    subject_title=subject_title,
+                    subject_title=title,
                     classes=classes,
                     is_update=is_update,
                     subject_id=str(subject_id),
