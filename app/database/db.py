@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from sqlalchemy import text
 from sqlmodel import and_, select, or_, delete, insert, exists
 import logging
+from sqlalchemy.orm import selectinload
 
 from app.database.models import (
     User,
@@ -114,9 +115,6 @@ async def get_user_message_history(
 
 async def create_new_messages(messages: List[Message]) -> List[Message]:
     """Optimized bulk message creation"""
-    if not messages:
-        return []
-
     async with get_session() as session:
         try:
             # Add all messages to the session
@@ -224,7 +222,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             raise Exception(f"Failed to get user resources: {str(e)}")
 
 
-async def get_available_subjects() -> List[Dict[str, enums.SubjectName]]:
+async def get_available_subjects() -> List[Subject]:
     """
     Get all available subjects with their IDs and names.
 
@@ -234,26 +232,42 @@ async def get_available_subjects() -> List[Dict[str, enums.SubjectName]]:
     async with get_session() as session:
         try:
             statement = (
-                select(Subject.id, Subject.name)
+                select(Subject)
                 .join(Class, Class.subject_id == Subject.id)
                 .where(Class.status == SubjectClassStatus.active)
                 .distinct()
             )
             result = await session.execute(statement)
-            subjects = [
-                {"id": str(row.id), "title": row.name}  # Capitalize subject
-                for row in result.fetchall()
-            ]
-            return subjects
+            return result.scalars().all()
         except Exception as e:
             logger.error(f"Failed to get available subjects: {str(e)}")
             raise Exception(f"Failed to get available subjects: {str(e)}")
 
 
+# async def read_subject(subject_id: int) -> Optional[Subject]:
+#     async with get_session() as session:
+#         try:
+#             statement = select(Subject).where(Subject.id == subject_id)
+#             result = await session.execute(statement)
+#             return result.scalar_one_or_none()
+#         except Exception as e:
+#             logger.error(f"Failed to read subject {subject_id}: {str(e)}")
+#             raise Exception(f"Failed to read subject: {str(e)}")
+
+
 async def read_subject(subject_id: int) -> Optional[Subject]:
+    """
+    Read a subject and its classes from the database.
+    NOTE: This function uses eager loading so if you only need the subject object without classes loaded it might be better to make a new function
+    """
     async with get_session() as session:
         try:
-            statement = select(Subject).where(Subject.id == subject_id)
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = (
+                select(Subject)
+                .options(selectinload(Subject.subject_classes))
+                .where(Subject.id == subject_id)
+            )
             result = await session.execute(statement)
             return result.scalar_one_or_none()
         except Exception as e:
@@ -272,48 +286,6 @@ async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
             raise Exception(f"Failed to read classes: {str(e)}")
 
 
-async def get_subject_grade_levels(subject_id: int) -> Dict[str, Any]:
-    async with get_session() as session:
-        try:
-            statement = (
-                select(
-                    Subject.name.label("subject_name"),
-                    Class.id,
-                    Class.grade_level,
-                )
-                .join(Class, Class.subject_id == Subject.id)
-                .where(
-                    and_(
-                        Subject.id == subject_id,
-                        Class.status == enums.SubjectClassStatus.active,
-                    )
-                )
-            )
-            result = await session.execute(statement)
-            rows = result.fetchall()
-            if not rows:
-                raise Exception(
-                    f"Subject with ID {subject_id} not found or has no classes"
-                )
-
-            subject_name = rows[0].subject_name
-            classes = [
-                {
-                    "id": str(row.id),
-                    "title": f"{row.grade_level}",  # Create a title from subject and grade level
-                }
-                for row in rows
-            ]
-            return {"subject_name": subject_name, "classes": classes}
-        except Exception as e:
-            logger.error(
-                f"Failed to get subject and classes for subject ID {subject_id}: {str(e)}"
-            )
-            raise Exception(
-                f"Failed to get subject and classes for subject ID: {str(e)}"
-            )
-
-
 async def get_class_ids_from_class_info(
     class_info: Dict[str, List[str]]
 ) -> Optional[List[int]]:
@@ -328,7 +300,7 @@ async def get_class_ids_from_class_info(
         List of class IDs matching the subject-grade combinations
     """
     async with get_session() as session:
-        # Build OR conditions for each subject and its grade levels
+        # Build conditions for each subject and its grade levels
         conditions = [
             and_(Subject.name == subject_name, Class.grade_level.in_(grade_levels))
             for subject_name, grade_levels in class_info.items()
@@ -392,26 +364,3 @@ async def assign_teacher_to_classes(
                 f"Failed to assign teacher {user.wa_id} to classes {class_ids}: {str(e)}"
             )
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
-
-
-async def add_teacher_class(user: User, class_ids: List[int]) -> None:
-    """
-    Add a teacher-class to the teachers_classes table
-    """
-    async with get_session() as session:
-        try:
-            for class_id in class_ids:
-                statement = select(TeacherClass).where(
-                    TeacherClass.teacher_id == user.id,
-                    TeacherClass.class_id == class_id,
-                )
-                result = await session.execute(statement)
-                teacher_class = result.scalar_one_or_none()
-                # Add teacher-class relationship if it doesn't exist
-                if not teacher_class:
-                    teacher_class = TeacherClass(teacher_id=user.id, class_id=class_id)
-                    session.add(teacher_class)
-            logger.debug(f"Added classes {class_ids} for user {user.id}")
-        except Exception as e:
-            logger.error(f"Failed to add teacher class: {str(e)}")
-            raise Exception(f"Failed to add teacher class: {str(e)}")
