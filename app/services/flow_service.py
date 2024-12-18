@@ -370,7 +370,7 @@ class FlowService:
         formatted_subjects = [
             {
                 "id": subject["id"],
-                "title": enums.SubjectName(subject["title"]).title_format,
+                "title": enums.SubjectName(subject["title"]).display_format,
             }
             for subject in subjects
         ]
@@ -413,7 +413,9 @@ class FlowService:
         try:
             # Read the subject classes data from the database
             subject_data = await db.get_subject_grade_levels(subject_id)
-            subject_title = enums.SubjectName(subject_data["subject_name"]).title_format
+            subject_title = enums.SubjectName(
+                subject_data["subject_name"]
+            ).display_format
             classes = subject_data["classes"]
 
             flow_strings = strings.get_category(StringCategory.FLOWS)

@@ -10,7 +10,6 @@ class ResourceType(str, Enum):
     textbook = "textbook"
     curriculum = "curriculum"
     document = "document"
-    # NOTE: add more types as needed, but keep clean structure with good segregation
 
 
 class Role(str, Enum):
@@ -26,18 +25,37 @@ class MessageRole(str, Enum):
 
 
 class GradeLevel(str, Enum):
-    p1 = "p1"  # primary 1
+    p1 = "p1"
     p2 = "p2"
     p3 = "p3"
     p4 = "p4"
     p5 = "p5"
     p6 = "p6"
-    os1 = "os1"  # ordinary secondary 1 (form 1)
+    os1 = "os1"
     os2 = "os2"
     os3 = "os3"
     os4 = "os4"
-    as1 = "as1"  # advanced secondary 1 (form 5)
+    as1 = "as1"
     as2 = "as2"
+
+    @property
+    def display_format(self) -> str:
+        """Returns a nicely formatted string for display"""
+        grade_display = {
+            "p1": "Standard 1",
+            "p2": "Standard 2",
+            "p3": "Standard 3",
+            "p4": "Standard 4",
+            "p5": "Standard 5",
+            "p6": "Standard 6",
+            "os1": "Form 1",
+            "os2": "Form 2",
+            "os3": "Form 3",
+            "os4": "Form 4",
+            "as1": "Form 5",
+            "as2": "Form 6",
+        }
+        return grade_display[self.value]
 
 
 class OnboardingState(str, Enum):
@@ -56,13 +74,11 @@ class UserState(str, Enum):
 
 class SubjectName(str, Enum):
     geography = "geography"
-    mathematics = "mathematics"
-
-    EMOJI_MAP = {"geography": "🌎", "mathematics": "🔢"}
 
     @property
-    def title_format(self) -> str:
-        emoji = self.EMOJI_MAP.get(self, "")
+    def display_format(self) -> str:
+        emoji_map = {"geography": "🌎"}
+        emoji = emoji_map.get(self, "")
         return f"{self.capitalize()} {emoji}"
 
 
@@ -72,4 +88,3 @@ class ChunkType(str, Enum):
     image = "image"
     table = "table"
     other = "other"
-    # NOTE: add more types as needed, but keep clean structure with good segregation
