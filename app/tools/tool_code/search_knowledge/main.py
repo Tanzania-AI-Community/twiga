@@ -9,13 +9,10 @@ from app.database.enums import ChunkType
 logger = logging.getLogger(__name__)
 
 
-# Example function to make available to model
 async def search_knowledge(
     search_phrase: str,
     user: User,
     resources: List[int],
-    # subject: Subject = Subject.geography,
-    # grade_level: GradeLevel = GradeLevel.os2,
 ):
     try:
         await whatsapp_client.send_message(

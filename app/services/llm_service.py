@@ -10,7 +10,9 @@ from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
-from app.tools.registry import tools_functions, tools_metadata
+from app.tools.registry import tools_metadata, ToolName
+from app.tools.tool_code.generate_exercise.main import generate_exercise
+from app.tools.tool_code.search_knowledge.main import search_knowledge
 
 
 class MessageProcessor:
@@ -69,6 +71,7 @@ class LLMClient:
         resources: Optional[List[int]] = None,
     ) -> Optional[List[Message]]:
         """Process tool calls and return just the new tool response messages."""
+
         if not resources:
             self.logger.error("No resources available for tool calls")
             return [
@@ -88,27 +91,26 @@ class LLMClient:
             try:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
-                # TODO: Make this more modular, depending on the need for each tool
-                function_args["user"] = user
-                function_args["resources"] = resources
 
-                if function_name in tools_functions:
-                    tool_func = tools_functions[function_name]
-                    result = (
-                        await tool_func(**function_args)
-                        if asyncio.iscoroutinefunction(tool_func)
-                        else tool_func(**function_args)
-                    )
+                if function_name == ToolName.search_knowledge.value:
+                    function_args["user"] = user
+                    function_args["resources"] = resources
+                    result = await search_knowledge(**function_args)
+                elif function_name == ToolName.generate_exercise.value:
+                    function_args["user"] = user
+                    function_args["resources"] = resources
+                    result = await generate_exercise(**function_args)
 
-                    tool_responses.append(
-                        Message(
-                            user_id=user.id,
-                            role=MessageRole.tool,
-                            content=json.dumps(result),
-                            tool_call_id=tool_call.id,
-                            tool_name=tool_call.function.name,
-                        )
+                tool_responses.append(
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.tool,
+                        content=json.dumps(result),
+                        tool_call_id=tool_call.id,
+                        tool_name=tool_call.function.name,
                     )
+                )
+
             except Exception as e:
                 self.logger.error(f"Error in {function_name}: {str(e)}")
                 tool_responses.append(

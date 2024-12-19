@@ -17,8 +17,6 @@ async def generate_exercise(
     query: str,
     user: User,
     resources: List[int],
-    # subject: Subject = Subject.geography,
-    # grade_level: GradeLevel = GradeLevel.os2,
 ) -> str:
 
     # TODO: Redesign this function to search on only the relevant resources
