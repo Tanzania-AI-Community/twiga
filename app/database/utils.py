@@ -20,4 +20,7 @@ def get_database_url() -> str:
     if settings.env_file == ".env.local":
         return settings.database_url.get_secret_value()
     database_uri = urlparse(settings.database_url.get_secret_value())
+    # TODO: this if is just because neon connections crash with the last return statement, replace this stuff when resolved
+    if settings.env_file == ".env.development":
+        return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
     return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}:{database_uri.port}{database_uri.path}"

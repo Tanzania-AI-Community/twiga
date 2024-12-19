@@ -1,8 +1,5 @@
 from enum import Enum
 
-from app.tools.tool_code.generate_exercise.main import generate_exercise
-from app.tools.tool_code.search_knowledge.main import search_knowledge
-
 
 class ToolName(str, Enum):
     search_knowledge = "search_knowledge"
@@ -45,9 +42,3 @@ tools_metadata = [
         },
     },
 ]
-
-
-tools_functions = {
-    ToolName.search_knowledge.value: search_knowledge,
-    ToolName.generate_exercise.value: generate_exercise,
-}
