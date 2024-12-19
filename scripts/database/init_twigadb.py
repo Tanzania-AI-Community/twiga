@@ -74,7 +74,6 @@ async def inject_sample_data():
                 subject_id=subject.id,  # Use the actual subject ID
                 grade_level=class_data["grade_level"],
                 status=class_data["status"],
-                name=class_data["name"],
             )
             session.add(class_obj)
             await session.flush()
@@ -86,8 +85,6 @@ async def inject_sample_data():
                 name=resource_data["name"],
                 type=resource_data["type"],
                 authors=resource_data["authors"],
-                grade_levels=[level for level in resource_data["grade_levels"]],
-                subjects=[subject for subject in resource_data["subjects"]],
                 class_id=class_obj.id,  # Link to the class we just created
             )
             session.add(resource)
