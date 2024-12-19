@@ -184,7 +184,6 @@ class Message(SQLModel, table=True):
     # Tool call related fields
     tool_calls: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
     tool_call_id: Optional[str] = Field(default=None)
-    # TODO: Make tool_name actually be used (right now its always None)
     tool_name: Optional[str] = Field(default=None, max_length=50)
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -213,20 +212,23 @@ class Message(SQLModel, table=True):
             message["content"] = self.content
         if self.tool_call_id is not None:
             message["tool_call_id"] = self.tool_call_id
-        # TODO: Make tool_name actually be used (right now its always None)
-        # if self.tool_name is not None:
-        #     message["name"] = self.tool_name
+        if self.tool_name is not None:
+            message["name"] = self.tool_name
 
         return message
 
     @classmethod
     def from_api_format(cls, data: dict, user_id: int) -> "Message":
         """Create message from OpenAI API format"""
+        tool_calls = data.get("tool_calls")
+        if len(data["tool_calls"]) == 0:
+            tool_calls = None
+
         message_data = {
             "user_id": user_id,
             "role": data["role"],
             "content": data.get("content"),
-            "tool_calls": data.get("tool_calls"),
+            "tool_calls": tool_calls,
             "tool_call_id": data.get("tool_call_id"),
             "tool_name": data.get("name"),
         }

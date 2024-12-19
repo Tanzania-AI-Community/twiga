@@ -106,6 +106,7 @@ class LLMClient:
                             role=MessageRole.tool,
                             content=json.dumps(result),
                             tool_call_id=tool_call.id,
+                            tool_name=tool_call.function.name,
                         )
                     )
             except Exception as e:
@@ -116,6 +117,7 @@ class LLMClient:
                         role=MessageRole.tool,
                         content=json.dumps({"error": str(e)}),
                         tool_call_id=tool_call.id,
+                        tool_name=tool_call.function.name,
                     )
                 )
 
