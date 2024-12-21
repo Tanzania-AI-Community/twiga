@@ -16,7 +16,6 @@ class Role(str, Enum):
     admin = "admin"
     teacher = "teacher"
 
-
 class MessageRole(str, Enum):
     user = "user"
     assistant = "assistant"
