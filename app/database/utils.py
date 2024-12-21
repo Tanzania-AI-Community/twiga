@@ -17,10 +17,9 @@ async def log_slow_query(query_name: str, start_time: float):
 
 def get_database_url() -> str:
     """Get formatted database URL from settings"""
-    if settings.env_file == ".env.local":
-        return settings.database_url.get_secret_value()
     database_uri = urlparse(settings.database_url.get_secret_value())
-    # TODO: this if is just because neon connections crash with the last return statement, replace this stuff when resolved
-    if settings.env_file == ".env.development":
+
+    if "neon.tech" in database_uri.hostname:
         return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
+
     return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}:{database_uri.port}{database_uri.path}"
