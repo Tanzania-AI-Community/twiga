@@ -1,21 +1,24 @@
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone, date
+from sqlalchemy.dialects.postgresql import ENUM
+
+import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 from pydantic import BaseModel, ConfigDict
 from sqlmodel import (
-    Index,
-    Field,
-    SQLModel,
-    UniqueConstraint,
-    Column,
-    DateTime,
-    String,
     ARRAY,
     JSON,
-    Relationship,
+    Column,
     Date,
+    DateTime,
+    Enum,
+    Field,
+    Index,
+    Relationship,
+    SQLModel,
+    String,
+    UniqueConstraint,
 )
-from pgvector.sqlalchemy import Vector
-import sqlalchemy as sa
 
 
 import app.database.enums as enums
@@ -68,12 +71,13 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
-    state: enums.UserState = Field(default=enums.UserState.new, max_length=50)
+    # state: enums.UserState = Field(default=enums.UserState.new, max_length=50)
+    state: enums.UserState = Field(default=enums.UserState.new)
     onboarding_state: Optional[enums.OnboardingState] = Field(
-        default=enums.OnboardingState.new, max_length=50
+        default=enums.OnboardingState.new
     )
-    role: enums.Role = Field(default=enums.Role.teacher, max_length=20)
-    class_info: Optional[Dict[str, List[str]]] = Field(default=None, sa_type=JSON)
+    role: enums.Role = Field(default=enums.Role.teacher)
+    class_info: Optional[ClassInfo] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
@@ -96,7 +100,8 @@ class User(SQLModel, table=True):
     """ RELATIONSHIPS """
     # A teacher may have entries in the teachers_classes table
     taught_classes: Optional[List["TeacherClass"]] = Relationship(
-        back_populates="teacher_", cascade_delete=True  # Could rename to user_
+        back_populates="teacher_",
+        cascade_delete=True,  # Could rename to user_
     )
 
     # A teacher may have entries in the messages table
@@ -121,7 +126,7 @@ class Subject(SQLModel, table=True):
 
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: enums.SubjectName = Field(max_length=50, nullable=False)
+    name: enums.SubjectName = Field(nullable=False)
 
     """ RELATIONSHIPS """
     # A subject may have entries in the classes table
@@ -140,7 +145,7 @@ class Class(SQLModel, table=True):
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
     subject_id: int = Field(foreign_key="subjects.id", index=True, ondelete="CASCADE")
-    grade_level: enums.GradeLevel = Field(max_length=10, index=True)
+    grade_level: enums.GradeLevel = Field(index=True)
     status: enums.SubjectClassStatus = Field(default=enums.SubjectClassStatus.active)
 
     """ RELATIONSHIPS """
@@ -179,7 +184,7 @@ class Message(SQLModel, table=True):
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
-    role: enums.MessageRole = Field(max_length=20)
+    role: enums.Role = Field()
     content: Optional[str] = Field(default=None)  # None when tool_calls present
 
     # Tool call related fields
@@ -243,7 +248,7 @@ class Resource(SQLModel, table=True):
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
-    type: Optional[enums.ResourceType] = Field(max_length=30)
+    type: Optional[enums.ResourceType] = Field()
     authors: Optional[List[str]] = Field(sa_column=Column(ARRAY(String(50))))
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -299,7 +304,7 @@ class Chunk(SQLModel, table=True):
     content: str
     page_number: Optional[int] = Field(default=None)
     # TODO: Define the different types of chunks in an enum
-    chunk_type: Optional[enums.ChunkType] = Field(max_length=30, default=None)
+    chunk_type: Optional[enums.ChunkType] = Field(default=None)
     """
     XXX: FILL IN THE EMBEDDING LENGTH FOR YOUR EMBEDDINGS
     - Default is set to 1024 (for bge-large vectors)
