@@ -9,13 +9,10 @@ from app.database.enums import ChunkType
 logger = logging.getLogger(__name__)
 
 
-# Example function to make available to model
 async def search_knowledge(
     search_phrase: str,
     user: User,
     resources: List[int],
-    # subject: Subject = Subject.geography,
-    # grade_level: GradeLevel = GradeLevel.os2,
 ):
     try:
         await whatsapp_client.send_message(
@@ -26,7 +23,7 @@ async def search_knowledge(
             query=search_phrase,
             n_results=10,
             where={
-                "content_type": [ChunkType.text],
+                "chunk_type": [ChunkType.text],
                 "resource_id": resources,
             },
         )
@@ -64,11 +61,11 @@ def _format_context(
 
     for chunk in retrieved_content:
         if chunk.top_level_section_title and chunk.top_level_section_index:
-            heading = f"-{chunk.content_type} from chapter {chunk.top_level_section_index}. {chunk.top_level_section_title} in resource {chunk.resource_id}"
+            heading = f"-{chunk.chunk_type} from chapter {chunk.top_level_section_index}. {chunk.top_level_section_title} in resource {chunk.resource_id}"
         elif chunk.top_level_section_title:
-            heading = f"-{chunk.content_type} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
+            heading = f"-{chunk.chunk_type} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
         else:
-            heading = f"-{chunk.content_type} from resource {chunk.resource_id}"
+            heading = f"-{chunk.chunk_type} from resource {chunk.resource_id}"
 
         context_parts.append(heading)
         context_parts.append(f"{chunk.content}")
