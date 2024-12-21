@@ -7,6 +7,9 @@ from alembic import context
 
 from app.config import settings
 
+# Import all models here - this must be before target_metadata
+from app.database.models import *  # noqa: F403
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

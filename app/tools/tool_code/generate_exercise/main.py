@@ -17,8 +17,6 @@ async def generate_exercise(
     query: str,
     user: User,
     resources: List[int],
-    # subject: Subject = Subject.geography,
-    # grade_level: GradeLevel = GradeLevel.os2,
 ) -> str:
 
     # TODO: Redesign this function to search on only the relevant resources
@@ -33,7 +31,7 @@ async def generate_exercise(
             query=query,
             n_results=7,
             where={
-                "content_type": [ChunkType.text],
+                "chunk_type": [ChunkType.text],
                 "resource_id": resources,
             },
         )
@@ -41,7 +39,7 @@ async def generate_exercise(
             query=query,
             n_results=3,
             where={
-                "content_type": [ChunkType.exercise],
+                "chunk_type": [ChunkType.exercise],
                 "resource_id": resources,
             },
         )
@@ -118,11 +116,11 @@ def _format_context(
     for chunk in retrieved_content + retrieved_exercise:
         # TODO: Make this neater another time
         if chunk.top_level_section_title and chunk.top_level_section_index:
-            heading = f"-{chunk.content_type} from chapter {chunk.top_level_section_index}. {chunk.top_level_section_title} in resource {chunk.resource_id}"
+            heading = f"-{chunk.chunk_type} from chapter {chunk.top_level_section_index}. {chunk.top_level_section_title} in resource {chunk.resource_id}"
         elif chunk.top_level_section_title:
-            heading = f"-{chunk.content_type} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
+            heading = f"-{chunk.chunk_type} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
         else:
-            heading = f"-{chunk.content_type} from resource {chunk.resource_id}"
+            heading = f"-{chunk.chunk_type} from resource {chunk.resource_id}"
 
         context_parts.append(heading)
         context_parts.append(f"{chunk.content}")

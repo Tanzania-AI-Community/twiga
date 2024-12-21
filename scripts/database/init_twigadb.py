@@ -20,7 +20,7 @@ from app.database.models import (
     Subject,
 )
 from app.database.enums import ChunkType
-from app.config import settings
+from app.database.utils import get_database_url
 from app.utils.embedder import get_embeddings
 
 # Set up logging
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 async def init_db(drop_all: bool = False):
     try:
         """Initialize the database with tables."""
-        engine = create_async_engine(settings.database_url.get_secret_value())
+        engine = create_async_engine(get_database_url())
 
         async with engine.begin() as conn:
             if drop_all:
@@ -58,7 +58,7 @@ async def inject_sample_data():
         with open(sample_data_path) as f:
             data = yaml.safe_load(f)
 
-        engine = create_async_engine(settings.database_url.get_secret_value())
+        engine = create_async_engine(get_database_url())
 
         async with AsyncSession(engine) as session:
             # 1. Create the dummy subject
@@ -74,7 +74,6 @@ async def inject_sample_data():
                 subject_id=subject.id,  # Use the actual subject ID
                 grade_level=class_data["grade_level"],
                 status=class_data["status"],
-                name=class_data["name"],
             )
             session.add(class_obj)
             await session.flush()
@@ -86,8 +85,6 @@ async def inject_sample_data():
                 name=resource_data["name"],
                 type=resource_data["type"],
                 authors=resource_data["authors"],
-                grade_levels=[level for level in resource_data["grade_levels"]],
-                subjects=[subject for subject in resource_data["subjects"]],
                 class_id=class_obj.id,  # Link to the class we just created
             )
             session.add(resource)
@@ -139,9 +136,9 @@ async def process_chunks(
 
                 # Determine content type
                 if metadata.get("doc_type") == "Exercise":
-                    content_type = ChunkType.exercise
+                    chunk_type = ChunkType.exercise
                 elif metadata.get("doc_type") == "Content":
-                    content_type = ChunkType.text
+                    chunk_type = ChunkType.text
                 else:
                     logger.warning(
                         f"Unknown document type: {metadata.get('doc_type')}. Skipping chunk."
@@ -151,7 +148,7 @@ async def process_chunks(
                 chunk = Chunk(
                     resource_id=resource_id,
                     content=item["chunk"],
-                    content_type=content_type,
+                    chunk_type=chunk_type,
                     top_level_section_index=top_level_section_id,
                     top_level_section_title=top_level_section_title,
                     embedding=embedding,
@@ -171,7 +168,7 @@ async def process_chunks(
 async def inject_vector_data():
     """Inject vector data into the database with existence checking and continuation."""
     try:
-        engine = create_async_engine(settings.database_url.get_secret_value())
+        engine = create_async_engine(get_database_url())
 
         # Load sample data from YAML to get resource name
         sample_data_path = (

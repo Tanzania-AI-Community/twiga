@@ -10,8 +10,6 @@ geography_resource:
     - "Aristarick Lekule"
     - "Musa Mwalutanile"
     - "Dorothy Makunda"
-  grade_levels: ["os2"]
-  subjects: ["geography"]
 
 geography_subject:
   name: "geography"
