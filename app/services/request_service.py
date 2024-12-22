@@ -1,8 +1,7 @@
 import json
 import logging
-from typing import Literal, Optional
-from fastapi import BackgroundTasks, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 import app.database.models as models
 import app.database.enums as enums
@@ -17,26 +16,17 @@ from app.services.state_service import state_client
 import app.database.db as db
 from app.config import settings
 from app.utils.string_manager import strings, StringCategory
-from app.services.flow_service import flow_client
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_request(
-    request: Request,
-    bg_tasks: Optional[BackgroundTasks] = None,
-    endpoint: Literal["webhooks", "flows"] = "webhooks",
-) -> JSONResponse | PlainTextResponse:
+async def handle_request(request: Request) -> JSONResponse:
     """
     Handles HTTP requests to the 'webhooks' and 'flows' endpoints.
     """
     try:
 
         body = await request.json()
-
-        if endpoint == "flows":
-            # Returns a PlainTextResponse
-            return await flow_client.handle_flow_request(body, bg_tasks)
 
         request_type = get_request_type(body)
         logger.info(f"Received a request of type: {request_type}")
