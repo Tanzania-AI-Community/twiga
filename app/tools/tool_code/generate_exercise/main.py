@@ -63,7 +63,7 @@ async def generate_exercise(
         return await _generate(system_prompt, user_prompt)
     except Exception as e:
         logger.error(f"An error occurred when generating an exercise: {e}")
-        return None
+        raise Exception(f"An error occurred when generating an exercise: {e}")
 
 
 async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
@@ -79,17 +79,18 @@ async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
             print("--------------------------")
             print(f"User prompt: \n{query}")
 
-        res = await async_llm_request(
+        response = await async_llm_request(
             model=llm_settings.exercise_generator_model,
             messages=messages,
             max_tokens=100,
         )
+        assert response.choices[0].message.content, "No response was generated"
 
-        return res.choices[0].message.content
+        return response.choices[0].message.content
 
     except Exception as e:
         logger.error(f"An error occurred when generating a response query: {e}")
-        return None
+        raise Exception(f"An error occurred when generating a response query: {e}")
 
 
 def _format_context(

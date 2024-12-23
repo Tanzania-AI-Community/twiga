@@ -21,6 +21,7 @@ class OnboardingHandler:
         self.logger.debug(
             f"Onboarding user {user.wa_id} with onboarding_state {user.onboarding_state}"
         )
+        assert user.onboarding_state is not None
         onboarding_handler = self.handlers.get(
             user.onboarding_state, self.handle_default
         )
@@ -51,8 +52,8 @@ class OnboardingHandler:
         self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
         # TODO: Send a welcome message as the first message in the chatbot thread
 
-    def handle_default(self, user: User):
-        whatsapp_client.send_message(
+    async def handle_default(self, user: User):
+        await whatsapp_client.send_message(
             user.wa_id, strings.get_string(StringCategory.ERROR, "general")
         )
 

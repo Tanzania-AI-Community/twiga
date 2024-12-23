@@ -1,8 +1,7 @@
 import json
 import logging
-from typing import Literal, Optional
-from fastapi import BackgroundTasks, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 import app.database.models as models
 import app.database.enums as enums
@@ -17,26 +16,17 @@ from app.services.state_service import state_client
 import app.database.db as db
 from app.config import settings
 from app.utils.string_manager import strings, StringCategory
-from app.services.flow_service import flow_client
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_request(
-    request: Request,
-    bg_tasks: Optional[BackgroundTasks] = None,
-    endpoint: Literal["webhooks", "flows"] = "webhooks",
-) -> JSONResponse | PlainTextResponse:
+async def handle_request(request: Request) -> JSONResponse:
     """
     Handles HTTP requests to the 'webhooks' and 'flows' endpoints.
     """
     try:
 
         body = await request.json()
-
-        if endpoint == "flows":
-            # Returns a PlainTextResponse
-            return await flow_client.handle_flow_request(body, bg_tasks)
 
         request_type = get_request_type(body)
         logger.info(f"Received a request of type: {request_type}")
@@ -84,9 +74,10 @@ async def handle_valid_message(body: dict) -> JSONResponse:
         )
 
     user = await db.get_or_create_user(
-        wa_id=message_info.get("wa_id"), name=message_info.get("name")
+        wa_id=message_info["wa_id"], name=message_info.get("name")
     )
 
+    assert user.id is not None
     # Create message record
     user_message = await db.create_new_message(
         models.Message(user_id=user.id, role=enums.MessageRole.user, content=message)
@@ -122,14 +113,17 @@ async def handle_new_dummy(user: models.User) -> JSONResponse:
         user.onboarding_state = enums.OnboardingState.completed
         user.role = enums.Role.teacher
         user.class_info = models.ClassInfo(
-            subjects={enums.SubjectName.geography: [enums.GradeLevel.os2]}
+            classes={enums.SubjectName.geography: [enums.GradeLevel.os2]}
         ).model_dump()
 
         # Read the class IDs from the class info
         class_ids = await db.get_class_ids_from_class_info(user.class_info)
 
+        assert class_ids is not None
+
         # Update user and create teachers_classes entries
         user = await db.update_user(user)
+        assert user.id is not None
         await db.assign_teacher_to_classes(user, class_ids)
 
         # Send a welcome message to the user

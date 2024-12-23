@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, Depends, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, Depends, BackgroundTasks, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
 import logging
 from contextlib import asynccontextmanager
 
@@ -8,6 +8,7 @@ from app.security import flows_signature_required
 from app.services.whatsapp_service import whatsapp_client
 from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
+from app.services.flow_service import flow_client
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ logger.info("FastAPI app initialized")
 
 
 @app.get("/webhooks")
-async def webhook_get(request: Request) -> JSONResponse:
+async def webhook_get(request: Request) -> Response:
     logger.debug("webhook_get is being called")
     return whatsapp_client.verify(request)
 
@@ -46,10 +47,12 @@ async def webhook_get(request: Request) -> JSONResponse:
 @app.post("/webhooks", dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
-    return await handle_request(request, endpoint="webhooks")
+    return await handle_request(request)
 
 
 @app.post("/flows", dependencies=[Depends(flows_signature_required)])
-async def handle_flows_webhook(request: Request, background_tasks: BackgroundTasks):
+async def handle_flows_webhook(
+    request: Request, background_tasks: BackgroundTasks
+) -> PlainTextResponse:
     logger.debug("flows webhook is being called")
-    return await handle_request(request, background_tasks, endpoint="flows")
+    return await flow_client.handle_flow_request(request, background_tasks)

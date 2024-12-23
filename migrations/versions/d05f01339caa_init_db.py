@@ -1,8 +1,8 @@
 """init db
 
-Revision ID: c560649293d7
+Revision ID: d05f01339caa
 Revises:
-Create Date: 2024-12-15 18:01:02.458425
+Create Date: 2024-12-23 08:38:13.551989
 
 """
 
@@ -13,9 +13,8 @@ import sqlalchemy as sa
 import sqlmodel
 import pgvector
 
-
 # revision identifiers, used by Alembic.
-revision: str = "c560649293d7"
+revision: str = "d05f01339caa"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,8 +25,12 @@ def upgrade() -> None:
     op.create_table(
         "resources",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=False),
-        sa.Column("type", sqlmodel.sql.sqltypes.AutoString(length=30), nullable=True),
+        sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=False),  # type: ignore
+        sa.Column(
+            "type",
+            sa.Enum("textbook", "curriculum", "document", name="resourcetype"),
+            nullable=True,
+        ),
         sa.Column("authors", sa.ARRAY(sa.String(length=50)), nullable=True),
         sa.Column(
             "created_at",
@@ -40,27 +43,40 @@ def upgrade() -> None:
     op.create_table(
         "subjects",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=50), nullable=False),
+        sa.Column("name", sa.Enum("geography", name="subjectname"), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True),
-        sa.Column("wa_id", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=False),
-        sa.Column("state", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=False),
+        sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True),  # type: ignore
+        sa.Column("wa_id", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=False),  # type: ignore
+        sa.Column(
+            "state",
+            sa.Enum(
+                "blocked",
+                "rate_limited",
+                "new",
+                "onboarding",
+                "active",
+                name="userstate",
+            ),
+            nullable=False,
+        ),
         sa.Column(
             "onboarding_state",
-            sqlmodel.sql.sqltypes.AutoString(length=50),
+            sa.Enum(
+                "new", "personal_info_submitted", "completed", name="onboardingstate"
+            ),
             nullable=True,
         ),
-        sa.Column("role", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=False),
+        sa.Column("role", sa.Enum("admin", "teacher", name="role"), nullable=False),
         sa.Column("class_info", sa.JSON(), nullable=True),
         sa.Column(
-            "school_name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True
+            "school_name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True  # type: ignore
         ),
         sa.Column("birthday", sa.Date(), nullable=True),
-        sa.Column("region", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True),
+        sa.Column("region", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True),  # type: ignore
         sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
@@ -76,22 +92,24 @@ def upgrade() -> None:
         "chunks",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("resource_id", sa.Integer(), nullable=False),
-        sa.Column("content", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("content", sqlmodel.sql.sqltypes.AutoString(), nullable=False),  # type: ignore
         sa.Column("page_number", sa.Integer(), nullable=True),
         sa.Column(
-            "chunk_type", sqlmodel.sql.sqltypes.AutoString(length=30), nullable=True
+            "chunk_type",
+            sa.Enum("text", "exercise", "image", "table", "other", name="chunktype"),
+            nullable=True,
         ),
         sa.Column(
-            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=1024), nullable=True
+            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=1024), nullable=True  # type: ignore
         ),
         sa.Column(
             "top_level_section_index",
-            sqlmodel.sql.sqltypes.AutoString(length=10),
+            sqlmodel.sql.sqltypes.AutoString(length=10),  # type: ignore
             nullable=True,
         ),
         sa.Column(
             "top_level_section_title",
-            sqlmodel.sql.sqltypes.AutoString(length=100),
+            sqlmodel.sql.sqltypes.AutoString(length=100),  # type: ignore
             nullable=True,
         ),
         sa.Column(
@@ -120,13 +138,30 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("subject_id", sa.Integer(), nullable=False),
         sa.Column(
-            "grade_level", sqlmodel.sql.sqltypes.AutoString(length=10), nullable=False
+            "grade_level",
+            sa.Enum(
+                "p1",
+                "p2",
+                "p3",
+                "p4",
+                "p5",
+                "p6",
+                "os1",
+                "os2",
+                "os3",
+                "os4",
+                "as1",
+                "as2",
+                name="gradelevel",
+            ),
+            nullable=False,
         ),
-        sa.Column("status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["subject_id"],
-            ["subjects.id"],
+        sa.Column(
+            "status",
+            sa.Enum("active", "inactive", name="subjectclassstatus"),
+            nullable=False,
         ),
+        sa.ForeignKeyConstraint(["subject_id"], ["subjects.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("subject_id", "grade_level", name="unique_classes"),
     )
@@ -140,12 +175,16 @@ def upgrade() -> None:
         "messages",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("role", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=False),
-        sa.Column("content", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-        sa.Column("tool_calls", sa.JSON(), nullable=True),
-        sa.Column("tool_call_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column(
-            "tool_name", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True
+            "role",
+            sa.Enum("user", "assistant", "tool", "system", name="messagerole"),
+            nullable=False,
+        ),
+        sa.Column("content", sqlmodel.sql.sqltypes.AutoString(), nullable=True),  # type: ignore
+        sa.Column("tool_calls", sa.JSON(), nullable=True),
+        sa.Column("tool_call_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),  # type: ignore
+        sa.Column(
+            "tool_name", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True  # type: ignore
         ),
         sa.Column(
             "created_at",

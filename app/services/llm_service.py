@@ -72,6 +72,7 @@ class LLMClient:
     ) -> Optional[List[Message]]:
         """Process tool calls and return just the new tool response messages."""
 
+        assert user.id is not None
         if not resources:
             self.logger.error("No resources available for tool calls")
             return [
@@ -132,6 +133,7 @@ class LLMClient:
         resources: Optional[List[int]] = None,
     ) -> Optional[List[Message]]:
         """Generate a response, handling message batching and tool calls."""
+        assert user.id is not None
         processor = self._get_processor(user.id)
         processor.add_message(message)
 
@@ -185,9 +187,13 @@ class LLMClient:
                     if initial_message.tool_calls:
                         self.logger.debug("Processing tool calls 🛠️")
 
+                        tool_calls = [
+                            ChatCompletionMessageToolCall(**call)
+                            for call in initial_message.tool_calls
+                        ]
                         # Process tool calls and track the tool response messages
                         tool_responses = await self._process_tool_calls(
-                            initial_response.choices[0].message.tool_calls,
+                            tool_calls,
                             user,
                             resources,
                         )
@@ -232,7 +238,7 @@ class LLMClient:
     @staticmethod
     def _format_messages(
         new_messages: List[Message],
-        database_messages: List[Message],
+        database_messages: Optional[List[Message]],
         user: User,
     ) -> List[dict]:
         """

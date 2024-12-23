@@ -1,10 +1,12 @@
 import base64
 import json
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+from cryptography.hazmat.primitives.asymmetric import rsa
+
 import logging
 
 import httpx
@@ -17,6 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
+    assert (
+        settings.whatsapp_business_private_key
+        and settings.whatsapp_business_private_key_password
+    )
+    assert (
+        settings.whatsapp_business_private_key.get_secret_value().strip()
+        and settings.whatsapp_business_private_key_password.get_secret_value().strip()
+    )
     private_key_pem = settings.whatsapp_business_private_key.get_secret_value()
     password = settings.whatsapp_business_private_key_password.get_secret_value()
 
@@ -25,6 +35,10 @@ def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
         password=password.encode(),
         backend=default_backend(),
     )
+
+    # TODO: Check if this works with flows
+    if not isinstance(private_key, rsa.RSAPrivateKey):
+        raise ValueError("Private key must be an RSA key")
 
     decrypted_key = private_key.decrypt(
         base64.b64decode(encrypted_aes_key),
@@ -100,6 +114,10 @@ async def decrypt_flow_request(body: dict) -> Tuple[dict, bytes, str]:
 
 
 def get_fernet_key() -> bytes:
+    assert (
+        settings.flow_token_encryption_key
+        and settings.flow_token_encryption_key.get_secret_value().strip()
+    )
     key = settings.flow_token_encryption_key.get_secret_value()
     if isinstance(key, str):
         key = key.encode("utf-8")
@@ -211,7 +229,7 @@ async def send_whatsapp_flow_message(
 
 
 def create_flow_response_payload(
-    screen: str, data: Dict[str, Any], encrypted_flow_token: str = None
+    screen: str, data: Dict[str, Any], encrypted_flow_token: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Create standardized flow response payloads

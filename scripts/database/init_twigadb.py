@@ -70,6 +70,7 @@ async def inject_sample_data():
 
             # 2. Create the dummy class
             class_data = data["geography_class"]
+            assert subject.id
             class_obj = Class(
                 subject_id=subject.id,  # Use the actual subject ID
                 grade_level=class_data["grade_level"],
@@ -77,7 +78,9 @@ async def inject_sample_data():
             )
             session.add(class_obj)
             await session.flush()
-            logger.info(f"Created class: {class_obj.name} (ID: {class_obj.id})")
+            logger.info(
+                f"Created class: Grade level: {class_obj.grade_level}, Subject ID: {class_obj.subject_id}, ID: {class_obj.id})"
+            )
 
             # 3. Create the dummy resource
             resource_data = data["geography_resource"]
@@ -85,13 +88,14 @@ async def inject_sample_data():
                 name=resource_data["name"],
                 type=resource_data["type"],
                 authors=resource_data["authors"],
-                class_id=class_obj.id,  # Link to the class we just created
             )
             session.add(resource)
             await session.flush()
             logger.info(f"Created resource: {resource.name} (ID: {resource.id})")
 
             # 4. Create the dummy class-resource relationship (this connects the textbook to the class)
+            assert class_obj.id
+            assert resource.id
             class_resource = ClassResource(
                 class_id=class_obj.id, resource_id=resource.id
             )
@@ -148,7 +152,7 @@ async def process_chunks(
                 chunk = Chunk(
                     resource_id=resource_id,
                     content=item["chunk"],
-                    chunk_type=chunk_type,
+                    chunk_type=ChunkType(chunk_type),
                     top_level_section_index=top_level_section_id,
                     top_level_section_title=top_level_section_title,
                     embedding=embedding,
@@ -211,6 +215,7 @@ async def inject_vector_data():
         logger.info(f"Processing {len(remaining_chunks)} remaining chunks...")
 
         # Process remaining chunks
+        assert resource_id
         async with AsyncSession(engine) as session:
             await process_chunks(
                 session=session,

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     meta_app_id: str
     meta_app_secret: SecretStr
 
-    # WhatsApp settings (TODO: Set flow stuff to optional, and add business_env)
+    # WhatsApp settings
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
@@ -37,9 +37,6 @@ class Settings(BaseSettings):
     select_subjects_flow_id: Optional[str] = None
     select_classes_flow_id: Optional[str] = None
     flow_token_encryption_key: Optional[SecretStr] = None
-
-    # Rate limit settings
-    daily_message_limit: int
 
     # Database settings
     database_url: SecretStr
@@ -95,8 +92,38 @@ class LLMSettings(BaseSettings):
 
 
 def initialize_settings():
-    settings = Settings()
+    settings = Settings()  # type: ignore
     llm_settings = LLMSettings()
+
+    # Validate required Meta settings
+    assert (
+        settings.meta_api_version and settings.meta_api_version.strip()
+    ), "META_API_VERSION is required"
+    assert (
+        settings.meta_app_id and settings.meta_app_id.strip()
+    ), "META_APP_ID is required"
+    assert (
+        settings.meta_app_secret and settings.meta_app_secret.get_secret_value().strip()
+    ), "META_APP_SECRET is required"
+
+    # Validate required WhatsApp settings
+    assert (
+        settings.whatsapp_cloud_number_id and settings.whatsapp_cloud_number_id.strip()
+    ), "WHATSAPP_CLOUD_NUMBER_ID is required"
+    assert (
+        settings.whatsapp_verify_token
+        and settings.whatsapp_verify_token.get_secret_value().strip()
+    ), "WHATSAPP_VERIFY_TOKEN is required"
+    assert (
+        settings.whatsapp_api_token
+        and settings.whatsapp_api_token.get_secret_value().strip()
+    ), "WHATSAPP_API_TOKEN is required"
+
+    # Validate other required settings
+    assert (
+        settings.database_url and settings.database_url.get_secret_value().strip()
+    ), "DATABASE_URL is required"
+
     return settings, llm_settings
 
 

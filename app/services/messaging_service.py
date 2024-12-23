@@ -35,6 +35,7 @@ class MessagingService:
         self, user: models.User, message: models.Message
     ) -> JSONResponse:
         self.logger.debug(f"Handling command message: {message.content}")
+        assert message.content is not None
         if message.content.lower() == "settings":
             response_text = strings.get_string(StringCategory.SETTINGS, "intro")
             options = [
@@ -68,8 +69,9 @@ class MessagingService:
             )
 
             # Update the database with the responses
-            llm_responses = await db.create_new_messages(llm_responses)
+            await db.create_new_messages(llm_responses)
 
+            assert llm_responses[-1].content is not None
             # Send the last message back to the user
             await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
         else:
