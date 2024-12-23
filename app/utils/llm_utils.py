@@ -12,12 +12,12 @@ from app.config import llm_settings
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
 
-if llm_settings.ai_provider == "together":
+if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
     llm_client = openai.AsyncOpenAI(
         base_url="https://api.together.xyz/v1",
         api_key=llm_settings.llm_api_key.get_secret_value(),
     )
-else:
+elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
     llm_client = openai.AsyncOpenAI(api_key=llm_settings.llm_api_key.get_secret_value())
 
 
@@ -68,6 +68,7 @@ async def async_llm_request(
         TogetherAPIError: For other API-related errors
     """
     try:
+        assert llm_client is not None, "LLM client is not initialized"
         # Print messages if the flag is True
         if verbose:
             messages = params.get("messages", None)
