@@ -19,7 +19,7 @@ def get_database_url() -> str:
     """Get formatted database URL from settings"""
     database_uri = urlparse(settings.database_url.get_secret_value())
 
-    if "neon.tech" in database_uri.hostname:
+    if database_uri.hostname and "neon.tech" in database_uri.hostname:
         return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}{database_uri.path}?ssl=require"
 
     return f"postgresql+asyncpg://{database_uri.username}:{database_uri.password}@{database_uri.hostname}:{database_uri.port}{database_uri.path}"

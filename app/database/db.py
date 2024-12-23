@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 from sqlalchemy import text
-from sqlmodel import and_, select, or_, delete, insert, exists
+from sqlmodel import and_, select, or_, delete, insert, exists, desc
 import logging
 from sqlalchemy.orm import selectinload
 
@@ -91,7 +91,7 @@ async def get_user_message_history(
             statement = (
                 select(Message)
                 .where(Message.user_id == user_id)
-                .order_by(Message.created_at.desc())
+                .order_by(desc(Message.created_at))
                 .limit(limit)
             )
 
@@ -175,7 +175,7 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
                 .order_by(Chunk.embedding.cosine_distance(query_vector))
                 .limit(n_results)
             )
-            return result.scalars().all()
+            return list(result.scalars().all())
         except Exception as e:
             logger.error(f"Failed to search for knowledge: {str(e)}")
             raise Exception(f"Failed to search for knowledge: {str(e)}")
@@ -231,14 +231,15 @@ async def get_available_subjects() -> List[Subject]:
     """
     async with get_session() as session:
         try:
+            # Apparently we can use .join(Subject.subject_classes) to get the classes as well
             statement = (
                 select(Subject)
-                .join(Class, Class.subject_id == Subject.id)
+                .join(Class, Class.subject_id == Subject.id)  # type: ignore
                 .where(Class.status == SubjectClassStatus.active)
                 .distinct()
             )
             result = await session.execute(statement)
-            return result.scalars().all()
+            return list(result.scalars().all())
         except Exception as e:
             logger.error(f"Failed to get available subjects: {str(e)}")
             raise Exception(f"Failed to get available subjects: {str(e)}")
@@ -265,7 +266,7 @@ async def read_subject(subject_id: int) -> Optional[Subject]:
             # Use selectinload to eagerly load the subject_classes relationship
             statement = (
                 select(Subject)
-                .options(selectinload(Subject.subject_classes))
+                .options(selectinload(Subject.subject_classes))  # type: ignore
                 .where(Subject.id == subject_id)
             )
             result = await session.execute(statement)
@@ -278,9 +279,9 @@ async def read_subject(subject_id: int) -> Optional[Subject]:
 async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
     async with get_session() as session:
         try:
-            statement = select(Class).where(Class.id.in_(class_ids))
+            statement = select(Class).where(Class.id.in_(class_ids))  # type: ignore
             result = await session.execute(statement)
-            return result.scalars().all()
+            return list(result.scalars().all())
         except Exception as e:
             logger.error(f"Failed to read classes {class_ids}: {str(e)}")
             raise Exception(f"Failed to read classes: {str(e)}")
@@ -302,13 +303,13 @@ async def get_class_ids_from_class_info(
     async with get_session() as session:
         # Build conditions for each subject and its grade levels
         conditions = [
-            and_(Subject.name == subject_name, Class.grade_level.in_(grade_levels))
+            and_(Subject.name == subject_name, Class.grade_level.in_(grade_levels))  # type: ignore
             for subject_name, grade_levels in class_info.items()
         ]
 
         query = (
             select(Class.id)
-            .join(Subject, Class.subject_id == Subject.id)
+            .join(Subject, Class.subject_id == Subject.id)  # type: ignore
             .where(or_(*conditions), Class.status == SubjectClassStatus.active)
         )
 
@@ -332,7 +333,7 @@ async def assign_teacher_to_classes(
         try:
             # Construct delete query based on subject_id
             delete_query = delete(TeacherClass).where(
-                TeacherClass.teacher_id == user.id
+                TeacherClass.teacher_id == user.id  # type: ignore
             )
 
             if subject_id is not None:

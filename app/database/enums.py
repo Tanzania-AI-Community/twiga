@@ -1,4 +1,4 @@
-from sqlmodel import Enum
+from enum import Enum
 
 
 class SubjectClassStatus(str, Enum):
