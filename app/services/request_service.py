@@ -74,9 +74,10 @@ async def handle_valid_message(body: dict) -> JSONResponse:
         )
 
     user = await db.get_or_create_user(
-        wa_id=message_info.get("wa_id"), name=message_info.get("name")
+        wa_id=message_info["wa_id"], name=message_info.get("name")
     )
 
+    assert user.id is not None
     # Create message record
     user_message = await db.create_new_message(
         models.Message(user_id=user.id, role=enums.MessageRole.user, content=message)
@@ -112,14 +113,17 @@ async def handle_new_dummy(user: models.User) -> JSONResponse:
         user.onboarding_state = enums.OnboardingState.completed
         user.role = enums.Role.teacher
         user.class_info = models.ClassInfo(
-            subjects={enums.SubjectName.geography: [enums.GradeLevel.os2]}
+            classes={enums.SubjectName.geography: [enums.GradeLevel.os2]}
         ).model_dump()
 
         # Read the class IDs from the class info
         class_ids = await db.get_class_ids_from_class_info(user.class_info)
 
+        assert class_ids is not None
+
         # Update user and create teachers_classes entries
         user = await db.update_user(user)
+        assert user.id is not None
         await db.assign_teacher_to_classes(user, class_ids)
 
         # Send a welcome message to the user
