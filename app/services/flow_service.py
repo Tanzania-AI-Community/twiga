@@ -259,58 +259,47 @@ class FlowService:
             self.logger.info(f"Handling subjects and classes data exchange: {payload}")
             data = payload.get("data", {})
 
-            # Extract selected classes for each subject
-            selected_classes_for_subject1 = [
-                int(id) for id in data.get("selected_classes_for_subject1", [])
-            ]
-            selected_classes_for_subject2 = [
-                int(id) for id in data.get("selected_classes_for_subject2", [])
-            ]
-            selected_classes_for_subject3 = [
-                int(id) for id in data.get("selected_classes_for_subject3", [])
-            ]
-            selected_classes_for_subject4 = [
-                int(id) for id in data.get("selected_classes_for_subject4", [])
-            ]
-            selected_classes_for_subject5 = [
-                int(id) for id in data.get("selected_classes_for_subject5", [])
-            ]
-            selected_classes_for_subject6 = [
-                int(id) for id in data.get("selected_classes_for_subject6", [])
-            ]
+            self.logger.info(f"Handling subjects and classes data exchange: {data}") 
+    
+            # Get subjects with their classes
+            subjects_with_classes = await db.get_subjects_with_classes()
 
-            # Combine all selected classes into a dictionary
+            self.logger.info(f"Subjects with classes: {subjects_with_classes}")
+    
+            # Create a mapping of subject keys to subject IDs
+            subject_key_to_id = {
+                f"subject{i+1}": subject["id"]
+                for i, subject in enumerate(subjects_with_classes)
+            }
+    
+            # Extract selected classes for each subject
             selected_classes_by_subject = {
-                "subject1": selected_classes_for_subject1,
-                "subject2": selected_classes_for_subject2,
-                "subject3": selected_classes_for_subject3,
-                "subject4": selected_classes_for_subject4,
-                "subject5": selected_classes_for_subject5,
-                "subject6": selected_classes_for_subject6,
+                subject_key_to_id[key.replace("selected_classes_for_", "")]: [int(id) for id in value]
+                for key, value in data.items()
+                if key.startswith("selected_classes_for_")
             }
 
+            self.logger.info(f"Selected classes by subject: {selected_classes_by_subject}")
+    
             # Validate that at least one class is selected for any subject
-            if not any(
-                classes for classes in selected_classes_by_subject.values() if classes
-            ):
+            if not any(classes for classes in selected_classes_by_subject.values() if classes):
                 self.logger.error("No classes selected for any subject")
                 raise ValueError("No classes selected for any subject")
-
-            # # Update user classes for each subject in the background
-            # for subject, classes in selected_classes_by_subject.items():
-            #     if classes:  # Only update if classes are selected for the subject
-            #         background_tasks.add_task(
-            #             update_user_classes,
-            #             user,
-            #             classes,
-            #             int(subject.replace("subject", "")),  # Extract subject ID
-            #         )
-
+    
+            self.logger.info(f"Selected classes by subject: {selected_classes_by_subject}")
+    
+            # Update user classes for each subject in the background
+            background_tasks.add_task(
+                db.update_user_classes_for_subjects,
+                user,
+                selected_classes_by_subject,
+            )
+    
             # Send a welcome message to the user
             await whatsapp_client.send_message(
                 user.wa_id, strings.get_string(StringCategory.ONBOARDING, "welcome")
             )
-
+    
             # Create the response payload
             encrypted_flow_token = payload.get("flow_token")
             response_payload = futil.create_flow_response_payload(
@@ -319,12 +308,11 @@ class FlowService:
             return await self.process_response(
                 response_payload, aes_key, initial_vector
             )
-
+    
         except ValueError as e:
             return JSONResponse(content={"error_msg": str(e)}, status_code=422)
         except Exception as e:
             return PlainTextResponse(content={"error_msg": str(e)}, status_code=500)
-
     """ *************** BACKGROUND TASKS *************** """
 
     async def update_user_profile(self, user: User, data: dict, is_updating: bool):
@@ -525,5 +513,56 @@ class FlowService:
             self.logger.error(f"Error sending select classes flow: {e}")
             raise
 
+    async def send_simple_subjects_classes_flow(self, user: User) -> None:
+        try:
+            # Fetch available subjects with their classes from the database
+            subjects = await db.get_subjects_with_classes()
+            self.logger.debug(f"Available subjects with classes: {subjects}")
+            
+
+            subjects_data = {}
+            for i, subject in enumerate(subjects, start=1):
+                subject_id = subject["id"]
+                subject_title = subject["name"]
+                classes = subject["classes"]
+                subjects_data[f"subject{i}"] = {
+                    "subject_id": str(subject_id),
+                    "subject_title": subject_title,
+                    "classes": [{"id": str(cls["id"]), "title": cls["title"]} for cls in classes],
+                    "available": len(classes) > 0,
+                    "label": f"Classes for {subject_title}",
+                }
+                subjects_data[f"subject{i}_available"] = len(classes) > 0
+                subjects_data[f"subject{i}_label"] = f"Classes for {subject_title}"
+    
+            # Prepare the response payload
+            response_payload = futil.create_flow_response_payload(
+                screen="select_subjects_and_classes",
+                data={
+                    **subjects_data,
+                    "select_subject_text": "Please select the subjects and the classes you teach.",
+                    "no_subjects_text": "Sorry, there are no available subjects.",
+                },
+            )
+
+            flow_strings = strings.get_category(StringCategory.FLOWS)
+
+    
+            # Send the flow
+            await futil.send_whatsapp_flow_message(
+                user=user,
+                flow_id=settings.simple_subjects_classes_flow_id,
+                header_text=flow_strings["simple_subjects_classes_flow_header"],
+                body_text=flow_strings["simple_subjects_classes_flow_body"],
+                action_payload=response_payload,
+                flow_cta=flow_strings["simple_subjects_classes_flow_cta"],
+                mode="draft",
+            )
+        except Exception as e:
+            self.logger.error(f"Error sending simple subjects classes flow: {e}")
+            raise
 
 flow_client = FlowService()
+
+# TODO -move this comment to a more appropriate location
+# Note when in development mode call the send_whatsapp_flow_message method with mode="draft" to send a flow in draft mode

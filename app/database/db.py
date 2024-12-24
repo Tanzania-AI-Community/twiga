@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from sqlalchemy import text
 from sqlmodel import and_, select, or_, delete, insert, exists, desc
 import logging
@@ -11,6 +11,7 @@ from app.database.models import (
     Class,
     Chunk,
     Subject,
+    ClassInfo,  # Import ClassInfo
 )
 import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
@@ -365,3 +366,100 @@ async def assign_teacher_to_classes(
                 f"Failed to assign teacher {user.wa_id} to classes {class_ids}: {str(e)}"
             )
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
+
+
+async def get_subjects_with_classes() -> List[Dict[str, Any]]:
+    """
+    Get all available subjects with their classes.
+
+    Returns:
+        List[Dict[str, Any]]: List of dictionaries containing subject IDs, names, and their classes.
+    """
+    async with get_session() as session:
+        try:
+            statement = (
+                select(Subject)
+                .options(selectinload(Subject.subject_classes))
+                .where(Class.status == SubjectClassStatus.active)
+                .distinct()
+                .limit(6)  # Limit to 6 subjects
+            )
+            result = await session.execute(statement)
+            subjects = result.scalars().all()
+
+            logger.debug(f"Found subjects with classes: {subjects}")
+
+            subjects_with_classes = []
+            for subject in subjects:
+                subjects_with_classes.append({
+                    "id": subject.id,
+                    "name": enums.SubjectName(subject.name).display_format,  
+                    "classes": [{"id": cls.id, "title": enums.GradeLevel(cls.grade_level).display_format} for cls in subject.subject_classes]
+                })
+
+            logger.debug(f"Formatted subjects with classes: {subjects_with_classes}")
+
+            return subjects_with_classes
+        except Exception as e:
+            logger.error(f"Failed to get subjects with classes: {str(e)}")
+            raise Exception(f"Failed to get subjects with classes: {str(e)}")
+
+async def update_user_classes_for_subjects(user: User, selected_classes_by_subject: Dict[str, List[int]]) -> None:
+    """
+    Update user classes for multiple subjects.
+
+    Args:
+        user: The user object
+        selected_classes_by_subject: Dictionary mapping subject keys to lists of class IDs
+    """
+    async with get_session() as session:
+        try:
+            # Ensure class_info is initialized
+            if not user.class_info:
+                user.class_info = ClassInfo(subjects={}).model_dump()
+
+            # Ensure 'subjects' key is initialized
+            if "subjects" not in user.class_info:
+                user.class_info["subjects"] = {}
+
+            logger.debug(f"Updating user classes for subjects: {selected_classes_by_subject}")
+
+            # Clear existing class assignments for the user
+            await clear_existing_class_assignments(user)
+
+            for subject_key, class_ids in selected_classes_by_subject.items():
+                if class_ids:
+                    subject_key_str = str(subject_key)  # Convert subject_key to string
+                    subject_id = int(subject_key_str.replace("subject", ""))
+                    await assign_teacher_to_classes(user, class_ids, subject_id)
+                    subject: Optional[Subject] = await read_subject(subject_id)
+                    classes = await read_classes(class_ids)
+
+                if not subject or not classes or len(classes) == 0:
+                    raise ValueError("Subject or classes not found")
+
+            # Update the user state and onboarding state
+            user.state = enums.UserState.active
+            user.onboarding_state = enums.OnboardingState.completed
+            await update_user(user)
+
+        except Exception as e:
+            logger.error(f"Failed to update user classes for subjects: {str(e)}")
+            raise Exception(f"Failed to update user classes for subjects: {str(e)}")
+
+async def clear_existing_class_assignments(user: User) -> None:
+    """
+    Clear existing class assignments for the user.
+
+    Args:
+        user: The user object
+    """
+    async with get_session() as session:
+        try:
+            statement = delete(TeacherClass).where(TeacherClass.teacher_id == user.id)
+            await session.execute(statement)
+            await session.commit()
+            logger.debug(f"Cleared existing class assignments for user: {user.id}")
+        except Exception as e:
+            logger.error(f"Failed to clear existing class assignments for user: {str(e)}")
+            raise Exception(f"Failed to clear existing class assignments for user: {str(e)}")

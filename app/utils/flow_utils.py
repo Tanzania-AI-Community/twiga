@@ -178,6 +178,7 @@ async def send_whatsapp_flow_message(
     body_text: str,
     action_payload: Dict[str, Any],
     flow_cta: str,
+    mode = "published",
 ) -> None:
     """
     Common utility to send WhatsApp flow messages
@@ -209,7 +210,7 @@ async def send_whatsapp_flow_message(
                     "flow_token": flow_token,
                     "flow_id": flow_id,
                     "flow_cta": flow_cta,
-                    "mode": "published",
+                    "mode": mode,
                     "flow_action_payload": action_payload,
                 },
             },
@@ -234,6 +235,7 @@ def create_flow_response_payload(
     """
     Create standardized flow response payloads
     """
+    logger.debug(f"Creating flow response payload with data: {data}")
     if screen == "SUCCESS":
         return {
             "screen": "SUCCESS",
