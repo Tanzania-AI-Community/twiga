@@ -164,31 +164,30 @@ HARDCODED_SUBJECTS_AND_CLASSES = {
 
 async def handle_simple_subjects_classes_init_action(user: User) -> Dict[str, Any]:
     try:
-        # Hardcoded data for subjects and classes
-        subjects_data = HARDCODED_SUBJECTS_AND_CLASSES
+        # Fetch available subjects with their classes from the database
+        subjects = await db.get_subjects_with_classes()
+        logger.debug(f"Available subjects with classes: {subjects}")
+
+        subjects_data = {}
+        for i, subject in enumerate(subjects, start=1):
+            subject_id = subject["id"]
+            subject_title = subject["name"]
+            classes = subject["classes"]
+            subjects_data[f"subject{i}"] = {
+                "subject_id": str(subject_id),
+                "subject_title": subject_title,
+                "classes": [{"id": str(cls["id"]), "title": cls["title"]} for cls in classes],
+                "available": len(classes) > 0,
+                "label": f"Classes for {subject_title}",
+            }
+            subjects_data[f"subject{i}_available"] = len(classes) > 0
+            subjects_data[f"subject{i}_label"] = f"Classes for {subject_title}"
 
         # Prepare the response payload
         response_payload = futil.create_flow_response_payload(
             screen="select_subjects_and_classes",
             data={
-                "subject1": (subjects_data["subject1"]),
-                "subject2": (subjects_data["subject2"]),
-                "subject3": (subjects_data["subject3"]),
-                "subject4": (subjects_data["subject4"]),
-                "subject5": (subjects_data["subject5"]),
-                "subject6": (subjects_data["subject6"]),
-                "subject1_available": subjects_data["subject1"]["available"],
-                "subject2_available": subjects_data["subject2"]["available"],
-                "subject3_available": subjects_data["subject3"]["available"],
-                "subject4_available": subjects_data["subject4"]["available"],
-                "subject5_available": subjects_data["subject5"]["available"],
-                "subject6_available": subjects_data["subject6"]["available"],
-                "subject1_label": subjects_data["subject1"]["label"],
-                "subject2_label": subjects_data["subject2"]["label"],
-                "subject3_label": subjects_data["subject3"]["label"],
-                "subject4_label": subjects_data["subject4"]["label"],
-                "subject5_label": subjects_data["subject5"]["label"],
-                "subject6_label": subjects_data["subject6"]["label"],
+                **subjects_data,
                 "select_subject_text": "Please select the subjects and the classes you teach.",
                 "no_subjects_text": "Sorry, there are no available subjects.",
             },
