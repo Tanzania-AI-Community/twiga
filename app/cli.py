@@ -13,15 +13,17 @@ cli = typer.Typer()
 
 
 @cli.command()
-def encrypt_flow_token_cli(wa_id: str, flow_id: str):
+def encrypt_flow_token_cli(
+    wa_id: str = typer.Option(..., "--wa-id", help="WhatsApp ID"),
+    flow_id: str = typer.Option(..., "--flow-id", help="Flow ID")
+):
     """Encrypt a flow token for testing flows.
-    EXAMPLE: python app/cli.py encrypt_flow_token_cli 1234 5678
-    OR : uv run app/cli.py encrypt-flow-token-cli 123456 flow1234
+    EXAMPLE: python app/cli.py encrypt_flow_token_cli --wa-id 1234 --flow-id 5678
+    OR : uv run app/cli.py encrypt-flow-token-cli --wa-id 123456 --flow-id flow1234
     """
     try:
         logger.info(f"Encrypting flow token for wa_id {wa_id} and flow_id {flow_id}")
         result = encrypt_flow_token(wa_id, flow_id)
-        # logger.info(f"Encrypted flow token: {result}")
         result = "Encrypted flow token: " + result
         typer.echo(result)
     except Exception as e:
@@ -38,7 +40,6 @@ def decrypt_flow_token_cli(encrypted_flow_token: str):
     try:
         logger.info(f"Decrypting flow token: {encrypted_flow_token}")
         result = decrypt_flow_token(encrypted_flow_token)
-        # logger.info(f"Decrypted flow token: {result}")
         result = "Decrypted flow token: " + result
         typer.echo(result)
     except Exception as e:
