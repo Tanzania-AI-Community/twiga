@@ -1,5 +1,5 @@
 # Use the official PostgreSQL image as a base
-FROM postgres:17 as twiga_db
+FROM postgres:17 AS twiga_db
 
 # Install pgvector extension
 RUN apt-get update && \
