@@ -34,7 +34,7 @@ class ClassInfo(BaseModel):
         data = super().model_dump(**kwargs)
         return {
             subject: [grade for grade in grades]
-            for subject, grades in data["subjects"].items()
+            for subject, grades in data["classes"].items()
         }
 
     def format_readable(self) -> str:
@@ -47,16 +47,16 @@ class ClassInfo(BaseModel):
         if not self.classes:
             return "No classes assigned"
 
-        formatted_subjects = []
+        formatted_classes = []
         for subject, grades in self.classes.items():
             subject_name = enums.SubjectName(subject).display_format
             formatted_grades = sorted(
                 [enums.GradeLevel(grade).display_format for grade in grades]
             )
             grades_text = ", ".join(formatted_grades)
-            formatted_subjects.append(f"{subject_name} ({grades_text})")
+            formatted_classes.append(f"{subject_name} ({grades_text})")
 
-        return ", ".join(formatted_subjects)
+        return ", ".join(formatted_classes)
 
 
 class User(SQLModel, table=True):
