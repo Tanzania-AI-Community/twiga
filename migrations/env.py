@@ -15,7 +15,7 @@ from app.database.models import *  # noqa: F403
 config = context.config
 
 # Load PostgreSQL migrations URL from environment variables
-db_url = settings.database_url.get_secret_value()
+db_url = settings.sync_database_url
 print(f"Connecting to: {db_url}")
 config.set_main_option("sqlalchemy.url", db_url)
 
