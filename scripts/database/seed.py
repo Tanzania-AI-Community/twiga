@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 import json
 from pathlib import Path
-from sqlalchemy import text
+from sqlmodel import text
 from sqlmodel import SQLModel, select
 import logging
 from typing import List, Dict, Any
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 async def reset_db():
+    """Reset database using async operations"""
     try:
         engine = create_async_engine(get_database_url())
         async with engine.begin() as conn:
@@ -33,7 +34,6 @@ async def reset_db():
             await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
 
             logger.info("Dropping existing enum types...")
-            # TODO: Validate that this works
             enum_query = """
                 SELECT t.typname FROM pg_type t
                 JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
