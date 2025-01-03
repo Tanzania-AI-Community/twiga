@@ -1,43 +1,68 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-import asyncio
 import json
 from pathlib import Path
 from sqlalchemy import text
 from sqlmodel import SQLModel, select
 import logging
 from typing import List, Dict, Any
-import argparse
-
 import yaml
+import argparse
+import asyncio
+import sys
 
 # Import all your models
 import app.database.models as models
 from app.database.enums import ChunkType
 from app.database.utils import get_database_url
 
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def init_db(drop_all: bool = False):
+async def reset_db():
     try:
-        """Initialize the database with tables."""
         engine = create_async_engine(get_database_url())
-
         async with engine.begin() as conn:
-            if drop_all:
-                logger.info("Dropping all existing tables...")
-                await conn.run_sync(SQLModel.metadata.drop_all)
+            logger.info("Dropping all existing tables...")
+            await conn.run_sync(SQLModel.metadata.drop_all)
 
-            logger.info("Creating tables and pgvector extension...")
+            # Drop alembic_version table
+            logger.info("Dropping alembic_version table...")
+            await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
+
+            logger.info("Dropping existing enum types...")
+            # TODO: Validate that this works
+            enum_query = """
+                SELECT t.typname FROM pg_type t
+                JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+                WHERE t.typtype = 'e' AND n.nspname = 'public'
+            """
+            result = await conn.execute(text(enum_query))
+            enum_types = result.scalars().all()
+
+            for enum_name in enum_types:
+                await conn.execute(text(f"DROP TYPE IF EXISTS {enum_name} CASCADE"))
+
+            logger.info("Creating pgvector extension...")
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            await conn.run_sync(SQLModel.metadata.create_all)
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
         raise
     finally:
         await engine.dispose()
+
+
+def run_migrations():
+    """Run alembic migrations"""
+    from alembic.config import Config
+    from alembic import command
+
+    logger.info("Running migrations...")
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+    logger.info("Migrations complete")
 
 
 async def inject_sample_data():
@@ -194,39 +219,45 @@ async def inject_vector_data(file: str):
         await engine.dispose()
 
 
-if __name__ == "__main__":
+async def main():
+    """Initialize and setup the Twiga development database."""
+    # Set up argument parser
+    parser = argparse.ArgumentParser(
+        description="Initialize and setup the Twiga development database."
+    )
+    parser.add_argument(
+        "--create", action="store_true", help="Reset and run alembic migrations"
+    )
+    parser.add_argument("--sample-data", action="store_true", help="Add sample data")
+    parser.add_argument(
+        "--vector-data",
+        type=str,
+        help="Vector database chunks file (chunks_OPENAI.json or chunks_BAAI.json)",
+    )
+
+    # Parse arguments
+    args = parser.parse_args()
+
     try:
-        # Parse command line arguments
-        parser = argparse.ArgumentParser(
-            description="Initialize the database for Twiga development."
-        )
-        parser.add_argument(
-            "--drop",
-            action="store_true",
-            help="Drop the existing tables before creation",
-        )
-        parser.add_argument(
-            "--sample-data", action="store_true", help="Add sample data to the database"
-        )
-        parser.add_argument(
-            "--vector-data",
-            type=str,
-            metavar="FILENAME",
-            help="Populate the vector database using the specified chunks file (chunks_OPENAI.json or chunks_BAAI.json)",
-        )
 
-        args = parser.parse_args()
-
-        asyncio.run(init_db(drop_all=args.drop))
+        if args.create:
+            logger.info("Starting database setup...")
+            await reset_db()
+            run_migrations()
 
         if args.sample_data:
-            logger.info("Starting data injection...")
-            asyncio.run(inject_sample_data())
+            logger.info("Starting sample data injection...")
+            await inject_sample_data()
 
         if args.vector_data:
             logger.info("Starting vector data injection...")
-            asyncio.run(inject_vector_data(args.vector_data))
+            await inject_vector_data(args.vector_data)
 
-        logger.info("Complete.")
+        logger.info("Database setup complete")
     except Exception as e:
-        logger.error(f"Setup failed: {e}")
+        print(f"Setup failed: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
