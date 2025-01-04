@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 import asyncio
@@ -61,6 +62,43 @@ class LLMClient:
     ) -> bool:
         """Check if new messages arrived during processing."""
         return len(processor.messages) > original_count
+
+    def _catch_malformed_tool(self, response_text: str) -> str | dict:
+        """
+        Parse response text to extract a tool call if present.
+
+        Expected format:
+            <function=FUNCTION_NAME>{ ... valid JSON ... }</function>
+
+        Returns:
+            - dict: if the tool call is successfully parsed, for example:
+                    {
+                        "name": "FUNCTION_NAME",
+                        "arguments": { ...parsed JSON... }
+                    }
+            - str: if no valid tool call is found or parsing fails (we return original text).
+        """
+        # This regex looks for any string that matches <function=FUNCTION_NAME> ... </function>
+        # where FUNCTION_NAME can be letters/underscores followed by any word characters.
+        pattern = r"<function=([A-Za-z_]\w*)>(.*?)</function>"
+        match = re.search(pattern, response_text, flags=re.DOTALL)
+
+        # If there's no match for <function=...>...</function>, just return the original text
+        if not match:
+            return response_text
+
+        function_name = match.group(1)
+        json_str = match.group(2).strip()
+        json_str = json_str.rstrip('"').strip()
+
+        try:
+            parsed_arguments = json.loads(json_str)
+        except json.JSONDecodeError:
+            # If parsing fails, we return the original text or handle it differently
+            return response_text
+
+        # Return a structured dict so upstream code knows it was a valid tool call
+        return {"name": function_name, "arguments": parsed_arguments}
 
     async def _process_tool_calls(
         self,
@@ -150,14 +188,14 @@ class LLMClient:
                         self._cleanup_processor(user.id)
                         return None
 
-                    # Get message history and format for the api
+                    # 1. Build the API messages from DB history + new messages
                     history = await get_user_message_history(user.id)
                     api_messages = self._format_messages(
                         messages_to_process, history, user
                     )
                     self.logger.debug(f"Initial messages:\n {api_messages}")
 
-                    # Initial response with tools
+                    # 2. Call the LLM with tools enabled
                     initial_response = await async_llm_request(
                         model=llm_settings.llm_model_name,
                         messages=api_messages,
@@ -172,38 +210,70 @@ class LLMClient:
                     # Track new messages
                     new_messages = [initial_message]
 
-                    # Check for new messages
+                    # 3. Check for new incoming messages during processing
                     if self._check_new_messages(processor, original_count):
                         self.logger.warning("New messages buffered during processing")
                         continue
 
-                    # Process tool calls if present
+                    # 4. If the LLM didn't return a standard tool call but we suspect there's a call in content
+                    if not initial_message.tool_calls:
+                        self.logger.debug(
+                            "No tool calls in the standard field. Checking for malformed calls."
+                        )
+                        # Attempt to parse a malformed/hallucinated tool call
+                        tool_call_data = self._catch_malformed_tool(
+                            initial_message.content
+                        )
+                        self.logger.debug(f"Recovered tool call data: {tool_call_data}")
+                        if tool_call_data is not None and isinstance(
+                            tool_call_data, dict
+                        ):
+                            self.logger.warning(
+                                "Recovered a malformed/hallucinated tool call from content."
+                            )
+                            # Rebuild the tool call
+                            from openai.types.chat import ChatCompletionMessageToolCall
+
+                            recovered_call = ChatCompletionMessageToolCall(
+                                id="recovered_call_1",
+                                function=ChatCompletionMessageToolCall.Function(
+                                    name=tool_call_data["name"],
+                                    arguments=json.dumps(
+                                        tool_call_data["arguments"]["query"]
+                                    ),
+                                ),
+                                type="function",
+                            )
+                            # Assign it back to the message so _process_tool_calls will see it
+                            initial_message.tool_calls = [recovered_call]
+                        else:
+                            self.logger.debug(
+                                "No malformed tool call found in content."
+                            )
+
+                    # 5. Process tool calls if present (whether normal or recovered)
                     if initial_message.tool_calls:
                         self.logger.debug("Processing tool calls 🛠️")
-
-                        # Process tool calls and track the tool response messages
                         tool_responses = await self._process_tool_calls(
-                            initial_response.choices[0].message.tool_calls,
+                            initial_message.tool_calls,  # note: we can also do initial_response.choices[0].message.tool_calls
                             user,
                             resources,
                         )
 
                         if tool_responses:
                             new_messages.extend(tool_responses)
-
-                            # Update api_messages with new messages while preserving order
+                            # Extend api_messages with new tool responses
                             api_messages.extend(
-                                msg.to_api_format() for msg in new_messages
+                                msg.to_api_format() for msg in tool_responses
                             )
 
-                            # Get final response after tool calls
+                            # 6. Final call to LLM with the new tool outputs appended
                             final_response = await async_llm_request(
                                 model=llm_settings.llm_model_name,
                                 messages=api_messages,
                                 tools=None,
                                 tool_choice=None,
                             )
-
                             final_message = Message.from_api_format(
                                 final_response.choices[0].message.model_dump(), user.id
                             )
@@ -214,11 +284,12 @@ class LLMClient:
                             self.logger.warning("New messages buffered during tools")
                             continue
 
-                    # Success - clear buffer and return response
+                    # 7. If we got this far, we can clear the buffer and return
                     self.logger.debug("LLM finished. Clearing buffer.")
                     processor.clear_messages()
                     self._cleanup_processor(user.id)
                     return new_messages
+
                 except Exception as e:
                     self.logger.error(f"Error processing messages: {e}")
                     processor.clear_messages()
