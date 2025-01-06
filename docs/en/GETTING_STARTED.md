@@ -137,10 +137,6 @@ Next up, let's build all Docker images and local data, needed for further steps 
 make setup-env
 ```
 
-> [!Note]
->
-> You can try out [TablePlus](https://tableplus.com/) to visualize your databases.
-
 ## 🖥️ Set up the FastAPI application
 
 Run the following command to run the project.

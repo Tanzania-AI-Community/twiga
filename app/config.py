@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # Database settings
     database_url: SecretStr
 
+    @property
+    def sync_database_url(self) -> str:
+        """Get synchronous database URL for migrations"""
+        return self.database_url.get_secret_value().replace("+asyncpg", "")
+
     # Business environment
     business_env: bool = False  # Default if not found in .env
 
