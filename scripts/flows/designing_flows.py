@@ -10,9 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 
-async def handle_onboarding_init_action(
-    user: User,
-) -> Dict[str, Any] | PlainTextResponse:
+async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
     try:
         response_payload = futil.create_flow_response_payload(
             screen="personal_info",
@@ -25,100 +23,6 @@ async def handle_onboarding_init_action(
         return PlainTextResponse(content={"error_msg": str(e)}, status_code=422)
 
 
-async def handle_select_subjects_init_action(
-    user: User,
-) -> Dict[str, Any] | PlainTextResponse:
-    try:
-        # Get available subjects from the database
-        subjects = await db.get_available_subjects()
-        logger.debug(f"Available subjects: {subjects}")
-
-        select_subject_text = "This helps us find the best answers for your questions."
-        no_subjects_text = "Sorry, currently there are no active subjects."
-        has_subjects = len(subjects) > 0
-
-        response_payload = futil.create_flow_response_payload(
-            screen="select_subjects",
-            data={
-                "subjects": (
-                    subjects
-                    if has_subjects
-                    else [{"id": "0", "title": "No subjects available"}]
-                ),  # doing this because the response in whatsapp flows expects a list of subjects with id and title
-                "has_subjects": has_subjects,
-                "no_subjects_text": no_subjects_text,
-                "select_subject_text": select_subject_text,
-            },
-        )
-        return response_payload
-
-    except ValueError as e:
-        return PlainTextResponse(content={"error_msg": str(e)}, status_code=422)
-
-
-# Hardcoded data for subjects and classes
-HARDCODED_SUBJECTS_AND_CLASSES = {
-    "subject1": {
-        "subject_id": "1",
-        "subject_title": "Mathematics",
-        "classes": [
-            {"id": "101", "title": "Class 1"},
-            {"id": "102", "title": "Class 2"},
-        ],
-        "available": True,
-        "label": "Classes for Mathematics",
-    },
-    "subject2": {
-        "subject_id": "2",
-        "subject_title": "Science",
-        "classes": [
-            {"id": "201", "title": "Class 3"},
-            {"id": "202", "title": "Class 4"},
-        ],
-        "available": True,
-        "label": "Classes for Science",
-    },
-    "subject3": {
-        "subject_id": "3",
-        "subject_title": "History",
-        "classes": [
-            {"id": "301", "title": "Class 5"},
-            {"id": "302", "title": "Class 6"},
-        ],
-        "available": True,
-        "label": "Classes for History",
-    },
-    "subject4": {
-        "subject_id": "4",
-        "subject_title": "Geography",
-        "classes": [
-            {"id": "401", "title": "Class 7"},
-            {"id": "402", "title": "Class 8"},
-        ],
-        "available": False,
-        "label": "Classes for Geography",
-    },
-    "subject5": {
-        "subject_id": "5",
-        "subject_title": "English",
-        "classes": [
-            {"id": "501", "title": "Class 9"},
-            {"id": "502", "title": "Class 10"},
-        ],
-        "available": False,
-        "label": "Classes for English",
-    },
-    "subject6": {
-        "subject_id": "6",
-        "subject_title": "Physics",
-        "classes": [
-            {"id": "601", "title": "Class 11"},
-            {"id": "602", "title": "Class 12"},
-        ],
-        "available": False,
-        "label": "Classes for Physics",
-    },
-}
 
 
 async def handle_subjects_classes_init_action(user: User) -> Dict[str, Any]:
