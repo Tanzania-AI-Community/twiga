@@ -223,29 +223,6 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             raise Exception(f"Failed to get user resources: {str(e)}")
 
 
-async def get_available_subjects() -> List[Subject]:
-    """
-    Get all available subjects with their IDs and names.
-
-    Returns:
-        List[Dict[str, str]]: List of dictionaries containing subject IDs and names as strings.
-    """
-    async with get_session() as session:
-        try:
-            # Apparently we can use .join(Subject.subject_classes) to get the classes as well
-            statement = (
-                select(Subject)
-                .join(Class, Class.subject_id == Subject.id)  # type: ignore
-                .where(Class.status == SubjectClassStatus.active)
-                .distinct()
-            )
-            result = await session.execute(statement)
-            return list(result.scalars().all())
-        except Exception as e:
-            logger.error(f"Failed to get available subjects: {str(e)}")
-            raise Exception(f"Failed to get available subjects: {str(e)}")
-
-
 # async def read_subject(subject_id: int) -> Optional[Subject]:
 #     async with get_session() as session:
 #         try:
@@ -382,13 +359,13 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
                 .options(selectinload(Subject.subject_classes))
                 .where(Class.status == SubjectClassStatus.active)
                 .distinct()
-                .limit(6)  # Limit to 6 subjects
             )
             result = await session.execute(statement)
             subjects = result.scalars().all()
 
             logger.debug(f"Found subjects with classes: {subjects}")
 
+            # move this to the service 
             subjects_with_classes = []
             for subject in subjects:
                 subjects_with_classes.append({
@@ -427,6 +404,8 @@ async def update_user_classes_for_subjects(user: User, selected_classes_by_subje
             # Clear existing class assignments for the user
             await clear_existing_class_assignments(user)
 
+            updated_subjects = {}
+
             for subject_key, class_ids in selected_classes_by_subject.items():
                 if class_ids:
                     subject_key_str = str(subject_key)  # Convert subject_key to string
@@ -435,8 +414,15 @@ async def update_user_classes_for_subjects(user: User, selected_classes_by_subje
                     subject: Optional[Subject] = await read_subject(subject_id)
                     classes = await read_classes(class_ids)
 
-                if not subject or not classes or len(classes) == 0:
-                    raise ValueError("Subject or classes not found")
+                    if not subject or not classes or len(classes) == 0:
+                        raise ValueError("Subject or classes not found")
+
+                    updated_subjects[subject.name] = [cls.grade_level for cls in classes]
+
+            # Update the user's class_info
+            user.class_info = ClassInfo(subjects=updated_subjects).model_dump()
+
+            logger.debug(f"Updated user classes for subjects: {updated_subjects}")
 
             # Update the user state and onboarding state
             user.state = enums.UserState.active

@@ -23,7 +23,7 @@ class MessagingService:
             await flow_client.send_user_settings_flow(user)
         elif message.content == "Classes and Subjects":
             self.logger.debug("Sending update class and subject info flow")
-            await flow_client.send_select_subject_flow(user)
+            await flow_client.send_subjects_classes_flow(user)
         else:
             raise Exception(f"Unrecognized user reply: {message.content}")
         return JSONResponse(
