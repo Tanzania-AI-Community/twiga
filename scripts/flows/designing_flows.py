@@ -9,7 +9,6 @@ import app.utils.flow_utils as futil
 logger = logging.getLogger(__name__)
 
 
-
 async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
     try:
         response_payload = futil.create_flow_response_payload(
@@ -21,8 +20,6 @@ async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
         return response_payload
     except ValueError as e:
         return PlainTextResponse(content={"error_msg": str(e)}, status_code=422)
-
-
 
 
 async def handle_subjects_classes_init_action(user: User) -> Dict[str, Any]:
@@ -39,7 +36,9 @@ async def handle_subjects_classes_init_action(user: User) -> Dict[str, Any]:
             subjects_data[f"subject{i}"] = {
                 "subject_id": str(subject_id),
                 "subject_title": subject_title,
-                "classes": [{"id": str(cls["id"]), "title": cls["title"]} for cls in classes],
+                "classes": [
+                    {"id": str(cls["id"]), "title": cls["title"]} for cls in classes
+                ],
                 "available": len(classes) > 0,
                 "label": f"Classes for {subject_title}",
             }
