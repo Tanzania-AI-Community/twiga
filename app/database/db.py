@@ -356,7 +356,7 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
         try:
             statement = (
                 select(Subject)
-                .options(selectinload(Subject.subject_classes))
+                .options(selectinload(Subject.subject_classes))  # type: ignore
                 .where(Class.status == SubjectClassStatus.active)
                 .distinct()
             )
@@ -379,7 +379,7 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
                                     cls.grade_level
                                 ).display_format,
                             }
-                            for cls in subject.subject_classes
+                            for cls in subject.subject_classes or []
                         ],
                     }
                 )
@@ -406,11 +406,11 @@ async def update_user_classes_for_subjects(
         try:
             # Ensure class_info is initialized
             if not user.class_info:
-                user.class_info = ClassInfo(subjects={}).model_dump()
+                user.class_info = ClassInfo(classes={}).model_dump()
 
             # Ensure 'subjects' key is initialized
             if "subjects" not in user.class_info:
-                user.class_info["subjects"] = {}
+                user.class_info["subjects"] = {}  # type: ignore
 
             logger.debug(
                 f"Updating user classes for subjects: {selected_classes_by_subject}"
@@ -437,7 +437,7 @@ async def update_user_classes_for_subjects(
                     ]
 
             # Update the user's class_info
-            user.class_info = ClassInfo(subjects=updated_subjects).model_dump()
+            user.class_info = ClassInfo(classes=updated_subjects).model_dump()
 
             logger.debug(f"Updated user classes for subjects: {updated_subjects}")
 
@@ -460,7 +460,7 @@ async def clear_existing_class_assignments(user: User) -> None:
     """
     async with get_session() as session:
         try:
-            statement = delete(TeacherClass).where(TeacherClass.teacher_id == user.id)
+            statement = delete(TeacherClass).where(TeacherClass.teacher_id == user.id)  # type: ignore
             await session.execute(statement)
             await session.commit()
             logger.debug(f"Cleared existing class assignments for user: {user.id}")

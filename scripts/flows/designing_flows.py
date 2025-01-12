@@ -9,7 +9,9 @@ import app.utils.flow_utils as futil
 logger = logging.getLogger(__name__)
 
 
-async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
+async def handle_onboarding_init_action(
+    user: User,
+) -> Dict[str, Any] | PlainTextResponse:
     try:
         response_payload = futil.create_flow_response_payload(
             screen="personal_info",
@@ -22,7 +24,9 @@ async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
         return PlainTextResponse(content={"error_msg": str(e)}, status_code=422)
 
 
-async def handle_subjects_classes_init_action(user: User) -> Dict[str, Any]:
+async def handle_subjects_classes_init_action(
+    user: User,
+) -> Dict[str, Any] | PlainTextResponse:
     try:
         # Fetch available subjects with their classes from the database
         subjects = await db.get_subjects_with_classes()
