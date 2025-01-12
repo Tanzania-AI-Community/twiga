@@ -57,4 +57,5 @@ async def handle_flows_webhook(
     request: Request, background_tasks: BackgroundTasks
 ) -> PlainTextResponse:
     logger.debug("flows webhook is being called")
-    return await flow_client.handle_flow_request(request, background_tasks)
+    body = await request.json()
+    return await flow_client.handle_flow_request(body, background_tasks)

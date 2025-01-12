@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     whatsapp_business_private_key_password: Optional[SecretStr] = None
 
     # Flows settings
-    onboarding_flow_id: Optional[str] = None
-    subjects_classes_flow_id: Optional[str] = None
-    flow_token_encryption_key: Optional[SecretStr] = None
+    onboarding_flow_id: str
+    subjects_classes_flow_id: str
+    flow_token_encryption_key: SecretStr
 
     # Rate limit settings
     daily_message_limit: int
