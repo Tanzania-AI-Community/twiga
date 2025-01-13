@@ -177,19 +177,19 @@ class FlowService:
             self.logger.info(f"Handling subjects and classes data exchange: {data}")
 
             # Get subjects with their classes
-            subjects_with_classes = await db.get_subjects_with_classes()
+            subjects_with_classes = await db.read_subjects()
 
             self.logger.info(f"Subjects with classes: {subjects_with_classes}")
 
             # Create a mapping of subject keys to subject IDs
             subject_key_to_id = {
-                f"subject{i+1}": subject["id"]
-                for i, subject in enumerate(subjects_with_classes)
+                f"subject{i+1}": subject.id
+                for i, subject in enumerate(subjects_with_classes or [])
             }
 
             # Extract selected classes for each subject
             selected_classes_by_subject = {
-                subject_key_to_id[key.replace("selected_classes_for_", "")]: [
+                str(subject_key_to_id[key.replace("selected_classes_for_", "")]): [
                     int(id) for id in value
                 ]
                 for key, value in data.items()
@@ -321,24 +321,24 @@ class FlowService:
     async def send_subjects_classes_flow(self, user: User) -> None:
         try:
             # Fetch available subjects with their classes from the database
-            subjects = await db.get_subjects_with_classes()
+            subjects = await db.read_subjects()
             self.logger.debug(f"Available subjects with classes: {subjects}")
 
             subjects_data = {}
-            for i, subject in enumerate(subjects, start=1):
-                subject_id = subject["id"]
-                subject_title = subject["name"]
-                classes = subject["classes"]
+            for i, subject in enumerate(subjects or [], start=1):
+                subject_id = subject.id
+                subject_title = subject.name
+                classes = await db.read_subjects()
                 subjects_data[f"subject{i}"] = {
                     "subject_id": str(subject_id),
                     "subject_title": subject_title,
                     "classes": [
-                        {"id": str(cls["id"]), "title": cls["title"]} for cls in classes
+                        {"id": str(cls.id), "title": cls.name} for cls in classes or []
                     ],
-                    "available": len(classes) > 0,
+                    "available": len(classes or []) > 0,
                     "label": f"Classes for {subject_title}",
                 }
-                subjects_data[f"subject{i}_available"] = len(classes) > 0
+                subjects_data[f"subject{i}_available"] = len(classes or []) > 0
                 subjects_data[f"subject{i}_label"] = f"Classes for {subject_title}"
 
             # Prepare the response payload

@@ -9,7 +9,6 @@ import app.utils.flow_utils as futil
 logger = logging.getLogger(__name__)
 
 
-
 async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
     try:
         response_payload = futil.create_flow_response_payload(
@@ -23,12 +22,10 @@ async def handle_onboarding_init_action(user: User) -> Dict[str, Any]:
         return PlainTextResponse(content={"error_msg": str(e)}, status_code=422)
 
 
-
-
 async def handle_subjects_classes_init_action(user: User) -> Dict[str, Any]:
     try:
         # Fetch available subjects with their classes from the database
-        subjects = await db.get_subjects_with_classes()
+        subjects = await db.read_subjects()
         logger.debug(f"Available subjects with classes: {subjects}")
 
         subjects_data = {}
@@ -39,7 +36,9 @@ async def handle_subjects_classes_init_action(user: User) -> Dict[str, Any]:
             subjects_data[f"subject{i}"] = {
                 "subject_id": str(subject_id),
                 "subject_title": subject_title,
-                "classes": [{"id": str(cls["id"]), "title": cls["title"]} for cls in classes],
+                "classes": [
+                    {"id": str(cls["id"]), "title": cls["title"]} for cls in classes
+                ],
                 "available": len(classes) > 0,
                 "label": f"Classes for {subject_title}",
             }
@@ -130,7 +129,7 @@ HARDCODED_SUBJECTS_AND_CLASSES = {
 async def handle_simple_subjects_classes_init_action(user: User) -> Dict[str, Any]:
     try:
         # Fetch available subjects with their classes from the database
-        subjects = await db.get_subjects_with_classes()
+        subjects = await db.read_subjects()
         logger.debug(f"Available subjects with classes: {subjects}")
 
         subjects_data = {}
@@ -141,7 +140,9 @@ async def handle_simple_subjects_classes_init_action(user: User) -> Dict[str, An
             subjects_data[f"subject{i}"] = {
                 "subject_id": str(subject_id),
                 "subject_title": subject_title,
-                "classes": [{"id": str(cls["id"]), "title": cls["title"]} for cls in classes],
+                "classes": [
+                    {"id": str(cls["id"]), "title": cls["title"]} for cls in classes
+                ],
                 "available": len(classes) > 0,
                 "label": f"Classes for {subject_title}",
             }

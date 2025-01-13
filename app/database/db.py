@@ -392,6 +392,23 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
             raise Exception(f"Failed to get subjects with classes: {str(e)}")
 
 
+async def read_subjects() -> Optional[List[Subject]]:
+    """
+    Read all subject and its classes from the database.
+    NOTE: This function uses eager loading so if you only need the subject object without classes loaded it might be better to make a new function
+    """
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(Subject).options(
+                selectinload(Subject.subject_classes)  # type: ignore
+            )  # type: ignore
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+        except Exception as e:
+            raise Exception(f"Failed to read subjects: {str(e)}")
+
+
 async def update_user_classes_for_subjects(
     user: User, selected_classes_by_subject: Dict[str, List[int]]
 ) -> None:
