@@ -240,6 +240,52 @@ class FlowService:
         except Exception as e:
             return PlainTextResponse(content={"error_msg": str(e)}, status_code=500)
 
+    async def update_user_classes(
+        self, user: User, selected_classes_by_subject: Dict[str, List[int]]
+    ) -> None:
+        try:
+            # Ensure class_info is initialized
+            if not user.class_info:
+                user.class_info = ClassInfo(classes={}).model_dump()
+
+            self.logger.debug(
+                f"Updating user classes for subjects: {selected_classes_by_subject}"
+            )
+
+            # Clear existing class assignments for the user
+            await db.clear_existing_class_assignments(user)
+
+            updated_subjects = {}
+
+            for subject_key, class_ids in selected_classes_by_subject.items():
+                if class_ids:
+                    subject_id = int(subject_key.replace("subject", ""))
+                    await db.assign_teacher_to_classes(user, class_ids, subject_id)
+                    subject: Optional[models.Subject] = await db.read_subject(
+                        subject_id
+                    )
+                    classes = await db.read_classes(class_ids)
+
+                    if not subject or not classes or len(classes) == 0:
+                        raise ValueError("Subject or classes not found")
+
+                    updated_subjects[subject.name] = [
+                        cls.grade_level for cls in classes
+                    ]
+
+            # Update the user's class_info
+            user.class_info = ClassInfo(classes=updated_subjects).model_dump()
+
+            self.logger.debug(f"Updated user classes for subjects: {updated_subjects}")
+
+            # Update the user state and onboarding state
+            user.state = enums.UserState.active
+            user.onboarding_state = enums.OnboardingState.completed
+            await db.update_user(user)
+        except Exception as e:
+            self.logger.error(f"Failed to update user classes for subjects: {str(e)}")
+            raise
+
     """ *************** BACKGROUND TASKS *************** """
 
     async def update_user_profile(self, user: User, data: dict, is_updating: bool):
@@ -327,13 +373,14 @@ class FlowService:
             subjects_data = {}
             for i, subject in enumerate(subjects or [], start=1):
                 subject_id = subject.id
-                subject_title = subject.name
-                classes = await db.read_subjects()
+                subject_title = subject.name.value
+                classes = subject.subject_classes
                 subjects_data[f"subject{i}"] = {
                     "subject_id": str(subject_id),
                     "subject_title": subject_title,
                     "classes": [
-                        {"id": str(cls.id), "title": cls.name} for cls in classes or []
+                        {"id": str(cls.id), "title": cls.grade_level.display_format}
+                        for cls in classes or []
                     ],
                     "available": len(classes or []) > 0,
                     "label": f"Classes for {subject_title}",
@@ -363,7 +410,7 @@ class FlowService:
                 flow_cta=flow_strings["subjects_classes_flow_cta"],
             )
         except Exception as e:
-            self.logger.error(f"Error sending  subjects classes flow: {e}")
+            self.logger.error(f"Error sending subjects classes flow: {e}")
             raise
 
 

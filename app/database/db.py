@@ -345,53 +345,6 @@ async def assign_teacher_to_classes(
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
 
 
-async def get_subjects_with_classes() -> List[Dict[str, Any]]:
-    """
-    Get all available subjects with their classes.
-
-    Returns:
-        List[Dict[str, Any]]: List of dictionaries containing subject IDs, names, and their classes.
-    """
-    async with get_session() as session:
-        try:
-            statement = (
-                select(Subject)
-                .options(selectinload(Subject.subject_classes))  # type: ignore
-                .where(Class.status == SubjectClassStatus.active)
-                .distinct()
-            )
-            result = await session.execute(statement)
-            subjects = result.scalars().all()
-
-            logger.debug(f"Found subjects with classes: {subjects}")
-
-            # move this to the service
-            subjects_with_classes = []
-            for subject in subjects:
-                subjects_with_classes.append(
-                    {
-                        "id": subject.id,
-                        "name": enums.SubjectName(subject.name).display_format,
-                        "classes": [
-                            {
-                                "id": cls.id,
-                                "title": enums.GradeLevel(
-                                    cls.grade_level
-                                ).display_format,
-                            }
-                            for cls in subject.subject_classes or []
-                        ],
-                    }
-                )
-
-            logger.debug(f"Formatted subjects with classes: {subjects_with_classes}")
-
-            return subjects_with_classes
-        except Exception as e:
-            logger.error(f"Failed to get subjects with classes: {str(e)}")
-            raise Exception(f"Failed to get subjects with classes: {str(e)}")
-
-
 async def read_subjects() -> Optional[List[Subject]]:
     """
     Read all subject and its classes from the database.
@@ -449,8 +402,8 @@ async def update_user_classes_for_subjects(
                     if not subject or not classes or len(classes) == 0:
                         raise ValueError("Subject or classes not found")
 
-                    updated_subjects[subject.name] = [
-                        cls.grade_level for cls in classes
+                    updated_subjects[subject.name.value] = [
+                        cls.grade_level.display_format for cls in classes
                     ]
 
             # Update the user's class_info
