@@ -15,7 +15,7 @@ cli = typer.Typer()
 @cli.command()
 def encrypt_flow_token_cli(
     wa_id: str = typer.Option(..., "--wa-id", help="WhatsApp ID"),
-    flow_id: str = typer.Option(..., "--flow-id", help="Flow ID")
+    flow_id: str = typer.Option(..., "--flow-id", help="Flow ID"),
 ):
     """Encrypt a flow token for testing flows.
     EXAMPLE: python app/cli.py encrypt_flow_token_cli --wa-id 1234 --flow-id 5678

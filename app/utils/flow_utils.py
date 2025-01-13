@@ -178,7 +178,7 @@ async def send_whatsapp_flow_message(
     body_text: str,
     action_payload: Dict[str, Any],
     flow_cta: str,
-    mode = "published",
+    mode="published",
 ) -> None:
     """
     Common utility to send WhatsApp flow messages
