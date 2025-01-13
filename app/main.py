@@ -9,7 +9,6 @@ from app.services.whatsapp_service import whatsapp_client
 from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
-from fastapi import Request
 
 
 logger = logging.getLogger(__name__)
