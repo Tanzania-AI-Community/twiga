@@ -11,7 +11,7 @@ from app.database.models import (
     Class,
     Chunk,
     Subject,
-    ClassInfo
+    ClassInfo,
 )
 import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
@@ -356,7 +356,7 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
         try:
             statement = (
                 select(Subject)
-                .options(selectinload(Subject.subject_classes))
+                .options(selectinload(Subject.subject_classes))  # type: ignore
                 .where(Class.status == SubjectClassStatus.active)
                 .distinct()
             )
@@ -365,14 +365,24 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
 
             logger.debug(f"Found subjects with classes: {subjects}")
 
-            # move this to the service 
+            # move this to the service
             subjects_with_classes = []
             for subject in subjects:
-                subjects_with_classes.append({
-                    "id": subject.id,
-                    "name": enums.SubjectName(subject.name).display_format,  
-                    "classes": [{"id": cls.id, "title": enums.GradeLevel(cls.grade_level).display_format} for cls in subject.subject_classes]
-                })
+                subjects_with_classes.append(
+                    {
+                        "id": subject.id,
+                        "name": enums.SubjectName(subject.name).display_format,
+                        "classes": [
+                            {
+                                "id": cls.id,
+                                "title": enums.GradeLevel(
+                                    cls.grade_level
+                                ).display_format,
+                            }
+                            for cls in subject.subject_classes or []
+                        ],
+                    }
+                )
 
             logger.debug(f"Formatted subjects with classes: {subjects_with_classes}")
 
@@ -381,7 +391,10 @@ async def get_subjects_with_classes() -> List[Dict[str, Any]]:
             logger.error(f"Failed to get subjects with classes: {str(e)}")
             raise Exception(f"Failed to get subjects with classes: {str(e)}")
 
-async def update_user_classes_for_subjects(user: User, selected_classes_by_subject: Dict[str, List[int]]) -> None:
+
+async def update_user_classes_for_subjects(
+    user: User, selected_classes_by_subject: Dict[str, List[int]]
+) -> None:
     """
     Update user classes for multiple subjects.
 
@@ -393,13 +406,15 @@ async def update_user_classes_for_subjects(user: User, selected_classes_by_subje
         try:
             # Ensure class_info is initialized
             if not user.class_info:
-                user.class_info = ClassInfo(subjects={}).model_dump()
+                user.class_info = ClassInfo(classes={}).model_dump()
 
             # Ensure 'subjects' key is initialized
             if "subjects" not in user.class_info:
-                user.class_info["subjects"] = {}
+                user.class_info["subjects"] = {}  # type: ignore
 
-            logger.debug(f"Updating user classes for subjects: {selected_classes_by_subject}")
+            logger.debug(
+                f"Updating user classes for subjects: {selected_classes_by_subject}"
+            )
 
             # Clear existing class assignments for the user
             await clear_existing_class_assignments(user)
@@ -417,10 +432,12 @@ async def update_user_classes_for_subjects(user: User, selected_classes_by_subje
                     if not subject or not classes or len(classes) == 0:
                         raise ValueError("Subject or classes not found")
 
-                    updated_subjects[subject.name] = [cls.grade_level for cls in classes]
+                    updated_subjects[subject.name] = [
+                        cls.grade_level for cls in classes
+                    ]
 
             # Update the user's class_info
-            user.class_info = ClassInfo(subjects=updated_subjects).model_dump()
+            user.class_info = ClassInfo(classes=updated_subjects).model_dump()
 
             logger.debug(f"Updated user classes for subjects: {updated_subjects}")
 
@@ -433,6 +450,7 @@ async def update_user_classes_for_subjects(user: User, selected_classes_by_subje
             logger.error(f"Failed to update user classes for subjects: {str(e)}")
             raise Exception(f"Failed to update user classes for subjects: {str(e)}")
 
+
 async def clear_existing_class_assignments(user: User) -> None:
     """
     Clear existing class assignments for the user.
@@ -442,10 +460,14 @@ async def clear_existing_class_assignments(user: User) -> None:
     """
     async with get_session() as session:
         try:
-            statement = delete(TeacherClass).where(TeacherClass.teacher_id == user.id)
+            statement = delete(TeacherClass).where(TeacherClass.teacher_id == user.id)  # type: ignore
             await session.execute(statement)
             await session.commit()
             logger.debug(f"Cleared existing class assignments for user: {user.id}")
         except Exception as e:
-            logger.error(f"Failed to clear existing class assignments for user: {str(e)}")
-            raise Exception(f"Failed to clear existing class assignments for user: {str(e)}")
+            logger.error(
+                f"Failed to clear existing class assignments for user: {str(e)}"
+            )
+            raise Exception(
+                f"Failed to clear existing class assignments for user: {str(e)}"
+            )

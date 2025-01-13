@@ -93,7 +93,7 @@ class LLMSettings(BaseSettings):
 
 
 def initialize_settings():
-    settings = Settings()
+    settings = Settings()  # type: ignore
     llm_settings = LLMSettings()
     return settings, llm_settings
 
