@@ -39,10 +39,11 @@ class OnboardingHandler:
 
     async def handle_personal_info_submitted(self, user: User):
         try:
-            await self.flow_client.send_select_subject_flow(user)
             self.logger.debug(
-                f"Triggering send_select_subject_flow for user {user.wa_id}"
+                f"Triggering send_subjects_classes_flow for user {user.wa_id}"
             )
+            await self.flow_client.send_subjects_classes_flow(user)
+
         except Exception as e:
             self.logger.error(
                 f"Error handling personal_info_submitted user {user.wa_id}: {str(e)}"
