@@ -11,7 +11,6 @@ from app.database.models import (
     Class,
     Chunk,
     Subject,
-    ClassInfo,
 )
 import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
