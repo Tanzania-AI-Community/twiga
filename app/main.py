@@ -10,6 +10,7 @@ from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,4 +56,5 @@ async def handle_flows_webhook(
     request: Request, background_tasks: BackgroundTasks
 ) -> PlainTextResponse:
     logger.debug("flows webhook is being called")
-    return await flow_client.handle_flow_request(request, background_tasks)
+    body = await request.json()
+    return await flow_client.handle_flow_request(body, background_tasks)
