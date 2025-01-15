@@ -222,29 +222,6 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             raise Exception(f"Failed to get user resources: {str(e)}")
 
 
-async def get_available_subjects() -> List[Subject]:
-    """
-    Get all available subjects with their IDs and names.
-
-    Returns:
-        List[Dict[str, str]]: List of dictionaries containing subject IDs and names as strings.
-    """
-    async with get_session() as session:
-        try:
-            # Apparently we can use .join(Subject.subject_classes) to get the classes as well
-            statement = (
-                select(Subject)
-                .join(Class, Class.subject_id == Subject.id)  # type: ignore
-                .where(Class.status == SubjectClassStatus.active)
-                .distinct()
-            )
-            result = await session.execute(statement)
-            return list(result.scalars().all())
-        except Exception as e:
-            logger.error(f"Failed to get available subjects: {str(e)}")
-            raise Exception(f"Failed to get available subjects: {str(e)}")
-
-
 # async def read_subject(subject_id: int) -> Optional[Subject]:
 #     async with get_session() as session:
 #         try:
@@ -365,3 +342,42 @@ async def assign_teacher_to_classes(
                 f"Failed to assign teacher {user.wa_id} to classes {class_ids}: {str(e)}"
             )
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
+
+
+async def read_subjects() -> Optional[List[Subject]]:
+    """
+    Read all subject and its classes from the database.
+    NOTE: This function uses eager loading so if you only need the subject object without classes loaded it might be better to make a new function
+    """
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(Subject).options(
+                selectinload(Subject.subject_classes)  # type: ignore
+            )  # type: ignore
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+        except Exception as e:
+            raise Exception(f"Failed to read subjects: {str(e)}")
+
+
+async def clear_existing_class_assignments(user: User) -> None:
+    """
+    Clear existing class assignments for the user.
+
+    Args:
+        user: The user object
+    """
+    async with get_session() as session:
+        try:
+            statement = delete(TeacherClass).where(TeacherClass.teacher_id == user.id)  # type: ignore
+            await session.execute(statement)
+            await session.commit()
+            logger.debug(f"Cleared existing class assignments for user: {user.id}")
+        except Exception as e:
+            logger.error(
+                f"Failed to clear existing class assignments for user: {str(e)}"
+            )
+            raise Exception(
+                f"Failed to clear existing class assignments for user: {str(e)}"
+            )
