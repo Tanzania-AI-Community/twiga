@@ -362,65 +362,6 @@ async def read_subjects() -> Optional[List[Subject]]:
             raise Exception(f"Failed to read subjects: {str(e)}")
 
 
-async def update_user_classes_for_subjects(
-    user: User, selected_classes_by_subject: Dict[str, List[int]]
-) -> None:
-    """
-    Update user classes for multiple subjects.
-
-    Args:
-        user: The user object
-        selected_classes_by_subject: Dictionary mapping subject keys to lists of class IDs
-    """
-    # async with get_session() as session:
-    try:
-        # Ensure class_info is initialized
-        if not user.class_info:
-            user.class_info = ClassInfo(classes={}).model_dump()
-
-        # Ensure 'subjects' key is initialized
-        if "subjects" not in user.class_info:
-            user.class_info["subjects"] = {}  # type: ignore
-
-        logger.debug(
-            f"Updating user classes for subjects: {selected_classes_by_subject}"
-        )
-
-        # Clear existing class assignments for the user
-        await clear_existing_class_assignments(user)
-
-        updated_subjects = {}
-
-        for subject_key, class_ids in selected_classes_by_subject.items():
-            if class_ids:
-                subject_key_str = str(subject_key)  # Convert subject_key to string
-                subject_id = int(subject_key_str.replace("subject", ""))
-                await assign_teacher_to_classes(user, class_ids, subject_id)
-                subject: Optional[Subject] = await read_subject(subject_id)
-                classes = await read_classes(class_ids)
-
-                if not subject or not classes or len(classes) == 0:
-                    raise ValueError("Subject or classes not found")
-
-                updated_subjects[subject.name.value] = [
-                    cls.grade_level.display_format for cls in classes
-                ]
-
-        # Update the user's class_info
-        user.class_info = ClassInfo(classes=updated_subjects).model_dump()
-
-        logger.debug(f"Updated user classes for subjects: {updated_subjects}")
-
-        # Update the user state and onboarding state
-        user.state = enums.UserState.active
-        user.onboarding_state = enums.OnboardingState.completed
-        await update_user(user)
-
-    except Exception as e:
-        logger.error(f"Failed to update user classes for subjects: {str(e)}")
-        raise Exception(f"Failed to update user classes for subjects: {str(e)}")
-
-
 async def clear_existing_class_assignments(user: User) -> None:
     """
     Clear existing class assignments for the user.

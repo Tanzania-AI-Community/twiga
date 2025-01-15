@@ -216,7 +216,7 @@ class FlowService:
 
             # Update user classes for each subject in the background
             background_tasks.add_task(
-                db.update_user_classes_for_subjects,
+                self.update_user_classes,
                 user,
                 selected_classes_by_subject,
             )
@@ -252,26 +252,27 @@ class FlowService:
                 f"Updating user classes for subjects: {selected_classes_by_subject}"
             )
 
-            # Clear existing class assignments for the user
-            await db.clear_existing_class_assignments(user)
+            all_class_ids = [
+                class_id
+                for class_ids in selected_classes_by_subject.values()
+                for class_id in class_ids
+            ]
+
+            if not all_class_ids:
+                raise ValueError("No classes selected for any subject")
+
+            await db.assign_teacher_to_classes(user, all_class_ids)
 
             updated_subjects = {}
-
             for subject_key, class_ids in selected_classes_by_subject.items():
-                if class_ids:
-                    subject_id = int(subject_key.replace("subject", ""))
-                    await db.assign_teacher_to_classes(user, class_ids, subject_id)
-                    subject: Optional[models.Subject] = await db.read_subject(
-                        subject_id
-                    )
-                    classes = await db.read_classes(class_ids)
+                subject_id = int(subject_key.replace("subject", ""))
+                subject: Optional[models.Subject] = await db.read_subject(subject_id)
+                classes = await db.read_classes(class_ids)
 
-                    if not subject or not classes or len(classes) == 0:
-                        raise ValueError("Subject or classes not found")
+                if not subject or not classes or len(classes) == 0:
+                    raise ValueError("Subject or classes not found")
 
-                    updated_subjects[subject.name] = [
-                        cls.grade_level for cls in classes
-                    ]
+                updated_subjects[subject.name] = [cls.grade_level for cls in classes]
 
             # Update the user's class_info
             user.class_info = ClassInfo(classes=updated_subjects).model_dump()
