@@ -16,7 +16,7 @@ from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
 from app.services.whatsapp_service import whatsapp_client
-from app.tools.registry import tools_metadata, ToolName
+from app.tools.registry import get_tools_metadata, ToolName
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.utils.string_manager import strings, StringCategory
@@ -141,24 +141,23 @@ class LLMClient:
         self,
         tool_calls: List[ChatCompletionMessageToolCall],
         user: User,
-        resources: Optional[List[int]] = None,
     ) -> Optional[List[Message]]:
         """Process tool calls and return just the new tool response messages."""
 
         assert user.id is not None
-        if not resources:
-            self.logger.error("No resources available for tool calls")
-            return [
-                Message(
-                    user_id=user.id,
-                    role=MessageRole.system,
-                    content=json.dumps(
-                        {
-                            "error": "Tools are not available right now, no available resources."
-                        }
-                    ),
-                )
-            ]
+        # if not resources:
+        #     self.logger.error("No resources available for tool calls")
+        #     return [
+        #         Message(
+        #             user_id=user.id,
+        #             role=MessageRole.system,
+        #             content=json.dumps(
+        #                 {
+        #                     "error": "Tools are not available right now, no available resources."
+        #                 }
+        #             ),
+        #         )
+        #     ]
 
         # Send notifications for all unique tools upfront
         unique_tools = {tool.function.name for tool in tool_calls}
@@ -172,12 +171,8 @@ class LLMClient:
                 function_args = json.loads(tool_call.function.arguments)
 
                 if function_name == ToolName.search_knowledge.value:
-                    function_args["user"] = user
-                    function_args["resources"] = resources
                     result = await search_knowledge(**function_args)
                 elif function_name == ToolName.generate_exercise.value:
-                    function_args["user"] = user
-                    function_args["resources"] = resources
                     result = await generate_exercise(**function_args)
 
                 tool_responses.append(
@@ -207,7 +202,6 @@ class LLMClient:
         self,
         user: User,
         message: Message,
-        resources: Optional[List[int]] = None,
     ) -> Optional[List[Message]]:
         """Generate a response, handling message batching and tool calls."""
         assert user.id is not None
@@ -248,9 +242,12 @@ class LLMClient:
                     initial_response = await async_llm_request(
                         model=llm_settings.llm_model_name,
                         messages=api_messages,
-                        tools=tools_metadata,
+                        tools=get_tools_metadata(
+                            available_classes=json.dumps(user.class_name_to_id_map)
+                        ),
                         tool_choice="auto",
                     )
+
                     initial_message = Message.from_api_format(
                         initial_response.choices[0].message.model_dump(), user.id
                     )
@@ -285,7 +282,6 @@ class LLMClient:
                         tool_responses = await self._process_tool_calls(
                             tool_calls,
                             user,
-                            resources,
                         )
 
                         if tool_responses:

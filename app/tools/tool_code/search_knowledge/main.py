@@ -1,25 +1,30 @@
 import logging
 from typing import List, Optional
 from app.database.db import vector_search
-from app.database.models import Chunk, Resource, User
+from app.database.models import Chunk, Resource
 from app.database.enums import ChunkType
+import app.database.db as db
 
 logger = logging.getLogger(__name__)
 
 
 async def search_knowledge(
     search_phrase: str,
-    user: User,
-    resources: List[int],
+    class_id: int,
 ) -> str:
     try:
+        class_id = int(class_id)
+        # Retrieve the resources for the class
+        resource_ids = await db.get_class_resources(class_id)
+        assert resource_ids
+
         # Retrieve the relevant content
         retrieved_content = await vector_search(
             query=search_phrase,
             n_results=10,
             where={
                 "chunk_type": [ChunkType.text],
-                "resource_id": resources,
+                "resource_id": resource_ids,
             },
         )
         logger.debug(

@@ -59,9 +59,9 @@ class MessagingService:
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
-        available_user_resources = await db.get_user_resources(user)
+        # available_user_resources = await db.get_user_resources(user)
         llm_responses = await llm_client.generate_response(
-            user=user, message=user_message, resources=available_user_resources
+            user=user, message=user_message
         )
         if llm_responses:
             self.logger.debug(

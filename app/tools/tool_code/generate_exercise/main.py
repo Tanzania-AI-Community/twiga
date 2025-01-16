@@ -1,10 +1,11 @@
 import logging
 from typing import List, Optional
 
+from app.database import db
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
-from app.database.models import Chunk, Resource, User
+from app.database.models import Chunk, Resource
 from app.config import llm_settings
 from app.database.enums import ChunkType
 
@@ -12,28 +13,31 @@ logger = logging.getLogger(__name__)
 
 
 async def generate_exercise(
-    topic: str,
-    user: User,
+    query: str,
+    class_id: int,
     subject: str,
-    resources: List[int],
 ) -> str:
-    # TODO: Redesign this function to search on only the relevant resources
     try:
+        class_id = int(class_id)
+        # Retrieve the resources for the class
+        resource_ids = await db.get_class_resources(class_id)
+        assert resource_ids
+
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
-            query=topic,
+            query=query,
             n_results=7,
             where={
                 "chunk_type": [ChunkType.text],
-                "resource_id": resources,
+                "resource_id": resource_ids,
             },
         )
         retrieved_exercises = await vector_search(
-            query=topic,
+            query=query,
             n_results=3,
             where={
                 "chunk_type": [ChunkType.exercise],
-                "resource_id": resources,
+                "resource_id": resource_ids,
             },
         )
 
@@ -56,7 +60,7 @@ async def generate_exercise(
             "exercise_generator_system", class_info=subject
         )
         user_prompt = prompt_manager.format_prompt(
-            "exercise_generator_user", query=topic, context_str=context
+            "exercise_generator_user", query=query, context_str=context
         )
 
         messages = [
