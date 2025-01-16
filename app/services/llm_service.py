@@ -3,7 +3,11 @@ import json
 import logging
 import asyncio
 from typing import List, Optional
+import uuid
 from openai.types.chat import ChatCompletionMessageToolCall
+from openai.types.chat.chat_completion_message_tool_call import Function
+import pprint
+
 
 from app.database.models import Message, User
 from app.database.enums import MessageRole
@@ -65,42 +69,65 @@ class LLMClient:
         """Check if new messages arrived during processing."""
         return len(processor.messages) > original_count
 
-    def _catch_malformed_tool(self, response_text: str) -> str | dict:
-        """
-        Parse response text to extract a tool call if present.
+    def _catch_malformed_tool(
+        self, msg: Message
+    ) -> Optional[ChatCompletionMessageToolCall]:
+        """Parse response text to extract a tool call if present."""
+        # Empty message content suggests tool call is formatted properly
+        if not msg.content:
+            return None
 
-        Expected format:
-            <function=FUNCTION_NAME>{ ... valid JSON ... }</function>
+        # Try XML format first
+        xml_match = re.search(
+            r"<function=([A-Za-z_]\w*)>(.*?)</function>", msg.content, flags=re.DOTALL
+        )
+        if xml_match:
+            self.logger.warning(
+                "Malformed XML tool call detected, attempting recovery."
+            )
+            return ChatCompletionMessageToolCall(
+                id=f"call_{uuid.uuid4().hex[:22]}",
+                function=Function(
+                    name=xml_match.group(1),
+                    arguments=json.dumps(json.loads(xml_match.group(2).strip())),
+                ),
+                type="function",
+            )
 
-        Returns:
-            - dict: if the tool call is successfully parsed, for example:
-                    {
-                        "name": "FUNCTION_NAME",
-                        "arguments": { ...parsed JSON... }
-                    }
-            - str: if no valid tool call is found or parsing fails (we return original text).
-        """
-        # This regex looks for any string that matches <function=FUNCTION_NAME> ... </function>
-        # where FUNCTION_NAME can be letters/underscores followed by any word characters.
-        pattern = r"<function=([A-Za-z_]\w*)>(.*?)</function>"
-        match = re.search(pattern, response_text, flags=re.DOTALL)
-
-        # If there's no match for <function=...>...</function>, just return the original text
-        if not match:
-            return response_text
-
-        function_name = match.group(1)
-        json_str = match.group(2).strip()
-        json_str = json_str.rstrip('"').strip()
-
+        # Try JSON format
         try:
-            parsed_arguments = json.loads(json_str)
+            json_data = json.loads(msg.content)
+            if (
+                isinstance(json_data, dict)
+                and "name" in json_data
+                and "parameters" in json_data
+            ):
+                self.logger.warning(
+                    "Malformed JSON tool call detected, attempting recovery."
+                )
+                # Handle case where parameters is already a string
+                params = json_data["parameters"]
+                if isinstance(params, str):
+                    try:
+                        # Try parsing it in case it's a string-encoded JSON
+                        params = json.loads(params)
+                    except json.JSONDecodeError:
+                        # If it fails to parse, use it as is
+                        pass
+                return ChatCompletionMessageToolCall(
+                    id=f"call_{uuid.uuid4().hex[:22]}",
+                    function=Function(
+                        name=json_data["name"],
+                        arguments=(
+                            json.dumps(params) if isinstance(params, dict) else params
+                        ),
+                    ),
+                    type="function",
+                )
         except json.JSONDecodeError:
-            # If parsing fails, we return the original text or handle it differently
-            return response_text
+            pass
 
-        # Return a structured dict so upstream code knows it was a valid tool call
-        return {"name": function_name, "arguments": parsed_arguments}
+        return None
 
     async def _process_tool_calls(
         self,
@@ -144,7 +171,7 @@ class LLMClient:
                     Message(
                         user_id=user.id,
                         role=MessageRole.tool,
-                        content=json.dumps(result),
+                        content=result,
                         tool_call_id=tool_call.id,
                         tool_name=tool_call.function.name,
                     )
@@ -161,8 +188,7 @@ class LLMClient:
                         tool_name=tool_call.function.name,
                     )
                 )
-
-            return tool_responses
+        return tool_responses
 
     async def generate_response(
         self,
@@ -199,7 +225,11 @@ class LLMClient:
                     api_messages = self._format_messages(
                         messages_to_process, history, user
                     )
-                    self.logger.debug(f"Initial messages:\n {api_messages}")
+                    # self.logger.debug(f"Initial messages:\n {api_messages}")
+                    self.logger.debug(
+                        "Initial messages:\n%s",
+                        pprint.pformat(api_messages, indent=2, width=160),
+                    )
 
                     # 2. Call the LLM with tools enabled
                     initial_response = await async_llm_request(
@@ -216,46 +246,19 @@ class LLMClient:
                     # Track new messages
                     new_messages = [initial_message]
 
-                    # 3. Check for new incoming messages during processing
+                    # 3. Check for malformed tool calls in content
+                    if not initial_message.tool_calls:
+                        tool_call_data = self._catch_malformed_tool(initial_message)
+                        self.logger.debug(f"Recovered tool call data: {tool_call_data}")
+
+                        if tool_call_data:
+                            initial_message.tool_calls = [tool_call_data.model_dump()]
+                            initial_message.content = None
+
+                    # 4. Check for new incoming messages during processing
                     if self._check_new_messages(processor, original_count):
                         self.logger.warning("New messages buffered during processing")
                         continue
-
-                    # 4. If the LLM didn't return a standard tool call but we suspect there's a call in content
-                    if not initial_message.tool_calls:
-                        self.logger.debug(
-                            "No tool calls in the standard field. Checking for malformed calls."
-                        )
-                        # Attempt to parse a malformed/hallucinated tool call
-                        tool_call_data = self._catch_malformed_tool(
-                            initial_message.content
-                        )
-                        self.logger.debug(f"Recovered tool call data: {tool_call_data}")
-                        if tool_call_data is not None and isinstance(
-                            tool_call_data, dict
-                        ):
-                            self.logger.warning(
-                                "Recovered a malformed/hallucinated tool call from content."
-                            )
-                            # Rebuild the tool call
-                            from openai.types.chat import ChatCompletionMessageToolCall
-
-                            recovered_call = ChatCompletionMessageToolCall(
-                                id="recovered_call_1",
-                                function=ChatCompletionMessageToolCall.Function(
-                                    name=tool_call_data["name"],
-                                    arguments=json.dumps(
-                                        tool_call_data["arguments"]["query"]
-                                    ),
-                                ),
-                                type="function",
-                            )
-                            # Assign it back to the message so _process_tool_calls will see it
-                            initial_message.tool_calls = [recovered_call]
-                        else:
-                            self.logger.debug(
-                                "No malformed tool call found in content."
-                            )
 
                     # 5. Process tool calls if present (whether normal or recovered)
                     if initial_message.tool_calls:
@@ -267,7 +270,6 @@ class LLMClient:
                         ]
                         # Process tool calls and track the tool response messages
                         tool_responses = await self._process_tool_calls(
-                            initial_message.tool_calls,  # note: we can also do initial_response.choices[0].message.tool_calls
                             tool_calls,
                             user,
                             resources,
@@ -329,7 +331,6 @@ class LLMClient:
                 ),
             }
         ]
-        print(formatted_messages)
 
         # Add history messages
         if database_messages:
