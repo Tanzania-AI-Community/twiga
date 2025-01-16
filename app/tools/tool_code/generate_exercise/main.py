@@ -14,14 +14,11 @@ logger = logging.getLogger(__name__)
 async def generate_exercise(
     topic: str,
     user: User,
-    question_type: str,
     subject: str,
     resources: List[int],
 ) -> str:
-
     # TODO: Redesign this function to search on only the relevant resources
     try:
-
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
             query=topic,
@@ -46,47 +43,37 @@ async def generate_exercise(
         logger.debug(
             f"Retrieved {len(retrieved_content)} exercise chunks, this is the first: {retrieved_content[0]}"
         )
+    except Exception as e:
+        logger.error(f"An error occurred when generating an exercise: {e}")
+        raise Exception(
+            "Failed to find content from the textbooks to generate this exercise. Skipping."
+        )
 
+    try:
         # Format the context and prompt
         context = _format_context(retrieved_content, retrieved_exercises)
-        system_prompt = prompt_manager.get_prompt("exercise_generator_system")
-
+        system_prompt = prompt_manager.format_prompt(
+            "exercise_generator_system", class_info=subject
+        )
         user_prompt = prompt_manager.format_prompt(
             "exercise_generator_user", query=topic, context_str=context
         )
 
-        # Generate a question based on the context
-        return await _generate(system_prompt, user_prompt)
-    except Exception as e:
-        logger.error(f"An error occurred when generating an exercise: {e}")
-        raise Exception(f"An error occurred when generating an exercise: {e}")
-
-
-async def _generate(prompt: str, query: str, verbose: bool = False) -> str:
-    try:
         messages = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": query},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
         ]
-
-        if verbose:
-            print("--------------------------")
-            print(f"System prompt: \n{prompt}")
-            print("--------------------------")
-            print(f"User prompt: \n{query}")
 
         response = await async_llm_request(
             model=llm_settings.exercise_generator_model,
             messages=messages,
             max_tokens=100,
         )
-        assert response.choices[0].message.content, "No response was generated"
-
+        assert response.choices[0].message.content
         return response.choices[0].message.content
-
     except Exception as e:
-        logger.error(f"An error occurred when generating a response query: {e}")
-        raise Exception(f"An error occurred when generating a response query: {e}")
+        logger.error(f"An error occurred when generating an exercise: {e}")
+        raise Exception("An error occurred when generating this exercise. Skipping.")
 
 
 def _format_context(

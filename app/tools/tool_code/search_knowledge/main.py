@@ -22,17 +22,15 @@ async def search_knowledge(
                 "resource_id": resources,
             },
         )
-
         logger.debug(
             f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
         )
 
         # Format the context and prompt
         return _format_context(retrieved_content)
-
     except Exception as e:
         logger.error(f"An error occurred when searching the knowledge base: {e}")
-        raise Exception(f"Unable to search the course content: {e}")
+        raise Exception("Unable to search the course content. Skipping.")
 
 
 def _format_context(
@@ -42,26 +40,16 @@ def _format_context(
     # Formatting the context
     context_parts = []
     if resources:
-        if len(resources) == 1:
-            context_parts.append(
-                f"### Context from the resource ({resources[0].name})\n"
-            )
-        else:
-            resource_titles = ", ".join(
-                [f"{resource.id}. {resource.name}" for resource in resources]
-            )
-            context_parts.append(
-                f"### Context from the resources ({resource_titles})\n"
-            )
+        resource_titles = ", ".join(
+            [f"{resource.id}. {resource.name}" for resource in resources]
+        )
+        context_parts.append(f"### Context from the resources ({resource_titles})\n")
 
     for chunk in retrieved_content:
-        if chunk.top_level_section_title and chunk.top_level_section_index:
-            heading = f"-{chunk.chunk_type} from chapter {chunk.top_level_section_index}. {chunk.top_level_section_title} in resource {chunk.resource_id}"
-        elif chunk.top_level_section_title:
-            heading = f"-{chunk.chunk_type} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
+        if chunk.top_level_section_title:
+            heading = f"-{str(chunk.chunk_type)} from section {chunk.top_level_section_title} in resource {chunk.resource_id}"
         else:
-            heading = f"-{chunk.chunk_type} from resource {chunk.resource_id}"
-
+            heading = f"-{str(chunk.chunk_type)} from resource {chunk.resource_id}"
         context_parts.append(heading)
         context_parts.append(f"{chunk.content}")
 
