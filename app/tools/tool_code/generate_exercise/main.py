@@ -6,29 +6,25 @@ from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
 from app.database.models import Chunk, Resource, User
 from app.config import llm_settings
-from app.services.whatsapp_service import whatsapp_client
-from app.utils.string_manager import strings, StringCategory
 from app.database.enums import ChunkType
 
 logger = logging.getLogger(__name__)
 
 
 async def generate_exercise(
-    query: str,
+    topic: str,
     user: User,
+    question_type: str,
+    subject: str,
     resources: List[int],
 ) -> str:
 
     # TODO: Redesign this function to search on only the relevant resources
     try:
-        # TODO: Technically only send this once in case multiple tools called at once, but for now it's fine
-        await whatsapp_client.send_message(
-            user.wa_id, strings.get_string(StringCategory.TOOLS, "exercise_generator")
-        )
 
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
-            query=query,
+            query=topic,
             n_results=7,
             where={
                 "chunk_type": [ChunkType.text],
@@ -36,7 +32,7 @@ async def generate_exercise(
             },
         )
         retrieved_exercises = await vector_search(
-            query=query,
+            query=topic,
             n_results=3,
             where={
                 "chunk_type": [ChunkType.exercise],
@@ -56,7 +52,7 @@ async def generate_exercise(
         system_prompt = prompt_manager.get_prompt("exercise_generator_system")
 
         user_prompt = prompt_manager.format_prompt(
-            "exercise_generator_user", query=query, context_str=context
+            "exercise_generator_user", query=topic, context_str=context
         )
 
         # Generate a question based on the context

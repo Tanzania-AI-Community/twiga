@@ -15,9 +15,11 @@ from app.config import llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
+from app.services.whatsapp_service import whatsapp_client
 from app.tools.registry import tools_metadata, ToolName
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
+from app.utils.string_manager import strings, StringCategory
 
 
 class MessageProcessor:
@@ -129,6 +131,12 @@ class LLMClient:
 
         return None
 
+    async def _tool_call_notification(self, user: User, tool_name: str) -> None:
+        """Send a notification to the user when a tool call is made."""
+        await whatsapp_client.send_message(
+            user.wa_id, strings.get_string(StringCategory.TOOLS, tool_name)
+        )
+
     async def _process_tool_calls(
         self,
         tool_calls: List[ChatCompletionMessageToolCall],
@@ -151,6 +159,11 @@ class LLMClient:
                     ),
                 )
             ]
+
+        # Send notifications for all unique tools upfront
+        unique_tools = {tool.function.name for tool in tool_calls}
+        for tool_name in unique_tools:
+            await self._tool_call_notification(user, tool_name)
 
         tool_responses = []
         for tool_call in tool_calls:
