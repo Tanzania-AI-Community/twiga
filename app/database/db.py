@@ -26,11 +26,24 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
     """
     Get existing user or create new one if they don't exist.
     Handles all database operations and error logging.
+    This uses a lot of eager loading to get the class information from the user.
     """
+    # TODO: Remove eager loading if too slow
     async with get_session() as session:
         try:
             # First try to get existing user
             statement = select(User).where(User.wa_id == wa_id).with_for_update()
+            # First try to get existing user
+            statement = (
+                select(User)
+                .where(User.wa_id == wa_id)
+                .options(
+                    selectinload(User.taught_classes)  # type: ignore
+                    .selectinload(TeacherClass.class_)  # type: ignore
+                    .selectinload(Class.subject_)  # type: ignore
+                )
+                .with_for_update()
+            )
             result = await session.execute(statement)
             user = result.scalar_one_or_none()
             if user:
@@ -179,6 +192,37 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
         except Exception as e:
             logger.error(f"Failed to search for knowledge: {str(e)}")
             raise Exception(f"Failed to search for knowledge: {str(e)}")
+
+
+async def get_class_resources(class_id: int) -> Optional[List[int]]:
+    """
+    Get all resource IDs accessible to a class.
+    Uses a single optimized SQL query with proper indexing.
+    """
+    async with get_session() as session:
+        try:
+            # Use text() for a more efficient raw SQL query
+            query = text(
+                """
+                SELECT DISTINCT resource_id
+                FROM classes_resources
+                WHERE class_id = :class_id
+                """
+            )
+
+            result = await session.execute(query, {"class_id": class_id})
+            resource_ids = [row[0] for row in result.fetchall()]
+
+            if not resource_ids:
+                logger.warning(f"No resources found for class {class_id}")
+                return None
+
+            logger.debug(f"Found resources {resource_ids} for class {class_id}")
+            return resource_ids
+
+        except Exception as e:
+            logger.error(f"Failed to get resources for class {class_id}: {str(e)}")
+            raise Exception(f"Failed to get class resources: {str(e)}")
 
 
 async def get_user_resources(user: User) -> Optional[List[int]]:

@@ -114,6 +114,22 @@ class User(SQLModel, table=True):
 
         return ClassInfo(classes=self.class_info).format_readable()
 
+    @property
+    def class_name_to_id_map(self) -> Dict[str, int]:
+        """
+        Returns a mapping of class names (with subject and form) to their IDs.
+        Example: {"Geography Form 2": 123, "Geography Form 3": 456}
+        """
+
+        if not self.taught_classes:
+            return {}
+
+        # TODO: This can be done in a better way without suppressing the type
+        return {
+            f"{class_.class_.subject_.name.capitalize()} {enums.GradeLevel(class_.class_.grade_level).display_format}": class_.class_.id
+            for class_ in self.taught_classes
+        }  # type: ignore
+
 
 class Subject(SQLModel, table=True):
     __tablename__ = "subjects"  # type: ignore
@@ -205,7 +221,7 @@ class Message(SQLModel, table=True):
 
     def to_api_format(self) -> Dict[str, Any]:
         """Convert message to OpenAI API format"""
-        message: Dict[str, Any] = {"role": self.role}
+        message: Dict[str, Any] = {"role": self.role.value}
         if self.tool_calls and len(self.tool_calls) > 0:
             message["tool_calls"] = self.tool_calls
             message["content"] = None

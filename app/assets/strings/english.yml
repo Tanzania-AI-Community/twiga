@@ -20,8 +20,8 @@ settings:
   class_subject_info: "Classes and Subjects"
 
 tools:
-  exercise_generator: "🏋️ Generating an exercise using the course literature, please hold..."
-  search_knowledge: "🔍 Searching for relevant knowledge, please hold..."
+  generate_exercise: "📑 Generating exercises from the course content, please hold..."
+  search_knowledge: "📚 Searching the course content, please hold..."
 
 flows:
   start_onboarding_header: "Start onboarding to Twiga 🦒"
