@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Callable
 from dateutil.relativedelta import relativedelta
 import logging
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, Request
 from fastapi.responses import PlainTextResponse, JSONResponse
 
 import app.utils.flow_utils as futil
@@ -42,9 +42,10 @@ class FlowService:
         }
 
     async def handle_flow_request(
-        self, body: dict, bg_tasks: BackgroundTasks
+        self, request: Request, bg_tasks: BackgroundTasks
     ) -> PlainTextResponse:
         try:
+            body = await request.json()
             payload, aes_key, initial_vector = await futil.decrypt_flow_request(body)
             action = payload.get("action")
             flow_token = payload.get("flow_token")
