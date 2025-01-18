@@ -61,7 +61,7 @@ def get_interactive_button_payload(
 
     payload = InteractiveMessage(to=recipient, interactive=interactive_button)
 
-    return dict(payload)
+    return payload.model_dump()
 
 
 def get_interactive_list_payload(
@@ -229,7 +229,7 @@ def generate_payload(
 ) -> dict:
     if flow:
         return get_flow_payload(wa_id, flow)
-    elif options:
+    if options:
         if len(options) <= 3:
             return get_interactive_button_payload(wa_id, response, options)
         else:
