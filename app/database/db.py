@@ -283,29 +283,6 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             raise Exception(f"Failed to get user resources: {str(e)}")
 
 
-async def get_available_subjects() -> List[Subject]:
-    """
-    Get all available subjects with their IDs and names.
-
-    Returns:
-        List[Dict[str, str]]: List of dictionaries containing subject IDs and names as strings.
-    """
-    async with get_session() as session:
-        try:
-            # Apparently we can use .join(Subject.subject_classes) to get the classes as well
-            statement = (
-                select(Subject)
-                .join(Class, Class.subject_id == Subject.id)  # type: ignore
-                .where(Class.status == SubjectClassStatus.active)
-                .distinct()
-            )
-            result = await session.execute(statement)
-            return list(result.scalars().all())
-        except Exception as e:
-            logger.error(f"Failed to get available subjects: {str(e)}")
-            raise Exception(f"Failed to get available subjects: {str(e)}")
-
-
 # async def read_subject(subject_id: int) -> Optional[Subject]:
 #     async with get_session() as session:
 #         try:
