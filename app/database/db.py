@@ -194,6 +194,23 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
             raise Exception(f"Failed to search for knowledge: {str(e)}")
 
 
+async def read_subjects() -> Optional[List[Subject]]:
+    """
+    Read all subject and its classes from the database.
+    NOTE: This function uses eager loading so if you only need the subject object without classes loaded it might be better to make a new function
+    """
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(Subject).options(
+                selectinload(Subject.subject_classes)  # type: ignore
+            )  # type: ignore
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+        except Exception as e:
+            raise Exception(f"Failed to read subjects: {str(e)}")
+
+
 async def get_class_resources(class_id: int) -> Optional[List[int]]:
     """
     Get all resource IDs accessible to a class.
