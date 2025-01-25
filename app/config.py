@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Database settings
     database_url: SecretStr
 
+    # Redis settings
+    redis_url: str = "redis://localhost:6379"
+
     # rate_limit settings
     daily_messages_limit: int = 200
     app_daily_messages_limit: int = 10000
