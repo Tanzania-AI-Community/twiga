@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # Database settings
     database_url: SecretStr
 
+    # rate_limit settings
+    daily_messages_limit: int = 200
+    app_daily_messages_limit: int = 10000
+    daily_token_limit: int = 50000
+    app_daily_token_limit: int = 1000000
+    timezone: str = "Africa/Nairobi"
+
     @property
     def sync_database_url(self) -> str:
         """Get synchronous database URL for migrations"""

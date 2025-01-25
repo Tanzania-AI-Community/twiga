@@ -1,20 +1,19 @@
 import logging
 from fastapi import Request, HTTPException
 from app.database import db
-from app.database.models import Message
-from app.database.enums import MessageRole
 from app.utils.string_manager import strings, StringCategory
 from app.services.whatsapp_service import whatsapp_client
 from fastapi.responses import JSONResponse
 from app.utils.whatsapp_utils import get_request_type, RequestType
 from app.redis.engine import get_redis_client
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-DAILY_MESSAGES_LIMIT = 3
-APP_DAILY_MESSAGES_LIMIT = 10000
-DAILY_TOKEN_LIMIT = 50000
-APP_DAILY_TOKEN_LIMIT = 1000000
+DAILY_MESSAGES_LIMIT = settings.daily_messages_limit
+APP_DAILY_MESSAGES_LIMIT = settings.app_daily_messages_limit
+DAILY_TOKEN_LIMIT = settings.daily_token_limit
+APP_DAILY_TOKEN_LIMIT = settings.app_daily_token_limit
 
 
 async def respond_with_rate_limit_message(
@@ -26,13 +25,6 @@ async def respond_with_rate_limit_message(
 
     response_text = strings.get_string(StringCategory.RATE_LIMIT, message_key)
     await whatsapp_client.send_message(user.wa_id, response_text)
-    await db.create_new_message(
-        Message(
-            user_id=user.id,
-            role=MessageRole.assistant,
-            content=response_text,
-        )
-    )
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
 

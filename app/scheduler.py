@@ -3,10 +3,11 @@ from apscheduler.triggers.cron import CronTrigger
 import pytz
 import logging
 from app.redis.engine import get_redis_client
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-EAT = pytz.timezone("Africa/Nairobi")
+EAT = pytz.timezone(settings.timezone)
 
 
 async def reset_daily_limits():
@@ -21,4 +22,4 @@ def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=EAT)
     scheduler.add_job(reset_daily_limits, CronTrigger(hour=0, minute=0))
     scheduler.start()
-    # logger.info("Scheduler started successfully")
+    logger.debug("Scheduler started successfully")
