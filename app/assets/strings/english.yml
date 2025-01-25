@@ -33,3 +33,9 @@ flows:
   subjects_classes_flow_header: "Select the classes you teach 📚"
   subjects_classes_flow_body: "Select the classes you teach from each of the subjects below"
   subjects_classes_flow_cta: "Classes"
+
+rate_limit:
+  global_message_limit: "🚫 Twiga is currently unavailable. Please come back later."
+  global_token_limit: "🚫 Twiga is currently unavailable. Please come back later."
+  user_message_limit: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Let's talk more tomorrow!"
+  user_token_limit: "🚫 You have reached your daily messaging limit again. Twiga 🦒 is exhausted from all the chatting 😴. Let's catch up tomorrow!"

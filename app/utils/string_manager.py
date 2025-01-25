@@ -20,6 +20,7 @@ class StringCategory(str, Enum):
     TOOLS = "tools"
     SETTINGS = "settings"
     FLOWS = "flows"
+    RATE_LIMIT = "rate_limit"
 
 
 class StringResources:

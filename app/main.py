@@ -1,4 +1,10 @@
-from fastapi import FastAPI, Request, Depends, BackgroundTasks, Response
+from fastapi import (
+    FastAPI,
+    Request,
+    Depends,
+    BackgroundTasks,
+    Response,
+)
 from fastapi.responses import JSONResponse, PlainTextResponse
 import logging
 from contextlib import asynccontextmanager
@@ -9,6 +15,7 @@ from app.services.whatsapp_service import whatsapp_client
 from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
+from app.services.rate_limit_service import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +51,7 @@ async def webhook_get(request: Request) -> Response:
     return whatsapp_client.verify(request)
 
 
-@app.post("/webhooks", dependencies=[Depends(signature_required)])
+@app.post("/webhooks", dependencies=[Depends(signature_required), Depends(rate_limit)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
     return await handle_request(request)
