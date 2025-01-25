@@ -20,6 +20,7 @@ from app.tools.registry import get_tools_metadata, ToolName
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.utils.string_manager import strings, StringCategory
+from app.redis.engine import get_redis_client
 
 
 class MessageProcessor:
@@ -256,6 +257,19 @@ class LLMClient:
                     # Track new messages
                     new_messages = [initial_message]
 
+                    # Extract token usage and update Redis
+                    token_usage = (
+                        initial_response.usage.total_tokens
+                        if initial_response.usage
+                        else 0
+                    )
+                    logging.debug(f"Token usage Initial HERE: {token_usage}")
+                    redis_client = get_redis_client()
+                    user_key = f"rate_limit:user:{user.wa_id}"
+                    app_key = "rate_limit:app"
+                    await redis_client.incrby(f"{user_key}:tokens", token_usage)
+                    await redis_client.incrby(f"{app_key}:tokens", token_usage)
+
                     # 3. Check for malformed tool calls in content
                     if not initial_message.tool_calls:
                         tool_call_data = self._catch_malformed_tool(initial_message)
@@ -302,6 +316,22 @@ class LLMClient:
                                 final_response.choices[0].message.model_dump(), user.id
                             )
                             new_messages.append(final_message)
+
+                            # Extract token usage from final response and update Redis
+                            final_token_usage = (
+                                final_response.usage.total_tokens
+                                if final_response.usage
+                                else 0
+                            )
+                            logging.debug(
+                                f"Final token usage Final HERE : {final_token_usage}"
+                            )
+                            await redis_client.incrby(
+                                f"{user_key}:tokens", final_token_usage
+                            )
+                            await redis_client.incrby(
+                                "rate_limit:app:tokens", final_token_usage
+                            )
 
                         # Check for new messages again
                         if self._check_new_messages(processor, original_count):

@@ -57,7 +57,6 @@ async def rate_limit(request: Request):
 
     logger.debug(f"Determined request type in rate Limit: {request_type}")
     phone_number = extract_phone_number(body)
-    tokens_used = body.get("tokens_used", 0)
     logger.debug(f"Extracted phone_number: {phone_number}")
     if not phone_number:
         logger.warning("Phone number not found in request body.")
@@ -70,12 +69,10 @@ async def rate_limit(request: Request):
 
     user_messages = await get_int_from_redis(redis_client, f"{user_key}:messages")
     user_messages = await redis_client.incr(f"{user_key}:messages")
+    app_messages = await redis_client.incr(f"{app_key}:messages")
 
     if user_messages > DAILY_MESSAGES_LIMIT:
         return await respond_with_rate_limit_message(phone_number, "user_message_limit")
-
-    app_messages = await get_int_from_redis(redis_client, f"{app_key}:messages")
-    app_messages = await redis_client.incr(f"{app_key}:messages")
 
     if app_messages > APP_DAILY_MESSAGES_LIMIT:
         return await respond_with_rate_limit_message(
@@ -83,20 +80,26 @@ async def rate_limit(request: Request):
         )
 
     user_tokens = await get_int_from_redis(redis_client, f"{user_key}:tokens")
-    user_tokens = await redis_client.incrby(f"{user_key}:tokens", tokens_used)
+    app_tokens = await get_int_from_redis(redis_client, f"{app_key}:tokens")
 
     if user_tokens > DAILY_TOKEN_LIMIT:
         return await respond_with_rate_limit_message(phone_number, "user_token_limit")
 
-    app_tokens = await get_int_from_redis(redis_client, f"{app_key}:tokens")
-    app_tokens = await redis_client.incrby(f"{app_key}:tokens", tokens_used)
-
     if app_tokens > APP_DAILY_TOKEN_LIMIT:
         return await respond_with_rate_limit_message(phone_number, "global_token_limit")
-    logger.info(
-        f"Usage incremented for {phone_number}. "
+    logger.debug(
+        f"Usage for user : {phone_number}. "
         f"Messages: {user_messages}, "
-        f"Tokens: {user_tokens}"
+        f"Messages limit: {DAILY_MESSAGES_LIMIT}, "
+        f"Tokens: {user_tokens}, "
+        f"Tokens limit: {DAILY_TOKEN_LIMIT}"
+    )
+    logger.debug(
+        f"Usage for app: "
+        f"App messages: {app_messages}, "
+        f"App messages limit: {APP_DAILY_MESSAGES_LIMIT}, "
+        f"App tokens: {app_tokens}, "
+        f"App tokens limit: {APP_DAILY_TOKEN_LIMIT}"
     )
 
 
