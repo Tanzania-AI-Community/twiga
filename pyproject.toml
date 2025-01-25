@@ -22,6 +22,7 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",
     "python-dateutil>=2.9.0.post0",
+    "redis>=5.2.1",
     "sqlmodel>=0.0.22",
     "tiktoken>=0.8.0",
     "together>=1.3.3",

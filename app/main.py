@@ -16,6 +16,7 @@ from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
 from app.services.rate_limit_service import rate_limit
+from app.redis.engine import init_redis, disconnect_redis
 
 logger = logging.getLogger(__name__)
 
@@ -25,24 +26,31 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize database during startup
         await init_db()
-        logger.info("Database initialized successfully")
+        logger.info("Database initialized successfully ✅")
+
+        # Initialize Redis
+        await init_redis()
+        logger.info("Redis initialized successfully ✅")
 
         # Additional startup tasks can go here
-        logger.info("Application startup completed")
+        logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:
-        logger.error(f"Error during startup: {e}")
+        logger.error(f"Error during startup: {e} ❌")
         raise
     finally:
         # Cleanup
         await db_engine.dispose()
-        logger.info("Database connections closed")
+        logger.info("Database connections closed 🔒")
+
+        # Close Redis connection
+        await disconnect_redis()
 
 
 # Create a FastAPI application instance
 app = FastAPI(lifespan=lifespan)
 
-logger.info("FastAPI app initialized")
+logger.info("FastAPI app initialized successfully ✅")
 
 
 @app.get("/webhooks")
