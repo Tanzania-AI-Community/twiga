@@ -6,6 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from app.utils.flow_utils import encrypt_flow_token, decrypt_flow_token
 from app.scheduler import reset_daily_limits
+from app.redis.engine import init_redis, disconnect_redis
 import typer
 import logging
 import asyncio
@@ -55,9 +56,15 @@ def reset_daily_limits_cli():
     EXAMPLE: python app/cli.py reset_daily_limits_cli
     OR : uv run app/cli.py reset-daily-limits-cli
     """
+
+    async def run_reset():
+        await init_redis()
+        await reset_daily_limits()
+        await disconnect_redis()
+
     try:
         logger.info("Running reset_daily_limits task")
-        asyncio.run(reset_daily_limits())
+        asyncio.run(run_reset())
         typer.echo("Daily limits reset successfully")
     except Exception as e:
         logger.error(f"Error resetting daily limits: {e}")
