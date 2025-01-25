@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "alembic>=1.13.3",
+    "apscheduler>=3.11.0",
     "asyncpg>=0.29.0",
     "backoff>=2.2.1",
     "colorlog>=6.8.2",
@@ -22,6 +23,7 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",
     "python-dateutil>=2.9.0.post0",
+    "pytz>=2024.2",
     "redis>=5.2.1",
     "sqlmodel>=0.0.22",
     "tiktoken>=0.8.0",

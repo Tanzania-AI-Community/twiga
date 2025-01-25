@@ -11,10 +11,10 @@ from app.redis.engine import get_redis_client
 
 logger = logging.getLogger(__name__)
 
-DAILY_MESSAGES_LIMIT = 2
+DAILY_MESSAGES_LIMIT = 3
 APP_DAILY_MESSAGES_LIMIT = 10000
 DAILY_TOKEN_LIMIT = 50000
-APP_DAILY_TOKEN_LIMIT = int(1000000)
+APP_DAILY_TOKEN_LIMIT = 1000000
 
 
 async def respond_with_rate_limit_message(
@@ -78,14 +78,12 @@ async def rate_limit(request: Request):
 
     user_messages = await get_int_from_redis(redis_client, f"{user_key}:messages")
     user_messages = await redis_client.incr(f"{user_key}:messages")
-    await redis_client.expire(f"{user_key}:messages", 86400)
 
     if user_messages > DAILY_MESSAGES_LIMIT:
         return await respond_with_rate_limit_message(phone_number, "user_message_limit")
 
     app_messages = await get_int_from_redis(redis_client, f"{app_key}:messages")
     app_messages = await redis_client.incr(f"{app_key}:messages")
-    await redis_client.expire(f"{app_key}:messages", 86400)
 
     if app_messages > APP_DAILY_MESSAGES_LIMIT:
         return await respond_with_rate_limit_message(
@@ -94,14 +92,12 @@ async def rate_limit(request: Request):
 
     user_tokens = await get_int_from_redis(redis_client, f"{user_key}:tokens")
     user_tokens = await redis_client.incrby(f"{user_key}:tokens", tokens_used)
-    await redis_client.expire(f"{user_key}:tokens", 86400)
 
     if user_tokens > DAILY_TOKEN_LIMIT:
         return await respond_with_rate_limit_message(phone_number, "user_token_limit")
 
     app_tokens = await get_int_from_redis(redis_client, f"{app_key}:tokens")
     app_tokens = await redis_client.incrby(f"{app_key}:tokens", tokens_used)
-    await redis_client.expire(f"{app_key}:tokens", 86400)
 
     if app_tokens > APP_DAILY_TOKEN_LIMIT:
         return await respond_with_rate_limit_message(phone_number, "global_token_limit")
@@ -110,3 +106,7 @@ async def rate_limit(request: Request):
         f"Messages: {user_messages}, "
         f"Tokens: {user_tokens}"
     )
+
+
+# Note we don't need to add keep ttl for the keys as we are resetting the keys daily with the scheduler in app/scheduler.py
+# This can help avoid race conditions and ensure that the keys are reset at the same time every day.

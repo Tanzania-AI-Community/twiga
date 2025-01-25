@@ -17,6 +17,7 @@ from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
 from app.services.rate_limit_service import rate_limit
 from app.redis.engine import init_redis, disconnect_redis
+from app.scheduler import start_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,10 @@ async def lifespan(app: FastAPI):
         # Initialize Redis
         await init_redis()
         logger.info("Redis initialized successfully ✅")
+
+        # Start scheduler
+        start_scheduler()
+        logger.info("Scheduler started successfully ✅")
 
         # Additional startup tasks can go here
         logger.info("Application startup completed ✅ 🦒")
