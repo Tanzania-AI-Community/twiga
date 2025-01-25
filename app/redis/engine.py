@@ -13,7 +13,7 @@ async def init_redis():
         redis_pool = redis.ConnectionPool.from_url("redis://localhost")
         redis_client = redis.Redis(connection_pool=redis_pool)
         await verify_redis_connection()
-        logger.info("Redis connection established")
+        logger.debug("Redis connection established")
     except Exception as e:
         logger.error(f"Redis initialization failed: {e}")
         raise
@@ -26,7 +26,7 @@ async def verify_redis_connection():
         raise redis.ConnectionError("Redis client is not initialized")
     try:
         await redis_client.ping()
-        logger.info("Redis connection verified")
+        logger.debug("Redis connection verified")
     except redis.ConnectionError as e:
         logger.error(f"Redis connection verification failed: {e}")
         raise
