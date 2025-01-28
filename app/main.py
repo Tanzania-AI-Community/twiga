@@ -76,3 +76,8 @@ async def handle_flows_webhook(
 ) -> PlainTextResponse:
     logger.debug("flows webhook is being called")
     return await flow_client.handle_flow_request(request, background_tasks)
+
+
+@app.get("/health")
+async def health_check() -> PlainTextResponse:
+    return PlainTextResponse("OK")
