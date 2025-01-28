@@ -14,17 +14,16 @@ async def reset_daily_limits():
     redis_client = get_redis_client()
     # Note: Maybe before deleting the keys, we can send a report of the daily usage to the admin
     # Log all the keys and their values before deleting them
-    keys = await redis_client.keys("rate_limit:*")
-    logger.info("Resetting the following keys:")
-    logger.info("================================")
+    keys = await redis_client.keys("daily_limit:*")
+    logger.debug("Resetting the following keys:")
+    logger.debug("================================")
     for key in keys:
         value = await redis_client.get(key)
-        logger.info(f"Key: {key}, Value: {value}")
-    keys = await redis_client.keys("rate_limit:*")
+        logger.debug(f"Key: {key}, Value: {value}")
     for key in keys:
         await redis_client.delete(key)
-    logger.info("================================")
-    logger.info("Daily limits reset successfully")
+    logger.debug("================================")
+    logger.debug("Daily limits reset successfully")
 
 
 def start_scheduler():

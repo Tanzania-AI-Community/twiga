@@ -44,10 +44,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379"
 
     # rate_limit settings
-    daily_messages_limit: int = 200
-    app_daily_messages_limit: int = 10000
-    daily_token_limit: int = 50000
-    app_daily_token_limit: int = 1000000
+    user_daily_messages_limit: int = 200
+    global_daily_messages_limit: int = 10000
+    user_daily_token_limit: int = 50000
+    global_daily_token_limit: int = 1000000
     timezone: str = "Africa/Nairobi"
 
     @property

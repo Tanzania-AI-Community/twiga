@@ -265,10 +265,10 @@ class LLMClient:
                     )
                     logging.debug(f"Token usage Initial HERE: {token_usage}")
                     redis_client = get_redis_client()
-                    user_key = f"rate_limit:user:{user.wa_id}"
-                    app_key = "rate_limit:app"
-                    await redis_client.incrby(f"{user_key}:tokens", token_usage)
-                    await redis_client.incrby(f"{app_key}:tokens", token_usage)
+                    user_key = f"daily_limit:user:tokens:{user.wa_id}"
+                    global_key = "daily_limit:global:tokens"
+                    await redis_client.incrby(user_key, token_usage)
+                    await redis_client.incrby(global_key, token_usage)
 
                     # 3. Check for malformed tool calls in content
                     if not initial_message.tool_calls:
@@ -327,10 +327,11 @@ class LLMClient:
                                 f"Final token usage Final HERE : {final_token_usage}"
                             )
                             await redis_client.incrby(
-                                f"{user_key}:tokens", final_token_usage
+                                f"daily_limit:user:tokens:{user.wa_id}",
+                                final_token_usage,
                             )
                             await redis_client.incrby(
-                                "rate_limit:app:tokens", final_token_usage
+                                "daily_limit:global:tokens", final_token_usage
                             )
 
                         # Check for new messages again
