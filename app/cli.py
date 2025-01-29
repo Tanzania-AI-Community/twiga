@@ -5,11 +5,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from app.utils.flow_utils import encrypt_flow_token, decrypt_flow_token
-from app.scheduler import reset_daily_limits
-from app.redis.engine import init_redis, disconnect_redis
 import typer
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 cli = typer.Typer()
@@ -47,27 +44,6 @@ def decrypt_flow_token_cli(encrypted_flow_token: str):
         typer.echo(result)
     except Exception as e:
         logger.error(f"Error decrypting flow token: {e}")
-        typer.echo("Error occurred. Check logs.", err=True)
-
-
-@cli.command()
-def reset_daily_limits_cli():
-    """Run the reset_daily_limits task.
-    EXAMPLE: python app/cli.py reset_daily_limits_cli
-    OR : uv run app/cli.py reset-daily-limits-cli
-    """
-
-    async def run_reset():
-        await init_redis()
-        await reset_daily_limits()
-        await disconnect_redis()
-
-    try:
-        logger.info("Running reset_daily_limits task")
-        asyncio.run(run_reset())
-        typer.echo("Daily limits reset successfully")
-    except Exception as e:
-        logger.error(f"Error resetting daily limits: {e}")
         typer.echo("Error occurred. Check logs.", err=True)
 
 
