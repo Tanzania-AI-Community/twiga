@@ -1,76 +1,127 @@
 import logging
 from fastapi import Request, HTTPException
-from app.utils.whatsapp_utils import get_request_type, RequestType
+from fastapi.responses import JSONResponse
+from app.utils.whatsapp_utils import extract_message_info, get_request_type, RequestType
 from app.redis.engine import get_redis_client
-from app.config import settings
-from app.utils.rate_limit_utils import (
-    respond_with_rate_limit_message,
-    extract_phone_number,
-    get_int_from_redis,
-)
+from app.config import Environment, settings
+from app.database import db
+from app.utils.string_manager import strings, StringCategory
+from app.services.whatsapp_service import whatsapp_client
 
 logger = logging.getLogger(__name__)
 
-USER_DAILY_MESSAGES_LIMIT = settings.user_daily_messages_limit
-GLOBAL_DAILY_MESSAGES_LIMIT = settings.global_daily_messages_limit
-USER_DAILY_TOKEN_LIMIT = settings.user_daily_token_limit
-GLOBAL_DAILY_TOKEN_LIMIT = settings.global_daily_token_limit
+
+class RateLimitResponse(Exception):
+    """Custom exception that includes successful response to WhatsApp"""
+
+    def __init__(self):
+        self.response = JSONResponse(content={"status": "ok"}, status_code=200)
 
 
-async def rate_limit(request: Request):
-    logger.debug("Entering rate_limit function.")
-    body = await request.json()
-    request_type = get_request_type(body)
+async def send_rate_limit_message(phone_number: str, message_key: str, ttl: int = 0):
+    """Send rate limit message to user."""
+    user = await db.get_user_by_waid(wa_id=phone_number)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    if request_type != RequestType.VALID_MESSAGE:
-        logger.debug("Request type is not VALID_MESSAGE. Skipping rate limiting.")
+    # Calculate hours and minutes for template
+    hours = ttl // 3600
+    minutes = (ttl % 3600) // 60
+
+    # Use template formatting for time remaining
+    response_text = strings.get_template(
+        StringCategory.RATE_LIMIT, message_key, hours=hours, minutes=minutes
+    )
+
+    await whatsapp_client.send_message(user.wa_id, response_text)
+
+
+async def check_rate_limit(key: str, limit: int) -> tuple[bool, int]:
+    """Check if rate limit is exceeded for given key and return (is_exceeded, current_count)."""
+    assert settings.time_to_live
+    redis = get_redis_client()
+    pipe = await redis.pipeline()
+    await pipe.incr(key)
+    await pipe.expire(key, settings.time_to_live)
+    result = await pipe.execute()
+    count = int(result[0])
+
+    if count > limit:
+        logger.warning(f"Rate limit exceeded for {key}: {count}. The limit was {limit}")
+        ttl = await redis.ttl(key)
+        return True, ttl
+    return False, count
+
+
+async def rate_limit(request: Request) -> JSONResponse | None:
+    """
+    FastAPI dependency for rate limiting WhatsApp messages using rolling 24-hour windows.
+    Returns 200 status code even when rate limited to prevent WhatsApp retries.
+    """
+    # Skip in development
+    if settings.environment not in (Environment.PRODUCTION, Environment.STAGING):
         return
 
-    logger.debug(f"Determined request type in rate Limit: {request_type}")
-    phone_number = extract_phone_number(body)
-    logger.debug(f"Extracted phone_number: {phone_number}")
+    try:
+        body = await request.json()
+    except Exception as e:
+        logger.error(f"Failed to parse request body: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid request body")
+
+    # Only rate limit valid messages
+    if get_request_type(body) != RequestType.VALID_MESSAGE:
+        return None
+
+    # Validate settings
+    if not all(
+        [
+            settings.time_to_live,
+            settings.user_message_limit,
+            settings.global_message_limit,
+        ]
+    ):
+        raise ValueError("Missing rate limit settings")
+
+    # Get phone number
+    phone_number = extract_message_info(body).get("wa_id")
     if not phone_number:
-        logger.warning("Phone number not found in request body.")
         raise HTTPException(status_code=400, detail="Phone number is required")
 
-    redis_client = get_redis_client()
+    assert settings.user_message_limit and settings.global_message_limit
 
-    user_messages_key = f"daily_limit:user:messages:{phone_number}"
-    global_messages_key = "daily_limit:global:messages"
-    user_tokens_key = f"daily_limit:user:tokens:{phone_number}"
-    global_tokens_key = "daily_limit:global:tokens"
+    try:
+        # Check user limit
+        user_key = f"rate:user:{phone_number}"
+        is_exceeded, result = await check_rate_limit(
+            user_key, settings.user_message_limit
+        )
+        if is_exceeded:
+            logger.warning(f"Rate limit exceeded for {phone_number}: {result}")
+            await send_rate_limit_message(phone_number, "user_message_limit", result)
+            raise RateLimitResponse()
 
-    user_messages = await get_int_from_redis(redis_client, user_messages_key)
-    user_messages = await redis_client.incr(user_messages_key)
-    global_messages = await redis_client.incr(global_messages_key)
+        user_count = result
 
-    if user_messages > USER_DAILY_MESSAGES_LIMIT:
-        return await respond_with_rate_limit_message(phone_number, "user_message_limit")
+        # Check global limit
+        global_key = "rate:global"
+        is_exceeded, result = await check_rate_limit(
+            global_key, settings.global_message_limit
+        )
+        if is_exceeded:
+            logger.warning(f"Global rate limit exceeded: {result}")
+            await send_rate_limit_message(phone_number, "global_message_limit", result)
+            raise RateLimitResponse()
 
-    if global_messages > GLOBAL_DAILY_MESSAGES_LIMIT:
-        return await respond_with_rate_limit_message(
-            phone_number, "global_message_limit"
+        global_count = result
+
+        logger.debug(
+            f"Rate limits - User {phone_number}: {user_count}/{settings.user_message_limit}, "
+            f"Global: {global_count}/{settings.global_message_limit}"
         )
 
-    user_tokens = await get_int_from_redis(redis_client, user_tokens_key)
-    global_tokens = await get_int_from_redis(redis_client, global_tokens_key)
-
-    if user_tokens > USER_DAILY_TOKEN_LIMIT:
-        return await respond_with_rate_limit_message(phone_number, "user_token_limit")
-
-    if global_tokens > GLOBAL_DAILY_TOKEN_LIMIT:
-        return await respond_with_rate_limit_message(phone_number, "global_token_limit")
-    logger.debug(
-        f"Usage for user : {phone_number}. "
-        f"Messages: {user_messages}, "
-        f"Messages limit: {USER_DAILY_MESSAGES_LIMIT}, "
-        f"Tokens: {user_tokens}, "
-        f"Tokens limit: {USER_DAILY_TOKEN_LIMIT}"
-    )
-    logger.debug(
-        f"Usage for global: "
-        f"Global messages: {global_messages}, "
-        f"Global messages limit: {GLOBAL_DAILY_MESSAGES_LIMIT}, "
-        f"Global tokens: {global_tokens}, "
-        f"Global tokens limit: {GLOBAL_DAILY_TOKEN_LIMIT}"
-    )
+    except RateLimitResponse as e:
+        return e.response
+    except Exception as e:
+        logger.error(f"Redis error in rate limiter: {str(e)}")
+        # Don't block requests if Redis fails
+        return

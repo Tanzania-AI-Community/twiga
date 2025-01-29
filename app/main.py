@@ -17,7 +17,7 @@ from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
 from app.services.rate_limit_service import rate_limit
 from app.redis.engine import init_redis, disconnect_redis
-from app.scheduler import start_scheduler
+from app.config import settings, Environment
 
 logger = logging.getLogger(__name__)
 
@@ -29,27 +29,22 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info("Database initialized successfully ✅")
 
-        # Initialize Redis
-        await init_redis()
-        logger.info("Redis initialized successfully ✅")
+        # Only initialize Redis in production
+        if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
+            await init_redis()
+            logger.info("Redis initialized successfully ✅")
 
-        # Start scheduler
-        start_scheduler()
-        logger.info("Scheduler started successfully ✅")
-
-        # Additional startup tasks can go here
         logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:
         logger.error(f"Error during startup: {e} ❌")
         raise
     finally:
-        # Cleanup
         await db_engine.dispose()
         logger.info("Database connections closed 🔒")
 
-        # Close Redis connection
-        await disconnect_redis()
+        if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
+            await disconnect_redis()
 
 
 # Create a FastAPI application instance
@@ -64,9 +59,17 @@ async def webhook_get(request: Request) -> Response:
     return whatsapp_client.verify(request)
 
 
-@app.post("/webhooks", dependencies=[Depends(signature_required), Depends(rate_limit)])
+@app.post("/webhooks", dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
+
+    # Check rate limit directly
+    if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
+        rate_limit_response = await rate_limit(request)
+
+        if rate_limit_response:
+            return rate_limit_response
+
     return await handle_request(request)
 
 
