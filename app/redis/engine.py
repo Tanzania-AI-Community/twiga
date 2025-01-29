@@ -11,7 +11,14 @@ redis_client = None
 async def init_redis():
     global redis_pool, redis_client
     try:
-        redis_pool = redis.ConnectionPool.from_url(settings.redis_url)
+        if settings.redis_url:
+            redis_pool = redis.ConnectionPool.from_url(
+                settings.redis_url.get_secret_value()
+            )
+        else:
+            raise redis.ConnectionError(
+                "Redis is not set properly in your environment."
+            )
         redis_client = redis.Redis(connection_pool=redis_pool)
         await verify_redis_connection()
         logger.debug("Redis connection established")

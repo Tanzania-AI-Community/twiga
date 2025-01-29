@@ -58,10 +58,10 @@ class Settings(BaseSettings):
     whatsapp_business_private_key_password: Optional[SecretStr] = None
 
     # Redis settings (for rate limiting)
-    redis_url: Optional[str] = None
-    user_message_limit: Optional[int] = 100
-    global_message_limit: Optional[int] = 1000
-    time_to_live: Optional[int] = 24 * 60 * 60  # 24 hours in seconds
+    redis_url: Optional[SecretStr] = None
+    user_message_limit: Optional[int] = None
+    global_message_limit: Optional[int] = None
+    time_to_live: Optional[int] = None  # In seconds (a day is 86400)
 
     @field_validator("debug", mode="before")
     @classmethod

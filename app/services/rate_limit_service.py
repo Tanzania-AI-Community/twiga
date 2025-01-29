@@ -7,6 +7,7 @@ from app.config import Environment, settings
 from app.database import db
 from app.utils.string_manager import strings, StringCategory
 from app.services.whatsapp_service import whatsapp_client
+from app.redis.redis_keys import RedisKeys
 
 logger = logging.getLogger(__name__)
 
@@ -18,20 +19,14 @@ class RateLimitResponse(Exception):
         self.response = JSONResponse(content={"status": "ok"}, status_code=200)
 
 
-async def send_rate_limit_message(phone_number: str, message_key: str, ttl: int = 0):
+async def send_rate_limit_message(phone_number: str, message_key: str):
     """Send rate limit message to user."""
     user = await db.get_user_by_waid(wa_id=phone_number)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Calculate hours and minutes for template
-    hours = ttl // 3600
-    minutes = (ttl % 3600) // 60
-
     # Use template formatting for time remaining
-    response_text = strings.get_template(
-        StringCategory.RATE_LIMIT, message_key, hours=hours, minutes=minutes
-    )
+    response_text = strings.get_string(StringCategory.RATE_LIMIT, message_key)
 
     await whatsapp_client.send_message(user.wa_id, response_text)
 
@@ -91,31 +86,31 @@ async def rate_limit(request: Request) -> JSONResponse | None:
 
     try:
         # Check user limit
-        user_key = f"rate:user:{phone_number}"
+        user_key = RedisKeys.USER_RATE(phone_number)
         is_exceeded, result = await check_rate_limit(
             user_key, settings.user_message_limit
         )
         if is_exceeded:
-            logger.warning(f"Rate limit exceeded for {phone_number}: {result}")
-            await send_rate_limit_message(phone_number, "user_message_limit", result)
+            logger.warning(f"Rate limit exceeded: {result}")
+            await send_rate_limit_message(phone_number, "user_message_limit")
             raise RateLimitResponse()
 
         user_count = result
 
         # Check global limit
-        global_key = "rate:global"
+        global_key = RedisKeys.GLOBAL_RATE
         is_exceeded, result = await check_rate_limit(
             global_key, settings.global_message_limit
         )
         if is_exceeded:
             logger.warning(f"Global rate limit exceeded: {result}")
-            await send_rate_limit_message(phone_number, "global_message_limit", result)
+            await send_rate_limit_message(phone_number, "global_message_limit")
             raise RateLimitResponse()
 
         global_count = result
 
         logger.debug(
-            f"Rate limits - User {phone_number}: {user_count}/{settings.user_message_limit}, "
+            f"Rate limits: {user_count}/{settings.user_message_limit}, "
             f"Global: {global_count}/{settings.global_message_limit}"
         )
 
