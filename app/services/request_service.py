@@ -14,7 +14,7 @@ from app.utils.whatsapp_utils import (
 from app.services.whatsapp_service import whatsapp_client
 from app.services.state_service import state_client
 import app.database.db as db
-from app.config import settings
+from app.config import Environment, settings
 from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,11 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             return await state_client.handle_onboarding(user)
         case enums.UserState.new:
             # Dummy data for development environment if not using Flows
-            if not settings.business_env:
+            if settings.environment not in (
+                Environment.PRODUCTION,
+                Environment.STAGING,
+                Environment.DEVELOPMENT,
+            ):
                 logger.debug(
                     "Business environment is False, adding dummy data for new user"
                 )
