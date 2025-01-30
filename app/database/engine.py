@@ -45,7 +45,7 @@ async def init_db() -> None:
     try:
         async with db_engine.connect() as conn:
             await conn.scalar(text("SELECT 1"))
-            logger.info("Database connection verified")
+            logger.debug("Database connection verified")
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise

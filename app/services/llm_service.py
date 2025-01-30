@@ -229,6 +229,8 @@ class LLMClient:
 
                     # 1. Build the API messages from DB history + new messages
                     history = await get_user_message_history(user.id)
+
+                    # TODO: Check for token count and cutoff if necessary
                     api_messages = self._format_messages(
                         messages_to_process, history, user
                     )

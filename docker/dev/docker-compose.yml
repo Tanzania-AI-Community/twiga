@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   db:
@@ -13,11 +13,26 @@ services:
       - POSTGRES_USER=${DATABASE_USER}
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
       - POSTGRES_DB=${DATABASE_NAME}
+      - PGPASSWORD=${DATABASE_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h db -p 5432 -U ${DATABASE_USER} -d ${DATABASE_NAME}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # redis:
+  #   image: redis:latest
+  #   ports: "6379:6379"
+  #   volumes: redis:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   app:
     build:
@@ -30,8 +45,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # redis:
+      #   condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   db:
+  # redis:

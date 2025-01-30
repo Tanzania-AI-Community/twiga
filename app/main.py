@@ -1,4 +1,10 @@
-from fastapi import FastAPI, Request, Depends, BackgroundTasks, Response
+from fastapi import (
+    FastAPI,
+    Request,
+    Depends,
+    BackgroundTasks,
+    Response,
+)
 from fastapi.responses import JSONResponse, PlainTextResponse
 import logging
 from contextlib import asynccontextmanager
@@ -9,6 +15,9 @@ from app.services.whatsapp_service import whatsapp_client
 from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
+from app.services.rate_limit_service import rate_limit
+from app.redis.engine import init_redis, disconnect_redis
+from app.config import settings, Environment
 
 logger = logging.getLogger(__name__)
 
@@ -18,24 +27,30 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize database during startup
         await init_db()
-        logger.info("Database initialized successfully")
+        logger.info("Database initialized successfully ✅")
 
-        # Additional startup tasks can go here
-        logger.info("Application startup completed")
+        # Only initialize Redis in production
+        if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
+            await init_redis()
+            logger.info("Redis initialized successfully ✅")
+
+        logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:
-        logger.error(f"Error during startup: {e}")
+        logger.error(f"Error during startup: {e} ❌")
         raise
     finally:
-        # Cleanup
         await db_engine.dispose()
-        logger.info("Database connections closed")
+        logger.info("Database connections closed 🔒")
+
+        if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
+            await disconnect_redis()
 
 
 # Create a FastAPI application instance
 app = FastAPI(lifespan=lifespan)
 
-logger.info("FastAPI app initialized")
+logger.info("FastAPI app initialized successfully ✅")
 
 
 @app.get("/webhooks")
@@ -47,6 +62,14 @@ async def webhook_get(request: Request) -> Response:
 @app.post("/webhooks", dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
+
+    # Check rate limit directly
+    if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
+        rate_limit_response = await rate_limit(request)
+
+        if rate_limit_response:
+            return rate_limit_response
+
     return await handle_request(request)
 
 
@@ -56,3 +79,8 @@ async def handle_flows_webhook(
 ) -> PlainTextResponse:
     logger.debug("flows webhook is being called")
     return await flow_client.handle_flow_request(request, background_tasks)
+
+
+@app.get("/health")
+async def health_check() -> PlainTextResponse:
+    return PlainTextResponse("OK")

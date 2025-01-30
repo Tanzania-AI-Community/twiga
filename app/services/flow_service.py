@@ -9,7 +9,7 @@ import app.utils.flow_utils as futil
 import app.database.db as db
 from app.database.models import ClassInfo, User
 from app.services.whatsapp_service import whatsapp_client
-from app.config import settings
+from app.config import settings, Environment
 from app.utils.string_manager import StringCategory, strings
 import app.database.enums as enums
 import scripts.flows.designing_flows as flows_wip
@@ -21,7 +21,11 @@ class FlowService:
         self.logger = logging.getLogger(__name__)
 
         # Check if the business environment is set
-        if not settings.business_env:
+        if settings.environment not in (
+            Environment.PRODUCTION,
+            Environment.STAGING,
+            Environment.DEVELOPMENT,
+        ):
             return
         # Check if the flow settings are set
         assert settings.onboarding_flow_id and settings.onboarding_flow_id.strip()
