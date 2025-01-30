@@ -67,7 +67,7 @@ def flows_encryption_cli(
     Single command that generates keys, sets them, and then retrieves them to confirm.
 
     EXAMPLE:
-    uv run app/cli.py flows-encryption-cli --phone-number-id 434184924443332 --access-token ADASD23sads4342ADSFASdf --file-name prod_rsa_key --passphrase ttsdf@2433423
+    uv run python -m scripts.flows.cli flows-encryption-cli --phone-number-id 434184924443332 --access-token ADASD23sads4342ADSFASdf --file-name prod_rsa_key --passphrase ttsdf@2433423
     """
     try:
         # Generate keys
