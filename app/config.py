@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     database_url: SecretStr
 
     # Business environment
-    environment: Environment = Environment.DEVELOPMENT
+    environment: Environment = Environment.LOCAL
     debug: bool = True
 
     @property

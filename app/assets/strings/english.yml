@@ -36,4 +36,4 @@ flows:
 
 rate_limit:
   global_message_limit: "🚫 Twiga is currently unavailable. Please come back later."
-  user_message_limit: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Come back in later!"
+  user_message_limit: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Come back later!"
