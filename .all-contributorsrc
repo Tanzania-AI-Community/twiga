@@ -71,6 +71,16 @@
         "code",
         "infra"
       ]
+    },
+    {
+      "login": "alvaro-mazcu",
+      "name": "Álvaro Mazcuñán Herreros",
+      "avatar_url": "https://avatars.githubusercontent.com/u/102028776?v=4",
+      "profile": "https://github.com/alvaro-mazcu",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ]
 }
