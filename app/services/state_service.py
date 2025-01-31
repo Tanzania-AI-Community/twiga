@@ -17,6 +17,7 @@ class StateHandler:
         self.logger = logging.getLogger(__name__)
 
     async def handle_blocked(self, user: User) -> JSONResponse:
+        assert user.id is not None
         response_text = strings.get_string(StringCategory.ERROR, "blocked")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
@@ -32,6 +33,7 @@ class StateHandler:
         )
 
     async def handle_rate_limited(self, user: User) -> JSONResponse:
+        assert user.id is not None
         response_text = strings.get_string(StringCategory.ERROR, "rate_limited")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(

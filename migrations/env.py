@@ -7,12 +7,15 @@ from alembic import context
 
 from app.config import settings
 
+# Import all models here - this must be before target_metadata
+from app.database.models import *  # noqa: F403
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Load PostgreSQL migrations URL from environment variables (note that this fails if migrations_url is None)
-db_url = settings.migrations_url.get_secret_value()
+# Load PostgreSQL migrations URL from environment variables
+db_url = settings.sync_database_url
 print(f"Connecting to: {db_url}")
 config.set_main_option("sqlalchemy.url", db_url)
 

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import Request
 from fastapi.responses import PlainTextResponse, JSONResponse
 import logging
@@ -24,7 +24,7 @@ class WhatsAppClient:
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
         try:
-            payload = generate_payload(wa_id, message, options)
+            payload: Dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
             )
@@ -34,7 +34,7 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Unexpected Error: %s", e)
 
-    def verify(self, request: Request):
+    def verify(self, request: Request) -> JSONResponse | PlainTextResponse:
         """
         Verifies the webhook for WhatsApp. This is required.
         """

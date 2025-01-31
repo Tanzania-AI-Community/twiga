@@ -4,6 +4,7 @@ This __init__ module configures the logger.
 
 import logging
 from colorlog import ColoredFormatter
+from app.config import settings
 
 # Configure color logging
 formatter = ColoredFormatter(
@@ -26,7 +27,10 @@ handler.setFormatter(formatter)
 
 # Get the root logger and set its level
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)  # set to DEBUG for more verbose logging
+if settings.debug:
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
 
 
 # Clear existing handlers and set the new handler

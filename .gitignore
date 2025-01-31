@@ -129,10 +129,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-.env.local
-.env.production
-.env.development
-.env.test
+.env.*
+!.env.template
 
 # Spyder project settings
 .spyderproject
@@ -168,5 +166,6 @@ cython_debug/
 ##################### New Additions #####################
 # Ignore DS_Store files
 .DS_Store
-private.pem
-public.pem
+
+# ignore .pem files
+*.pem

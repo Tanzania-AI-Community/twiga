@@ -1,13 +1,11 @@
 from datetime import datetime
 from enum import Enum, auto
-import json
 import re
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Optional
 import logging
 
 from app.models.message_models import (
     Row,
-    TemplateMessage,
     TextMessage,
     InteractiveMessage,
     InteractiveButton,
@@ -19,7 +17,6 @@ from app.models.message_models import (
     Section,
     ListAction,
 )
-from app.config import settings
 
 
 class RequestType(Enum):
@@ -40,14 +37,14 @@ class ValidMessageType(Enum):
 logger = logging.getLogger(__name__)
 
 
-def get_text_payload(recipient: str, text: str) -> str:
+def get_text_payload(recipient: str, text: str) -> dict:
     payload = TextMessage(to=recipient, text={"body": _format_text_for_whatsapp(text)})
-    return payload.model_dump_json()
+    return dict(payload)
 
 
 def get_interactive_button_payload(
     recipient: str, text: str, options: List[str]
-) -> str:
+) -> dict:
     buttons = [
         Button(
             type="reply",
@@ -64,12 +61,12 @@ def get_interactive_button_payload(
 
     payload = InteractiveMessage(to=recipient, interactive=interactive_button)
 
-    return payload.model_dump_json()
+    return payload.model_dump()
 
 
 def get_interactive_list_payload(
     recipient: str, text: str, options: List[str], title: str = "Options"
-) -> str:
+) -> dict:
     rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
 
     section = Section(title=title, rows=rows)
@@ -84,24 +81,7 @@ def get_interactive_list_payload(
 
     payload = InteractiveMessage(to=recipient, interactive=interactive_list)
 
-    return payload.model_dump_json()
-
-
-def get_template_payload(
-    recipient: str,
-    template_name: str,
-    language_code: Literal["en_US", "en_GB", "en", "sw"],
-) -> str:
-
-    payload = TemplateMessage(
-        to=recipient,
-        template={
-            "name": template_name,
-            "language": {"code": language_code},
-        },
-    )
-
-    return payload.model_dump_json()
+    return dict(payload)
 
 
 def _format_text_for_whatsapp(text: str) -> str:
@@ -170,12 +150,12 @@ def is_flow_complete_message(body: Any) -> bool:
 
 def is_flow_event(body: dict) -> bool:
     try:
-        return (
+        return bool(
             body.get("object") == "whatsapp_business_account"
-            and body.get("entry")
-            and body["entry"][0].get("changes")
-            and body["entry"][0]["changes"][0].get("value")
-            and body["entry"][0]["changes"][0]["value"].get("event")
+            and body.get("entry") is not None
+            and body["entry"][0].get("changes") is not None
+            and body["entry"][0]["changes"][0].get("value") is not None
+            and body["entry"][0]["changes"][0]["value"].get("event") is not None
         )
     except (IndexError, AttributeError, TypeError) as e:
         logger.error(f"Error checking flow event: {e}")
@@ -234,7 +214,7 @@ COMMAND_OPTIONS = ["settings", "help"]
 
 def is_command_message(message_info: dict) -> bool:
     message = message_info.get("message", {}).get("text", {}).get("body", "")
-    logger.debug(f"Checking if message is a command: {message}")
+    # logger.debug(f"Checking if message is a command: {message}")
 
     if isinstance(message, str):
         return message.lower() in COMMAND_OPTIONS
@@ -246,10 +226,10 @@ def generate_payload(
     response: str,
     options: Optional[list] = None,
     flow: Optional[dict] = None,
-) -> str:
+) -> dict:
     if flow:
         return get_flow_payload(wa_id, flow)
-    elif options:
+    if options:
         if len(options) <= 3:
             return get_interactive_button_payload(wa_id, response, options)
         else:
@@ -258,7 +238,7 @@ def generate_payload(
         return get_text_payload(wa_id, response)
 
 
-def get_flow_payload(wa_id: str, flow: dict) -> str:
+def get_flow_payload(wa_id: str, flow: dict) -> dict:
     payload = {
         "recipient_type": "individual",
         "messaging_product": "whatsapp",
@@ -276,7 +256,7 @@ def get_flow_payload(wa_id: str, flow: dict) -> str:
                 "name": "flow",
                 "parameters": {
                     "flow_message_version": flow.get("flow_message_version", "3"),
-                    "flow_token": flow.get("flow_token", settings.flow_token),
+                    "flow_token": flow.get("flow_token"),
                     "flow_name": flow.get("flow_name", "default_flow"),
                     "flow_cta": flow.get("flow_cta", "Start"),
                     "flow_action": flow.get("flow_action", "navigate"),
@@ -285,7 +265,7 @@ def get_flow_payload(wa_id: str, flow: dict) -> str:
             },
         },
     }
-    return json.dumps(payload)
+    return payload
 
 
 def get_valid_message_type(message_info: dict) -> ValidMessageType:

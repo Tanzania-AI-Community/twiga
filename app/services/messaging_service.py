@@ -23,7 +23,7 @@ class MessagingService:
             await flow_client.send_user_settings_flow(user)
         elif message.content == "Classes and Subjects":
             self.logger.debug("Sending update class and subject info flow")
-            await flow_client.send_select_subject_flow(user)
+            await flow_client.send_subjects_classes_flow(user)
         else:
             raise Exception(f"Unrecognized user reply: {message.content}")
         return JSONResponse(
@@ -35,6 +35,7 @@ class MessagingService:
         self, user: models.User, message: models.Message
     ) -> JSONResponse:
         self.logger.debug(f"Handling command message: {message.content}")
+        assert message.content is not None
         if message.content.lower() == "settings":
             response_text = strings.get_string(StringCategory.SETTINGS, "intro")
             options = [
@@ -58,9 +59,9 @@ class MessagingService:
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
-        available_user_resources = await db.get_user_resources(user)
+        # available_user_resources = await db.get_user_resources(user)
         llm_responses = await llm_client.generate_response(
-            user=user, message=user_message, resources=available_user_resources
+            user=user, message=user_message
         )
         if llm_responses:
             self.logger.debug(
@@ -68,8 +69,9 @@ class MessagingService:
             )
 
             # Update the database with the responses
-            llm_responses = await db.create_new_messages(llm_responses)
+            await db.create_new_messages(llm_responses)
 
+            assert llm_responses[-1].content is not None
             # Send the last message back to the user
             await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
         else:

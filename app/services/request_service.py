@@ -1,14 +1,9 @@
 import json
 import logging
-from typing import Literal, Optional
-from fastapi import BackgroundTasks, Request
+from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.database.models import (
-    ClassInfo,
-    Message,
-    User,
-)
+import app.database.models as models
 import app.database.enums as enums
 from app.utils.whatsapp_utils import (
     RequestType,
@@ -19,29 +14,19 @@ from app.utils.whatsapp_utils import (
 from app.services.whatsapp_service import whatsapp_client
 from app.services.state_service import state_client
 import app.database.db as db
-from app.config import settings
+from app.config import Environment, settings
 from app.utils.string_manager import strings, StringCategory
-from app.services.flow_service import flow_client
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_request(
-    request: Request,
-    bg_tasks: Optional[BackgroundTasks] = None,
-    endpoint: Literal["webhooks", "flows"] = "webhooks",
-) -> JSONResponse:
+async def handle_request(request: Request) -> JSONResponse:
     """
-    Handles HTTP requests to this webhook for message, sent, delivered, and read events.
-    Includes user management with database integration.
+    Handles HTTP requests to the 'webhooks' and 'flows' endpoints.
     """
     try:
 
         body = await request.json()
-
-        # Route the request to the appropriate handler
-        if endpoint == "flows":
-            return await flow_client.handle_flow_request(body, bg_tasks)
 
         request_type = get_request_type(body)
         logger.info(f"Received a request of type: {request_type}")
@@ -79,17 +64,26 @@ async def handle_request(
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information and create/get user
     message_info = extract_message_info(body)
-    message = extract_message(message_info.get("message", {}))
+    message = extract_message(message_info.get("message", None))
+
+    if not message:
+        logger.warning("Empty message received")
+        return JSONResponse(
+            content={"status": "error", "message": "Invalid message"},
+            status_code=400,
+        )
+
     user = await db.get_or_create_user(
-        wa_id=message_info.get("wa_id"), name=message_info.get("name")
+        wa_id=message_info["wa_id"], name=message_info.get("name")
     )
 
+    assert user.id is not None
     # Create message record
     user_message = await db.create_new_message(
-        Message(user_id=user.id, role=enums.MessageRole.user, content=message)
+        models.Message(user_id=user.id, role=enums.MessageRole.user, content=message)
     )
 
-    logger.debug(f"Processing message for user {user.wa_id} in state {user.state}")
+    logger.debug(f"Processing message from user {user.wa_id} in state {user.state}.")
 
     match user.state:
         case enums.UserState.blocked:
@@ -100,7 +94,11 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             return await state_client.handle_onboarding(user)
         case enums.UserState.new:
             # Dummy data for development environment if not using Flows
-            if not settings.business_env:
+            if settings.environment not in (
+                Environment.PRODUCTION,
+                Environment.STAGING,
+                Environment.DEVELOPMENT,
+            ):
                 logger.debug(
                     "Business environment is False, adding dummy data for new user"
                 )
@@ -112,25 +110,24 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     raise Exception("Invalid user state, reached the end of handle_valid_message")
 
 
-async def handle_new_dummy(user: User) -> JSONResponse:
+async def handle_new_dummy(user: models.User) -> JSONResponse:
     try:
         # Update the user object with dummy data
         user.state = enums.UserState.active
         user.onboarding_state = enums.OnboardingState.completed
         user.role = enums.Role.teacher
-        user.class_info = ClassInfo(
-            subjects={
-                enums.SubjectName.geography: [
-                    enums.GradeLevel.os2
-                ]  # Using GradeLevel.os2 for Secondary Form 2
-            }
+        user.class_info = models.ClassInfo(
+            classes={enums.SubjectName.geography: [enums.GradeLevel.os2]}
         ).model_dump()
 
         # Read the class IDs from the class info
         class_ids = await db.get_class_ids_from_class_info(user.class_info)
 
+        assert class_ids is not None
+
         # Update user and create teachers_classes entries
         user = await db.update_user(user)
+        assert user.id is not None
         await db.assign_teacher_to_classes(user, class_ids)
 
         # Send a welcome message to the user
@@ -139,7 +136,7 @@ async def handle_new_dummy(user: User) -> JSONResponse:
         )
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
-            Message(
+            models.Message(
                 user_id=user.id,
                 role=enums.MessageRole.assistant,
                 content=response_text,
