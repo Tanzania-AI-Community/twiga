@@ -21,6 +21,7 @@ dependencies = [
     "pre-commit>=4.0.1",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",
+    "pytest>=8.3.4",
     "python-dateutil>=2.9.0.post0",
     "sqlmodel>=0.0.22",
     "tiktoken>=0.8.0",
