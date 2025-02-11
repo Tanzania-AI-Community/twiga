@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlmodel import text
-from sqlalchemy.orm import sessionmaker
+
 import logging
 
 from app.database.utils import get_database_url
@@ -19,7 +19,7 @@ db_engine = create_async_engine(
 )
 
 # Create a session factory
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     bind=db_engine,
     class_=AsyncSession,
     expire_on_commit=False,  # Prevent lazy loading issues
@@ -45,7 +45,7 @@ async def init_db() -> None:
     try:
         async with db_engine.connect() as conn:
             await conn.scalar(text("SELECT 1"))
-            logger.info("Database connection verified")
+            logger.debug("Database connection verified")
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise

@@ -21,6 +21,7 @@ class OnboardingHandler:
         self.logger.debug(
             f"Onboarding user {user.wa_id} with onboarding_state {user.onboarding_state}"
         )
+        assert user.onboarding_state is not None
         onboarding_handler = self.handlers.get(
             user.onboarding_state, self.handle_default
         )
@@ -38,10 +39,10 @@ class OnboardingHandler:
 
     async def handle_personal_info_submitted(self, user: User):
         try:
-            await self.flow_client.send_select_subject_flow(user)
             self.logger.debug(
-                f"Triggering send_select_subject_flow for user {user.wa_id}"
+                f"Triggering send_subjects_classes_flow for user {user.wa_id}"
             )
+            await self.flow_client.send_subjects_classes_flow(user)
         except Exception as e:
             self.logger.error(
                 f"Error handling personal_info_submitted user {user.wa_id}: {str(e)}"
@@ -51,8 +52,8 @@ class OnboardingHandler:
         self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
         # TODO: Send a welcome message as the first message in the chatbot thread
 
-    def handle_default(self, user: User):
-        whatsapp_client.send_message(
+    async def handle_default(self, user: User):
+        await whatsapp_client.send_message(
             user.wa_id, strings.get_string(StringCategory.ERROR, "general")
         )
 
