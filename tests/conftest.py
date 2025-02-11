@@ -1,10 +1,10 @@
-import os
-from dotenv import load_dotenv
 import pytest
+from unittest.mock import Mock, patch
 
 
-@pytest.fixture(scope="session", autouse=True)
-def load_env():
-    """Load environment variables from .env.example for testing."""
-    env_path = os.path.join(os.path.dirname(__file__), "../.env.example")
-    load_dotenv(env_path, override=True)
+@pytest.fixture(autouse=True)
+def mock_initialize_settings():
+    
+    with patch("app.config.initialize_settings") as mock_init:
+        mock_init.return_value = (Mock(), Mock()) 
+        yield mock_init
