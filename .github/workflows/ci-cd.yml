@@ -21,8 +21,29 @@ jobs:
     secrets:
       GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY}}
 
-  deploy-dev:
+  tests:
     needs: [pre-commit, gitguardian]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install pytest pytest-asyncio
+
+      - name: Run tests
+        run: PYTHONPATH=. pytest -v tests/
+
+
+  deploy-dev:
+    needs: [tests]
     if: github.ref == 'refs/heads/development' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
     runs-on: ubuntu-latest
     environment: development
@@ -34,7 +55,7 @@ jobs:
           curl "$deploy_url"
 
   deploy-prod:
-    needs: [pre-commit, gitguardian]
+    needs: [tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
     runs-on: ubuntu-latest
     environment: production
