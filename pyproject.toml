@@ -3,7 +3,9 @@ name = "twiga"
 version = "0.1.0"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
-authors = ["Victor Oldensand <victormag24@gmail.com>"]
+authors = [
+    { name = "Victor Oldensand", email = "victormag24@gmail.com" }
+]
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
