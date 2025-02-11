@@ -5,7 +5,7 @@ description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = ["Victor Oldensand <victormag24@gmail.com>"]
 requires-python = ">=3.12"
-license = "MIT"
+license = { text = "MIT" }
 dependencies = [
     "alembic>=1.13.3",
     "apscheduler>=3.11.0",

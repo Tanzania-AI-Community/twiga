@@ -41,7 +41,6 @@ jobs:
       - name: Run tests
         run: PYTHONPATH=. pytest -v tests/
 
-
   deploy-dev:
     needs: [tests]
     if: github.ref == 'refs/heads/development' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
