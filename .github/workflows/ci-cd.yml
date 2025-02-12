@@ -39,6 +39,14 @@ jobs:
           pip install --no-cache-dir pytest pytest-asyncio
 
       - name: Run tests
+        env:
+          META_API_VERSION: "mock_value_1"
+          META_APP_ID: "mock_value_2"
+          META_APP_SECRET: "mock_value_3"
+          WHATSAPP_CLOUD_NUMBER_ID: "mock_value_3"
+          WHATSAPP_VERIFY_TOKEN: "mock_value_3"
+          WHATSAPP_API_TOKEN: "mock_value_3"
+          DATABASE_URL: "mock_value_3"
         run: PYTHONPATH=. pytest -v tests/
 
   deploy-dev:
