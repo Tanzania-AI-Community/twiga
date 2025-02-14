@@ -40,13 +40,13 @@ jobs:
 
       - name: Run tests
         env:
-          META_API_VERSION: "mock_value_1"
-          META_APP_ID: "mock_value_2"
-          META_APP_SECRET: "mock_value_3"
-          WHATSAPP_CLOUD_NUMBER_ID: "mock_value_3"
-          WHATSAPP_VERIFY_TOKEN: "mock_value_3"
-          WHATSAPP_API_TOKEN: "mock_value_3"
-          DATABASE_URL: "postgresql+asyncpg://postgres:twiga@db:1/twiga"
+          META_API_VERSION: ${{ secrets.META_API_VERSION }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WHATSAPP_CLOUD_NUMBER_ID: ${{ secrets.WHATSAPP_CLOUD_NUMBER_ID }}
+          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          WHATSAPP_API_TOKEN: ${{ secrets.WHATSAPP_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: PYTHONPATH=. pytest -v tests/
 
   deploy-dev:
