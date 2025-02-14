@@ -11,7 +11,6 @@ from app.security import flows_signature_required, signature_required
 
 @pytest.mark.asyncio
 async def test_lifespan_success() -> None:
-    """Lifespan runs successfully with proper setup"""
     app = FastAPI()
 
     mock_db = AsyncMock()
@@ -44,7 +43,6 @@ async def test_lifespan_success() -> None:
 
 @pytest.mark.asyncio
 async def test_lifespan_init_db_failure() -> None:
-    """Lifespan logs error when init_db() fails"""
     app = FastAPI()
 
     mock_db = AsyncMock()
@@ -74,7 +72,6 @@ async def test_lifespan_init_db_failure() -> None:
 
 @pytest.mark.asyncio
 async def test_lifespan_dispose_failure() -> None:
-    """Lifespan when init_db() and db_engine.dispose() fail"""
     app = FastAPI()
 
     mock_db = AsyncMock()
@@ -215,7 +212,6 @@ async def test_handle_flows_webhook_ok() -> None:
     async def mock_flows_signature_required():
         return None
 
-    # app = FastAPI()
     app.dependency_overrides[flows_signature_required] = mock_flows_signature_required
 
     mock_flow_client = AsyncMock()
