@@ -212,6 +212,7 @@ class LLMClient:
             f"Message buffer for user: {user.wa_id}, buffer: {processor.get_pending_messages()}"
         )
 
+
         if processor.is_locked:
             self.logger.info(f"Lock held for user {user.wa_id}, message buffered")
             return None
@@ -219,6 +220,8 @@ class LLMClient:
         async with processor.lock:
             while True:
                 try:
+                    
+                    self.logger.debug(f"Processing messages for {user.wa_id}")                    
                     messages_to_process = processor.get_pending_messages()
                     original_count = len(messages_to_process)
                     if not messages_to_process:
@@ -228,8 +231,10 @@ class LLMClient:
                         return None
 
                     # 1. Build the API messages from DB history + new messages
+                    self.logger.debug(f"Retrieving user message history")
                     history = await get_user_message_history(user.id)
 
+                
                     # TODO: Check for token count and cutoff if necessary
                     api_messages = self._format_messages(
                         messages_to_process, history, user
@@ -241,6 +246,7 @@ class LLMClient:
                     )
 
                     # 2. Call the LLM with tools enabled
+                    self.logger.debug(f"Initiating LLM request")
                     initial_response = await async_llm_request(
                         model=llm_settings.llm_model_name,
                         messages=api_messages,
@@ -248,13 +254,16 @@ class LLMClient:
                             available_classes=json.dumps(user.class_name_to_id_map)
                         ),
                         tool_choice="auto",
+                        verbose=True,
                     )
 
+                    self.logger.debug(f"LLM response:\n {initial_response.choices[0].message.model_dump()}")
+                    self.logger.debug(f"Formatting LLM response")
+                    
                     initial_message = Message.from_api_format(
                         initial_response.choices[0].message.model_dump(), user.id
-                    )
-                    self.logger.debug(f"LLM response:\n {initial_message}")
-
+                    )  
+                    
                     # Track new messages
                     new_messages = [initial_message]
 

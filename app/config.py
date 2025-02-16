@@ -71,6 +71,8 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return v.lower() in ("true", "True")
         return False
+    
+
 
 
 class LLMSettings(BaseSettings):
@@ -92,7 +94,22 @@ class LLMSettings(BaseSettings):
         "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
         "gpt-4o": "gpt-4o",
-        "gpt-4o_mini": "gpt-40-mini",
+        "gpt-4o_mini": "gpt-4o-mini",
+    }
+    
+    tokenizer_options: dict = {
+        "llama_405b": "meta-llama/Llama-3.1-405B",
+        "llama_70b": "meta-llama/Llama-3.1-70B-Instruct",
+        "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct",
+    }
+    
+    llm_context_window_lengths: dict = {
+        "llama_405b": 128000,  
+        "llama_70b": 128000,     
+        "llama_3_3_70b": 128000, 
+        "mixtral": 32000,      
+        "gpt-4o": 128000,    
+        "gpt-4o_mini": 128000
     }
 
     embedder_model_options: dict = {
@@ -104,10 +121,12 @@ class LLMSettings(BaseSettings):
     XXX: FILL YOUR AI PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
      - make sure your choice of LLM, embedder, and ai_provider are compatible
     """
-    ai_provider: Literal["together", "openai"] = "together"
-    llm_model_name: str = llm_model_options["llama_3_3_70b"]
-    exercise_generator_model: str = llm_model_options["llama_70b"]
-    embedding_model: str = embedder_model_options["bge-large"]
+    ai_provider: Literal["together", "openai"] = "openai"
+    llm_model_name: str = llm_model_options["gpt-4o_mini"]
+    tokenizer_type: Literal["openai", "llama"] = "llama"
+    tokenizer_name: str = tokenizer_options["llama_3_3_70b"]
+    exercise_generator_model: str = llm_model_options["gpt-4o_mini"]
+    embedding_model: str = embedder_model_options["text-embedding-3-small"]
 
 
 def initialize_settings():

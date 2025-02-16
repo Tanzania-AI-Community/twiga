@@ -6,6 +6,7 @@ import tiktoken
 import backoff
 import openai
 from openai.types.chat import ChatCompletion
+from transformers import AutoTokenizer
 
 from app.config import llm_settings
 
@@ -20,30 +21,19 @@ if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
 elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
     llm_client = openai.AsyncOpenAI(api_key=llm_settings.llm_api_key.get_secret_value())
 
-
-def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> int:
-    """This returns the number of OpenAI-equivalent tokens in a text string."""
-    encoding = tiktoken.get_encoding(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-
-def num_tokens_from_messages(
-    messages: List[dict], encoding_name: str = "cl100k_base"
-) -> int:
-    """Return the number of tokens used by a list of messages in the format sent to the OpenAI or Groq API."""
-    tokens_per_message = 3
-    tokens_per_name = 1
-
-    num_tokens = 0
-    for message in messages:
-        num_tokens += tokens_per_message
-        for key, value in message.items():
-            num_tokens += num_tokens_from_string(value, encoding_name)
-            if key == "name":
-                num_tokens += tokens_per_name
-    num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
-    return num_tokens
+def num_tokens(string: str, tokenizer_type: str = "openai") -> int:
+    """This returns the number of tokens in a text string with either OpenAI's tiktoken or Meta's LLama tokenizer."""
+    
+    if llm_settings.tokenizer_type == "openai":
+        encoder = tiktoken.encoding_for_model(llm_settings.llm_model_name)
+        return len(encoder.encode(string))
+    elif llm_settings.tokenizer_type == "llama":
+        tokenizer = AutoTokenizer.from_pretrained(llm_settings.tokenizer_name)  
+        logger.debug(f"Tokenizer: {tokenizer}")
+        return len(tokenizer.tokenize(string))
+    else:
+        raise ValueError("Invalid tokenizer type - see config.py for valid options.")
+    
 
 
 @backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=7, max_time=45)
@@ -70,12 +60,12 @@ async def async_llm_request(
     try:
         assert llm_client is not None, "LLM client is not initialized"
         # Print messages if the flag is True
+        
         if verbose:
             messages = params.get("messages", None)
-            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
-            logger.info(
-                f"Number of OpenAI-equivalent tokens in the payload:\n{num_tokens_from_messages(messages)}"
-            )
+            messages_string = json.dumps(messages, indent=2)       
+            logger.info(f"Messages sent to LLM API:\n{messages}")
+            logger.info(f"Number of tokens / characters in payload:{num_tokens(messages_string)} / {len(messages_string)}")
 
         completion = await llm_client.chat.completions.create(**params)
 
