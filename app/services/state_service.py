@@ -68,6 +68,8 @@ class StateHandler:
                 return await messaging_client.handle_command_message(user, user_message)
             case ValidMessageType.CHAT:
                 return await messaging_client.handle_chat_message(user, user_message)
+            case ValidMessageType.OTHER:
+                return await messaging_client.handle_other_message(user, user_message)
 
 
 state_client = StateHandler()

@@ -64,6 +64,7 @@ async def handle_request(request: Request) -> JSONResponse:
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information and create/get user
     message_info = extract_message_info(body)
+
     message = extract_message(message_info.get("message", None))
 
     if not message:

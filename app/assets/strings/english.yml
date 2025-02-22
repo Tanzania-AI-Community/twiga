@@ -4,6 +4,7 @@ error:
   rate_limited: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Let's talk more tomorrow!"
   blocked: "Your account is currently blocked. Please contact support (dev@ai.or.tz) for assistance."
   no_available_subjects: "Sorry, there are no available subjects to choose from. Please contact support (dev@ai.or.tz) for assistance."
+  unsupported_message: "Sorry, I only understand textual messages."
 
 info:
   help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."

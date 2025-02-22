@@ -8,6 +8,7 @@ from app.utils.string_manager import strings, StringCategory
 from app.services.whatsapp_service import whatsapp_client
 import app.database.db as db
 from app.services.llm_service import llm_client
+import app.database.enums as enums
 
 
 class MessagingService:
@@ -59,7 +60,6 @@ class MessagingService:
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
-        # available_user_resources = await db.get_user_resources(user)
         llm_responses = await llm_client.generate_response(
             user=user, message=user_message
         )
@@ -79,6 +79,25 @@ class MessagingService:
             err_message = strings.get_string(StringCategory.ERROR, "general")
             await whatsapp_client.send_message(user.wa_id, err_message)
 
+        return JSONResponse(
+            content={"status": "ok"},
+            status_code=200,
+        )
+
+    async def handle_other_message(
+        self, user: models.User, user_message: models.Message
+    ) -> JSONResponse:
+        assert user.id is not None
+        message = models.Message(
+            user_id=user.id,
+            role=enums.MessageRole.assistant,
+            content=strings.get_string(StringCategory.ERROR, "unsupported_message"),
+        )
+        await db.create_new_message(message)
+        # Send message to the user
+        await whatsapp_client.send_message(
+            user.wa_id, strings.get_string(StringCategory.ERROR, "unsupported_message")
+        )
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
