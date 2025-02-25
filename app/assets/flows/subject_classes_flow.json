@@ -1,0 +1,425 @@
+{
+  "data_api_version": "3.0",
+  "version": "5.0",
+  "routing_model": {
+    "select_subjects_and_classes": []
+  },
+  "screens": [
+    {
+      "id": "select_subjects_and_classes",
+      "title": "Select Subjects and Classes",
+      "refresh_on_back": true,
+      "terminal": true,
+      "data": {
+        "subject1": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string"
+            },
+            "subject_title": {
+              "type": "string"
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "__example__": {
+            "subject_id": "1",
+            "subject_title": "Mathematics",
+            "classes": [
+              { "id": "101", "title": "Class 1" },
+              { "id": "102", "title": "Class 2" }
+            ]
+          }
+        },
+        "subject2": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string"
+            },
+            "subject_title": {
+              "type": "string"
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "__example__": {
+            "subject_id": "2",
+            "subject_title": "Science",
+            "classes": [
+              { "id": "201", "title": "Class 3" },
+              { "id": "202", "title": "Class 4" }
+            ]
+          }
+        },
+        "subject3": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string"
+            },
+            "subject_title": {
+              "type": "string"
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "__example__": {
+            "subject_id": "3",
+            "subject_title": "History",
+            "classes": [
+              { "id": "301", "title": "Class 5" },
+              { "id": "302", "title": "Class 6" }
+            ]
+          }
+        },
+        "subject4": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string"
+            },
+            "subject_title": {
+              "type": "string"
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "__example__": {
+            "subject_id": "4",
+            "subject_title": "Geography",
+            "classes": [
+              { "id": "401", "title": "Class 7" },
+              { "id": "402", "title": "Class 8" }
+            ]
+          }
+        },
+        "subject5": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string"
+            },
+            "subject_title": {
+              "type": "string"
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "__example__": {
+            "subject_id": "5",
+            "subject_title": "English",
+            "classes": [
+              { "id": "501", "title": "Class 9" },
+              { "id": "502", "title": "Class 10" }
+            ]
+          }
+        },
+        "subject6": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string"
+            },
+            "subject_title": {
+              "type": "string"
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "__example__": {
+            "subject_id": "6",
+            "subject_title": "Physics",
+            "classes": [
+              { "id": "601", "title": "Class 11" },
+              { "id": "602", "title": "Class 12" }
+            ]
+          }
+        },
+        "subject1_available": {
+          "type": "boolean",
+          "__example__": true
+        },
+        "subject2_available": {
+          "type": "boolean",
+          "__example__": true
+        },
+        "subject3_available": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "subject4_available": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "subject5_available": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "subject6_available": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "selected_classes_for_subject1": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["101"]
+        },
+        "selected_classes_for_subject2": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["201"]
+        },
+        "selected_classes_for_subject3": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": []
+        },
+        "selected_classes_for_subject4": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": []
+        },
+        "selected_classes_for_subject5": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": []
+        },
+        "selected_classes_for_subject6": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": []
+        },
+        "select_subject_text": {
+          "type": "string",
+          "__example__": "Please select the subjects and the classes you teach."
+        },
+        "no_subjects_text": {
+          "type": "string",
+          "__example__": "Sorry, there are no available subjects."
+        },
+        "subject1_label": {
+          "type": "string",
+          "__example__": "Classes for Mathematics"
+        },
+        "subject2_label": {
+          "type": "string",
+          "__example__": "Classes for Science"
+        },
+        "subject3_label": {
+          "type": "string",
+          "__example__": "Classes for History"
+        },
+        "subject4_label": {
+          "type": "string",
+          "__example__": "Classes for Geography"
+        },
+        "subject5_label": {
+          "type": "string",
+          "__example__": "Classes for English"
+        },
+        "subject6_label": {
+          "type": "string",
+          "__example__": "Classes for Physics"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Which subjects and classes do you teach?"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.select_subject_text}"
+          },
+          {
+            "type": "If",
+            "condition": "${data.subject1_available}",
+            "then": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_for_subject1",
+                "label": "${data.subject1_label}",
+                "required": false,
+                "data-source": "${data.subject1.classes}",
+                "init-value": "${data.selected_classes_for_subject1}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.subject2_available}",
+            "then": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_for_subject2",
+                "label": "${data.subject2_label}",
+                "required": false,
+                "data-source": "${data.subject2.classes}",
+                "init-value": "${data.selected_classes_for_subject2}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.subject3_available}",
+            "then": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_for_subject3",
+                "label": "${data.subject3_label}",
+                "required": false,
+                "data-source": "${data.subject3.classes}",
+                "init-value": "${data.selected_classes_for_subject3}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.subject4_available}",
+            "then": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_for_subject4",
+                "label": "${data.subject4_label}",
+                "required": false,
+                "data-source": "${data.subject4.classes}",
+                "init-value": "${data.selected_classes_for_subject4}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.subject5_available}",
+            "then": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_for_subject5",
+                "label": "${data.subject5_label}",
+                "required": false,
+                "data-source": "${data.subject5.classes}",
+                "init-value": "${data.selected_classes_for_subject5}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.subject6_available}",
+            "then": [
+              {
+                "type": "CheckboxGroup",
+                "name": "select_classes_for_subject6",
+                "label": "${data.subject6_label}",
+                "required": false,
+                "data-source": "${data.subject6.classes}",
+                "init-value": "${data.selected_classes_for_subject6}"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Complete",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "selected_classes_for_subject1": "${form.select_classes_for_subject1}",
+                "selected_classes_for_subject2": "${form.select_classes_for_subject2}",
+                "selected_classes_for_subject3": "${form.select_classes_for_subject3}",
+                "selected_classes_for_subject4": "${form.select_classes_for_subject4}",
+                "selected_classes_for_subject5": "${form.select_classes_for_subject5}",
+                "selected_classes_for_subject6": "${form.select_classes_for_subject6}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
