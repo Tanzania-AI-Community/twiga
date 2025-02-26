@@ -7,6 +7,8 @@ import backoff
 import openai
 from openai.types.chat import ChatCompletion
 from transformers import AutoTokenizer
+import huggingface_hub
+import os
 
 from app.config import llm_settings
 
@@ -28,6 +30,7 @@ def num_tokens(string: str, tokenizer_type: str = "openai") -> int:
         encoder = tiktoken.encoding_for_model(llm_settings.llm_model_name)
         return len(encoder.encode(string))
     elif llm_settings.tokenizer_type == "llama":
+        huggingface_hub.login(token=os.getenv("HF_TOKEN", ".env"))
         tokenizer = AutoTokenizer.from_pretrained(llm_settings.tokenizer_name)  
         logger.debug(f"Tokenizer: {tokenizer}")
         return len(tokenizer.tokenize(string))
@@ -63,9 +66,7 @@ async def async_llm_request(
         
         if verbose:
             messages = params.get("messages", None)
-            messages_string = json.dumps(messages, indent=2)       
-            logger.info(f"Messages sent to LLM API:\n{messages}")
-            logger.info(f"Number of tokens / characters in payload:{num_tokens(messages_string)} / {len(messages_string)}")
+            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")  
 
         completion = await llm_client.chat.completions.create(**params)
 

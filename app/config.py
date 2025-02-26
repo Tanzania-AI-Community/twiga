@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
+    
+    # Message limiting settings
+    message_character_limit: int = 65000 # in 
 
     # Database settings
     database_url: SecretStr
@@ -73,8 +76,6 @@ class Settings(BaseSettings):
         return False
     
 
-
-
 class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=os.getenv("TWIGA_ENV", ".env"),
@@ -97,12 +98,6 @@ class LLMSettings(BaseSettings):
         "gpt-4o_mini": "gpt-4o-mini",
     }
     
-    tokenizer_options: dict = {
-        "llama_405b": "meta-llama/Llama-3.1-405B",
-        "llama_70b": "meta-llama/Llama-3.1-70B-Instruct",
-        "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct",
-    }
-    
     llm_context_window_lengths: dict = {
         "llama_405b": 128000,  
         "llama_70b": 128000,     
@@ -123,8 +118,6 @@ class LLMSettings(BaseSettings):
     """
     ai_provider: Literal["together", "openai"] = "openai"
     llm_model_name: str = llm_model_options["gpt-4o_mini"]
-    tokenizer_type: Literal["openai", "llama"] = "llama"
-    tokenizer_name: str = tokenizer_options["llama_3_3_70b"]
     exercise_generator_model: str = llm_model_options["gpt-4o_mini"]
     embedding_model: str = embedder_model_options["text-embedding-3-small"]
 

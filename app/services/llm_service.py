@@ -11,7 +11,7 @@ import pprint
 
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.config import llm_settings
+from app.config import llm_settings, settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
@@ -219,9 +219,7 @@ class LLMClient:
 
         async with processor.lock:
             while True:
-                try:
-                    
-                    self.logger.debug(f"Processing messages for {user.wa_id}")                    
+                try:                 
                     messages_to_process = processor.get_pending_messages()
                     original_count = len(messages_to_process)
                     if not messages_to_process:
@@ -239,11 +237,23 @@ class LLMClient:
                     api_messages = self._format_messages(
                         messages_to_process, history, user
                     )
-                    # self.logger.debug(f"Initial messages:\n {api_messages}")
+                
                     self.logger.debug(
                         "Initial messages:\n%s",
                         pprint.pformat(api_messages, indent=2, width=160),
                     )
+                    
+                    # if len(api_messages) > settings.message_character_limit:
+                    if len(api_messages) > 10:
+                        return [
+                            Message(
+                                user_id=user.id,
+                                role=MessageRole.system,
+                                content=strings.get_string(
+                                    StringCategory.ERROR, "message_too_long"
+                                ),
+                            )
+                        ]
 
                     # 2. Call the LLM with tools enabled
                     self.logger.debug(f"Initiating LLM request")
