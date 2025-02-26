@@ -23,21 +23,6 @@ if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
 elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
     llm_client = openai.AsyncOpenAI(api_key=llm_settings.llm_api_key.get_secret_value())
 
-def num_tokens(string: str, tokenizer_type: str = "openai") -> int:
-    """This returns the number of tokens in a text string with either OpenAI's tiktoken or Meta's LLama tokenizer."""
-    
-    if llm_settings.tokenizer_type == "openai":
-        encoder = tiktoken.encoding_for_model(llm_settings.llm_model_name)
-        return len(encoder.encode(string))
-    elif llm_settings.tokenizer_type == "llama":
-        huggingface_hub.login(token=os.getenv("HF_TOKEN", ".env"))
-        tokenizer = AutoTokenizer.from_pretrained(llm_settings.tokenizer_name)  
-        logger.debug(f"Tokenizer: {tokenizer}")
-        return len(tokenizer.tokenize(string))
-    else:
-        raise ValueError("Invalid tokenizer type - see config.py for valid options.")
-    
-
 
 @backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=7, max_time=45)
 async def async_llm_request(

@@ -232,8 +232,6 @@ class LLMClient:
                     self.logger.debug(f"Retrieving user message history")
                     history = await get_user_message_history(user.id)
 
-                
-                    # TODO: Check for token count and cutoff if necessary
                     api_messages = self._format_messages(
                         messages_to_process, history, user
                     )
@@ -243,18 +241,20 @@ class LLMClient:
                         pprint.pformat(api_messages, indent=2, width=160),
                     )
                     
-                    # if len(api_messages) > settings.message_character_limit:
-                    if len(api_messages) > 10:
+                    message_lengths = [len(entry["content"]) for entry in api_messages]
+                    self.logger.debug(f"Total number of characters in user API messages: {sum(message_lengths)}")
+                    
+                    # TODO: Issue #92: Optimizing chat history usage & context window input
+                    if message_lengths[-1] > settings.message_character_limit:
+                        self.logger.error(f"Last message exceeded character limit for user {user.wa_id}"
+                        )
                         return [
                             Message(
                                 user_id=user.id,
                                 role=MessageRole.system,
-                                content=strings.get_string(
-                                    StringCategory.ERROR, "message_too_long"
-                                ),
-                            )
+                                content="I'm sorry, I can't process messages that long. Please try sending shorter messages.")
                         ]
-
+                        
                     # 2. Call the LLM with tools enabled
                     self.logger.debug(f"Initiating LLM request")
                     initial_response = await async_llm_request(

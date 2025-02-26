@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     whatsapp_api_token: SecretStr
     
     # Message limiting settings
-    message_character_limit: int = 65000 # in 
+    message_character_limit: int = 65000
 
     # Database settings
     database_url: SecretStr
@@ -96,15 +96,6 @@ class LLMSettings(BaseSettings):
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
         "gpt-4o": "gpt-4o",
         "gpt-4o_mini": "gpt-4o-mini",
-    }
-    
-    llm_context_window_lengths: dict = {
-        "llama_405b": 128000,  
-        "llama_70b": 128000,     
-        "llama_3_3_70b": 128000, 
-        "mixtral": 32000,      
-        "gpt-4o": 128000,    
-        "gpt-4o_mini": 128000
     }
 
     embedder_model_options: dict = {
