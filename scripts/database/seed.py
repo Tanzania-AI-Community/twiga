@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 import json
 from pathlib import Path
 from sqlmodel import text
-from sqlmodel import SQLModel, select
+from sqlmodel import select
 import logging
 from typing import List, Dict, Any
 import yaml
@@ -26,8 +26,11 @@ async def reset_db():
     try:
         engine = create_async_engine(get_database_url())
         async with engine.begin() as conn:
-            logger.info("Dropping all existing tables...")
-            await conn.run_sync(SQLModel.metadata.drop_all)
+            logger.info("Dropping all tables and dependencies with CASCADE...")
+
+            # Drop schema and recreate it
+            await conn.execute(text("DROP SCHEMA public CASCADE;"))
+            await conn.execute(text("CREATE SCHEMA public;"))
 
             # Drop alembic_version table
             logger.info("Dropping alembic_version table...")
