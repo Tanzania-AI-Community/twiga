@@ -6,9 +6,6 @@ import tiktoken
 import backoff
 import openai
 from openai.types.chat import ChatCompletion
-from transformers import AutoTokenizer
-import huggingface_hub
-import os
 
 from app.config import llm_settings
 
