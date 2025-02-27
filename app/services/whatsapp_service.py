@@ -8,7 +8,7 @@ import httpx
 from app.config import settings
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import generate_payload
-
+from app.config import settings
 
 class WhatsAppClient:
     def __init__(self):
@@ -23,6 +23,10 @@ class WhatsAppClient:
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
+        
+        if settings.mock_whatsapp:
+            return
+           
         try:
             payload: Dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(

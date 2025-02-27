@@ -72,6 +72,14 @@ async def webhook_post(request: Request) -> JSONResponse:
 
     return await handle_request(request)
 
+@app.post("/devhooks")
+async def webhook_post(request: Request) -> JSONResponse:
+    logger.debug("devhooks_post is being called")
+
+    if not settings.mock_whatsapp:
+        return {"message": "mock whatsapp is disabled"}
+    return await handle_request(request)
+
 
 @app.post("/flows", dependencies=[Depends(flows_signature_required)])
 async def handle_flows_webhook(

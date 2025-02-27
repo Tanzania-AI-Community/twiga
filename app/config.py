@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
 
+    # WhatsApp mock
+    mock_whatsapp: bool = False
+
     # Database settings
     database_url: SecretStr
 
