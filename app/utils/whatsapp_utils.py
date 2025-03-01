@@ -18,6 +18,8 @@ from app.models.message_models import (
     ListAction,
 )
 
+from app.config import settings
+
 
 class RequestType(Enum):
     FLOW_EVENT = auto()
@@ -186,6 +188,8 @@ def extract_message_info(body: dict) -> dict:
 
 
 def is_message_outdated(message_timestamp: int) -> bool:
+    if settings.mock_whatsapp:
+        return False
     current_timestamp = int(datetime.now().timestamp())
     return current_timestamp - message_timestamp >= 10
 
