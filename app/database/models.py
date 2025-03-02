@@ -237,7 +237,7 @@ class Message(SQLModel, table=True):
     @classmethod
     def from_api_format(cls, data: dict, user_id: int) -> "Message":
         """Create message from OpenAI API format"""
-        
+
         tool_calls = data.get("tool_calls")
         if data["tool_calls"] is None or len(data["tool_calls"]) == 0:
             tool_calls = None

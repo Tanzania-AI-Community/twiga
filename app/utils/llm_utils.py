@@ -1,8 +1,6 @@
-from typing import List
 import json
 import logging
 
-import tiktoken
 import backoff
 import openai
 from openai.types.chat import ChatCompletion
@@ -45,10 +43,10 @@ async def async_llm_request(
     try:
         assert llm_client is not None, "LLM client is not initialized"
         # Print messages if the flag is True
-        
+
         if verbose:
             messages = params.get("messages", None)
-            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")  
+            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
 
         completion = await llm_client.chat.completions.create(**params)
 

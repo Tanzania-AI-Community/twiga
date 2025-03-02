@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     whatsapp_cloud_number_id: str
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
-    
+
     # Message limiting settings
     message_character_limit: int = 65000
 
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return v.lower() in ("true", "True")
         return False
-    
+
 
 class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
