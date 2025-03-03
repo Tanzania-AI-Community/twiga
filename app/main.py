@@ -34,6 +34,12 @@ async def lifespan(app: FastAPI):
             await init_redis()
             logger.info("Redis initialized successfully ✅")
 
+        # CHECK if we starting with a mock whatsapp
+        if settings.mock_whatsapp:
+            logger.warning("Starting with mock whatsapp enabled ⚠️")
+        else:
+            logger.info("Starting with mock whatsapp disabled")
+
         logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:
@@ -72,12 +78,14 @@ async def webhook_post(request: Request) -> JSONResponse:
 
     return await handle_request(request)
 
+
 @app.post("/devhooks")
-async def webhook_post(request: Request) -> JSONResponse:
+async def devhooks_post(request: Request) -> JSONResponse:
     logger.debug("devhooks_post is being called")
 
     if not settings.mock_whatsapp:
-        return {"message": "mock whatsapp is disabled"}
+        logger.warning("mock whatsapp is disabled")
+        return JSONResponse(content={"message": "mock whatsapp is disabled"})
     return await handle_request(request)
 
 
