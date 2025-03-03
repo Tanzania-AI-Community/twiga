@@ -248,13 +248,15 @@ class LLMClient:
                     # TODO: Issue #92: Optimizing chat history usage & context window input
                     if message_lengths[-1] > settings.message_character_limit:
                         self.logger.error(
-                            f"Last message exceeded character limit for user {user.wa_id}"
+                            f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
                         )
                         return [
                             Message(
                                 user_id=user.id,
                                 role=MessageRole.system,
-                                content="I'm sorry, I can't process messages that long. Please try sending shorter messages.",
+                                content=strings.get_string(
+                                    StringCategory.ERROR, "character_limit_exceeded"
+                                ),
                             )
                         ]
 
@@ -267,7 +269,7 @@ class LLMClient:
                             available_classes=json.dumps(user.class_name_to_id_map)
                         ),
                         tool_choice="auto",
-                        verbose=True,
+                        verbose=False,
                     )
 
                     self.logger.debug(

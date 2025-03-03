@@ -46,7 +46,7 @@ async def async_llm_request(
 
         if verbose:
             messages = params.get("messages", None)
-            logger.info(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
+            logger.debug(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
 
         completion = await llm_client.chat.completions.create(**params)
 

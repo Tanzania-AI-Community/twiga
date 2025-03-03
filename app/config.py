@@ -107,10 +107,11 @@ class LLMSettings(BaseSettings):
     XXX: FILL YOUR AI PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
      - make sure your choice of LLM, embedder, and ai_provider are compatible
     """
-    ai_provider: Literal["together", "openai"] = "openai"
-    llm_model_name: str = llm_model_options["gpt-4o_mini"]
-    exercise_generator_model: str = llm_model_options["gpt-4o_mini"]
-    embedding_model: str = embedder_model_options["text-embedding-3-small"]
+
+    ai_provider: Literal["together", "openai"] = "together"
+    llm_model_name: str = llm_model_options["llama_3_3_70b"]
+    exercise_generator_model: str = llm_model_options["llama_70b"]
+    embedding_model: str = embedder_model_options["bge-large"]
 
 
 def initialize_settings():
