@@ -2,16 +2,41 @@
   "data_api_version": "3.0",
   "version": "5.0",
   "routing_model": {
-    "personal_info": ["school_info"]
+    "personal_info": []
   },
   "screens": [
     {
       "id": "personal_info",
-      "title": "Personal Information",
+      "terminal": true,
+      "title": "Onboarding Form",
       "data": {
         "full_name": {
           "type": "string",
-          "__example__": "Your Name"
+          "__example__": "User Name"
+        },
+        "region": {
+          "type": "string",
+          "__example__": "Your Region"
+        },
+        "birthday": {
+          "type": "string",
+          "__example__": "1990-01-01"
+        },
+        "is_updating": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "min_date": {
+          "type": "string",
+          "__example__": "1905-01-01"
+        },
+        "max_date": {
+          "type": "string",
+          "__example__": "2024-11-08"
+        },
+        "school_name": {
+          "type": "string",
+          "__example__": "Your School Name"
         }
       },
       "layout": {
@@ -32,79 +57,105 @@
             "text": "What should Twiga call you?"
           },
           {
-            "type": "TextInput",
-            "name": "personal_info_full_name",
-            "label": "Full Name",
-            "required": true,
-            "input-type": "text",
-            "helper-text": "",
-            "init-value": "${data.full_name}"
-          },
-          {
-            "type": "TextBody",
-            "text": "What is your birthday?"
-          },
-          {
-            "type": "DatePicker",
-            "label": "Birthday",
-            "required": false,
-            "name": "personal_info_birthday"
-          },
-          {
-            "type": "TextBody",
-            "text": "Where are you located?"
-          },
-          {
-            "type": "TextInput",
-            "label": "Location",
-            "name": "personal_info_location",
-            "required": false,
-            "input-type": "text"
-          },
-          {
-            "type": "Footer",
-            "label": "Continue",
-            "on-click-action": {
-              "name": "navigate",
-              "next": {
-                "type": "screen",
-                "name": "school_info"
+            "type": "If",
+            "condition": "${data.is_updating}",
+            "then": [
+              {
+                "type": "TextInput",
+                "name": "update_full_name",
+                "label": "Full Name",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "",
+                "init-value": "${data.full_name}"
               },
-              "payload": {}
-            }
-          }
-        ]
-      }
-    },
-    {
-      "id": "school_info",
-      "title": "School Information",
-      "data": {},
-      "terminal": true,
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "TextBody",
-            "text": "What's the name of the school you teach?"
-          },
-          {
-            "type": "TextInput",
-            "name": "school_info_personal_birthday",
-            "label": "School Name",
-            "required": false,
-            "input-type": "text"
-          },
-          {
-            "type": "TextBody",
-            "text": "Where is the school located?"
-          },
-          {
-            "type": "TextInput",
-            "label": "School Location",
-            "name": "school_info_school_location",
-            "required": false,
-            "input-type": "text"
+              {
+                "type": "TextBody",
+                "text": "What is your birthday?"
+              },
+              {
+                "type": "DatePicker",
+                "label": "Birthday",
+                "required": false,
+                "name": "update_birthday",
+                "init-value": "${data.birthday}",
+                "min-date": "${data.min_date}",
+                "max-date": "${data.max_date}"
+              },
+              {
+                "type": "TextBody",
+                "text": "What region are you in?"
+              },
+              {
+                "type": "TextInput",
+                "label": "Region",
+                "name": "update_region",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "",
+                "init-value": "${data.region}"
+              },
+              {
+                "type": "TextBody",
+                "text": "What is the name of your school?"
+              },
+              {
+                "type": "TextInput",
+                "label": "School Name",
+                "name": "update_school_name",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "",
+                "init-value": "${data.school_name}"
+              }
+            ],
+            "else": [
+              {
+                "type": "TextInput",
+                "name": "full_name",
+                "label": "Full Name",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "",
+                "init-value": "${data.full_name}"
+              },
+              {
+                "type": "TextBody",
+                "text": "What is your birthday?"
+              },
+              {
+                "type": "DatePicker",
+                "label": "Birthday",
+                "required": false,
+                "name": "birthday",
+                "min-date": "${data.min_date}",
+                "max-date": "${data.max_date}"
+              },
+              {
+                "type": "TextBody",
+                "text": "What region are you in?"
+              },
+              {
+                "type": "TextInput",
+                "label": "Region",
+                "name": "region",
+                "required": true,
+                "input-type": "text",
+                "helper-text": ""
+              },
+              {
+                "type": "TextBody",
+                "text": "What is the name of your school?"
+              },
+              {
+                "type": "TextInput",
+                "label": "School Name",
+                "name": "school_name",
+                "required": true,
+                "input-type": "text",
+                "helper-text": ""
+              }
+            ]
           },
           {
             "type": "Footer",
@@ -112,11 +163,15 @@
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
-                "personal_info_full_name": "${screen.personal_info.form.personal_info_full_name}",
-                "personal_info_birthday": "${screen.personal_info.form.personal_info_birthday}",
-                "personal_info_location": "${screen.personal_info.form.personal_info_location}",
-                "school_info_personal_birthday": "${form.school_info_personal_birthday}",
-                "school_info_school_location": "${form.school_info_school_location}"
+                "full_name": "${form.full_name}",
+                "birthday": "${form.birthday}",
+                "region": "${form.region}",
+                "update_full_name": "${form.update_full_name}",
+                "update_birthday": "${form.update_birthday}",
+                "update_region": "${form.update_region}",
+                "school_name": "${form.school_name}",
+                "update_school_name": "${form.update_school_name}",
+                "is_updating": "${data.is_updating}"
               }
             }
           }
