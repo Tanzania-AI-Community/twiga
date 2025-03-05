@@ -79,7 +79,8 @@
       "profile": "https://github.com/alvaro-mazcu",
       "contributions": [
         "code",
-        "doc"
+        "doc",
+        "test"
       ]
     },
     {
@@ -89,6 +90,19 @@
       "profile": "https://github.com/wjunwei2001",
       "contributions": [
         "code"
+      ]
+    },
+    {
+      "login": "iamrobzy",
+      "name": "Robert",
+      "avatar_url": "https://avatars.githubusercontent.com/u/60611384?v=4",
+      "profile": "https://iamrobzy.github.io/",
+      "contributions": [
+        "code",
+        "ideas",
+        "mentoring",
+        "projectManagement",
+        "question"
       ]
     }
   ]

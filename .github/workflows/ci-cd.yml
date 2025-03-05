@@ -21,8 +21,36 @@ jobs:
     secrets:
       GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY}}
 
-  deploy-dev:
+  tests:
     needs: [pre-commit, gitguardian]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install --no-cache-dir pytest pytest-asyncio
+
+      - name: Run tests
+        env:
+          META_API_VERSION: ${{ secrets.META_API_VERSION }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WHATSAPP_CLOUD_NUMBER_ID: ${{ secrets.WHATSAPP_CLOUD_NUMBER_ID }}
+          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          WHATSAPP_API_TOKEN: ${{ secrets.WHATSAPP_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: PYTHONPATH=. pytest -v tests/
+
+  deploy-dev:
+    needs: [tests]
     if: github.ref == 'refs/heads/development' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
     runs-on: ubuntu-latest
     environment: development
@@ -34,7 +62,7 @@ jobs:
           curl "$deploy_url"
 
   deploy-prod:
-    needs: [pre-commit, gitguardian]
+    needs: [tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'Tanzania-AI-Community/twiga'
     runs-on: ubuntu-latest
     environment: production

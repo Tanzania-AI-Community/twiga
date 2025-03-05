@@ -45,6 +45,7 @@ This project follows a slightly modified GitFlow workflow to ensure stability an
 
    - Perform final testing and bug fixes on the release branch.
    - Update version numbers and changelog.
+   - (POSSIBLY) Update .all-contributors and have the PR go to the development branch
 
 4. **Production Release**
 
