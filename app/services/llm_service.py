@@ -11,7 +11,7 @@ import pprint
 
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.config import llm_settings
+from app.config import llm_settings, settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
@@ -228,19 +228,40 @@ class LLMClient:
                         return None
 
                     # 1. Build the API messages from DB history + new messages
+                    self.logger.debug("Retrieving user message history")
                     history = await get_user_message_history(user.id)
 
-                    # TODO: Check for token count and cutoff if necessary
                     api_messages = self._format_messages(
                         messages_to_process, history, user
                     )
-                    # self.logger.debug(f"Initial messages:\n {api_messages}")
+
                     self.logger.debug(
                         "Initial messages:\n%s",
                         pprint.pformat(api_messages, indent=2, width=160),
                     )
 
+                    message_lengths = [len(entry["content"]) for entry in api_messages]
+                    self.logger.debug(
+                        f"Total number of characters in user API messages: {sum(message_lengths)}"
+                    )
+
+                    # TODO: Issue #92: Optimizing chat history usage & context window input
+                    if message_lengths[-1] > settings.message_character_limit:
+                        self.logger.error(
+                            f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
+                        )
+                        return [
+                            Message(
+                                user_id=user.id,
+                                role=MessageRole.system,
+                                content=strings.get_string(
+                                    StringCategory.ERROR, "character_limit_exceeded"
+                                ),
+                            )
+                        ]
+
                     # 2. Call the LLM with tools enabled
+                    self.logger.debug("Initiating LLM request")
                     initial_response = await async_llm_request(
                         model=llm_settings.llm_model_name,
                         messages=api_messages,
@@ -248,12 +269,17 @@ class LLMClient:
                             available_classes=json.dumps(user.class_name_to_id_map)
                         ),
                         tool_choice="auto",
+                        verbose=False,
                     )
+
+                    self.logger.debug(
+                        f"LLM response:\n {initial_response.choices[0].message.model_dump()}"
+                    )
+                    self.logger.debug("Formatting LLM response")
 
                     initial_message = Message.from_api_format(
                         initial_response.choices[0].message.model_dump(), user.id
                     )
-                    self.logger.debug(f"LLM response:\n {initial_message}")
 
                     # Track new messages
                     new_messages = [initial_message]

@@ -156,7 +156,7 @@ class WhatsAppClient:
         """
         self.logger.error(f"Received an invalid WhatsApp message: {body}")
         return JSONResponse(
-            content={"status": "error", "message": "Not a WhatsApp API event"},
+            content={"status": "error", "message": "Not a valid WhatsApp API event"},
             status_code=404,
         )
 
