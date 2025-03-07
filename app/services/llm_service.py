@@ -240,7 +240,10 @@ class LLMClient:
                         pprint.pformat(api_messages, indent=2, width=160),
                     )
 
-                    message_lengths = [len(entry["content"]) for entry in api_messages]
+                    message_lengths = [
+                        0 if entry["content"] is None else len(entry["content"])
+                        for entry in api_messages
+                    ]
                     self.logger.debug(
                         f"Total number of characters in user API messages: {sum(message_lengths)}"
                     )
