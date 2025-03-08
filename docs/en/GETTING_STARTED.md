@@ -4,7 +4,7 @@
 
 # 🐣 Getting Started Guide
 
-If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
+If you want to run Twiga on your own computer (and even test your own version of the chatbot) this is the guide for you.
 
 > [!Note]
 >
@@ -37,7 +37,7 @@ Start by creating a `.env` file in the main directory of Twiga and copy-paste th
 
 In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. However, it's not necessary to use Neon and Render, as these can be replaced with a 'local' version. However, you're welcome to test them out if you want since they offer quite generous free versions. With that said, you should start off by creating a Meta API account.
 
-### Meta Account
+### Meta Account (Optional if using Mock WhatsApp)
 
 1. Create a Meta developer account [here](https://developers.facebook.com/)
 
@@ -74,6 +74,33 @@ You can then, within the Dashboard, add your phone number as a recipient phone n
 > [!Warning]
 >
 > You need to reply to this template message in your phone so that the bot is allowed to send you messages other than template messages.
+
+### Mock WhatsApp (Quick Setup for Development Purposes Only)
+
+If you want a quick setup and avoid using a Meta API account, you can use the mock WhatsApp API. Follow these steps:
+
+1. Clone the mock WhatsApp repository:
+
+```bash
+git clone https://github.com/Tanzania-AI-Community/mock-whatsapp.git
+```
+
+2. Navigate to the mock WhatsApp directory and read the `.env.template` file to add the required environment variables.
+
+3. Follow the README instructions in the mock WhatsApp repository to install dependencies and start the server.
+
+4. Set the `MOCK_WHATSAPP` variable to `True` in your `.env` file for this repository:
+
+5. Set the `BUSINESS_ENV` variable to `False` in your `.env` file for this repository:
+
+```bash
+MOCK_WHATSAPP=True
+BUSINESS_ENV=False
+```
+
+> [!Note]
+>
+> This setup is for development purposes only and is a workaround. Expect some issues.
 
 ## 🪝 Configure webhooks with [Ngrok](https://ngrok.com/)
 

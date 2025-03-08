@@ -23,6 +23,10 @@ class WhatsAppClient:
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
+
+        if settings.mock_whatsapp:
+            return
+
         try:
             payload: Dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
