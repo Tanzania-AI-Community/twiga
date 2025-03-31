@@ -69,11 +69,48 @@ echo "Committing changes..."
 if git status --porcelain | grep -q -E '\.all-contributorsrc|README\.md'; then
     echo "Contributors were updated. Adding files to commit..."
     git add pyproject.toml .all-contributorsrc README.md
-    git commit -m "chore: bump version to ${VERSION} and update contributors"
+    COMMIT_MSG="chore: bump version to ${VERSION} and update contributors"
 else
     # If no contributor changes, just commit the version bump
     git add pyproject.toml
-    git commit -m "chore: bump version to ${VERSION}"
+    COMMIT_MSG="chore: bump version to ${VERSION}"
+fi
+
+# Handle commits with potential pre-commit hook modifications
+MAX_ATTEMPTS=5
+ATTEMPT=1
+COMMIT_SUCCESS=false
+
+while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ "$COMMIT_SUCCESS" != "true" ]; do
+    echo "Commit attempt $ATTEMPT of $MAX_ATTEMPTS..."
+
+    # Temporarily disable exit on error for commit operation
+    set +e
+    git commit -m "${COMMIT_MSG}"
+    COMMIT_STATUS=$?
+    set -e
+
+    # Check if there are any uncommitted changes (from pre-commit hooks)
+    if [ $COMMIT_STATUS -eq 0 ] && [ -z "$(git status --porcelain)" ]; then
+        # Commit succeeded and no files were modified by pre-commit hooks
+        COMMIT_SUCCESS=true
+        echo "Commit successful on attempt $ATTEMPT."
+    elif [ -n "$(git status --porcelain)" ]; then
+        # Files were modified by pre-commit hooks
+        echo "Pre-commit hooks modified files on attempt $ATTEMPT. Adding changes and trying again..."
+        git add -A
+        ATTEMPT=$((ATTEMPT + 1))
+    else
+        # Commit failed but no files were modified
+        echo "Commit failed on attempt $ATTEMPT but no files were modified by pre-commit hooks."
+        exit $COMMIT_STATUS
+    fi
+done
+
+if [ "$COMMIT_SUCCESS" != "true" ]; then
+    echo "Failed to commit changes. Please check your pre-commit hooks."
+    echo "You may need to complete the release process manually."
+    exit 1
 fi
 
 # 6. Push branch to remote
