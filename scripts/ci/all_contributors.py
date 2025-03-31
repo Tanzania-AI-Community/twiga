@@ -372,6 +372,16 @@ def main():
         help="Number of contributors per line in the table",
     )
 
+    # 'update' command
+    subparsers.add_parser(
+        "update", help="Update the README.md with the current contributors"
+    )
+
+    # 'interactive' command
+    subparsers.add_parser(
+        "interactive", help="Interactive mode to add contributors with prompts"
+    )
+
     args = parser.parse_args()
 
     if args.command == "init":
