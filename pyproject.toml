@@ -41,5 +41,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages]
 find = { include = ["app", "scripts"] }
 
+[tool.uv]
+dev-dependencies = [
+    "requests>=2.32.3",
+]
+
 [project.scripts]
 all-contributors = "scripts.ci.all_contributors:main"

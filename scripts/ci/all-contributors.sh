@@ -20,8 +20,10 @@ fi
 
 # Check if the required Python packages are installed
 if ! python3 -c "import requests" &> /dev/null; then
-    echo "Installing required Python packages..."
-    pip3 install requests
+    echo "Error: The 'requests' Python package is required but not installed."
+    echo "To install: uv sync"
+    echo "To install in development mode: uv add -e requests"
+    exit 1
 fi
 
 # Make sure the Python script is executable

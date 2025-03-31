@@ -66,7 +66,7 @@ fi
 # 5. Commit changes
 echo "Committing changes..."
 # Check if .all-contributorsrc or README.md were modified
-if git status --porcelain | grep -q -E '\.all-contributorsrc|README\.md'; then
+if [[ "$CONTRIBUTORS_UPDATED" = true ]] || git status --porcelain | grep -q -E '\.all-contributorsrc|README\.md'; then
     echo "Contributors were updated. Adding files to commit..."
     git add pyproject.toml .all-contributorsrc README.md
     COMMIT_MSG="chore: bump version to ${VERSION} and update contributors"
@@ -108,7 +108,7 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ "$COMMIT_SUCCESS" != "true" ]; do
 done
 
 if [ "$COMMIT_SUCCESS" != "true" ]; then
-    echo "Failed to commit changes. Please check your pre-commit hooks."
+    echo "Failed to commit changes after $MAX_ATTEMPTS attempts. Please check your pre-commit hooks."
     echo "You may need to complete the release process manually."
     exit 1
 fi
