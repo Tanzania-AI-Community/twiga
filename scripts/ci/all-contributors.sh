@@ -21,7 +21,7 @@ fi
 # Check if the required Python packages are installed
 if ! python3 -c "import requests" &> /dev/null; then
     echo "Installing required Python packages..."
-    pip install requests
+    pip3 install requests
 fi
 
 # Make sure the Python script is executable
