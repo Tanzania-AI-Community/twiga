@@ -22,7 +22,7 @@ fi
 if ! python3 -c "import requests" &> /dev/null; then
     echo "Error: The 'requests' Python package is required but not installed."
     echo "To install: uv sync"
-    echo "To install in development mode: uv add -e requests"
+    echo "Also, make sure you're in your virtual environment with source .venv/bin/activate"
     exit 1
 fi
 
