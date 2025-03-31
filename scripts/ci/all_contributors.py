@@ -266,6 +266,73 @@ def update_readme(config: Dict[str, Any]) -> None:
         print(f"Updated contributors section in {file_path}")
 
 
+def prompt_for_contributions() -> None:
+    """Interactive mode to add contributors with prompts"""
+    print("\n Let's Add New Contributors 🌟")
+    print("----------------------------------------")
+
+    more_contributors = True
+    while more_contributors:
+        # Get username
+        username = input("\n📝 Enter GitHub username: ").strip()
+        if not username:
+            print("Username cannot be empty. Skipping.")
+            continue
+
+        # Display available contribution types with emojis
+        print("\nAvailable contribution types:")
+        for i, contrib_type in enumerate(VALID_CONTRIBUTION_TYPES):
+            emoji = CONTRIBUTION_TYPE_EMOJI.get(contrib_type, "")
+            print(f"  {i+1:2d}. {contrib_type:20s} {emoji}")
+
+        # Get contributions
+        print("\n✨ Enter contribution types (comma-separated numbers or names):")
+        contrib_input = input("> ").strip()
+
+        # Process contribution input
+        contributions = []
+        for item in contrib_input.split(","):
+            item = item.strip()
+            if item.isdigit() and 1 <= int(item) <= len(VALID_CONTRIBUTION_TYPES):
+                # Input is a number
+                contributions.append(VALID_CONTRIBUTION_TYPES[int(item) - 1])
+            elif item in VALID_CONTRIBUTION_TYPES:
+                # Input is a valid contribution type
+                contributions.append(item)
+            elif item:
+                print(
+                    f"⚠️  Warning: '{item}' is not a valid contribution type. Skipping."
+                )
+
+        if not contributions:
+            print("❌ No valid contributions specified. Please try again.")
+            continue
+
+        # Confirm selections
+        print(f"\n✅ Adding {username} with contributions:")
+        for contrib in contributions:
+            emoji = CONTRIBUTION_TYPE_EMOJI.get(contrib, "")
+            print(f"  - {contrib} {emoji}")
+
+        confirm = input("\nIs this correct? (y/n): ").lower().strip()
+        if confirm == "y" or confirm == "yes":
+            # Add the contributor
+            config = load_config()
+            config = add_contributor(config, username, contributions)
+            save_config(config)
+            update_readme(config)
+            print(f"🎉 Successfully added/updated contributor: {username}")
+        else:
+            print("Cancelled. Let's try again.")
+            continue
+
+        # Ask if user wants to add more contributors
+        more = input("\nAdd another contributor? (y/n): ").lower().strip()
+        more_contributors = more == "y" or more == "yes"
+
+    print("\n✨ All contributors have been added! ✨")
+
+
 def main():
     """Main function to parse arguments and execute the script"""
     parser = argparse.ArgumentParser(
@@ -305,11 +372,6 @@ def main():
         help="Number of contributors per line in the table",
     )
 
-    # # 'update' command
-    # update_parser = subparsers.add_parser(
-    #     "update", help="Update the README.md with the current contributors"
-    # )
-
     args = parser.parse_args()
 
     if args.command == "init":
@@ -343,6 +405,10 @@ def main():
         config = load_config()
         update_readme(config)
         print("Updated README.md with current contributors")
+
+    elif args.command == "interactive":
+        # Run interactive mode
+        prompt_for_contributions()
 
     else:
         parser.print_help()
