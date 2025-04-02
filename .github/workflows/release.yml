@@ -1,0 +1,107 @@
+name: Release Pipeline
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - development
+
+jobs:
+  auto-merge-to-main:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+      - name: Extract version
+        id: extract-version
+        run: |
+          VERSION="${{ github.event.pull_request.head.ref }}"
+          VERSION=${VERSION#release/}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Directly merge development to main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the current development branch
+          git fetch origin development
+          git checkout development
+
+          # Get the main branch
+          git fetch origin main
+          git checkout main
+
+          # Merge development into main
+          git merge --no-ff origin/development -m "Merge development into main for release ${VERSION}"
+
+          # Push changes to main
+          git push origin main
+
+      - name: Generate Changelog
+        id: changelog
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.extract-version.outputs.VERSION }}
+        run: |
+          # Determine the previous tag to compare against
+          PREVIOUS_TAG=$(git tag -l | sort -V | tail -n 1 || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # If no previous tag exists, use the first commit
+            RANGE=$(git rev-list --max-parents=0 HEAD)..HEAD
+          else
+            RANGE="${PREVIOUS_TAG}..HEAD"
+          fi
+
+          # Generate changelog content
+          echo "# Changelog for Release ${VERSION}" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## Changes" >> CHANGELOG.md
+
+          # List all merged PRs
+          git log ${RANGE} --pretty=format:"* %s %h" --merges | grep -i "pull request" >> CHANGELOG.md
+
+          # Add individual commits that aren't merges
+          echo "" >> CHANGELOG.md
+          echo "## Commits" >> CHANGELOG.md
+          git log ${RANGE} --pretty=format:"* %s %h" --no-merges >> CHANGELOG.md
+
+          # Save changelog content for the release
+          CHANGELOG_CONTENT=$(cat CHANGELOG.md)
+          echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release Tag
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.extract-version.outputs.VERSION }}
+          CHANGELOG_CONTENT: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
+        run: |
+          # Create and push tag
+          git fetch origin main
+          git checkout main
+          git pull origin main
+          git tag v${VERSION}
+          git push origin v${VERSION}
+
+          # Create GitHub Release with changelog
+          gh release create v${VERSION} \
+            --title "Release ${VERSION}" \
+            --notes "${CHANGELOG_CONTENT}"
