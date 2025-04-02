@@ -8,7 +8,7 @@ If you want to run Twiga on your own computer (and even test your own version of
 
 > [!Note]
 >
-> We're looking into the possibility of running and trying out Twiga without a Meta API Account. For now, the long way is the only way 😬
+> For a simpler setup with mock WhatsApp, please follow the instructions in [MOCK_WHATSAPP_GETTING_STARTED.md](./MOCK_WHATSAPP_GETTING_STARTED.md).
 
 ## Setup the virtual environment and download dependencies
 
@@ -27,7 +27,7 @@ The dependencies should now be installed and your shell environment should be se
 
 ## 🤫 Create a `.env`
 
-Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it. Remove the comments and whitespace. The template should be quite self-explanatory. The rest of this document will help you fill out the `.env` file with your own values to get a running version of Twiga.
+Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it (or use `.env.template.simple` for a more streamlined setup). Remove the comments and whitespace. The template should be quite self-explanatory. The rest of this document will help you fill out the `.env` file with your own values to get a running version of Twiga.
 
 ## 👾 Setup Prerequisites
 
@@ -74,33 +74,6 @@ You can then, within the Dashboard, add your phone number as a recipient phone n
 > [!Warning]
 >
 > You need to reply to this template message in your phone so that the bot is allowed to send you messages other than template messages.
-
-### Mock WhatsApp (Quick Setup for Development Purposes Only)
-
-If you want a quick setup and avoid using a Meta API account, you can use the mock WhatsApp API. Follow these steps:
-
-1. Clone the mock WhatsApp repository:
-
-```bash
-git clone https://github.com/Tanzania-AI-Community/mock-whatsapp.git
-```
-
-2. Navigate to the mock WhatsApp directory and read the `.env.template` file to add the required environment variables.
-
-3. Follow the README instructions in the mock WhatsApp repository to install dependencies and start the server.
-
-4. Set the `MOCK_WHATSAPP` variable to `True` in your `.env` file for this repository:
-
-5. Set the `BUSINESS_ENV` variable to `False` in your `.env` file for this repository:
-
-```bash
-MOCK_WHATSAPP=True
-BUSINESS_ENV=False
-```
-
-> [!Note]
->
-> This setup is for development purposes only and is a workaround. Expect some issues.
 
 ## 🪝 Configure webhooks with [Ngrok](https://ngrok.com/)
 
