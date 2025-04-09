@@ -4,11 +4,11 @@
 
 # 🐣 Getting Started Guide
 
-If you want to run Twiga on your own computer (and even text your own version of the chatbot) this is the guide for you.
+If you want to run Twiga on your own computer (and even test your own version of the chatbot) this is the guide for you.
 
 > [!Note]
 >
-> We're looking into the possibility of running and trying out Twiga without a Meta API Account. For now, the long way is the only way 😬
+> For a simpler setup with mock WhatsApp, please follow the instructions in [MOCK_WHATSAPP_GETTING_STARTED.md](./MOCK_WHATSAPP_GETTING_STARTED.md).
 
 ## Setup the virtual environment and download dependencies
 
@@ -27,7 +27,7 @@ The dependencies should now be installed and your shell environment should be se
 
 ## 🤫 Create a `.env`
 
-Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it. Remove the comments and whitespace. The template should be quite self-explanatory. The rest of this document will help you fill out the `.env` file with your own values to get a running version of Twiga.
+Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it (or use `.env.template.simple` for a more streamlined setup). Remove the comments and whitespace. The template should be quite self-explanatory. The rest of this document will help you fill out the `.env` file with your own values to get a running version of Twiga.
 
 ## 👾 Setup Prerequisites
 
@@ -37,7 +37,7 @@ Start by creating a `.env` file in the main directory of Twiga and copy-paste th
 
 In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. However, it's not necessary to use Neon and Render, as these can be replaced with a 'local' version. However, you're welcome to test them out if you want since they offer quite generous free versions. With that said, you should start off by creating a Meta API account.
 
-### Meta Account
+### Meta Account (Optional if using Mock WhatsApp)
 
 1. Create a Meta developer account [here](https://developers.facebook.com/)
 
