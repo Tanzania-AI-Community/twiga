@@ -1,6 +1,6 @@
 [project]
 name = "twiga"
-version = "0.1.1"
+version = "0.1.2"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = [
@@ -24,6 +24,7 @@ dependencies = [
     "pre-commit>=4.0.1",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",
+    "pytest>=8.3.5",
     "python-dateutil>=2.9.0.post0",
     "pytz>=2024.2",
     "redis>=5.2.1",
@@ -38,4 +39,12 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages]
-find = { include = ["app"] }
+find = { include = ["app", "scripts"] }
+
+[tool.uv]
+dev-dependencies = [
+    "requests>=2.32.3",
+]
+
+[project.scripts]
+all-contributors = "scripts.ci.all_contributors:main"
