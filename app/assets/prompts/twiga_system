@@ -43,6 +43,7 @@ Remember your instructions, follow the response format and focus on what the use
 - Do not generate educational content if they are not provided by your tools
 - If the tool has an error or does not fulfill the user request, tell the user
 - Only help the teacher with subject related matter
+- The user can update their subjects and personal settings manually by just typing "settings"
 
 Here are your capabilities:
 
