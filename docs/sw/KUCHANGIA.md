@@ -1,77 +1,151 @@
+# Kuchangia katika Twiga 🦒
 
-# Mwongozo wa Mchangiaji
+Tunakaribisha michango ya ukubwa wowote na kiwango chochote cha ujuzi. Kama mradi wa chanzo wazi, tunaamini katika kurudisha kwa wachangiaji wetu na tunafurahia kusaidia kwa mwongozo juu ya maombi ya kuvuta (PRs), uandishi wa kiufundi, na kugeuza wazo lolote la kipengele kuwa uhalisia.
 
-Tunakaribisha michango ya kila aina na kiwango chochote cha ujuzi. Kama mradi wa chanzo wazi, tunaamini katika kurudisha kwa wachangiaji wetu na tunafurahia kusaidia kwa mwongozo juu ya PRs, uandishi wa kiufundi, na kugeuza wazo lolote la kipengele kuwa uhalisia.
-
-> [!Tip]
+> [!Kidokezo]
 >
-> **Kwa wachangiaji wapya:** Angalia [https://github.com/firstcontributions/first-contributions](https://github.com/firstcontributions/first-contributions) kwa taarifa muhimu juu ya kuchangia.
+> **Kwa wachangiaji wapya 🚼:** Angalia [michango ya kwanza](https://github.com/firstcontributions/first-contributions) kwa taarifa muhimu juu ya kuchangia. Unaweza pia kuuliza maswali katika [Discord](https://discord.gg/bCe2HfZY2C) yetu.
 
-## 🖥️ Mwongozo Mfupi wa Kuchangia
+Kwa kuchangia unakubali [**Kanuni zetu za Maadili**](https://github.com/Tanzania-AI-Community/twiga/blob/main/.github/CODE_OF_CONDUCT.md).
 
-Kwa kuwa mradi huu unatumia mchanganyiko wa huduma za wingu, utegemezi, na API's na alama za idhini, tunafanya kazi ili kufanya uzoefu wa maendeleo ya ndani kuwa laini zaidi kwa wachangiaji wa chanzo wazi ( open source ). Katika baadhi ya matukio, unaweza kuhitajika kutumia vitambulisho vyako mwenyewe (kama vile _funguo za API za OpenAI_).
+## Sera ya Kuunganisha kwa Maombi ya Kuvuta
 
-Ikiwa unataka kuweka mradi huu kwenye kompyuta yako mwenyewe, tunapendekeza ukamilishe hatua zifuatazo. Anza kwa kufanya forki :fork*and_knife: ya hifadhi hii. Wakati wa kuforki, hakikisha umeondoa alama ya tiki kwenye "nakili tawi la `main` pekee.
+Tunatumia mtiririko wa kazi wa [Gitflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow), ikimaanisha hatufanyi PR za vipengele vipya moja kwa moja kwenye tawi la `main`. Mabadiliko yoyote kwenye msimbo wa chanzo, yawe makubwa au madogo, kwanza huunganishwa kwenye `development`. Kisha yanasambazwa kwenye seva yetu ya maendeleo (kimsingi eneo letu la majaribio) ambapo tunaweza kutathmini ikiwa kuna mabadiliko yanayovunja. Baada ya kila hatua tunaweza kutuma PR kutoka `development` kwenda `main`.
 
-Ukishamaliza kuiga, unaweza kuikopakwenye kompyuta yako. Inapendekezwa kutumia Visual Studio Code kama IDE yako, lakini si lazima. Fanya hatua zifuatazo kwenye folda unayotaka kuhifadhi msimbo (code).
+> [!Muhimu]
+> Tuma PR yako dhidi ya tawi la `development`, sio `main`. Hatukubali PR moja kwa moja kwenye `main`.
 
-```sh
-git clone git@github.com:{USERNAME}/twiga.git
-git checkout -b {YOUR BRANCH}
+## Kutoka Fork hadi PR na Twiga
+
+> [!Muhimu]
+>
+> Soma [Mwongozo wetu wa Git](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/sw/MWONGOZO_WA_GIT.md) ili kujifunza jinsi ya kuendeleza kwa ushirikiano kwenye Twiga kama mtaalamu.
+
+Ili kuanza kuchangia kwenye Twiga, fuata hatua hizi:
+
+1. Tengeneza fork ya hifadhi hii na uikopie kwenye kompyuta yako
+
+> [!Onyo]
+> Kumbuka kuondoa tiki kwenye "Nakili tawi la `main` pekee" ili upate tawi la `development` pia
+
+2. Nenda kwenye tawi la `development`: `git checkout development`
+3. Tengeneza tawi lako la kipengele kutoka tawi la `development`: `git checkout -b jina-la-tawi-lako`
+4. Fuata hatua katika [mwongozo wetu wa kuanza](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/sw/KUANZA.md) ili kupata mradi ukifanya kazi kwenye kompyuta yako
+5. (Bado haiwezekani) Endesha vipimo kuhakikisha kila kitu kinafanya kazi kama inavyotarajiwa
+6. Hifadhi mabadiliko yako: `git commit -m "[aina]: ujumbe wa kuelezea commit"`
+7. Sukuma kwenye tawi lako la mbali: `git push origin jina-la-tawi-lako`
+8. Wasilisha ombi la kuvuta kwenye tawi la `development` la hifadhi ya awali
+
+## Muundo wa Msimbo na Ukaguzi
+
+Hakikisha unafuata miongozo ya mtindo wa kuandika msimbo iliyowekwa katika mradi huu. Tunaamini muundo thabiti wa msimbo huufanya uwe rahisi kuelewa na kutatua hitilafu. Kwa hivyo, tunatekeleza miongozo mizuri ya muundo kwa kutumia [_pre-commit_](https://pre-commit.com/) ili kuendesha kiotomatiki wapangaji wa Python [_black_](https://github.com/psf/black) na [_ruff_](https://docs.astral.sh/ruff/) kwa kila commit.
+
+Usijali, huhitaji kujifunza njia mpya ya kupanga msimbo - inafanywa kwa ajili yako. Ingawa ikiwa una udadisi kuhusu kuwa na wapangaji na wakaguzi hawa wakati wa maendeleo yako (na sio tu wakati wa commit) tunapendekeza viendelezi hivi kwa VSCode (kihariri tunachokipendelea): [_Black Formatter_](https://marketplace.visualstudio.com/items?itemName=ms-python.black-formatter) na [_Ruff_](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff). Ukishakamilisha hatua za 1-3 katika [Kutoka Fork hadi PR na Twiga](#kutoka-fork-hadi-pr-na-twiga), unaweza kusakinisha utegemezi kwa:
+
+```bash
+uv sync
+source .venv/bin/activate
 ```
 
-Hii inaunda tawi jipya kwa jina unalochagua, ili uweze kufanya kazi kwenye kipengele au tatizo lolote linalokuvutia.
+> [!Kumbuka]
+> Kwa **Windows** amri ya pili itakuwa `.venv\Scripts\activate`
 
-### Kuandaa Mahitaji ya Msingi
+Kisha unaweza kusakinisha hooks za _pre-commit_ kwa:
 
-Ikiwa unataka kuendesha seva ya ndani na kujaribu Twiga kwenye WhatsApp moja kwa moja, tunapendekeza kufuata baadhi ya hatua kutoka kwa [mafunzo](https://github.com/daveebbelaar/python-whatsapp-bot) yaliyotengenezwa na Dave Ebbelaar. Kumbuka kwamba haya yote ni bure kufanya.
+```bash
+pre-commit install
 
-1. Create a Meta [developer account](https://developers.facebook.com/) and [business app](https://developers.facebook.com/docs/development/create-an-app/)
-2. [Chagua namba za simu](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-1-select-phone-numbers)
-3. [Tuma ujumbe na API](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-2-send-messages-with-the-api)
-4. [Sanidi webhooks na ngrok](https://github.com/daveebbelaar/python-whatsapp-bot?tab=readme-ov-file#step-3-configure-webhooks-to-receive-messages)
-5. Tengeneza [Akaunti ya OPENAI](https://platform.openai.com/docs/quickstart) ili upate **funguo za API**
-6. Kisha unda [msaidizi](https://platform.openai.com/docs/assistants/overview) ili upate **Kitambulisho cha Msaidizi** (mpe mfumo wa prompt uliotolewa katika __TBD__)
-
-Tengeneza faili la `.env` ukitumia `example.env`kama kielezo na uondoe maelezo na nafasi zote.
-
-
-### Kompyuta Yako
-
-
-
-Anza kwa kusakinisha meneja wa kifurushi cha Python kinachoitwa [**Poetry**](https://python-poetry.org/) kwenye kompyuta yako. Hakikisha uko kwenye folda ya mizizi ya hazina na unakimbia amri `poetry install`. Hii itasoma utegemezi unaohitajika kuendesha Twiga na kuupakua kwenye folda ya `.venv/`. Kisha kimbia `poetry shell` ili kuwasha ganda kwenye mstari wa amri kwa kutumia mazingira yaliyotengenezwa. Hatimaye, kimbia mojawapo ya amri zifuatazo ili kuanza seva ya FastAPI. Hizi ni seva za maendeleo, kumaanisha kuwa zinaweza kubadilika moja kwa moja.
-
-```sh
-fastapi dev app.main.py
+# matokeo
+> pre-commit installed at .git/hooks/pre-commit
 ```
 
-```sh
-uvicorn app.main:app --port 8000 --reload
-```
-Ili API ya Meta ifikie seva yako ya FastAPI ya ndani, unahitaji kuwasha njia ya API ya ngrok kwa amri ifuatayo.
+### Mfano wa _pre-commit_ Ikifanya Kazi
 
-```sh
-ngrok http 8000 --domain {YOUR-GATEWAY-NAME}.ngrok-free.app
-```
+> [!Kumbuka]
+> Tulichukua mfano huu bila aibu kutoka [gpt-engineer](https://github.com/gpt-engineer-org/gpt-engineer/tree/main). Asante!
 
-Ikiwa kila kitu kimesanidiwa vizuri, unapaswa kuwa na toleo la msingi la Twiga likifanya kazi ambalo unaweza kujaribu kupitia WhatsApp.
+Kama utangulizi wa mtiririko halisi wa kazi, hapa kuna mfano wa mchakato utakaokutana nao unapofanya commit:
 
-### Ndani ya Kontena na Docker
+Wacha tuongeze faili tuliyoibadilisha yenye makosa kadhaa, tuone jinsi hooks za pre-commit zinavyoendesha `black` na kushindwa.
+`black` imewekwa kurekebisha kiotomatiki masuala inayopata:
 
+```bash
+git add random_code_file.py
+git commit -m "ujumbe wa commit"
+black....................................................................Failed
+- hook id: black
+- files were modified by this hook
 
-Tunatumia pia Docker kwa Twiga ili uweze kufanya kazi kwenye mradi huu kwenye mazingira yaliyotengwa ili kuepuka matatizo ya utegemezi na matoleo ambayo yanaweza kutokea kwenye kompyuta yako. Faili zetu za `Dockerfile` na `docker-compose.yml` zinahakikisha kuwa toleo sahihi la Python na Poetry linasakinishwa kwenye mfumo. Unachohitaji ni kuwa na [Docker](https://www.docker.com/) inayoendesha kwenye kompyuta yako.
+reformatted random_code_file.py
 
-Tunapendekeza usome kuhusu Docker ili kujifunza kuhusu picha (images), upakiaji (containerization), na volumes. Tunatumia Docker Compose na volumes ili hata uwe na uwezo wa kubadilika moja kwa moja katika kontena linaloendesha (soma `docker-compose.yml` na `Dockerfile` kwa maelezo zaidi). Ukishaweka Docker unaweza kukimbia amri ifuatayo.
-
-```sh
-docker compose up
-```
-
-Ili API ya Meta ifikie seva yako ya FastAPI ya ndani, unahitaji kuwasha njia ya API ya ngrok kwa amri ifuatayo.
-
-```sh
-ngrok http 8000 --domain {YOUR-GATEWAY-NAME}.ngrok-free.app
+All done! ✨ 🍰 ✨
+1 file reformatted.
 ```
 
-## 🤝 Shiriki Mchango Wako Nasi
+Unaweza kuona kwamba `random_code_file.py` iko kwenye hatua na sio kwenye hatua ya commit. Hii ni kwa sababu `black` imepanga na sasa ni tofauti na toleo ulilolichukua kwenye saraka yako ya kazi. Ili kurekebisha hii unaweza kukimbia `git add random_code_file.py` tena na sasa unaweza kufanya commit mabadiliko yako.
+
+```bash
+git status
+On branch pre-commit-setup
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+    modified:   random_code_file.py
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+    modified:   random_code_file.py
+```
+
+Sasa wacha tuongeze faili tena ili kujumuisha commits za hivi karibuni na tuone jinsi `ruff` inavyoshindwa.
+
+```bash
+git add random_code_file.py
+git commit -m "ujumbe wa commit"
+black....................................................................Passed
+ruff.....................................................................Failed
+- hook id: ruff
+- exit code: 1
+- files were modified by this hook
+
+Found 2 errors (2 fixed, 0 remaining).
+```
+
+Kama awali, unaweza kuona kwamba `random_code_file.py` iko kwenye hatua na sio kwenye hatua ya commit. Hii ni kwa sababu `ruff` imepanga na sasa ni tofauti na toleo ulilolichukua kwenye saraka yako ya kazi. Ili kurekebisha hii unaweza kukimbia `git add random_code_file.py` tena na sasa unaweza kufanya commit mabadiliko yako.
+
+```bash
+git add random_code_file.py
+git commit -m "ujumbe wa commit"
+black....................................................................Passed
+ruff.....................................................................Passed
+fix end of files.........................................................Passed
+[pre-commit-setup f00c0ce] testing
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+```
+
+Sasa faili yako imefanyiwa commit na unaweza kusukuma mabadiliko yako.
+
+Mwanzoni hii inaweza kuonekana kama mchakato wa kuchosha (kuwa na kuongeza faili tena baada ya `black` na `ruff` kuibadilisha) lakini kwa kweli ni muhimu sana. Inakuruhusu kuona ni mabadiliko gani `black` na `ruff` wamefanya kwenye faili zako na kuhakikisha kuwa ni sahihi kabla ya kuzifanyia commit.
+
+> [!Kumbuka]
+> Wakati pre-commit inashindwa kwenye pipeline ya ujenzi wakati wa kuwasilisha PR unahitaji kukimbia `pre-commit run --all-files` ili kulazimisha muundo wa faili zote, sio tu zile ulizobadilisha tangu commit iliyopita.
+
+Wakati mwingine `pre-commit` itaonekana kufanikiwa, kama ifuatavyo:
+
+```bash
+black................................................(no files to check)Skipped
+ruff.................................................(no files to check)Skipped
+check toml...........................................(no files to check)Skipped
+check yaml...........................................(no files to check)Skipped
+detect private key...................................(no files to check)Skipped
+fix end of files.....................................(no files to check)Skipped
+trim trailing whitespace.............................(no files to check)Skipped
+```
+
+Hata hivyo, unaweza kuona `pre-commit` ikishindwa kwenye pipeline ya ujenzi wakati wa kuwasilisha PR. Suluhisho la hili ni kukimbia `pre-commit run --all-files` ili kulazimisha muundo wa faili zote.
+
+## Leseni
+
+Kwa kuchangia kwenye Twiga, unakubali kwamba michango yako itakuwa chini ya [Leseni](https://github.com/Tanzania-AI-Community/twiga/blob/main/LICENSE) ya mradi.
+
+Asante kwa nia yako ya kuchangia kwenye Twiga! Tunatazamia michango yako.
