@@ -131,6 +131,7 @@ env.bak/
 venv.bak/
 .env.*
 !.env.template
+!.env.template.simple
 
 # Spyder project settings
 .spyderproject
@@ -166,6 +167,10 @@ cython_debug/
 ##################### New Additions #####################
 # Ignore DS_Store files
 .DS_Store
+.vscode/
 
 # ignore .pem files
 *.pem
+
+# intelij
+.idea/

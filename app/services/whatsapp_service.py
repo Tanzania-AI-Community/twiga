@@ -23,6 +23,10 @@ class WhatsAppClient:
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
+
+        if settings.mock_whatsapp:
+            return
+
         try:
             payload: Dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
@@ -152,7 +156,7 @@ class WhatsAppClient:
         """
         self.logger.error(f"Received an invalid WhatsApp message: {body}")
         return JSONResponse(
-            content={"status": "error", "message": "Not a WhatsApp API event"},
+            content={"status": "error", "message": "Not a valid WhatsApp API event"},
             status_code=404,
         )
 

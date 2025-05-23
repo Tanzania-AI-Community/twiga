@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     whatsapp_verify_token: SecretStr
     whatsapp_api_token: SecretStr
 
+    # WhatsApp mock
+    mock_whatsapp: bool = False
+
+    # Message limiting settings
+    message_character_limit: int = 65000
+
     # Database settings
     database_url: SecretStr
 
@@ -90,9 +96,11 @@ class LLMSettings(BaseSettings):
         "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "llama_4_maverick": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+        "llama_4_scout": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
         "gpt-4o": "gpt-4o",
-        "gpt-4o_mini": "gpt-40-mini",
+        "gpt-4o_mini": "gpt-4o-mini",
     }
 
     embedder_model_options: dict = {
@@ -104,9 +112,10 @@ class LLMSettings(BaseSettings):
     XXX: FILL YOUR AI PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
      - make sure your choice of LLM, embedder, and ai_provider are compatible
     """
+
     ai_provider: Literal["together", "openai"] = "together"
-    llm_model_name: str = llm_model_options["llama_3_3_70b"]
-    exercise_generator_model: str = llm_model_options["llama_70b"]
+    llm_model_name: str = llm_model_options["llama_4_maverick"]
+    exercise_generator_model: str = llm_model_options["llama_4_scout"]
     embedding_model: str = embedder_model_options["bge-large"]
 
 

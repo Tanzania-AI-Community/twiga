@@ -18,6 +18,8 @@ from app.models.message_models import (
     ListAction,
 )
 
+from app.config import settings
+
 
 class RequestType(Enum):
     FLOW_EVENT = auto()
@@ -32,6 +34,7 @@ class ValidMessageType(Enum):
     SETTINGS_FLOW_SELECTION = auto()
     COMMAND = auto()
     CHAT = auto()
+    OTHER = auto()
 
 
 logger = logging.getLogger(__name__)
@@ -176,6 +179,7 @@ def is_status_update(body: dict) -> bool:
 
 
 def extract_message_info(body: dict) -> dict:
+    # logger.debug(f"Extracting message info from body: {body}")
     entry = body["entry"][0]["changes"][0]["value"]
     return {
         "message": entry["messages"][0],
@@ -186,6 +190,8 @@ def extract_message_info(body: dict) -> dict:
 
 
 def is_message_outdated(message_timestamp: int) -> bool:
+    if settings.mock_whatsapp:
+        return False
     current_timestamp = int(datetime.now().timestamp())
     return current_timestamp - message_timestamp >= 10
 
@@ -201,7 +207,8 @@ def extract_message(message: dict) -> str:
         elif interactive_type == "list_reply":
             return message["interactive"]["list_reply"]["title"]
 
-    raise ValueError(f"Unsupported message type: {message_type}")
+    logger.warning(f"Unsupported message type: {message_type}")
+    return "warning: user sent an unsupported message type"
 
 
 def is_interactive_message(message_info: dict) -> bool:
@@ -268,10 +275,17 @@ def get_flow_payload(wa_id: str, flow: dict) -> dict:
     return payload
 
 
+def is_other_message(message_info: dict) -> bool:
+    return message_info.get("message", {}).get("type") not in ["text", "interactive"]
+
+
 def get_valid_message_type(message_info: dict) -> ValidMessageType:
 
     if is_interactive_message(message_info):
         return ValidMessageType.SETTINGS_FLOW_SELECTION
+    if is_other_message(message_info):
+        logger.debug("WE ENCOUNTERED ANOTHER MESSAGE TYPE")
+        return ValidMessageType.OTHER
     if is_command_message(message_info):
         return ValidMessageType.COMMAND
 

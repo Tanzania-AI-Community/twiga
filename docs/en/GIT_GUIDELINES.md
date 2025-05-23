@@ -35,43 +35,27 @@ This project follows a slightly modified GitFlow workflow to ensure stability an
 
 3. **Preparing a Release**
 
-   - Create a release branch from `development`:
+   - Once happy with the state of the development branch, run `./scripts/ci/create-release.sh x.y.z`
 
-     ```shell
-     git checkout development
-     git pull origin development
-     git checkout -b release/v1.x.x
-     ```
-
-   - Perform final testing and bug fixes on the release branch.
-   - Update version numbers and changelog.
-   - (POSSIBLY) Update .all-contributors and have the PR go to the development branch
+> [!Note]
+>
+> The script creates a release branch from development, update the version numbers, and prompt you whether you'd like to recognize some new contributors to the project. Then it will create a pull request from `release/x.y.z` back into `development` where you can conduct manual checks.
 
 4. **Production Release**
 
-   - When the release is ready, open a pull request to merge into `main`.
-   - After final review and approval, merge into `main`.
-   - Tag the release in `main`:
-
-     ```shell
-     git checkout main
-     git pull origin main
-     git tag -a v1.x.x -m "Release v1.x.x"
-     git push origin v1.x.x
-     ```
-
-   - Merge the release branch back into `development`.
+   - A PR should have been made by the script back into `development`.
+   - After your review and approval, merge it.
+   - This will trigger the release GitHub action that merges the release into the main branch automatically, creates a changelog, and tags the release.
 
 5. **Hotfixes**
 
    - For critical bugs in production, create a hotfix branch from `main`:
-
      ```shell
      git checkout main
      git checkout -b hotfix/descriptive-name
      ```
-
-   - Fix the bug and open a pull request to merge into both `main` and `dev`.
+   - Fix the bug and merge (skip PR) changes directly to `main` and then to `development`.
+   - Notify the team of the changes so that they can pull/rebase.
 
 6. **Refactoring**
 
@@ -227,13 +211,10 @@ This project uses a combination of rebasing and merging to maintain a clean and 
 Our CI/CD pipeline automatically runs the following checks:
 
 - Linting (ruff)
-
 - Formatting (black)
-
-- Unit tests (tbd...)
+- Unit tests (simple)
 
 Deployments:
 
-- All pull requests trigger a preview deployment.
 - Merges to `development` trigger a deployment to the staging environment after manual approval.
 - Merges to `main` trigger a deployment to the production environment after manual approval.
