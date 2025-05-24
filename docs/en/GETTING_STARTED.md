@@ -125,8 +125,8 @@ First of all, you need to add the required env variables to your `.env`.
 ```bash
 DATABASE_USER=postgres
 DATABASE_PASSWORD=$YOUR_PASSWORD
-DATABASE_NAME=twiga
-DATABASE_URL=postgresql+asyncpg://postgres:$YOUR_PASSWORD@db:5432/twiga
+DATABASE_NAME=twiga_db
+DATABASE_URL=postgresql+asyncpg://postgres:$YOUR_PASSWORD@db:5432/twiga_db
 ```
 
 This link assumes you are running the Postgres database on port 5432, which is the standard.
