@@ -2,7 +2,33 @@
 >
 > Hati hii inadhani tayari umekamilisha hatua za 1-3 kwenye `docs/CONTRIBUTING.md`.
 
-# 🐣 Mwongozo wa Kuanza
+# 🐣 Mwongozo wa KTafuta katika hifadhi kwa kitambulisho `XXX:` na hakikisha unasasisha miongozo kulingana na maelekezo ili programu ya FastAPI iendeshe mifano ya program za OpenAI. Wakati wa kuandika hii, hii inapaswa kuwa ndani ya `app/config.py` na `app/database/models.py`.
+
+## 📊 Ufuatiliaji wa LangSmith (Hiari)
+
+LangSmith hutoa vipengele vya ufuatiliaji na kurekebisha mazungumzo ya LLM. Ili kuwezesha ufuatiliaji:
+
+1. Unda [akaunti ya LangSmith](https://smith.langchain.com/) (kuna safu ya bure)
+2. Pata ufunguo wako wa API kutoka kwenye dashboard ya LangSmith
+3. Ongeza usanidi kwenye faili yako ya `.env`:
+
+```bash
+LANGSMITH_API_KEY=$YOUR_LANGSMITH_API_KEY
+LANGSMITH_PROJECT=twiga-whatsapp-chatbot
+LANGSMITH_TRACING=True
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+```
+
+Ukiwezesha LangSmith, utaweza:
+
+- Kufuatilia maombi na majibu yote ya LLM
+- Kuangalia matumizi na utendaji wa zana
+- Kurekebisha mtiririko wa mazungumzo
+- Kuchambua mazungumzo ya watumiaji na tabia za mfano
+
+> [!Kumbuka]
+>
+> Uunganishaji wa LangSmith ni wa hiari. Ikiwa hautausanidi, programu itafanya kazi kawaida bila ufuatiliaji.anza
 
 Ikiwa unataka kuendesha Twiga kwenye kompyuta yako na hata kujaribu chatbot yako mwenyewe, huu ndio mwongozo wako.
 

@@ -40,6 +40,26 @@ LLM_API_KEY=$YOUR_API_KEY
 
 Tafuta katika hifadhi kwa kitambulisho `XXX:` na hakikisha unasasisha miongozo kulingana na maelekezo ili programu ya FastAPI iendeshe mifano ya program za OpenAI. Wakati wa kuandika hii, hii inapaswa kuwa ndani ya `app/config.py` na `app/database/models.py`.
 
+## 📊 Ufuatiliaji wa LangSmith (Hiari)
+
+Kwa ufuatiliaji na kurekebisha mazungumzo ya LLM, unaweza kuwezesha ufuatiliaji wa LangSmith:
+
+1. Unda [akaunti ya LangSmith](https://smith.langchain.com/) (kuna safu ya bure)
+2. Pata ufunguo wako wa API kutoka kwenye dashboard ya LangSmith
+3. Ongeza usanidi kwenye faili yako ya `.env`:
+
+```bash
+LANGSMITH_API_KEY=$YOUR_LANGSMITH_API_KEY
+LANGSMITH_PROJECT=twiga-whatsapp-chatbot
+LANGSMITH_TRACING=True
+```
+
+Hii itawezesha ufuatiliaji wa kina wa mazungumzo yote ya LLM, matumizi ya zana, na vipimo vya utendaji.
+
+> [!Kumbuka]
+>
+> Uunganishaji wa LangSmith ni wa hiari na hautaathiri utendaji wa msingi ikiwa hautasanidiwa.
+
 ## 🧠 Sanidi hifadhidata yako ya Postgres kwenye kompyuta yako
 
 Kama vile inavyofaa kwa chatbot yoyote, Twiga inafuata historia za mazungumzo, watumiaji, madarasa, rasilimali (yaani, nyaraka zinazohusiana na madarasa), hifadhidata ya vector, n.k. Kwa bahati nzuri, kila kitu (ikiwemo hifadhidata ya vector) kinahifadhiwa katika meza za hifadhidata ya Postgres. Tunatumia Neon kuhudumia hifadhidata yetu, lakini kwa ajili ya maendeleo ya ndani tunatumia PostgreSQL.
