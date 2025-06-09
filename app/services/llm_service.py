@@ -2,12 +2,10 @@ import re
 import json
 import logging
 import asyncio
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
-from openai.types.chat import ChatCompletionMessageToolCall
-from openai.types.chat.chat_completion_message_tool_call import Function
+from dataclasses import dataclass
 import pprint
-
 
 from app.database.models import Message, User
 from app.database.enums import MessageRole
@@ -20,6 +18,30 @@ from app.tools.registry import get_tools_metadata, ToolName
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.utils.string_manager import strings, StringCategory
+
+
+# Simple Types replacements for OpenAI types
+@dataclass
+class Function:
+    name: str
+    arguments: str
+
+
+@dataclass
+class ChatCompletionMessageToolCall:
+    id: str
+    function: Function
+    type: str = "function"
+
+    def model_dump(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "function": {
+                "name": self.function.name,
+                "arguments": self.function.arguments,
+            },
+            "type": self.type,
+        }
 
 
 class MessageProcessor:
@@ -225,24 +247,75 @@ class LLMClient:
                         self.logger.warning(f"No messages to process for {user.wa_id}.")
                         processor.clear_messages()
                         self._cleanup_processor(user.id)
-                        return None
-
-                    # 1. Build the API messages from DB history + new messages
+                        return None  # 1. Build the API messages from DB history + new messages
                     self.logger.debug("Retrieving user message history")
                     history = await get_user_message_history(user.id)
 
-                    api_messages = self._format_messages(
+                    formatted_messages = self._format_messages(
                         messages_to_process, history, user
                     )
 
+                    # Convert to LangChain BaseMessage objects
+                    from langchain_core.messages import (
+                        SystemMessage,
+                        HumanMessage,
+                        AIMessage,
+                        ToolMessage,
+                    )
+
+                    api_messages = []
+                    for msg_dict in formatted_messages:
+                        role = msg_dict["role"]
+                        content = msg_dict["content"] or ""
+                        if role == "system":
+                            api_messages.append(SystemMessage(content=content))
+                        elif role == "user":
+                            api_messages.append(HumanMessage(content=content))
+                        elif role == "assistant":
+                            if msg_dict.get("tool_calls"):
+                                api_messages.append(
+                                    AIMessage(
+                                        content=content,
+                                        additional_kwargs={
+                                            "tool_calls": msg_dict["tool_calls"]
+                                        },
+                                    )
+                                )
+                            else:
+                                api_messages.append(AIMessage(content=content))
+                        elif role == "tool":
+                            api_messages.append(
+                                ToolMessage(
+                                    content=content,
+                                    tool_call_id=msg_dict.get("tool_call_id", ""),
+                                )
+                            )
+                        else:
+                            # Fallback to system message
+                            api_messages.append(SystemMessage(content=content))
+
                     self.logger.debug(
                         "Initial messages:\n%s",
-                        pprint.pformat(api_messages, indent=2, width=160),
+                        pprint.pformat(
+                            [
+                                {
+                                    "role": (
+                                        msg.type
+                                        if hasattr(msg, "type")
+                                        else type(msg).__name__
+                                    ),
+                                    "content": msg.content,
+                                }
+                                for msg in api_messages
+                            ],
+                            indent=2,
+                            width=160,
+                        ),
                     )
 
                     message_lengths = [
-                        0 if entry["content"] is None else len(entry["content"])
-                        for entry in api_messages
+                        0 if msg.content is None else len(msg.content)
+                        for msg in api_messages
                     ]
                     self.logger.debug(
                         f"Total number of characters in user API messages: {sum(message_lengths)}"
@@ -275,14 +348,52 @@ class LLMClient:
                         verbose=False,
                     )
 
+                    self.logger.debug(f"LLM response:\n {initial_response.content}")
                     self.logger.debug(
-                        f"LLM response:\n {initial_response.choices[0].message.model_dump()}"
-                    )
-                    self.logger.debug("Formatting LLM response")
+                        "Formatting LLM response"
+                    )  # Create message from LangChain AIMessage directly
+                    content_str = None
+                    if initial_response.content:
+                        if isinstance(initial_response.content, str):
+                            content_str = initial_response.content
+                        elif isinstance(initial_response.content, list):
+                            # Handle list content by joining or extracting text
+                            content_str = ""
+                            for item in initial_response.content:
+                                if isinstance(item, str):
+                                    content_str += item
+                                elif isinstance(item, dict) and "text" in item:
+                                    content_str += item["text"]
+                        else:
+                            content_str = str(initial_response.content)
 
-                    initial_message = Message.from_api_format(
-                        initial_response.choices[0].message.model_dump(), user.id
+                    initial_message = Message(
+                        user_id=user.id,
+                        role=MessageRole.assistant,
+                        content=content_str,
+                        tool_calls=None,
                     )
+
+                    # Extract tool calls from LangChain AIMessage
+                    if (
+                        hasattr(initial_response, "tool_calls")
+                        and initial_response.tool_calls
+                    ):
+                        initial_message.tool_calls = [
+                            {
+                                "id": tool_call.get(
+                                    "id", f"call_{uuid.uuid4().hex[:22]}"
+                                ),
+                                "function": {
+                                    "name": tool_call["name"],
+                                    "arguments": json.dumps(tool_call.get("args", {})),
+                                },
+                                "type": "function",
+                            }
+                            for tool_call in initial_response.tool_calls
+                        ]
+                        # Clear content when tool calls are present
+                        initial_message.content = None
 
                     # Track new messages
                     new_messages = [initial_message]
@@ -294,9 +405,7 @@ class LLMClient:
 
                         if tool_call_data:
                             initial_message.tool_calls = [tool_call_data.model_dump()]
-                            initial_message.content = None
-
-                    # 4. Check for new incoming messages during processing
+                            initial_message.content = None  # 4. Check for new incoming messages during processing
                     if self._check_new_messages(processor, original_count):
                         self.logger.warning("New messages buffered during processing")
                         continue
@@ -306,7 +415,14 @@ class LLMClient:
                         self.logger.debug("Processing tool calls 🛠️")
 
                         tool_calls = [
-                            ChatCompletionMessageToolCall(**call)
+                            ChatCompletionMessageToolCall(
+                                id=call.get("id", f"call_{uuid.uuid4().hex[:22]}"),
+                                function=Function(
+                                    name=call["function"]["name"],
+                                    arguments=call["function"]["arguments"],
+                                ),
+                                type="function",
+                            )
                             for call in initial_message.tool_calls
                         ]
                         # Process tool calls and track the tool response messages
@@ -319,7 +435,7 @@ class LLMClient:
                             new_messages.extend(tool_responses)
                             # Extend api_messages with new tool responses
                             api_messages.extend(
-                                msg.to_api_format() for msg in tool_responses
+                                msg.to_langchain_message() for msg in tool_responses
                             )
 
                             # 6. Final call to LLM with the new tool outputs appended
@@ -329,8 +445,8 @@ class LLMClient:
                                 tools=None,
                                 tool_choice=None,
                             )
-                            final_message = Message.from_api_format(
-                                final_response.choices[0].message.model_dump(), user.id
+                            final_message = Message.from_langchain_message(
+                                final_response, user.id
                             )
                             new_messages.append(final_message)
 

@@ -1,57 +1,73 @@
-import json
 import logging
-
 import backoff
-import openai
-from openai.types.chat import ChatCompletion
+from typing import List, Optional, Dict, cast
+from langchain_openai import ChatOpenAI
+from langchain_together.chat_models import ChatTogether
+from langchain_core.messages import BaseMessage, AIMessage
+from langchain_core.language_models import BaseChatModel
+from pydantic import SecretStr
 
 from app.config import llm_settings
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
 
-if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
-    llm_client = openai.AsyncOpenAI(
-        base_url="https://api.together.xyz/v1",
-        api_key=llm_settings.llm_api_key.get_secret_value(),
-    )
-elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
-    llm_client = openai.AsyncOpenAI(api_key=llm_settings.llm_api_key.get_secret_value())
+
+def get_llm_client() -> BaseChatModel:
+    """Get the appropriate LangChain LLM client based on configuration."""
+    if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
+        return ChatTogether(
+            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
+            model=llm_settings.llm_model_name,
+        )
+    elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
+        return ChatOpenAI(
+            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
+            model=llm_settings.llm_model_name,
+        )
+    else:
+        raise ValueError("No valid LLM provider configured")
 
 
-@backoff.on_exception(backoff.expo, openai.RateLimitError, max_tries=7, max_time=45)
+@backoff.on_exception(backoff.expo, Exception, max_tries=7, max_time=45)
 async def async_llm_request(
+    messages: List[BaseMessage],
+    tools: Optional[List[Dict]] = None,
+    tool_choice: Optional[str] = None,
     verbose: bool = False,
-    **params,
-) -> ChatCompletion:
+    **kwargs,
+) -> AIMessage:
     """
-    Make a request to Together AI's API with exponential backoff retry logic.
+    Make a request to LLM using LangChain with exponential backoff retry logic.
 
     Args:
-        llm: Model identifier to use
-        api_key: Together AI API key
-        verbose: Whether to log detailed request information
-        **params: Additional parameters to pass to the API
-
+        messages (List[BaseMessage]): List of LangChain message objects.
+        tools (Optional[List[Dict]], optional): List of tools to use with the LLM. Defaults to None.
+        tool_choice (Optional[str], optional): Tool choice for the LLM. Defaults to None.
+        verbose (bool, optional): Whether to log debug information. Defaults to False.
+        **kwargs: Additional keyword arguments for the LLM call.
     Returns:
-        ChatCompletion: Response from the API
-
+        AIMessage: The response from the LLM as a LangChain AIMessage.
     Raises:
-        TogetherRateLimitError: When rate limit is exceeded
-        TogetherAPIError: For other API-related errors
+        Exception: If the LLM request fails after retries.
     """
     try:
-        assert llm_client is not None, "LLM client is not initialized"
-        # Print messages if the flag is True
+        llm = get_llm_client()
 
         if verbose:
-            messages = params.get("messages", None)
-            logger.debug(f"Messages sent to LLM API:\n{json.dumps(messages, indent=2)}")
+            logger.debug(f"Messages sent to LLM API:\n{messages}")
 
-        completion = await llm_client.chat.completions.create(**params)
+        # Handle tools if provided
+        if tools:
+            llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
-        return completion
-    except openai.RateLimitError:
-        raise
+        # Make the async call
+        response = await llm.ainvoke(messages, **kwargs)
+        return cast(AIMessage, response)
+
     except Exception as e:
-        raise Exception(f"Failed to retrieve completion: {str(e)}")
+        logger.error(f"LLM request failed: {str(e)}")
+        raise
+
+
+# Removed conversion functions - now using native LangChain types

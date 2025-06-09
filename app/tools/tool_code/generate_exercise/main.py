@@ -63,18 +63,36 @@ async def generate_exercise(
             "exercise_generator_user", query=query, context_str=context
         )
 
+        # Convert to LangChain BaseMessage objects
+        from langchain_core.messages import SystemMessage, HumanMessage
+
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt),
         ]
 
         response = await async_llm_request(
-            model=llm_settings.exercise_generator_model,
             messages=messages,
+            model=llm_settings.exercise_generator_model,
             max_tokens=100,
         )
-        assert response.choices[0].message.content
-        return response.choices[0].message.content
+        assert response.content
+
+        # Convert content to string if it's not already
+        content = response.content
+        if isinstance(content, list):
+            # Handle list content by joining or extracting text
+            content_str = ""
+            for item in content:
+                if isinstance(item, str):
+                    content_str += item
+                elif isinstance(item, dict) and "text" in item:
+                    content_str += item["text"]
+            return content_str
+        elif isinstance(content, str):
+            return content
+        else:
+            return str(content)
     except Exception as e:
         logger.error(f"An error occurred when generating an exercise: {e}")
         raise Exception("An error occurred when generating this exercise. Skipping.")
