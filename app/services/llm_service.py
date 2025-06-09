@@ -9,7 +9,7 @@ import pprint
 
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.config import llm_settings, settings
+from app.config import settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
@@ -334,18 +334,23 @@ class LLMClient:
                                     StringCategory.ERROR, "character_limit_exceeded"
                                 ),
                             )
-                        ]
-
-                    # 2. Call the LLM with tools enabled
+                        ]  # 2. Call the LLM with tools enabled
                     self.logger.debug("Initiating LLM request")
                     initial_response = await async_llm_request(
-                        model=llm_settings.llm_model_name,
                         messages=api_messages,
                         tools=get_tools_metadata(
                             available_classes=json.dumps(user.class_name_to_id_map)
                         ),
                         tool_choice="auto",
                         verbose=False,
+                        run_name=f"twiga_initial_chat_{user.wa_id}",
+                        metadata={
+                            "user_id": str(user.id),
+                            "user_wa_id": user.wa_id,
+                            "user_name": user.name,
+                            "message_count": len(api_messages),
+                            "phase": "initial_request",
+                        },
                     )
 
                     self.logger.debug(f"LLM response:\n {initial_response.content}")
@@ -436,14 +441,20 @@ class LLMClient:
                             # Extend api_messages with new tool responses
                             api_messages.extend(
                                 msg.to_langchain_message() for msg in tool_responses
-                            )
-
-                            # 6. Final call to LLM with the new tool outputs appended
+                            )  # 6. Final call to LLM with the new tool outputs appended
                             final_response = await async_llm_request(
-                                model=llm_settings.llm_model_name,
                                 messages=api_messages,
                                 tools=None,
                                 tool_choice=None,
+                                run_name=f"twiga_final_chat_{user.wa_id}",
+                                metadata={
+                                    "user_id": str(user.id),
+                                    "user_wa_id": user.wa_id,
+                                    "user_name": user.name,
+                                    "message_count": len(api_messages),
+                                    "phase": "final_request_with_tools",
+                                    "tool_calls_processed": len(tool_responses),
+                                },
                             )
                             final_message = Message.from_langchain_message(
                                 final_response, user.id

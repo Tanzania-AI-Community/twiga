@@ -1,5 +1,6 @@
 import logging
 import backoff
+import os
 from typing import List, Optional, Dict, cast
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
@@ -11,6 +12,20 @@ from app.config import llm_settings
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
+
+# Configure LangSmith tracing if enabled
+if llm_settings.langsmith_tracing and llm_settings.langsmith_api_key:
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = llm_settings.langsmith_api_key.get_secret_value()
+    if llm_settings.langsmith_project:
+        os.environ["LANGCHAIN_PROJECT"] = llm_settings.langsmith_project
+    if llm_settings.langsmith_endpoint:
+        os.environ["LANGCHAIN_ENDPOINT"] = llm_settings.langsmith_endpoint
+    logger.info(
+        f"LangSmith tracing enabled for project: {llm_settings.langsmith_project}"
+    )
+else:
+    logger.info("LangSmith tracing disabled")
 
 
 def get_llm_client() -> BaseChatModel:
@@ -35,6 +50,8 @@ async def async_llm_request(
     tools: Optional[List[Dict]] = None,
     tool_choice: Optional[str] = None,
     verbose: bool = False,
+    run_name: Optional[str] = None,
+    metadata: Optional[Dict] = None,
     **kwargs,
 ) -> AIMessage:
     """
@@ -45,6 +62,8 @@ async def async_llm_request(
         tools (Optional[List[Dict]], optional): List of tools to use with the LLM. Defaults to None.
         tool_choice (Optional[str], optional): Tool choice for the LLM. Defaults to None.
         verbose (bool, optional): Whether to log debug information. Defaults to False.
+        run_name (Optional[str], optional): Name for the LangSmith trace run. Defaults to None.
+        metadata (Optional[Dict], optional): Additional metadata for LangSmith tracing. Defaults to None.
         **kwargs: Additional keyword arguments for the LLM call.
     Returns:
         AIMessage: The response from the LLM as a LangChain AIMessage.
@@ -61,8 +80,23 @@ async def async_llm_request(
         if tools:
             llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
+        # Prepare kwargs for LangSmith tracing
+        invoke_kwargs = {}
+        if llm_settings.langsmith_tracing:
+            # Add tracing configuration
+            config = {}
+            if run_name:
+                config["run_name"] = run_name
+            if metadata:
+                config["metadata"] = metadata
+            if config:
+                invoke_kwargs["config"] = config
+
+        # Merge any additional kwargs
+        invoke_kwargs.update(kwargs)
+
         # Make the async call
-        response = await llm.ainvoke(messages, **kwargs)
+        response = await llm.ainvoke(messages, **invoke_kwargs)
         return cast(AIMessage, response)
 
     except Exception as e:
