@@ -16,4 +16,8 @@ generate-local-data:
 	@echo 'Generating local data ...'
 	@docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/database/seed.py --create --sample-data --vector-data chunks_BAAI.json"
 
+injest_book:
+	@echo 'Injesting book ...'
+	@docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/database/resource_injestion.py --parsed_book_name $(filename)"
+
 setup-env: build generate-local-data run
