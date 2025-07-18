@@ -256,7 +256,7 @@ async def inject_vector_data(parsed_book: ParsedBook):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--parsed_book_name", type=str, required=True, help="Path to the input book to be injested into the DB.")
+    parser.add_argument("--parsed_book_name", type=str, required=True, help="Path to the input book to be ingested into the DB.")
     args = parser.parse_args()
 
     try:
@@ -265,7 +265,7 @@ async def main():
         logger.info("Starting book data injection...")
         await inject_subject_class_and_resource_data(parsed_book)
 
-        logger.info("Starting book chunks injestion into vector DB...")
+        logger.info("Starting book chunks ingestion into vector DB...")
         await inject_vector_data(parsed_book)
 
     except Exception as e:
