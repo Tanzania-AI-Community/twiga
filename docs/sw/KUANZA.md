@@ -2,8 +2,9 @@
 >
 > Hati hii inadhani tayari umekamilisha hatua za 1-3 kwenye `docs/CONTRIBUTING.md`.
 
-# 🐣 Mwongozo wa KTafuta katika hifadhi kwa kitambulisho `XXX:` na hakikisha unasasisha miongozo kulingana na maelekezo ili programu ya FastAPI iendeshe mifano ya program za OpenAI. Wakati wa kuandika hii, hii inapaswa kuwa ndani ya `app/config.py` na `app/database/models.py`.
+# 🐣 Mwongozo wa Kuanza
 
+Tafuta katika hifadhi kwa kitambulisho `XXX:` na hakikisha unasasisha miongozo kulingana na maelekezo ili programu ya FastAPI iendeshe mifano ya program za OpenAI. Wakati wa kuandika hii, hii inapaswa kuwa ndani ya `app/config.py` na `app/database/models.py`.
 ## 📊 Ufuatiliaji wa LangSmith (Hiari)
 
 LangSmith hutoa vipengele vya ufuatiliaji na kurekebisha mazungumzo ya LLM. Ili kuwezesha ufuatiliaji:
