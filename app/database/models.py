@@ -315,7 +315,7 @@ class Message(SQLModel, table=True):
             and message.tool_calls
         ):
             tool_calls = [
-                tool_call.dict() if hasattr(tool_call, "dict") else tool_call
+                tool_call.model_dump() if isinstance(tool_call, BaseModel) else tool_call
                 for tool_call in message.tool_calls
             ]
         elif isinstance(message, AIMessage) and hasattr(message, "additional_kwargs"):
