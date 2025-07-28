@@ -334,7 +334,9 @@ class LLMClient:
                                     StringCategory.ERROR, "character_limit_exceeded"
                                 ),
                             )
-                        ]  # 2. Call the LLM with tools enabled
+                        ]
+
+                    # 2. Call the LLM with tools enabled
                     self.logger.debug("Initiating LLM request")
                     initial_response = await async_llm_request(
                         messages=api_messages,
@@ -354,9 +356,9 @@ class LLMClient:
                     )
 
                     self.logger.debug(f"LLM response:\n {initial_response.content}")
-                    self.logger.debug(
-                        "Formatting LLM response"
-                    )  # Create message from LangChain AIMessage directly
+                    self.logger.debug("Formatting LLM response")
+
+                    # Create message from LangChain AIMessage directly
                     content_str = None
                     if initial_response.content:
                         if isinstance(initial_response.content, str):
@@ -430,6 +432,7 @@ class LLMClient:
                             )
                             for call in initial_message.tool_calls
                         ]
+
                         # Process tool calls and track the tool response messages
                         tool_responses = await self._process_tool_calls(
                             tool_calls,
@@ -438,10 +441,12 @@ class LLMClient:
 
                         if tool_responses:
                             new_messages.extend(tool_responses)
+
                             # Extend api_messages with new tool responses
                             api_messages.extend(
                                 msg.to_langchain_message() for msg in tool_responses
                             )
+
                             # 6. Final call to LLM with the new tool outputs appended
                             final_response = await async_llm_request(
                                 messages=api_messages,
