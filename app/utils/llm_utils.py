@@ -1,6 +1,7 @@
 import logging
 import backoff
 import os
+import requests
 from typing import List, Optional, Dict, cast
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
@@ -13,19 +14,63 @@ from app.config import llm_settings
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
 
+
 # Configure LangSmith tracing if enabled
-if llm_settings.langsmith_tracing and llm_settings.langsmith_api_key:
+def _log_langsmith_status():
+    """Log detailed LangSmith availability status based on environment variables."""
+    langsmith_api_key_available = llm_settings.langsmith_api_key is not None
+    langsmith_tracing_enabled = llm_settings.langsmith_tracing
+
+    logger.info("🔍 LangSmith Configuration Status:")
+    logger.info(
+        f"  ├── LANGSMITH_API_KEY: {'✅ Available' if langsmith_api_key_available else '❌ Not set'}"
+    )
+    logger.info(
+        f"  ├── LANGSMITH_TRACING: {'✅ Enabled' if langsmith_tracing_enabled else '❌ Disabled'}"
+    )
+    logger.info(
+        f"  ├── LANGSMITH_PROJECT: {llm_settings.langsmith_project or '❌ Not set'}"
+    )
+    logger.info(
+        f"  └── LANGSMITH_ENDPOINT: {llm_settings.langsmith_endpoint or '❌ Not set'}"
+    )
+
+    if langsmith_tracing_enabled and langsmith_api_key_available:
+        logger.info(
+            "🚀 LangSmith tracing is ACTIVE - All LLM interactions will be tracked"
+        )
+        return True
+    elif langsmith_tracing_enabled and not langsmith_api_key_available:
+        logger.warning(
+            "⚠️  LangSmith tracing is ENABLED but API_KEY is missing - Tracing will not work"
+        )
+        return False
+    elif not langsmith_tracing_enabled and langsmith_api_key_available:
+        logger.info(
+            "💤 LangSmith tracing is DISABLED (API key available but tracing off)"
+        )
+        return False
+    else:
+        logger.info("💤 LangSmith tracing is DISABLED (no API key and tracing off)")
+        return False
+
+
+# Check and configure LangSmith
+langsmith_active = _log_langsmith_status()
+
+if langsmith_active:
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
-    os.environ["LANGCHAIN_API_KEY"] = llm_settings.langsmith_api_key.get_secret_value()
+    if llm_settings.langsmith_api_key:
+        os.environ["LANGCHAIN_API_KEY"] = (
+            llm_settings.langsmith_api_key.get_secret_value()
+        )
     if llm_settings.langsmith_project:
         os.environ["LANGCHAIN_PROJECT"] = llm_settings.langsmith_project
     if llm_settings.langsmith_endpoint:
         os.environ["LANGCHAIN_ENDPOINT"] = llm_settings.langsmith_endpoint
     logger.info(
-        f"LangSmith tracing enabled for project: {llm_settings.langsmith_project}"
+        f"🎯 LangSmith initialized for project: {llm_settings.langsmith_project}"
     )
-else:
-    logger.info("LangSmith tracing disabled")
 
 
 def get_llm_client() -> BaseChatModel:
@@ -46,7 +91,7 @@ def get_llm_client() -> BaseChatModel:
 
 @backoff.on_exception(
     backoff.expo,
-    (openai.error.RateLimitError, requests.exceptions.RequestException),
+    (requests.exceptions.RequestException, Exception),
     max_tries=7,
     max_time=45,
 )
