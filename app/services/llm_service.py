@@ -441,7 +441,8 @@ class LLMClient:
                             # Extend api_messages with new tool responses
                             api_messages.extend(
                                 msg.to_langchain_message() for msg in tool_responses
-                            )  # 6. Final call to LLM with the new tool outputs appended
+                            )
+                            # 6. Final call to LLM with the new tool outputs appended
                             final_response = await async_llm_request(
                                 messages=api_messages,
                                 tools=None,
