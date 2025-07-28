@@ -5,7 +5,6 @@ import asyncio
 from typing import List, Optional, Dict, Any
 import uuid
 from dataclasses import dataclass
-import pprint
 
 from langchain_core.messages import (
     SystemMessage,
@@ -293,25 +292,6 @@ class LLMClient:
                         else:
                             # Fallback to system message
                             api_messages.append(SystemMessage(content=content))
-
-                    self.logger.debug(
-                        "Initial messages:\n%s",
-                        pprint.pformat(
-                            [
-                                {
-                                    "role": (
-                                        msg.type
-                                        if hasattr(msg, "type")
-                                        else type(msg).__name__
-                                    ),
-                                    "content": msg.content,
-                                }
-                                for msg in api_messages
-                            ],
-                            indent=2,
-                            width=160,
-                        ),
-                    )
 
                     message_lengths = [
                         0 if msg.content is None else len(msg.content)
