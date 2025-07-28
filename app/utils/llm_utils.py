@@ -44,7 +44,12 @@ def get_llm_client() -> BaseChatModel:
         raise ValueError("No valid LLM provider configured")
 
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=7, max_time=45)
+@backoff.on_exception(
+    backoff.expo,
+    (openai.error.RateLimitError, requests.exceptions.RequestException),
+    max_tries=7,
+    max_time=45,
+)
 async def async_llm_request(
     messages: List[BaseMessage],
     tools: Optional[List[Dict]] = None,
