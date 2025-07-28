@@ -7,6 +7,13 @@ import uuid
 from dataclasses import dataclass
 import pprint
 
+from langchain_core.messages import (
+    SystemMessage,
+    HumanMessage,
+    AIMessage,
+    ToolMessage,
+)
+
 from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.config import settings
@@ -256,13 +263,6 @@ class LLMClient:
                     )
 
                     # Convert to LangChain BaseMessage objects
-                    from langchain_core.messages import (
-                        SystemMessage,
-                        HumanMessage,
-                        AIMessage,
-                        ToolMessage,
-                    )
-
                     api_messages = []
                     for msg_dict in formatted_messages:
                         role = msg_dict["role"]
