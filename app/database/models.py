@@ -261,8 +261,10 @@ class Message(SQLModel, table=True):
         elif self.role == enums.MessageRole.tool:
             return ToolMessage(content=content, tool_call_id=self.tool_call_id or "")
         else:
-            # Fallback to system message for unknown roles
-            return SystemMessage(content=content)
+            # Raise an error for unknown roles
+            raise ValueError(
+                f"Unknown message role: {self.role}. Expected one of: {[role.value for role in enums.MessageRole]}"
+            )
 
     @classmethod
     def from_api_format(cls, data: dict, user_id: int) -> "Message":
@@ -315,7 +317,11 @@ class Message(SQLModel, table=True):
             and message.tool_calls
         ):
             tool_calls = [
-                tool_call.model_dump() if isinstance(tool_call, BaseModel) else tool_call
+                (
+                    tool_call.model_dump()
+                    if isinstance(tool_call, BaseModel)
+                    else tool_call
+                )
                 for tool_call in message.tool_calls
             ]
         elif isinstance(message, AIMessage) and hasattr(message, "additional_kwargs"):
