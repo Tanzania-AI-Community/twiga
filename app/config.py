@@ -118,6 +118,12 @@ class LLMSettings(BaseSettings):
     exercise_generator_model: str = llm_model_options["llama_4_scout"]
     embedding_model: str = embedder_model_options["bge-large"]
 
+    # LangSmith tracing settings
+    langsmith_api_key: Optional[SecretStr] = None
+    langsmith_project: Optional[str] = "twiga-whatsapp-chatbot"
+    langsmith_tracing: bool = False
+    langsmith_endpoint: Optional[str] = "https://api.smith.langchain.com"
+
 
 def initialize_settings():
     settings = Settings()  # type: ignore
