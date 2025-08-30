@@ -79,6 +79,8 @@ class SubjectName(str, Enum):
     english = "english"
     civics = "civics"
     mathematics = "mathematics"
+    human_geography = "human_geography"
+    physical_geography = "physical_geography"
 
     @property
     def display_format(self) -> str:
@@ -89,6 +91,8 @@ class SubjectName(str, Enum):
             "english": "📘",
             "civics": "🏛️",
             "mathematics": "➗",
+            "human_geography": "👤",
+            "physical_geography": "🪨",
         }
         emoji = emoji_map.get(self, "")
         return f"{self.capitalize()} {emoji}"
