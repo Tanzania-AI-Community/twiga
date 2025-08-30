@@ -3,11 +3,13 @@ import backoff
 import os
 import requests
 from typing import List, Optional, Dict, Any, cast
+from typing import List, Optional, Dict, Any, cast
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
 from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
+from langsmith.run_helpers import trace as ls_trace
 from langsmith.run_helpers import trace as ls_trace
 
 from app.config import llm_settings
@@ -102,7 +104,10 @@ async def async_llm_request(
     tool_choice: Optional[str] = None,
     verbose: bool = False,
     config: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = None,
     run_name: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    parent: Optional[Any] = None,
     metadata: Optional[Dict[str, Any]] = None,
     parent: Optional[Any] = None,
     **kwargs,
@@ -134,7 +139,10 @@ async def async_llm_request(
             llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
         # Prepare kwargs; pass through provided config (if any) and other kwargs
+        # Prepare kwargs; pass through provided config (if any) and other kwargs
         invoke_kwargs = {}
+        if config:
+            invoke_kwargs["config"] = config
         if config:
             invoke_kwargs["config"] = config
         invoke_kwargs.update(kwargs)
