@@ -5,6 +5,7 @@ import asyncio
 from typing import List, Optional, Dict, Any
 import uuid
 from dataclasses import dataclass
+from contextlib import asynccontextmanager
 
 from langchain_core.messages import (
     SystemMessage,
@@ -13,9 +14,11 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from langsmith.run_helpers import trace
+
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.config import settings
+from app.config import settings, llm_settings
 from app.database.db import get_user_message_history
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
@@ -24,7 +27,6 @@ from app.tools.registry import get_tools_metadata, ToolName
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.utils.string_manager import strings, StringCategory
-
 
 # Simple Types replacements for OpenAI types
 @dataclass
@@ -49,6 +51,24 @@ class ChatCompletionMessageToolCall:
             "type": self.type,
         }
 
+class _NoopRun:
+    async def end(self, outputs: Optional[Dict[str, Any]] = None) -> None:
+        return None
+
+
+@asynccontextmanager
+async def maybe_trace(**kwargs):
+    """Open a LangSmith trace if enabled; otherwise yield a no-op run.
+
+    Usage:
+        async with maybe_trace(name=..., run_type=..., inputs=..., metadata=..., parent=...):
+            ...
+    """
+    if llm_settings.langsmith_tracing:
+        async with trace(**kwargs) as run:  # type: ignore[arg-type]
+            yield run
+    else:
+        yield _NoopRun()
 
 class MessageProcessor:
     """Handles processing and batching of messages for a single user."""
@@ -169,6 +189,7 @@ class LLMClient:
         self,
         tool_calls: List[ChatCompletionMessageToolCall],
         user: User,
+        parent_run,
     ) -> Optional[List[Message]]:
         """Process tool calls and return just the new tool response messages."""
 
@@ -197,11 +218,25 @@ class LLMClient:
             try:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
-
-                if function_name == ToolName.search_knowledge.value:
-                    result = await search_knowledge(**function_args)
-                elif function_name == ToolName.generate_exercise.value:
-                    result = await generate_exercise(**function_args)
+                # Tool run-type trace starts here
+            
+                async with maybe_trace(
+                    name=f"tool_{function_name}",
+                    run_type="tool",
+                    parent=parent_run,
+                    inputs=function_args,
+                    metadata={"tool": function_name},
+                ) as tool_run:
+                    if function_name == ToolName.search_knowledge.value:
+                        result = await search_knowledge(**function_args)
+                    elif function_name == ToolName.generate_exercise.value:
+                        result = await generate_exercise(**function_args)
+                    else:
+                        result = json.dumps({"error": f"Unknown tool: {function_name}"})
+                    try:
+                        await tool_run.end(outputs={"result": result})
+                    except Exception:
+                        pass
 
                 tool_responses.append(
                     Message(
@@ -245,224 +280,270 @@ class LLMClient:
             return None
 
         async with processor.lock:
-            while True:
-                try:
-                    messages_to_process = processor.get_pending_messages()
-                    original_count = len(messages_to_process)
-                    if not messages_to_process:
-                        self.logger.warning(f"No messages to process for {user.wa_id}.")
-                        processor.clear_messages()
-                        self._cleanup_processor(user.id)
-                        return None  # 1. Build the API messages from DB history + new messages
-                    self.logger.debug("Retrieving user message history")
-                    history = await get_user_message_history(user.id)
+            ### Chain run-type trace starts here
+            async with maybe_trace(
+                name=f"twiga_chat_{user.wa_id}",
+                run_type="chain",
+                inputs={
+                    "input": str(message.content),
+                    "system_prompt": prompt_manager.format_prompt(
+                        "twiga_system",
+                        user_name=user.name,
+                        class_info=user.formatted_class_info,
+                    ),
+                },
+                metadata={
+                    "user_id": str(user.id),
+                    "user_wa_id": user.wa_id,
+                    "user_name": user.name,
+                    "message_count": len(processor.get_pending_messages()),
+                    "phase": "chain_start",
+                },
+            ) as parent_run:
 
-                    formatted_messages = self._format_messages(
-                        messages_to_process, history, user
-                    )
+                while True:
+                    try:
+                        messages_to_process = processor.get_pending_messages()
+                        original_count = len(messages_to_process)
+                        if not messages_to_process:
+                            self.logger.warning(f"No messages to process for {user.wa_id}.")
+                            processor.clear_messages()
+                            self._cleanup_processor(user.id)
+                            return None  # 1. Build the API messages from DB history + new messages
+                        self.logger.debug("Retrieving user message history")
+                        history = await get_user_message_history(user.id)
 
-                    # Convert to LangChain BaseMessage objects
-                    api_messages = []
-                    for msg_dict in formatted_messages:
-                        role = msg_dict["role"]
-                        content = msg_dict["content"] or ""
-                        if role == "system":
-                            api_messages.append(SystemMessage(content=content))
-                        elif role == "user":
-                            api_messages.append(HumanMessage(content=content))
-                        elif role == "assistant":
-                            if msg_dict.get("tool_calls"):
+                        formatted_messages = self._format_messages(
+                            messages_to_process, history, user
+                        )
+
+                        # Convert to LangChain BaseMessage objects
+                        api_messages = []
+                        for msg_dict in formatted_messages:
+                            role = msg_dict["role"]
+                            content = msg_dict["content"] or ""
+                            if role == "system":
+                                api_messages.append(SystemMessage(content=content))
+                            elif role == "user":
+                                api_messages.append(HumanMessage(content=content))
+                            elif role == "assistant":
+                                if msg_dict.get("tool_calls"):
+                                    api_messages.append(
+                                        AIMessage(
+                                            content=content,
+                                            additional_kwargs={
+                                                "tool_calls": msg_dict["tool_calls"]
+                                            },
+                                        )
+                                    )
+                                else:
+                                    api_messages.append(AIMessage(content=content))
+                            elif role == "tool":
                                 api_messages.append(
-                                    AIMessage(
+                                    ToolMessage(
                                         content=content,
-                                        additional_kwargs={
-                                            "tool_calls": msg_dict["tool_calls"]
-                                        },
+                                        tool_call_id=msg_dict.get("tool_call_id", ""),
                                     )
                                 )
                             else:
-                                api_messages.append(AIMessage(content=content))
-                        elif role == "tool":
-                            api_messages.append(
-                                ToolMessage(
-                                    content=content,
-                                    tool_call_id=msg_dict.get("tool_call_id", ""),
+                                # Fallback to system message
+                                api_messages.append(SystemMessage(content=content))
+
+                        message_lengths = [
+                            0 if msg.content is None else len(msg.content)
+                            for msg in api_messages
+                        ]
+                        self.logger.debug(
+                            f"Total number of characters in user API messages: {sum(message_lengths)}"
+                        )
+
+                        # TODO: Issue #92: Optimizing chat history usage & context window input
+                        if message_lengths[-1] > settings.message_character_limit:
+                            self.logger.error(
+                                f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
+                            )
+                            return [
+                                Message(
+                                    user_id=user.id,
+                                    role=MessageRole.system,
+                                    content=strings.get_string(
+                                        StringCategory.ERROR, "character_limit_exceeded"
+                                    ),
                                 )
-                            )
-                        else:
-                            # Fallback to system message
-                            api_messages.append(SystemMessage(content=content))
+                            ]
 
-                    message_lengths = [
-                        0 if msg.content is None else len(msg.content)
-                        for msg in api_messages
-                    ]
-                    self.logger.debug(
-                        f"Total number of characters in user API messages: {sum(message_lengths)}"
-                    )
-
-                    # TODO: Issue #92: Optimizing chat history usage & context window input
-                    if message_lengths[-1] > settings.message_character_limit:
-                        self.logger.error(
-                            f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
-                        )
-                        return [
-                            Message(
-                                user_id=user.id,
-                                role=MessageRole.system,
-                                content=strings.get_string(
-                                    StringCategory.ERROR, "character_limit_exceeded"
-                                ),
-                            )
-                        ]
-
-                    # 2. Call the LLM with tools enabled
-                    self.logger.debug("Initiating LLM request")
-                    initial_response = await async_llm_request(
-                        messages=api_messages,
-                        tools=get_tools_metadata(
+                        # 2. Call the LLM with tools enabled
+                        self.logger.debug("Initiating LLM request")
+                        tools_metadata = get_tools_metadata(
                             available_classes=json.dumps(user.class_name_to_id_map)
-                        ),
-                        tool_choice="auto",
-                        verbose=False,
-                        run_name=f"twiga_initial_chat_{user.wa_id}",
-                        metadata={
-                            "user_id": str(user.id),
-                            "user_wa_id": user.wa_id,
-                            "user_name": user.name,
-                            "message_count": len(api_messages),
-                            "phase": "initial_request",
-                        },
-                    )
-
-                    self.logger.debug(f"LLM response:\n {initial_response.content}")
-                    self.logger.debug("Formatting LLM response")
-
-                    # Create message from LangChain AIMessage directly
-                    content_str = None
-                    if initial_response.content:
-                        if isinstance(initial_response.content, str):
-                            content_str = initial_response.content
-                        elif isinstance(initial_response.content, list):
-                            # Handle list content by joining or extracting text
-                            content_str = ""
-                            for item in initial_response.content:
-                                if isinstance(item, str):
-                                    content_str += item
-                                elif isinstance(item, dict) and "text" in item:
-                                    content_str += item["text"]
-                        else:
-                            content_str = str(initial_response.content)
-
-                    initial_message = Message(
-                        user_id=user.id,
-                        role=MessageRole.assistant,
-                        content=content_str,
-                        tool_calls=None,
-                    )
-
-                    # Extract tool calls from LangChain AIMessage
-                    if (
-                        hasattr(initial_response, "tool_calls")
-                        and initial_response.tool_calls
-                    ):
-                        initial_message.tool_calls = [
-                            {
-                                "id": tool_call.get(
-                                    "id", f"call_{uuid.uuid4().hex[:22]}"
+                        )
+                        initial_response = await async_llm_request(
+                            messages=api_messages,
+                            tools=tools_metadata,
+                            tool_choice="auto",
+                            verbose=False,
+                            run_name=f"twiga_initial_chat_{user.wa_id}",
+                            metadata={
+                                "user_id": str(user.id),
+                                "user_wa_id": user.wa_id,
+                                "user_name": user.name,
+                                "message_count": len(api_messages),
+                                "phase": "initial_request",
+                                "system_prompt": prompt_manager.format_prompt(
+                                    "twiga_system",
+                                    user_name=user.name,
+                                    class_info=user.formatted_class_info,
                                 ),
-                                "function": {
-                                    "name": tool_call["name"],
-                                    "arguments": json.dumps(tool_call.get("args", {})),
-                                },
-                                "type": "function",
-                            }
-                            for tool_call in initial_response.tool_calls
-                        ]
-                        # Clear content when tool calls are present
-                        initial_message.content = None
-
-                    # Track new messages
-                    new_messages = [initial_message]
-
-                    # 3. Check for malformed tool calls in content
-                    if not initial_message.tool_calls:
-                        tool_call_data = self._catch_malformed_tool(initial_message)
-                        self.logger.debug(f"Recovered tool call data: {tool_call_data}")
-
-                        if tool_call_data:
-                            initial_message.tool_calls = [tool_call_data.model_dump()]
-                            initial_message.content = None  # 4. Check for new incoming messages during processing
-                    if self._check_new_messages(processor, original_count):
-                        self.logger.warning("New messages buffered during processing")
-                        continue
-
-                    # 5. Process tool calls if present (whether normal or recovered)
-                    if initial_message.tool_calls:
-                        self.logger.debug("Processing tool calls 🛠️")
-
-                        tool_calls = [
-                            ChatCompletionMessageToolCall(
-                                id=call.get("id", f"call_{uuid.uuid4().hex[:22]}"),
-                                function=Function(
-                                    name=call["function"]["name"],
-                                    arguments=call["function"]["arguments"],
-                                ),
-                                type="function",
-                            )
-                            for call in initial_message.tool_calls
-                        ]
-
-                        # Process tool calls and track the tool response messages
-                        tool_responses = await self._process_tool_calls(
-                            tool_calls,
-                            user,
+                                "tools": tools_metadata,
+                                "tool_choice": "auto",
+                            },
+                            parent=parent_run,
                         )
 
-                        if tool_responses:
-                            new_messages.extend(tool_responses)
+                        self.logger.debug(f"LLM response:\n {initial_response.content}")
+                        self.logger.debug("Formatting LLM response")
 
-                            # Extend api_messages with new tool responses
-                            api_messages.extend(
-                                msg.to_langchain_message() for msg in tool_responses
-                            )
+                        # Create message from LangChain AIMessage directly
+                        content_str = None
+                        if initial_response.content:
+                            if isinstance(initial_response.content, str):
+                                content_str = initial_response.content
+                            elif isinstance(initial_response.content, list):
+                                # Handle list content by joining or extracting text
+                                content_str = ""
+                                for item in initial_response.content:
+                                    if isinstance(item, str):
+                                        content_str += item
+                                    elif isinstance(item, dict) and "text" in item:
+                                        content_str += item["text"]
+                            else:
+                                content_str = str(initial_response.content)
 
-                            # 6. Final call to LLM with the new tool outputs appended
-                            final_response = await async_llm_request(
-                                messages=api_messages,
-                                tools=None,
-                                tool_choice=None,
-                                run_name=f"twiga_final_chat_{user.wa_id}",
-                                metadata={
-                                    "user_id": str(user.id),
-                                    "user_wa_id": user.wa_id,
-                                    "user_name": user.name,
-                                    "message_count": len(api_messages),
-                                    "phase": "final_request_with_tools",
-                                    "tool_calls_processed": len(tool_responses),
-                                },
-                            )
-                            final_message = Message.from_langchain_message(
-                                final_response, user.id
-                            )
-                            new_messages.append(final_message)
+                        initial_message = Message(
+                            user_id=user.id,
+                            role=MessageRole.assistant,
+                            content=content_str,
+                            tool_calls=None,
+                        )
 
-                        # Check for new messages again
+                        # Extract tool calls from LangChain AIMessage
+                        if (
+                            hasattr(initial_response, "tool_calls")
+                            and initial_response.tool_calls
+                        ):
+                            initial_message.tool_calls = [
+                                {
+                                    "id": tool_call.get(
+                                        "id", f"call_{uuid.uuid4().hex[:22]}"
+                                    ),
+                                    "function": {
+                                        "name": tool_call["name"],
+                                        "arguments": json.dumps(tool_call.get("args", {})),
+                                    },
+                                    "type": "function",
+                                }
+                                for tool_call in initial_response.tool_calls
+                            ]
+                            # Clear content when tool calls are present
+                            initial_message.content = None
+
+                        # Track new messages
+                        new_messages = [initial_message]
+
+                        # 3. Check for malformed tool calls in content
+                        if not initial_message.tool_calls:
+                            tool_call_data = self._catch_malformed_tool(initial_message)
+                            self.logger.debug(f"Recovered tool call data: {tool_call_data}")
+
+                            if tool_call_data:
+                                initial_message.tool_calls = [tool_call_data.model_dump()]
+                                initial_message.content = None  # 4. Check for new incoming messages during processing
                         if self._check_new_messages(processor, original_count):
-                            self.logger.warning("New messages buffered during tools")
+                            self.logger.warning("New messages buffered during processing")
                             continue
 
-                    # 7. If we got this far, we can clear the buffer and return
-                    self.logger.debug("LLM finished. Clearing buffer.")
-                    processor.clear_messages()
-                    self._cleanup_processor(user.id)
-                    return new_messages
+                        # 5. Process tool calls if present (whether normal or recovered)
+                        if initial_message.tool_calls:
+                            self.logger.debug("Processing tool calls 🛠️")
 
-                except Exception as e:
-                    self.logger.error(f"Error processing messages: {e}")
-                    processor.clear_messages()
-                    self._cleanup_processor(user.id)
-                    return None
+                            tool_calls = [
+                                ChatCompletionMessageToolCall(
+                                    id=call.get("id", f"call_{uuid.uuid4().hex[:22]}"),
+                                    function=Function(
+                                        name=call["function"]["name"],
+                                        arguments=call["function"]["arguments"],
+                                    ),
+                                    type="function",
+                                )
+                                for call in initial_message.tool_calls
+                            ]
+
+                            # Process tool calls and track the tool response messages
+                            tool_responses = await self._process_tool_calls(
+                                tool_calls,
+                                user,
+                                parent_run,
+                            )
+
+                            if tool_responses:
+                                new_messages.extend(tool_responses)
+
+                                # Extend api_messages with new tool responses
+                                api_messages.extend(
+                                    msg.to_langchain_message() for msg in tool_responses
+                                )
+
+                                # 6. Final call to LLM with the new tool outputs appended
+                                final_response = await async_llm_request(
+                                    messages=api_messages,
+                                    tools=None,
+                                    tool_choice=None,
+                                    run_name=f"twiga_final_chat_{user.wa_id}",
+                                    metadata={
+                                        "user_id": str(user.id),
+                                        "user_wa_id": user.wa_id,
+                                        "user_name": user.name,
+                                        "message_count": len(api_messages),
+                                        "phase": "final_request_with_tools",
+                                        "tool_calls_processed": len(tool_responses),
+                                    },
+                                    parent=parent_run,
+                                )
+                                final_message = Message.from_langchain_message(
+                                    final_response, user.id
+                                )
+                                new_messages.append(final_message)
+
+                            # Check for new messages again
+                            if self._check_new_messages(processor, original_count):
+                                self.logger.warning("New messages buffered during tools")
+                                continue
+
+                        # 7. If we got this far, we can clear the buffer and return
+                        self.logger.debug("LLM finished. Clearing buffer.")
+                        # End parent chain with final output
+                        try:
+                            final_text = ""
+                            last_assistant = next(
+                                (m for m in reversed(new_messages) if m.role == MessageRole.assistant),
+                                None,
+                            )
+                            if last_assistant and last_assistant.content:
+                                final_text = str(last_assistant.content)
+                            await parent_run.end(outputs={"output": final_text})
+                        except Exception:
+                            pass
+                        processor.clear_messages()
+                        self._cleanup_processor(user.id)
+                        return new_messages
+
+                    except Exception as e:
+                        self.logger.error(f"Error processing messages: {e}")
+                        processor.clear_messages()
+                        self._cleanup_processor(user.id)
+                        return None
+
+                # Parent run is ended earlier with final output; no-op here
 
     @staticmethod
     def _format_messages(
