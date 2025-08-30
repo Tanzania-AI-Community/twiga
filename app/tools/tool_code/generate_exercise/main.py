@@ -10,7 +10,6 @@ from app.database.enums import ChunkType
 
 logger = logging.getLogger(__name__)
 
-
 async def generate_exercise(
     query: str,
     class_id: int,
