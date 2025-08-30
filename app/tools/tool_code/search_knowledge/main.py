@@ -7,7 +7,6 @@ import app.database.db as db
 
 logger = logging.getLogger(__name__)
 
-
 async def search_knowledge(
     search_phrase: str,
     class_id: int,

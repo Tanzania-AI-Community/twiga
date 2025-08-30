@@ -2,12 +2,13 @@ import logging
 import backoff
 import os
 import requests
-from typing import List, Optional, Dict, cast
+from typing import List, Optional, Dict, Any, cast
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
 from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
+from langsmith.run_helpers import trace as ls_trace
 
 from app.config import llm_settings
 
@@ -100,8 +101,10 @@ async def async_llm_request(
     tools: Optional[List[Dict]] = None,
     tool_choice: Optional[str] = None,
     verbose: bool = False,
+    config: Optional[Dict[str, Any]] = None,
     run_name: Optional[str] = None,
-    metadata: Optional[Dict] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    parent: Optional[Any] = None,
     **kwargs,
 ) -> AIMessage:
     """
@@ -130,24 +133,36 @@ async def async_llm_request(
         if tools:
             llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
-        # Prepare kwargs for LangSmith tracing
+        # Prepare kwargs; pass through provided config (if any) and other kwargs
         invoke_kwargs = {}
-        if llm_settings.langsmith_tracing:
-            # Add tracing configuration
-            config = {}
-            if run_name:
-                config["run_name"] = run_name
-            if metadata:
-                config["metadata"] = metadata
-            if config:
-                invoke_kwargs["config"] = config
-
-        # Merge any additional kwargs
+        if config:
+            invoke_kwargs["config"] = config
         invoke_kwargs.update(kwargs)
 
-        # Make the async call
-        response = await llm.ainvoke(messages, **invoke_kwargs)
-        return cast(AIMessage, response)
+        # Make the async call, wrapped in an explicit LLM child trace when tracing is enabled
+        if llm_settings.langsmith_tracing:
+            async with ls_trace(
+                name=run_name or "llm_call",
+                run_type="llm",
+                parent=parent,
+                inputs={"messages_count": messages},
+                metadata=metadata or {},
+            ) as llm_run:
+                response = await llm.ainvoke(messages, **invoke_kwargs)
+                try:
+                    content_preview = None
+                    if getattr(response, "content", None):
+                        if isinstance(response.content, str):
+                            content_preview = response.content[:500]
+                        elif isinstance(response.content, list):
+                            content_preview = str(response.content)[:500]
+                    await llm_run.end(outputs={"output_preview": content_preview})
+                except Exception:
+                    pass
+                return cast(AIMessage, response)
+        else:
+            response = await llm.ainvoke(messages, **invoke_kwargs)
+            return cast(AIMessage, response)
 
     except Exception as e:
         logger.error(f"LLM request failed: {str(e)}")
