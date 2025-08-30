@@ -314,7 +314,7 @@ async def read_subject(subject_id: int) -> Optional[Subject]:
         except Exception as e:
             logger.error(f"Failed to read subject {subject_id}: {str(e)}")
             raise Exception(f"Failed to read subject: {str(e)}")
-    
+
 
 async def read_subject_by_name(subject_name: str) -> Optional[Subject]:
     async with get_session() as session:
@@ -336,10 +336,7 @@ async def read_resource_by_name(resource_name: str) -> Optional[Resource]:
     async with get_session() as session:
         try:
             # Use selectinload to eagerly load the subject_classes relationship
-            statement = (
-                select(Resource)
-                .where(Resource.name == resource_name)
-            )
+            statement = select(Resource).where(Resource.name == resource_name)
             result = await session.execute(statement)
             return result.scalar_one_or_none()
         except Exception as e:
@@ -363,13 +360,15 @@ async def read_class_by_subject_id_grade_level_and_status(
             # Use selectinload to eagerly load the subject_classes relationship
             statement = (
                 select(Class)
-                #.options(selectinload(Subject.subject_classes))  # type: ignore
+                # .options(selectinload(Subject.subject_classes))  # type: ignore
                 .where(*filters)
             )
             result = await session.execute(statement)
             return result.scalar_one_or_none()
         except Exception as e:
-            logger.error(f"Failed to read class from subject_id={subject_id}, grade_level={grade_level} and status={status}: {str(e)}")
+            logger.error(
+                f"Failed to read class from subject_id={subject_id}, grade_level={grade_level} and status={status}: {str(e)}"
+            )
             raise Exception(f"Failed to read subject: {str(e)}")
 
 
@@ -382,15 +381,14 @@ async def does_class_resource_rel_exist(class_id: int, resource_id: int) -> bool
 
         try:
             # Use selectinload to eagerly load the subject_classes relationship
-            statement = (
-                select(ClassResource)
-                .where(*filters)
-            )
+            statement = select(ClassResource).where(*filters)
             result = await session.execute(statement)
             return result.scalar_one_or_none() is not None
 
         except Exception as e:
-            logger.error(f"Failed to verify relation from class_id={class_id} and resource_id={resource_id}: {str(e)}")
+            logger.error(
+                f"Failed to verify relation from class_id={class_id} and resource_id={resource_id}: {str(e)}"
+            )
             raise Exception(f"Failed to read relation: {str(e)}")
 
 

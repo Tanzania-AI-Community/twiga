@@ -1,13 +1,9 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 import json
 from pathlib import Path
-from sqlmodel import text
-from sqlmodel import SQLModel, select
+from sqlmodel import select
 import logging
-from typing import List, Dict, Any
 from pydantic import BaseModel
-from pydantic_core._pydantic_core import ValidationError
-import yaml
 import argparse
 import asyncio
 import sys
@@ -66,13 +62,11 @@ class ParsedBook(BaseModel):
 
 
 def get_parsed_book(file_name: str) -> ParsedBook:
-    file_path = (
-        Path(__file__).parent.parent / "assets" / "books" / f"{file_name}"
-    )
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
+    file_path = Path(__file__).parent.parent / "assets" / "books" / f"{file_name}"
+
+    with open(file_path, "r", encoding="utf-8") as f:
         book_content_raw = json.load(f)
-    
+
     parsed_book = ParsedBook(
         resource=ResourceConfig(
             name=book_content_raw["resource"]["name"],
@@ -82,14 +76,18 @@ def get_parsed_book(file_name: str) -> ParsedBook:
         class_=ClassConfig(
             grade_level=book_content_raw["class"]["grade_level"],
             name=book_content_raw["class"]["name"],
-            status=book_content_raw["class"]["status"], 
+            status=book_content_raw["class"]["status"],
         ),
         subject=SubjectConfig(
             name=book_content_raw["subject"]["name"],
         ),
         table_of_contents=TableOfContents(
             chapters=[
-                Chapter(name=chapter["name"], number=chapter["number"], start_page=chapter["start_page"])
+                Chapter(
+                    name=chapter["name"],
+                    number=chapter["number"],
+                    start_page=chapter["start_page"],
+                )
                 for chapter in book_content_raw["table_of_contents"]["chapters"]
             ]
         ),
@@ -101,7 +99,7 @@ def get_parsed_book(file_name: str) -> ParsedBook:
                 chapter_number=chunk_raw["chapter_number"],
             )
             for chunk_raw in book_content_raw["chunks"]
-        ]
+        ],
     )
 
     return parsed_book
@@ -114,7 +112,9 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
         async with AsyncSession(engine) as session:
             # 1. Create the dummy subject
 
-            subject = await db.read_subject_by_name(subject_name=parsed_book.subject.name)
+            subject = await db.read_subject_by_name(
+                subject_name=parsed_book.subject.name
+            )
 
             if not subject:
                 subject = models.Subject(name=parsed_book.subject.name)
@@ -145,7 +145,9 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
 
             # 3. Create the dummy resource
 
-            resource = await db.read_resource_by_name(resource_name=parsed_book.resource.name)
+            resource = await db.read_resource_by_name(
+                resource_name=parsed_book.resource.name
+            )
 
             if not resource:
                 resource = models.Resource(
@@ -161,7 +163,9 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
             assert class_obj.id
             assert resource.id
 
-            does_class_resource_rel_exist = await db.does_class_resource_rel_exist(class_id=class_obj.id, resource_id=resource.id)
+            does_class_resource_rel_exist = await db.does_class_resource_rel_exist(
+                class_id=class_obj.id, resource_id=resource.id
+            )
             if not does_class_resource_rel_exist:
                 class_resource = models.ClassResource(
                     class_id=class_obj.id, resource_id=resource.id
@@ -180,7 +184,6 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
         await engine.dispose()
 
 
-
 async def process_chunks(
     session: AsyncSession,
     chunks: list[Chunk],
@@ -191,7 +194,9 @@ async def process_chunks(
     """Process pre-enhanced chunks to create Chunk models"""
     try:
         total_chunks = len(chunks)
-        chapter_number_to_name_mapper = {chapter.number: chapter.name for chapter in table_of_contents.chapters}
+        chapter_number_to_name_mapper = {
+            chapter.number: chapter.name for chapter in table_of_contents.chapters
+        }
 
         for start_idx in range(0, total_chunks, batch_size):
             end_idx = min(start_idx + batch_size, total_chunks)
@@ -203,7 +208,9 @@ async def process_chunks(
                     content=item.content,
                     chunk_type=ChunkType.text,  # TODO: include in json
                     top_level_section_index=str(item.chapter_number),
-                    top_level_section_title=chapter_number_to_name_mapper.get(item.chapter_number),
+                    top_level_section_title=chapter_number_to_name_mapper.get(
+                        item.chapter_number
+                    ),
                     embedding=item.embedding,
                 )
                 session.add(chunk)
@@ -256,7 +263,12 @@ async def inject_vector_data(parsed_book: ParsedBook):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--parsed_book_name", type=str, required=True, help="Path to the input book to be ingested into the DB.")
+    parser.add_argument(
+        "--parsed_book_name",
+        type=str,
+        required=True,
+        help="Path to the input book to be ingested into the DB.",
+    )
     args = parser.parse_args()
 
     try:
