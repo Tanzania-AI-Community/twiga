@@ -10,7 +10,6 @@ from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 from langsmith.run_helpers import trace as ls_trace
-from langsmith.run_helpers import trace as ls_trace
 
 from app.config import llm_settings
 
