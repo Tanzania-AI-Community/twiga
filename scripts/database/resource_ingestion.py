@@ -8,14 +8,12 @@ import argparse
 import asyncio
 import sys
 
-# Import all your models
 import app.database.models as models
 import app.database.db as db
 from app.database.enums import ChunkType
 from app.database.utils import get_database_url
 
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -110,8 +108,6 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
         engine = create_async_engine(get_database_url())
 
         async with AsyncSession(engine) as session:
-            # 1. Create the dummy subject
-
             subject = await db.read_subject_by_name(
                 subject_name=parsed_book.subject.name
             )
@@ -119,10 +115,9 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
             if not subject:
                 subject = models.Subject(name=parsed_book.subject.name)
                 session.add(subject)
-                await session.flush()  # Get ID without committing
+                await session.flush()
                 logger.info(f"Created subject: {subject.name} (ID: {subject.id})")
 
-            # 2. Create the dummy class
             assert subject.id
 
             class_obj = await db.read_class_by_subject_id_grade_level_and_status(
@@ -133,7 +128,7 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
 
             if not class_obj:
                 class_obj = models.Class(
-                    subject_id=subject.id,  # Use the actual subject ID
+                    subject_id=subject.id,
                     grade_level=parsed_book.class_.grade_level,
                     status=parsed_book.class_.status,
                 )
@@ -142,8 +137,6 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
                 logger.info(
                     f"Created class: Grade level: {class_obj.grade_level}, Subject ID: {class_obj.subject_id}, ID: {class_obj.id})"
                 )
-
-            # 3. Create the dummy resource
 
             resource = await db.read_resource_by_name(
                 resource_name=parsed_book.resource.name
@@ -159,7 +152,6 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
                 await session.flush()
                 logger.info(f"Created resource: {resource.name} (ID: {resource.id})")
 
-            # 4. Create the dummy class-resource relationship (this connects the textbook to the class)
             assert class_obj.id
             assert resource.id
 
