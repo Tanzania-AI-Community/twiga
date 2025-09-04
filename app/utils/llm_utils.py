@@ -143,7 +143,7 @@ async def async_llm_request(
         invoke_kwargs.update(kwargs)
 
         # Make the async call, wrapped in an explicit LLM child trace when tracing is enabled
-        if llm_settings.langsmith_tracing: # Check if true or false
+        if llm_settings.langsmith_tracing:  # Check if true or false
             async with ls_trace(
                 name=run_name or "llm_call",
                 run_type="llm",
