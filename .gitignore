@@ -174,3 +174,5 @@ cython_debug/
 
 # intelij
 .idea/
+
+scripts/assets/books/
