@@ -17,12 +17,14 @@ jobs:
     uses: ./.github/workflows/pre-commit.yml
 
   gitguardian:
+    if: github.repository == 'Tanzania-AI-Community/twiga' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'Tanzania-AI-Community/twiga')
     uses: ./.github/workflows/gitguardian.yml
     secrets:
       GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY}}
 
   tests:
     needs: [pre-commit, gitguardian]
+    if: always() && (needs.pre-commit.result == 'success' || needs.pre-commit.result == 'skipped') && (needs.gitguardian.result == 'success' || needs.gitguardian.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
