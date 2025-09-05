@@ -11,6 +11,8 @@ from app.database.models import (
     Class,
     Chunk,
     Subject,
+    Resource,
+    ClassResource,
 )
 import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
@@ -312,6 +314,82 @@ async def read_subject(subject_id: int) -> Optional[Subject]:
         except Exception as e:
             logger.error(f"Failed to read subject {subject_id}: {str(e)}")
             raise Exception(f"Failed to read subject: {str(e)}")
+
+
+async def read_subject_by_name(subject_name: str) -> Optional[Subject]:
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = (
+                select(Subject)
+                .options(selectinload(Subject.subject_classes))  # type: ignore
+                .where(Subject.name == subject_name)
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to read subject {subject_name}: {str(e)}")
+            raise Exception(f"Failed to read subject: {str(e)}")
+
+
+async def read_resource_by_name(resource_name: str) -> Optional[Resource]:
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(Resource).where(Resource.name == resource_name)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to read resource {resource_name}: {str(e)}")
+            raise Exception(f"Failed to read resource: {str(e)}")
+
+
+async def read_class_by_subject_id_grade_level_and_status(
+    subject_id: int,
+    grade_level: str,
+    status: str,
+) -> Optional[Class]:
+    async with get_session() as session:
+        filters = [
+            Class.grade_level == enums.GradeLevel(grade_level),
+            Class.status == SubjectClassStatus(status),
+            Class.subject_id == subject_id,
+        ]
+
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = (
+                select(Class)
+                # .options(selectinload(Subject.subject_classes))  # type: ignore
+                .where(*filters)
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(
+                f"Failed to read class from subject_id={subject_id}, grade_level={grade_level} and status={status}: {str(e)}"
+            )
+            raise Exception(f"Failed to read subject: {str(e)}")
+
+
+async def does_class_resource_rel_exist(class_id: int, resource_id: int) -> bool:
+    async with get_session() as session:
+        filters = [
+            ClassResource.class_id == class_id,
+            ClassResource.resource_id == resource_id,
+        ]
+
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(ClassResource).where(*filters)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none() is not None
+
+        except Exception as e:
+            logger.error(
+                f"Failed to verify relation from class_id={class_id} and resource_id={resource_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to read relation: {str(e)}")
 
 
 async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
