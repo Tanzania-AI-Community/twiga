@@ -28,6 +28,7 @@ from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.utils.string_manager import strings, StringCategory
 
+
 # Simple Types replacements for OpenAI types
 @dataclass
 class Function:
@@ -51,6 +52,7 @@ class ChatCompletionMessageToolCall:
             "type": self.type,
         }
 
+
 class _NoopRun:
     async def end(self, outputs: Optional[Dict[str, Any]] = None) -> None:
         return None
@@ -69,6 +71,7 @@ async def maybe_trace(**kwargs):
             yield run
     else:
         yield _NoopRun()
+
 
 class MessageProcessor:
     """Handles processing and batching of messages for a single user."""
@@ -219,7 +222,7 @@ class LLMClient:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
                 # Tool run-type trace starts here
-            
+
                 async with maybe_trace(
                     name=f"tool_{function_name}",
                     run_type="tool",
@@ -306,7 +309,9 @@ class LLMClient:
                         messages_to_process = processor.get_pending_messages()
                         original_count = len(messages_to_process)
                         if not messages_to_process:
-                            self.logger.warning(f"No messages to process for {user.wa_id}.")
+                            self.logger.warning(
+                                f"No messages to process for {user.wa_id}."
+                            )
                             processor.clear_messages()
                             self._cleanup_processor(user.id)
                             return None  # 1. Build the API messages from DB history + new messages
@@ -438,7 +443,9 @@ class LLMClient:
                                     ),
                                     "function": {
                                         "name": tool_call["name"],
-                                        "arguments": json.dumps(tool_call.get("args", {})),
+                                        "arguments": json.dumps(
+                                            tool_call.get("args", {})
+                                        ),
                                     },
                                     "type": "function",
                                 }
@@ -453,13 +460,19 @@ class LLMClient:
                         # 3. Check for malformed tool calls in content
                         if not initial_message.tool_calls:
                             tool_call_data = self._catch_malformed_tool(initial_message)
-                            self.logger.debug(f"Recovered tool call data: {tool_call_data}")
+                            self.logger.debug(
+                                f"Recovered tool call data: {tool_call_data}"
+                            )
 
                             if tool_call_data:
-                                initial_message.tool_calls = [tool_call_data.model_dump()]
+                                initial_message.tool_calls = [
+                                    tool_call_data.model_dump()
+                                ]
                                 initial_message.content = None  # 4. Check for new incoming messages during processing
                         if self._check_new_messages(processor, original_count):
-                            self.logger.warning("New messages buffered during processing")
+                            self.logger.warning(
+                                "New messages buffered during processing"
+                            )
                             continue
 
                         # 5. Process tool calls if present (whether normal or recovered)
@@ -516,7 +529,9 @@ class LLMClient:
 
                             # Check for new messages again
                             if self._check_new_messages(processor, original_count):
-                                self.logger.warning("New messages buffered during tools")
+                                self.logger.warning(
+                                    "New messages buffered during tools"
+                                )
                                 continue
 
                         # 7. If we got this far, we can clear the buffer and return
@@ -525,7 +540,11 @@ class LLMClient:
                         try:
                             final_text = ""
                             last_assistant = next(
-                                (m for m in reversed(new_messages) if m.role == MessageRole.assistant),
+                                (
+                                    m
+                                    for m in reversed(new_messages)
+                                    if m.role == MessageRole.assistant
+                                ),
                                 None,
                             )
                             if last_assistant and last_assistant.content:
