@@ -70,6 +70,8 @@ class UserState(str, Enum):
     new = "new"
     onboarding = "onboarding"
     active = "active"
+    inactive = "inactive"
+    in_review = "in_review"
 
 
 class SubjectName(str, Enum):
