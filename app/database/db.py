@@ -16,17 +16,23 @@ import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
 from app.database.engine import get_session
 from app.utils import embedder
+from app.config import settings, Environment
 
 logger = logging.getLogger(__name__)
 
 # TODO: Add custom Exceptions for better error handling
 
 
-async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
+async def get_or_create_user(
+    wa_id: str, name: Optional[str] = None
+) -> tuple[User, bool]:
     """
     Get existing user or create new one if they don't exist.
     Handles all database operations and error logging.
     This uses a lot of eager loading to get the class information from the user.
+
+    Returns:
+        tuple[User, bool]: (user, is_newly_created)
     """
     # TODO: Remove eager loading if too slow
     async with get_session() as session:
@@ -48,12 +54,27 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             user = result.scalar_one_or_none()
             if user:
                 await session.refresh(user)
-                return user
+                return user, False  # Existing user
             # Create new user if they don't exist
+            # In development/test environments, create users as 'new' to allow dummy data
+            # In production/staging, create users as 'in_review' for approval process
+            if settings.environment not in (
+                Environment.PRODUCTION,
+                Environment.STAGING,
+                Environment.DEVELOPMENT,
+            ):
+                initial_state = (
+                    enums.UserState.new
+                )  # Dev/test - will get dummy data when they text
+            else:
+                initial_state = (
+                    enums.UserState.in_review
+                )  # Production - require approval
+
             new_user = User(
                 name=name,
                 wa_id=wa_id,
-                state=enums.UserState.new,
+                state=initial_state,
                 role=enums.Role.teacher,
             )
             session.add(new_user)
@@ -61,7 +82,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             await session.commit()
             await session.refresh(new_user)
             logger.debug(f"Created new user with wa_id: {wa_id}")
-            return new_user
+            return new_user, True  # Newly created user
         except Exception as e:
             logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
             raise Exception(f"Failed to get or create user: {str(e)}")
@@ -93,6 +114,28 @@ async def update_user(user: User) -> User:
         except Exception as e:
             logger.error(f"Failed to update user {user.wa_id}: {str(e)}")
             raise Exception(f"Failed to update user: {str(e)}")
+
+
+async def get_users_by_state(state: enums.UserState) -> List[User]:
+    """
+    Get all users with a specific UserState.
+
+    Args:
+        state: The UserState to filter by
+
+    Returns:
+        List of users with the specified state
+    """
+    async with get_session() as session:
+        try:
+            statement = select(User).where(User.state == state)
+            result = await session.execute(statement)
+            users = list(result.scalars().all())
+            logger.info(f"Found {len(users)} users with state: {state}")
+            return users
+        except Exception as e:
+            logger.error(f"Failed to get users with state {state}: {str(e)}")
+            raise Exception(f"Failed to get users by state: {str(e)}")
 
 
 async def get_user_message_history(
@@ -161,6 +204,21 @@ async def create_new_message(message: Message) -> Message:
         except Exception as e:
             logger.error(f"Error creating message for user {message.user_id}: {str(e)}")
             raise Exception(f"Failed to create message: {str(e)}")
+
+
+async def user_has_previous_messages(user_id: int) -> bool:
+    """Check if a user has any previous messages in the database"""
+    async with get_session() as session:
+        try:
+            statement = select(Message).where(Message.user_id == user_id).limit(1)
+            result = await session.execute(statement)
+            message = result.scalar_one_or_none()
+            return message is not None
+        except Exception as e:
+            logger.error(
+                f"Failed to check previous messages for user {user_id}: {str(e)}"
+            )
+            return False  # Assume no previous messages on error
 
 
 async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
@@ -326,7 +384,7 @@ async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
 
 
 async def get_class_ids_from_class_info(
-    class_info: Dict[str, List[str]]
+    class_info: Dict[str, List[str]],
 ) -> Optional[List[int]]:
     """
     Get class IDs from a class_info dictionary structure in a single query

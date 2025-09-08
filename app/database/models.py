@@ -70,7 +70,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
-    state: enums.UserState = Field(default=enums.UserState.new, max_length=50)
+    state: enums.UserState = Field(default=enums.UserState.in_review, max_length=50)
     onboarding_state: Optional[enums.OnboardingState] = Field(
         default=enums.OnboardingState.new, max_length=50
     )

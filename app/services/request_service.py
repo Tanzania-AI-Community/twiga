@@ -65,7 +65,7 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information and create/get user
     message_info = extract_message_info(body)
 
-    message = extract_message(message_info.get("message", None))
+    message = extract_message(message_info.get("message") or {})
 
     if not message:
         logger.warning("Empty message received")
@@ -74,37 +74,85 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             status_code=400,
         )
 
-    user = await db.get_or_create_user(
+    # Check if user already exists before creating
+    user, is_new_user = await db.get_or_create_user(
         wa_id=message_info["wa_id"], name=message_info.get("name")
     )
 
     assert user.id is not None
-    # Create message record
+
+    # Create message record first
     user_message = await db.create_new_message(
         models.Message(user_id=user.id, role=enums.MessageRole.user, content=message)
     )
 
     logger.debug(f"Processing message from user {user.wa_id} in state {user.state}.")
 
+    # Send review message only to brand new users
+    if is_new_user:
+        logger.info(f"New user {user.wa_id} created, sending review message")
+        review_message = "Thank you for reaching out! Your access is currently being reviewed. You'll hear from us soon."
+        await whatsapp_client.send_message(user.wa_id, review_message)
+        await db.create_new_message(
+            models.Message(
+                user_id=user.id,
+                role=enums.MessageRole.assistant,
+                content=review_message,
+            )
+        )
+        return JSONResponse(content={"status": "ok"}, status_code=200)
+
     match user.state:
         case enums.UserState.blocked:
             return await state_client.handle_blocked(user)
         case enums.UserState.rate_limited:
             return await state_client.handle_rate_limited(user)
+        case enums.UserState.in_review:
+            # Don't respond to users still under review (returning users)
+            logger.info(f"User {user.wa_id} is still under review, not responding")
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+        case enums.UserState.inactive:
+            # Don't respond to inactive users
+            logger.info(f"User {user.wa_id} is inactive, not responding")
+            return JSONResponse(content={"status": "ok"}, status_code=200)
         case enums.UserState.onboarding:
             return await state_client.handle_onboarding(user)
         case enums.UserState.new:
-            # Dummy data for development environment if not using Flows
+            # Check if this is a development environment
             if settings.environment not in (
                 Environment.PRODUCTION,
                 Environment.STAGING,
                 Environment.DEVELOPMENT,
             ):
+                # Development environment - create dummy data and mark as active
                 logger.debug(
-                    "Business environment is False, adding dummy data for new user"
+                    "Development environment detected with new user, adding dummy data"
                 )
                 return await handle_new_dummy(user)
-            return await state_client.handle_onboarding(user)
+            else:
+                # Production environment - user has been approved by admin, send welcome message
+                logger.info(
+                    f"Approved user {user.wa_id} is texting, sending welcome message"
+                )
+                welcome_message = strings.get_string(
+                    StringCategory.ONBOARDING, "welcome"
+                )
+                await whatsapp_client.send_message(user.wa_id, welcome_message)
+                await db.create_new_message(
+                    models.Message(
+                        user_id=user.id,
+                        role=enums.MessageRole.assistant,
+                        content=welcome_message,
+                    )
+                )
+
+                # Update user state to onboarding
+                user.state = enums.UserState.onboarding
+                user.onboarding_state = enums.OnboardingState.new
+                await db.update_user(user)
+                logger.info(f"Updated user {user.wa_id} state from new to onboarding")
+
+                return JSONResponse(content={"status": "ok"}, status_code=200)
         case enums.UserState.active:
             return await state_client.handle_active(user, message_info, user_message)
 
