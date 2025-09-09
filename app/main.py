@@ -17,7 +17,6 @@ from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
 from app.redis.engine import init_redis, disconnect_redis
 from app.config import settings, Environment
-from app.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 
 logger = logging.getLogger(__name__)
 
@@ -42,20 +41,12 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Starting with mock whatsapp disabled")
 
-        # Start the scheduler for background tasks
-        start_scheduler()
-        logger.info("Scheduler started successfully ⏰")
-
         logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:
         logger.error(f"Error during startup: {e} ❌")
         raise
     finally:
-        # Stop the scheduler
-        stop_scheduler()
-        logger.info("Scheduler stopped ⏰")
-
         await db_engine.dispose()
         logger.info("Database connections closed 🔒")
 
@@ -102,28 +93,3 @@ async def handle_flows_webhook(
 @app.get("/health")
 async def health_check() -> PlainTextResponse:
     return PlainTextResponse("OK")
-
-
-@app.get("/scheduler/status")
-async def scheduler_status() -> JSONResponse:
-    """Get the current status of the scheduler and its jobs."""
-    status = get_scheduler_status()
-    return JSONResponse(content=status)
-
-
-@app.post("/scheduler/trigger-welcome")
-async def trigger_welcome_messages() -> JSONResponse:
-    """Manually trigger the welcome message job for testing purposes."""
-    from app.scheduler import send_welcome_message_to_new_users
-
-    try:
-        await send_welcome_message_to_new_users()
-        return JSONResponse(
-            content={"status": "success", "message": "Welcome message job completed"}
-        )
-    except Exception as e:
-        logger.error(f"Failed to trigger welcome message job: {str(e)}")
-        return JSONResponse(
-            content={"status": "error", "message": f"Failed to trigger job: {str(e)}"},
-            status_code=500,
-        )
