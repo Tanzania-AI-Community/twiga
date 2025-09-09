@@ -65,7 +65,7 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information and create/get user
     message_info = extract_message_info(body)
 
-    message = extract_message(message_info.get("message", None))
+    message = extract_message(message_info.get("message") or {})
 
     if not message:
         logger.warning("Empty message received")
@@ -74,15 +74,23 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             status_code=400,
         )
 
+    # Create or get the user from the database
     user = await db.get_or_create_user(
         wa_id=message_info["wa_id"], name=message_info.get("name")
     )
 
     assert user.id is not None
-    # Create message record
-    user_message = await db.create_new_message(
-        models.Message(user_id=user.id, role=enums.MessageRole.user, content=message)
+
+    # First, check if user is rate_limited and reset if TTL expired
+    user = await state_client.check_and_reset_rate_limit_state(user)
+
+    # Check rate limiting and update state if needed (only for non-new users to avoid double processing)
+    is_rate_limited, user = await state_client.check_rate_limit_and_update_state(
+        user, message_info["wa_id"]
     )
+    if is_rate_limited:
+        logger.info(f"User {user.wa_id} is rate limited, handling appropriately")
+        return await state_client.handle_rate_limited(user)
 
     logger.debug(f"Processing message from user {user.wa_id} in state {user.state}.")
 
@@ -91,21 +99,75 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             return await state_client.handle_blocked(user)
         case enums.UserState.rate_limited:
             return await state_client.handle_rate_limited(user)
+        case enums.UserState.in_review:
+            logger.info(f"User {user.wa_id} is under review.")
+
+            review_message = strings.get_string(
+                StringCategory.ONBOARDING, "in_review_message"
+            )
+            await whatsapp_client.send_message(user.wa_id, review_message)
+            assert user.id is not None  # Type checker safety
+            await db.create_new_message(
+                models.Message(
+                    user_id=user.id,
+                    role=enums.MessageRole.assistant,
+                    content=review_message,
+                )
+            )
+
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+
+        case enums.UserState.inactive:
+            # Don't respond to inactive users
+            logger.info(f"User {user.wa_id} is inactive, not responding")
+            return JSONResponse(content={"status": "ok"}, status_code=200)
         case enums.UserState.onboarding:
+            # Create message record for onboarding users
+            assert user.id is not None
+            user_message = await db.create_new_message(
+                models.Message(
+                    user_id=user.id, role=enums.MessageRole.user, content=message
+                )
+            )
             return await state_client.handle_onboarding(user)
         case enums.UserState.new:
-            # Dummy data for development environment if not using Flows
+            # Check if this is a development environment
             if settings.environment not in (
                 Environment.PRODUCTION,
                 Environment.STAGING,
                 Environment.DEVELOPMENT,
             ):
+                # Development environment - create dummy data and mark as active
                 logger.debug(
-                    "Business environment is False, adding dummy data for new user"
+                    "Development environment detected with new user, adding dummy data"
                 )
                 return await handle_new_dummy(user)
-            return await state_client.handle_onboarding(user)
+            else:
+                # Production environment - user has been approved by admin, send welcome message
+                logger.info(
+                    f"Approved user {user.wa_id} is texting, sending welcome template message"
+                )
+
+                # Send welcome template message
+                await whatsapp_client.send_template_message(
+                    user.wa_id, settings.welcome_template_id
+                )
+
+                # Update user state to onboarding
+                user.state = enums.UserState.onboarding
+                user.onboarding_state = enums.OnboardingState.new
+                await db.update_user(user)
+                logger.info(f"Updated user {user.wa_id} state from new to onboarding")
+
+                return JSONResponse(content={"status": "ok"}, status_code=200)
         case enums.UserState.active:
+            # Create message record for active users
+            assert user.id is not None
+            user_message = await db.create_new_message(
+                models.Message(
+                    user_id=user.id, role=enums.MessageRole.user, content=message
+                )
+            )
             return await state_client.handle_active(user, message_info, user_message)
 
     raise Exception("Invalid user state, reached the end of handle_valid_message")

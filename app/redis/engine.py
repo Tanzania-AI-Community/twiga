@@ -6,49 +6,60 @@ logger = logging.getLogger(__name__)
 
 redis_pool = None
 redis_client = None
+redis_available = False
 
 
 async def init_redis():
-    global redis_pool, redis_client
+    """Initialize Redis connection. If Redis is not available, log warning and continue."""
+    global redis_pool, redis_client, redis_available
     try:
-        if settings.redis_url:
-            redis_pool = redis.ConnectionPool.from_url(
-                settings.redis_url.get_secret_value()
-            )
-        else:
-            raise redis.ConnectionError(
-                "Redis is not set properly in your environment."
-            )
+        if not settings.redis_url:
+            logger.warning("Redis URL not configured - Redis features disabled")
+            redis_available = False
+            return
+
+        redis_pool = redis.ConnectionPool.from_url(
+            settings.redis_url.get_secret_value()
+        )
         redis_client = redis.Redis(connection_pool=redis_pool)
         await verify_redis_connection()
-        logger.debug("Redis connection established")
+        redis_available = True
+        logger.info("Redis connection established ✅")
     except Exception as e:
-        logger.error(f"Redis initialization failed: {e}")
-        raise
+        logger.warning(f"Redis initialization failed: {e} - Redis features disabled")
+        redis_available = False
+        redis_client = None
+        redis_pool = None
 
 
 async def verify_redis_connection():
     global redis_client
     if redis_client is None:
-        logger.error("Redis client is not initialized")
         raise redis.ConnectionError("Redis client is not initialized")
-    try:
-        await redis_client.ping()
-        logger.debug("Redis connection verified")
-    except redis.ConnectionError as e:
-        logger.error(f"Redis connection verification failed: {e}")
-        raise
+    await redis_client.ping()
+    logger.debug("Redis connection verified")
 
 
 def get_redis_client():
-    global redis_client
-    if redis_client is None:
-        raise redis.ConnectionError("Redis client is not initialized")
+    """Get Redis client. Returns None if Redis is not available."""
+    global redis_client, redis_available
+    if not redis_available or redis_client is None:
+        return None
     return redis_client
 
 
+def is_redis_available() -> bool:
+    """Check if Redis is available for use."""
+    global redis_available
+    return redis_available
+
+
 async def disconnect_redis():
-    global redis_client
+    global redis_client, redis_available
     if redis_client:
-        await redis_client.aclose()
-        logger.info("Redis connection closed 🔒")
+        try:
+            await redis_client.aclose()
+            logger.info("Redis connection closed 🔒")
+        except Exception as e:
+            logger.warning(f"Error closing Redis connection: {e}")
+    redis_available = False

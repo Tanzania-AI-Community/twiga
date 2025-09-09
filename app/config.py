@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     environment: Environment = Environment.LOCAL
     debug: bool = True
 
+    # WhatsApp template message settings
+    welcome_template_id: str = "twiga_registration_approved"
+
     @property
     def sync_database_url(self) -> str:
         return self.database_url.get_secret_value().replace("+asyncpg", "")
