@@ -8,7 +8,7 @@ on:
 
 jobs:
   scanning:
-    if: github.repository == 'Tanzania-AI-Community/twiga' # This ensures it only runs on our repo, not on forks
+    if: github.repository == 'Tanzania-AI-Community/twiga' && github.event.pull_request.head.repo.full_name == 'Tanzania-AI-Community/twiga' # This ensures it only runs on our repo, not on forks
     name: GitGuardian scan
     runs-on: ubuntu-latest
     steps:

@@ -76,10 +76,26 @@ class UserState(str, Enum):
 
 class SubjectName(str, Enum):
     geography = "geography"
+    history = "history"
+    biology = "biology"
+    english = "english"
+    civics = "civics"
+    mathematics = "mathematics"
+    human_geography = "human_geography"
+    physical_geography = "physical_geography"
 
     @property
     def display_format(self) -> str:
-        emoji_map = {"geography": "🌎"}
+        emoji_map = {
+            "geography": "🌎",
+            "history": "📙",
+            "biology": "🧬",
+            "english": "📘",
+            "civics": "🏛️",
+            "mathematics": "➗",
+            "human_geography": "👤",
+            "physical_geography": "🪨",
+        }
         emoji = emoji_map.get(self, "")
         return f"{self.capitalize()} {emoji}"
 
