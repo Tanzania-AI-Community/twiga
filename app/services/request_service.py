@@ -75,7 +75,7 @@ async def handle_valid_message(body: dict) -> JSONResponse:
         )
 
     # Create or get the user from the database
-    user, is_new_user = await db.get_or_create_user(
+    user = await db.get_or_create_user(
         wa_id=message_info["wa_id"], name=message_info.get("name")
     )
 
@@ -85,30 +85,14 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     user = await state_client.check_and_reset_rate_limit_state(user)
 
     # Check rate limiting and update state if needed (only for non-new users to avoid double processing)
-    if not is_new_user:
-        is_rate_limited, user = await state_client.check_rate_limit_and_update_state(
-            user, message_info["wa_id"]
-        )
-        if is_rate_limited:
-            logger.info(f"User {user.wa_id} is rate limited, handling appropriately")
-            return await state_client.handle_rate_limited(user)
+    is_rate_limited, user = await state_client.check_rate_limit_and_update_state(
+        user, message_info["wa_id"]
+    )
+    if is_rate_limited:
+        logger.info(f"User {user.wa_id} is rate limited, handling appropriately")
+        return await state_client.handle_rate_limited(user)
 
     logger.debug(f"Processing message from user {user.wa_id} in state {user.state}.")
-
-    # Send review message only to brand new users
-    if is_new_user:
-        logger.info(f"New user {user.wa_id} created, sending review message")
-        review_message = "Thank you for reaching out! Your access is currently being reviewed. You'll hear from us soon."
-        await whatsapp_client.send_message(user.wa_id, review_message)
-        assert user.id is not None  # Type checker safety
-        await db.create_new_message(
-            models.Message(
-                user_id=user.id,
-                role=enums.MessageRole.assistant,
-                content=review_message,
-            )
-        )
-        return JSONResponse(content={"status": "ok"}, status_code=200)
 
     match user.state:
         case enums.UserState.blocked:
@@ -116,9 +100,23 @@ async def handle_valid_message(body: dict) -> JSONResponse:
         case enums.UserState.rate_limited:
             return await state_client.handle_rate_limited(user)
         case enums.UserState.in_review:
-            # Don't respond to users still under review (returning users)
-            logger.info(f"User {user.wa_id} is still under review, not responding")
+            logger.info(f"User {user.wa_id} is under review.")
+
+            review_message = strings.get_string(
+                StringCategory.ONBOARDING, "in_review_message"
+            )
+            await whatsapp_client.send_message(user.wa_id, review_message)
+            assert user.id is not None  # Type checker safety
+            await db.create_new_message(
+                models.Message(
+                    user_id=user.id,
+                    role=enums.MessageRole.assistant,
+                    content=review_message,
+                )
+            )
+
             return JSONResponse(content={"status": "ok"}, status_code=200)
+
         case enums.UserState.inactive:
             # Don't respond to inactive users
             logger.info(f"User {user.wa_id} is inactive, not responding")

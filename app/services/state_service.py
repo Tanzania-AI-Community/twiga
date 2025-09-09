@@ -24,7 +24,7 @@ class StateHandler:
         assert user.id is not None
 
         # Check if we've already sent a blocked message to this user
-        recent_messages = await db.get_user_message_history(user.id, limit=10)
+        recent_messages = await db.get_user_message_history(user.id, limit=3)
         if recent_messages:
             # Check if the last assistant message was a blocked message
             assistant_messages = [

@@ -15,6 +15,7 @@ onboarding:
   personal_info_submitted: "Thanks for submitting your personal information. Let's continue with your class and subject information to complete your onboarding."
   completion: "Hurray! {user_name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start talking to Twiga 🦒."
   onboarding_override: "Looks like you're overriding the onboarding process. You've been given default classes and subjects. You can start talking to Twiga 🦒."
+  in_review_message: "Thank you for reaching out! Your access is currently being reviewed. You'll hear from us soon."
 
 settings:
   intro: "Welcome to the Settings Menu, please select what you want to update."
