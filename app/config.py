@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     environment: Environment = Environment.LOCAL
     debug: bool = True
 
+    # WhatsApp template message settings
+    welcome_template_id: str = "twiga_registration_approved"
+
     @property
     def sync_database_url(self) -> str:
         return self.database_url.get_secret_value().replace("+asyncpg", "")
@@ -117,6 +120,12 @@ class LLMSettings(BaseSettings):
     llm_model_name: str = llm_model_options["llama_4_maverick"]
     exercise_generator_model: str = llm_model_options["llama_4_scout"]
     embedding_model: str = embedder_model_options["bge-large"]
+
+    # LangSmith tracing settings
+    langsmith_api_key: Optional[SecretStr] = None
+    langsmith_project: Optional[str] = "twiga-whatsapp-chatbot"
+    langsmith_tracing: bool = False
+    langsmith_endpoint: Optional[str] = "https://api.smith.langchain.com"
 
 
 def initialize_settings():

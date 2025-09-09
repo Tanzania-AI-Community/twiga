@@ -30,6 +30,26 @@ Start by creating a `.env` file in the main directory of Twiga and copy-paste th
 
 The remaining variables are pre-filled with default values suitable for mock WhatsApp development.
 
+## 📊 LangSmith Tracing (Optional)
+
+For monitoring and debugging LLM interactions, you can optionally enable LangSmith tracing:
+
+1. Create a [LangSmith account](https://smith.langchain.com/) (free tier available)
+2. Get your API key from the LangSmith dashboard
+3. Add the configuration to your `.env` file:
+
+```bash
+LANGSMITH_API_KEY=$YOUR_LANGSMITH_API_KEY
+LANGSMITH_PROJECT=twiga-whatsapp-chatbot
+LANGSMITH_TRACING=True
+```
+
+This will enable detailed tracking of all LLM conversations, tool usage, and performance metrics.
+
+> [!Note]
+>
+> LangSmith integration is optional and won't affect the core functionality if not configured.
+
 ## 🧠 Set up your local Postgres database
 
 Run the following command to set up your local environment:

@@ -6,7 +6,6 @@ from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
 from app.database.db import vector_search
 from app.database.models import Chunk, Resource
-from app.config import llm_settings
 from app.database.enums import ChunkType
 
 logger = logging.getLogger(__name__)
@@ -63,18 +62,48 @@ async def generate_exercise(
             "exercise_generator_user", query=query, context_str=context
         )
 
+        # Convert to LangChain BaseMessage objects
+        from langchain_core.messages import SystemMessage, HumanMessage
+
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt),
         ]
 
         response = await async_llm_request(
-            model=llm_settings.exercise_generator_model,
             messages=messages,
             max_tokens=100,
+            run_name="twiga_generate_exercise",
+            metadata={
+                "tool": "generate_exercise",
+                "query": query,
+                "class_id": str(class_id),
+                "subject": subject,
+                "content_chunks": (
+                    len(retrieved_content) if "retrieved_content" in locals() else 0
+                ),
+                "exercise_chunks": (
+                    len(retrieved_exercises) if "retrieved_exercises" in locals() else 0
+                ),
+            },
         )
-        assert response.choices[0].message.content
-        return response.choices[0].message.content
+        assert response.content
+
+        # Convert content to string if it's not already
+        content = response.content
+        if isinstance(content, list):
+            # Handle list content by joining or extracting text
+            content_str = ""
+            for item in content:
+                if isinstance(item, str):
+                    content_str += item
+                elif isinstance(item, dict) and "text" in item:
+                    content_str += item["text"]
+            return content_str
+        elif isinstance(content, str):
+            return content
+        else:
+            return str(content)
     except Exception as e:
         logger.error(f"An error occurred when generating an exercise: {e}")
         raise Exception("An error occurred when generating this exercise. Skipping.")

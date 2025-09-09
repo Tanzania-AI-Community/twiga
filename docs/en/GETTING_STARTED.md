@@ -116,6 +116,32 @@ LLM_API_KEY=$YOUR_API_KEY
 
 Search the repository for the identifier `XXX:` and make sure to update the values according to the instructions so that the FastAPI application will run OpenAI models. At the time of writing, this should be within `app/config.py` and `app/database/models.py`.
 
+## 📊 LangSmith Tracing (Optional)
+
+LangSmith provides monitoring and debugging capabilities for LLM interactions. To enable tracing:
+
+1. Create a [LangSmith account](https://smith.langchain.com/) (free tier available)
+2. Get your API key from the LangSmith dashboard
+3. Add the configuration to your `.env` file:
+
+```bash
+LANGSMITH_API_KEY=$YOUR_LANGSMITH_API_KEY
+LANGSMITH_PROJECT=twiga-whatsapp-chatbot
+LANGSMITH_TRACING=True
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+```
+
+With LangSmith enabled, you'll be able to:
+
+- Track all LLM requests and responses
+- Monitor tool usage and performance
+- Debug conversation flows
+- Analyze user interactions and model behavior
+
+> [!Note]
+>
+> LangSmith integration is optional. If you don't configure it, the application will work normally without tracing.
+
 ## 🧠 Set up your local Postgres database
 
 As any chatbot should do, Twiga keeps track of chat histories, users, classes, resources (i.e. the documents relevant to classes), a vector database, etc. Fortunately, everything (including the vector database) is stored in tables in a Postgres database. We're using Neon to host our database, but for local development we use PostgreSQL.
@@ -125,8 +151,8 @@ First of all, you need to add the required env variables to your `.env`.
 ```bash
 DATABASE_USER=postgres
 DATABASE_PASSWORD=$YOUR_PASSWORD
-DATABASE_NAME=twiga
-DATABASE_URL=postgresql+asyncpg://postgres:$YOUR_PASSWORD@db:5432/twiga
+DATABASE_NAME=twiga_db
+DATABASE_URL=postgresql+asyncpg://postgres:$YOUR_PASSWORD@db:5432/twiga_db
 ```
 
 This link assumes you are running the Postgres database on port 5432, which is the standard.

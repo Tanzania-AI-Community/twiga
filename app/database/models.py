@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from datetime import datetime, timezone, date
 from pydantic import BaseModel, ConfigDict
 from sqlmodel import (
@@ -17,6 +17,8 @@ from sqlmodel import (
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 
+if TYPE_CHECKING:
+    from langchain_core.messages import BaseMessage
 
 import app.database.enums as enums
 
@@ -68,7 +70,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = Field(max_length=50)
     wa_id: str = Field(max_length=20, unique=True, index=True)
-    state: enums.UserState = Field(default=enums.UserState.new, max_length=50)
+    state: enums.UserState = Field(default=enums.UserState.in_review, max_length=50)
     onboarding_state: Optional[enums.OnboardingState] = Field(
         default=enums.OnboardingState.new, max_length=50
     )
@@ -220,7 +222,7 @@ class Message(SQLModel, table=True):
     """ METHODS """
 
     def to_api_format(self) -> Dict[str, Any]:
-        """Convert message to OpenAI API format"""
+        """Convert message to OpenAI API format (kept for backward compatibility)"""
         message: Dict[str, Any] = {"role": self.role.value}
         if self.tool_calls and len(self.tool_calls) > 0:
             message["tool_calls"] = self.tool_calls
@@ -233,6 +235,36 @@ class Message(SQLModel, table=True):
             message["name"] = self.tool_name
 
         return message
+
+    def to_langchain_message(self) -> "BaseMessage":
+        """Convert message to LangChain BaseMessage format"""
+        from langchain_core.messages import (
+            SystemMessage,
+            HumanMessage,
+            AIMessage,
+            ToolMessage,
+        )
+
+        content = self.content or ""
+
+        if self.role == enums.MessageRole.system:
+            return SystemMessage(content=content)
+        elif self.role == enums.MessageRole.user:
+            return HumanMessage(content=content)
+        elif self.role == enums.MessageRole.assistant:
+            if self.tool_calls:
+                return AIMessage(
+                    content=content, additional_kwargs={"tool_calls": self.tool_calls}
+                )
+            else:
+                return AIMessage(content=content)
+        elif self.role == enums.MessageRole.tool:
+            return ToolMessage(content=content, tool_call_id=self.tool_call_id or "")
+        else:
+            # Raise an error for unknown roles
+            raise ValueError(
+                f"Unknown message role: {self.role}. Expected one of: {[role.value for role in enums.MessageRole]}"
+            )
 
     @classmethod
     def from_api_format(cls, data: dict, user_id: int) -> "Message":
@@ -249,6 +281,64 @@ class Message(SQLModel, table=True):
             "tool_calls": tool_calls,
             "tool_call_id": data.get("tool_call_id"),
             "tool_name": data.get("name"),
+        }
+        return cls(**message_data)
+
+    @classmethod
+    def from_langchain_message(cls, message: "BaseMessage", user_id: int) -> "Message":
+        """Create message from LangChain BaseMessage format"""
+        from langchain_core.messages import (
+            SystemMessage,
+            HumanMessage,
+            AIMessage,
+            ToolMessage,
+        )
+
+        # Determine role based on message type
+        if isinstance(message, SystemMessage):
+            role = enums.MessageRole.system
+        elif isinstance(message, HumanMessage):
+            role = enums.MessageRole.user
+        elif isinstance(message, AIMessage):
+            role = enums.MessageRole.assistant
+        elif isinstance(message, ToolMessage):
+            role = enums.MessageRole.tool
+        else:
+            role = enums.MessageRole.system  # Fallback
+
+        # Extract content
+        content = message.content if message.content else None
+
+        # Extract tool calls for AIMessage
+        tool_calls = None
+        if (
+            isinstance(message, AIMessage)
+            and hasattr(message, "tool_calls")
+            and message.tool_calls
+        ):
+            tool_calls = [
+                (
+                    tool_call.model_dump()
+                    if isinstance(tool_call, BaseModel)
+                    else tool_call
+                )
+                for tool_call in message.tool_calls
+            ]
+        elif isinstance(message, AIMessage) and hasattr(message, "additional_kwargs"):
+            tool_calls = message.additional_kwargs.get("tool_calls")
+
+        # Extract tool call ID for ToolMessage
+        tool_call_id = None
+        if isinstance(message, ToolMessage):
+            tool_call_id = message.tool_call_id
+
+        message_data = {
+            "user_id": user_id,
+            "role": role,
+            "content": content,
+            "tool_calls": tool_calls,
+            "tool_call_id": tool_call_id,
+            "tool_name": None,  # Will be set when processing tool calls
         }
         return cls(**message_data)
 

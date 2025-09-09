@@ -11,11 +11,14 @@ from app.database.models import (
     Class,
     Chunk,
     Subject,
+    Resource,
+    ClassResource,
 )
 import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
 from app.database.engine import get_session
 from app.utils import embedder
+from app.config import settings, Environment
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,9 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
     Get existing user or create new one if they don't exist.
     Handles all database operations and error logging.
     This uses a lot of eager loading to get the class information from the user.
+
+    Returns:
+        User: user
     """
     # TODO: Remove eager loading if too slow
     async with get_session() as session:
@@ -48,12 +54,28 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             user = result.scalar_one_or_none()
             if user:
                 await session.refresh(user)
-                return user
+                return user  # Existing user
+
             # Create new user if they don't exist
+            # In development/test environments, create users as 'new' to allow dummy data
+            # In production/staging, create users as 'in_review' for approval process
+            if settings.environment not in (
+                Environment.PRODUCTION,
+                Environment.STAGING,
+                Environment.DEVELOPMENT,
+            ):
+                initial_state = (
+                    enums.UserState.new
+                )  # Dev/test - will get dummy data when they text
+            else:
+                initial_state = (
+                    enums.UserState.in_review
+                )  # Production - require approval
+
             new_user = User(
                 name=name,
                 wa_id=wa_id,
-                state=enums.UserState.new,
+                state=initial_state,
                 role=enums.Role.teacher,
             )
             session.add(new_user)
@@ -62,6 +84,7 @@ async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
             await session.refresh(new_user)
             logger.debug(f"Created new user with wa_id: {wa_id}")
             return new_user
+
         except Exception as e:
             logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
             raise Exception(f"Failed to get or create user: {str(e)}")
@@ -314,6 +337,82 @@ async def read_subject(subject_id: int) -> Optional[Subject]:
             raise Exception(f"Failed to read subject: {str(e)}")
 
 
+async def read_subject_by_name(subject_name: str) -> Optional[Subject]:
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = (
+                select(Subject)
+                .options(selectinload(Subject.subject_classes))  # type: ignore
+                .where(Subject.name == subject_name)
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to read subject {subject_name}: {str(e)}")
+            raise Exception(f"Failed to read subject: {str(e)}")
+
+
+async def read_resource_by_name(resource_name: str) -> Optional[Resource]:
+    async with get_session() as session:
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(Resource).where(Resource.name == resource_name)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to read resource {resource_name}: {str(e)}")
+            raise Exception(f"Failed to read resource: {str(e)}")
+
+
+async def read_class_by_subject_id_grade_level_and_status(
+    subject_id: int,
+    grade_level: str,
+    status: str,
+) -> Optional[Class]:
+    async with get_session() as session:
+        filters = [
+            Class.grade_level == enums.GradeLevel(grade_level),
+            Class.status == SubjectClassStatus(status),
+            Class.subject_id == subject_id,
+        ]
+
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = (
+                select(Class)
+                # .options(selectinload(Subject.subject_classes))  # type: ignore
+                .where(*filters)
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(
+                f"Failed to read class from subject_id={subject_id}, grade_level={grade_level} and status={status}: {str(e)}"
+            )
+            raise Exception(f"Failed to read subject: {str(e)}")
+
+
+async def does_class_resource_rel_exist(class_id: int, resource_id: int) -> bool:
+    async with get_session() as session:
+        filters = [
+            ClassResource.class_id == class_id,
+            ClassResource.resource_id == resource_id,
+        ]
+
+        try:
+            # Use selectinload to eagerly load the subject_classes relationship
+            statement = select(ClassResource).where(*filters)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none() is not None
+
+        except Exception as e:
+            logger.error(
+                f"Failed to verify relation from class_id={class_id} and resource_id={resource_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to read relation: {str(e)}")
+
+
 async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
     async with get_session() as session:
         try:
@@ -326,7 +425,7 @@ async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
 
 
 async def get_class_ids_from_class_info(
-    class_info: Dict[str, List[str]]
+    class_info: Dict[str, List[str]],
 ) -> Optional[List[int]]:
     """
     Get class IDs from a class_info dictionary structure in a single query

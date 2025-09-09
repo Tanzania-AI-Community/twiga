@@ -134,22 +134,14 @@ async def test_webhook_post_ok() -> None:
 
     app.dependency_overrides[signature_required] = mock_signature_required
 
-    rate_limit_mock = AsyncMock(
-        return_value=JSONResponse(
-            content={"message": "Rate limit exceeded"}, status_code=200
-        )
-    )
     mock_handle_request = AsyncMock(
         return_value=JSONResponse(
             content={"message": "This is a test"}, status_code=200
         )
     )
 
-    settings.environment = Environment.DEVELOPMENT
-
     with (
         patch("app.main.handle_request", mock_handle_request),
-        patch("app.main.rate_limit", rate_limit_mock),
         patch("app.main.logger") as mock_logger,
     ):
         client = TestClient(app)
@@ -164,32 +156,25 @@ async def test_webhook_post_ok() -> None:
     args, _ = mock_handle_request.call_args
     assert isinstance(args[0], Request)
 
-    rate_limit_mock.assert_not_called()
-
 
 @pytest.mark.asyncio
-async def test_webhook_post_hits_rate_limit() -> None:
+async def test_webhook_post_with_rate_limiting_in_request_service() -> None:
+    """Test that rate limiting is now handled within the request service, not as a dependency."""
+
     async def mock_signature_required():
         return None
 
     app.dependency_overrides[signature_required] = mock_signature_required
 
-    rate_limit_mock = AsyncMock(
+    # Mock handle_request to return a rate limited response
+    mock_handle_request = AsyncMock(
         return_value=JSONResponse(
             content={"message": "Rate limit exceeded"}, status_code=200
         )
     )
-    mock_handle_request = AsyncMock(
-        return_value=JSONResponse(
-            content={"message": "This is a test"}, status_code=200
-        )
-    )
-
-    settings.environment = Environment.STAGING
 
     with (
         patch("app.main.handle_request", mock_handle_request),
-        patch("app.main.rate_limit", rate_limit_mock),
         patch("app.main.logger") as mock_logger,
     ):
         client = TestClient(app)
@@ -200,11 +185,9 @@ async def test_webhook_post_hits_rate_limit() -> None:
         assert response.status_code == 200
         assert response.json() == {"message": "Rate limit exceeded"}
 
-    assert rate_limit_mock.call_count == 1
-    args, _ = rate_limit_mock.call_args
+    assert mock_handle_request.call_count == 1
+    args, _ = mock_handle_request.call_args
     assert isinstance(args[0], Request)
-
-    mock_handle_request.assert_not_called()
 
 
 @pytest.mark.asyncio

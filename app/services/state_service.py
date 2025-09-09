@@ -8,8 +8,12 @@ from app.database import db
 from app.services.whatsapp_service import whatsapp_client
 from app.database.enums import MessageRole
 from app.utils.string_manager import strings, StringCategory
-from app.utils.whatsapp_utils import ValidMessageType, get_valid_message_type
+from app.utils.whatsapp_utils import (
+    ValidMessageType,
+    get_valid_message_type,
+)
 from app.services.messaging_service import messaging_client
+from app.services.rate_limit_service import rate_limit_service
 
 
 class StateHandler:
@@ -18,6 +22,29 @@ class StateHandler:
 
     async def handle_blocked(self, user: User) -> JSONResponse:
         assert user.id is not None
+
+        # Check if we've already sent a blocked message to this user
+        recent_messages = await db.get_user_message_history(user.id, limit=3)
+        if recent_messages:
+            # Check if the last assistant message was a blocked message
+            assistant_messages = [
+                msg for msg in recent_messages if msg.role == MessageRole.assistant
+            ]
+            if assistant_messages:
+                last_assistant_message = assistant_messages[-1]
+                blocked_text = strings.get_string(StringCategory.ERROR, "blocked")
+
+                # If the last assistant message was a blocked message, don't send another
+                if last_assistant_message.content == blocked_text:
+                    self.logger.info(
+                        f"Blocked message already sent to user {user.wa_id}, not sending again"
+                    )
+                    return JSONResponse(
+                        content={"status": "ok"},
+                        status_code=200,
+                    )
+
+        # Send blocked message (first time)
         response_text = strings.get_string(StringCategory.ERROR, "blocked")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
@@ -27,6 +54,7 @@ class StateHandler:
                 content=response_text,
             )
         )
+        self.logger.info(f"Sent blocked message to user {user.wa_id}")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
@@ -34,6 +62,31 @@ class StateHandler:
 
     async def handle_rate_limited(self, user: User) -> JSONResponse:
         assert user.id is not None
+
+        # Check if we've already sent a rate limit message to this user
+        recent_messages = await db.get_user_message_history(user.id, limit=10)
+        if recent_messages:
+            # Check if the last assistant message was a rate limit message
+            assistant_messages = [
+                msg for msg in recent_messages if msg.role == MessageRole.assistant
+            ]
+            if assistant_messages:
+                last_assistant_message = assistant_messages[-1]
+                rate_limit_text = strings.get_string(
+                    StringCategory.ERROR, "rate_limited"
+                )
+
+                # If the last assistant message was a rate limit message, don't send another
+                if last_assistant_message.content == rate_limit_text:
+                    self.logger.info(
+                        f"Rate limit message already sent to user {user.wa_id}, not sending again"
+                    )
+                    return JSONResponse(
+                        content={"status": "ok"},
+                        status_code=200,
+                    )
+
+        # Send rate limit message (first time)
         response_text = strings.get_string(StringCategory.ERROR, "rate_limited")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
@@ -43,9 +96,26 @@ class StateHandler:
                 content=response_text,
             )
         )
+        self.logger.info(f"Sent rate limit message to user {user.wa_id}")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
+        )
+
+    async def check_and_reset_rate_limit_state(self, user: User) -> User:
+        """
+        Check if user is rate_limited and reset to active if TTL has expired.
+        """
+        return await rate_limit_service.check_and_reset_rate_limit_state(user)
+
+    async def check_rate_limit_and_update_state(
+        self, user: User, phone_number: str
+    ) -> tuple[bool, User]:
+        """
+        Check if user should be rate limited and update their state accordingly.
+        """
+        return await rate_limit_service.check_rate_limit_and_update_state(
+            user, phone_number
         )
 
     async def handle_onboarding(self, user: User) -> JSONResponse:
