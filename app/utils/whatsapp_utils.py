@@ -7,6 +7,9 @@ import logging
 from app.models.message_models import (
     Row,
     TextMessage,
+    TemplateMessage,
+    Template,
+    TemplateLanguage,
     InteractiveMessage,
     InteractiveButton,
     InteractiveList,
@@ -43,6 +46,20 @@ logger = logging.getLogger(__name__)
 def get_text_payload(recipient: str, text: str) -> dict:
     payload = TextMessage(to=recipient, text={"body": _format_text_for_whatsapp(text)})
     return dict(payload)
+
+
+def get_template_payload(
+    recipient: str, template_name: str, language_code: str = "en"
+) -> dict:
+    """
+    Generate payload for WhatsApp template message.
+    """
+    template = Template(
+        name=template_name,
+        language=TemplateLanguage(code=language_code),
+    )
+    payload = TemplateMessage(to=recipient, template=template)
+    return payload.model_dump()
 
 
 def get_interactive_button_payload(
@@ -233,7 +250,10 @@ def generate_payload(
     response: str,
     options: Optional[list] = None,
     flow: Optional[dict] = None,
+    template_name: Optional[str] = None,
 ) -> dict:
+    if template_name:
+        return get_template_payload(wa_id, template_name)
     if flow:
         return get_flow_payload(wa_id, flow)
     if options:

@@ -34,6 +34,31 @@ class StateHandler:
 
     async def handle_rate_limited(self, user: User) -> JSONResponse:
         assert user.id is not None
+
+        # Check if we've already sent a rate limit message to this user
+        recent_messages = await db.get_user_message_history(user.id, limit=10)
+        if recent_messages:
+            # Check if the last assistant message was a rate limit message
+            assistant_messages = [
+                msg for msg in recent_messages if msg.role == MessageRole.assistant
+            ]
+            if assistant_messages:
+                last_assistant_message = assistant_messages[-1]
+                rate_limit_text = strings.get_string(
+                    StringCategory.ERROR, "rate_limited"
+                )
+
+                # If the last assistant message was a rate limit message, don't send another
+                if last_assistant_message.content == rate_limit_text:
+                    self.logger.info(
+                        f"Rate limit message already sent to user {user.wa_id}, not sending again"
+                    )
+                    return JSONResponse(
+                        content={"status": "ok"},
+                        status_code=200,
+                    )
+
+        # Send rate limit message (first time)
         response_text = strings.get_string(StringCategory.ERROR, "rate_limited")
         await whatsapp_client.send_message(user.wa_id, response_text)
         await db.create_new_message(
@@ -43,6 +68,7 @@ class StateHandler:
                 content=response_text,
             )
         )
+        self.logger.info(f"Sent rate limit message to user {user.wa_id}")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,

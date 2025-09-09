@@ -132,12 +132,18 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             else:
                 # Production environment - user has been approved by admin, send welcome message
                 logger.info(
-                    f"Approved user {user.wa_id} is texting, sending welcome message"
+                    f"Approved user {user.wa_id} is texting, sending welcome template message"
                 )
+
+                # Send welcome template message
+                await whatsapp_client.send_template_message(
+                    user.wa_id, settings.welcome_template_id
+                )
+
+                # Get welcome message text for database record
                 welcome_message = strings.get_string(
                     StringCategory.ONBOARDING, "welcome"
                 )
-                await whatsapp_client.send_message(user.wa_id, welcome_message)
                 await db.create_new_message(
                     models.Message(
                         user_id=user.id,

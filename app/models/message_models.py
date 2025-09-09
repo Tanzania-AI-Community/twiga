@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Literal, Optional, Union
+from typing import List, Dict, Literal, Optional, Union, Any
 from pydantic import model_validator
 
 
@@ -72,11 +72,26 @@ Main model for template messages
 """
 
 
+class TemplateLanguage(BaseModel):
+    code: str = "en"
+
+
+class TemplateComponent(BaseModel):
+    type: Literal["header", "body", "footer", "button"]
+    parameters: Optional[List[Dict[str, Any]]] = None
+
+
+class Template(BaseModel):
+    name: str
+    language: TemplateLanguage
+    components: Optional[List[TemplateComponent]] = None
+
+
 class TemplateMessage(BaseModel):
     messaging_product: Literal["whatsapp"] = "whatsapp"
     to: str
     type: Literal["template"] = "template"
-    template: Dict[Literal["name", "language"], str]
+    template: Template
 
 
 """
