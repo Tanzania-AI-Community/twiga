@@ -15,7 +15,6 @@ from app.services.whatsapp_service import whatsapp_client
 from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
-from app.services.rate_limit_service import rate_limit
 from app.redis.engine import init_redis, disconnect_redis
 from app.config import settings, Environment
 from app.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
@@ -34,6 +33,8 @@ async def lifespan(app: FastAPI):
         if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
             await init_redis()
             logger.info("Redis initialized successfully ✅")
+        else:
+            logger.info("Redis initialization skipped (not production/staging)")
 
         # CHECK if we starting with a mock whatsapp
         if settings.mock_whatsapp:
@@ -77,14 +78,6 @@ async def webhook_get(request: Request) -> Response:
 @app.post("/webhooks", dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
-
-    # Check rate limit directly
-    if settings.environment in (Environment.PRODUCTION, Environment.STAGING):
-        rate_limit_response = await rate_limit(request)
-
-        if rate_limit_response:
-            return rate_limit_response
-
     return await handle_request(request)
 
 
