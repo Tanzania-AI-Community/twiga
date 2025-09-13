@@ -73,18 +73,22 @@ async def generate_exercise(
         response = await async_llm_request(
             messages=messages,
             max_tokens=100,
-            run_name="twiga_generate_exercise",
-            metadata={
-                "tool": "generate_exercise",
-                "query": query,
-                "class_id": str(class_id),
-                "subject": subject,
-                "content_chunks": (
-                    len(retrieved_content) if "retrieved_content" in locals() else 0
-                ),
-                "exercise_chunks": (
-                    len(retrieved_exercises) if "retrieved_exercises" in locals() else 0
-                ),
+            config={
+                "run_name": "twiga_generate_exercise",
+                "metadata": {
+                    "tool": "generate_exercise",
+                    "query": query,
+                    "class_id": str(class_id),
+                    "subject": subject,
+                    "content_chunks": (
+                        len(retrieved_content) if "retrieved_content" in locals() else 0
+                    ),
+                    "exercise_chunks": (
+                        len(retrieved_exercises)
+                        if "retrieved_exercises" in locals()
+                        else 0
+                    ),
+                },
             },
         )
         assert response.content
