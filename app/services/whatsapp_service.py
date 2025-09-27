@@ -7,10 +7,14 @@ import httpx
 
 from app.config import settings
 from app.utils.logging_utils import log_httpx_response
-from app.utils.whatsapp_utils import generate_payload
+from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
+from pathlib import Path
 
 
 class WhatsAppClient:
+    _ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
+    _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
@@ -37,6 +41,89 @@ class WhatsAppClient:
             self.logger.error("Request Error: %s", e)
         except Exception as e:
             self.logger.error("Unexpected Error: %s", e)
+
+    async def send_image_message(
+        self,
+        wa_id: str,
+        image_path: str,
+        mime_type: str,
+        caption: Optional[str] = None,
+    ) -> None:
+        """Upload an image and send it to a WhatsApp user."""
+
+        if settings.mock_whatsapp:
+            self.logger.info(
+                "Mock send_image_message called for %s with image %s", wa_id, image_path
+            )
+            return
+
+        try:
+            media_id = await self.upload_media(image_path, mime_type)
+            if not media_id:
+                raise ValueError("Failed to retrieve media id for WhatsApp image message.")
+
+            payload = generate_payload_for_image(wa_id, media_id, caption)
+
+            response = await self.client.post(
+                "/messages", json=payload, headers=self.headers
+            )
+            log_httpx_response(response)
+            response.raise_for_status()
+        except httpx.RequestError as e:
+            self.logger.error("Image Message Request Error: %s", e)
+            raise
+        except Exception as e:
+            self.logger.error("Image Message Unexpected Error: %s", e)
+            raise
+
+
+    async def upload_media(self, path: str, mime_type: str) -> Optional[str]:
+        """Upload an image to WhatsApp and return the media ID."""
+
+        if settings.mock_whatsapp:
+            self.logger.info("Mock upload media called for path %s", path)
+            return None
+
+        file_path = Path(path)
+
+        if not file_path.is_file():
+            raise FileNotFoundError(f"Image file not found at {path}")
+
+        if mime_type not in self._ALLOWED_IMAGE_MIME_TYPES:
+            raise ValueError(
+                f"Unsupported MIME type '{mime_type}'. Supported types: {self._ALLOWED_IMAGE_MIME_TYPES}."
+            )
+
+        file_size = file_path.stat().st_size
+        if file_size > self._MAX_IMAGE_SIZE_BYTES:
+            raise ValueError(
+                "Image size exceeds 5 MB limit for WhatsApp media uploads."
+            )
+
+        try:
+            with file_path.open("rb") as file_handle:
+                files = {
+                    "file": (file_path.name, file_handle, mime_type),
+                }
+                data = {"messaging_product": "whatsapp"}
+                headers = {
+                    "Authorization": self.headers["Authorization"],
+                }
+                response = await self.client.post(
+                    "/media", data=data, files=files, headers=headers
+                )
+            log_httpx_response(response)
+            response.raise_for_status()
+            media_id = response.json().get("id")
+            if not media_id:
+                raise ValueError("WhatsApp media upload response did not include an id.")
+            return media_id
+        except httpx.RequestError as e:
+            self.logger.error("Media Upload Request Error: %s", e)
+            raise
+        except Exception as e:
+            self.logger.error("Media Upload Unexpected Error: %s", e)
+            raise
 
     async def send_template_message(
         self, wa_id: str, template_name: str, language_code: str = "en"

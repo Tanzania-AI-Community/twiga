@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum, auto
 import re
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 
 from app.models.message_models import (
@@ -61,6 +61,25 @@ def get_template_payload(
     payload = TemplateMessage(to=recipient, template=template)
     return payload.model_dump()
 
+def generate_payload_for_image(
+    wa_id: str,
+    media_id: str,
+    caption: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a WhatsApp Cloud API payload for an image message."""
+
+    payload: Dict[str, Any] = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": wa_id,
+        "type": "image",
+        "image": {"id": media_id},
+    }
+
+    if caption:
+        payload["image"]["caption"] = caption
+
+    return payload
 
 def get_interactive_button_payload(
     recipient: str, text: str, options: List[str]
