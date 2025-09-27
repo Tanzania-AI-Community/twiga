@@ -27,7 +27,7 @@ class WhatsAppClient:
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
-
+        
         if settings.mock_whatsapp:
             return
 
@@ -57,6 +57,9 @@ class WhatsAppClient:
             )
             return
 
+        media_id: Optional[str] = None
+        message_sent_successfully = False
+
         try:
             media_id = await self.upload_media(image_path, mime_type)
             if not media_id:
@@ -69,13 +72,42 @@ class WhatsAppClient:
             )
             log_httpx_response(response)
             response.raise_for_status()
+            message_sent_successfully = True
+            
         except httpx.RequestError as e:
             self.logger.error("Image Message Request Error: %s", e)
             raise
         except Exception as e:
             self.logger.error("Image Message Unexpected Error: %s", e)
             raise
+        finally:
+            if media_id and message_sent_successfully:
+                try:
+                    await self.delete_media(media_id)  # Clean up media after sending
+                    self.logger.info("Deleted WhatsApp media %s after sending", media_id)
+                except Exception as delete_error:
+                    self.logger.error("Failed to delete WhatsApp media %s: %s", media_id, delete_error)
 
+    async def delete_media(self, media_id: str) -> None:
+        """Delete upload media from WhatsApp. All media is deleted after 30 days even if not manually deleted"""         
+        if settings.mock_whatsapp:
+            self.logger.info("Mock delete media called for media id %s", media_id)
+            return
+
+        try:
+            headers = {
+                "Authorization": self.headers["Authorization"],
+            }
+            url = f"https://graph.facebook.com/{settings.meta_api_version}/{media_id}"
+            response = await self.client.delete(url, headers=headers)
+            log_httpx_response(response)
+            response.raise_for_status()
+        except httpx.RequestError as e:
+            self.logger.error("Media Delete Request Error: %s", e)
+            raise
+        except Exception as e:
+            self.logger.error("Media Delete Unexpected Error: %s", e)
+            raise
 
     async def upload_media(self, path: str, mime_type: str) -> Optional[str]:
         """Upload an image to WhatsApp and return the media ID."""

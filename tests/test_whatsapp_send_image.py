@@ -6,7 +6,7 @@ async def main() -> None:
     """
     Test the send image functionality. 
     Make sure your app token is new, your phonenumber is added to your facebook dev - app
-
+    Remember, no "+"!
     """
     your_number = "xxx"  # Your WhatsApp number
     client = WhatsAppClient()
