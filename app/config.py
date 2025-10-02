@@ -116,10 +116,12 @@ class LLMSettings(BaseSettings):
      - make sure your choice of LLM, embedder, and ai_provider are compatible
     """
 
-    ai_provider: Literal["together", "openai"] = "together"
+    ai_provider: Literal["together", "openai", "ollama"] = "ollama"
     llm_model_name: str = llm_model_options["llama_4_maverick"]
     exercise_generator_model: str = llm_model_options["llama_4_scout"]
     embedding_model: str = embedder_model_options["bge-large"]
+    ollama_base_url: str = "https://localhost:12345/v1"
+    ollama_model_name: Optional[str] = "llama3.2"
 
     # LangSmith tracing settings
     langsmith_api_key: Optional[SecretStr] = None
