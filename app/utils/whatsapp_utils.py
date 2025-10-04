@@ -3,6 +3,12 @@ from enum import Enum, auto
 import re
 from typing import Any, Dict, List, Optional
 import logging
+from sympy import sympify, preview
+from sympy.parsing.latex import parse_latex
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import tempfile
+import os
 
 from app.models.message_models import (
     Row,
@@ -353,3 +359,178 @@ def get_request_type(body: dict) -> RequestType:
         raise
 
     return RequestType.VALID_MESSAGE
+
+def _catch_latex_math(msg):
+    """checks if the message contains LaTeX math expressions"""
+    if not msg:
+        return None
+    
+    # Patterns for different LaTeX math formats
+    patterns = [
+        r'\$\$(.*?)\$\$',           # $$...$$
+        r'\\\[(.*?)\\\]',           # \[...\]
+        r'\\\((.*?)\\\)',           # \(...\)
+        r'\\begin\{equation\}(.*?)\\end\{equation\}',  # \begin{equation}...\end{equation}
+        r'\\begin\{align\}(.*?)\\end\{align\}',        # \begin{align}...\end{align}
+        r'\$(.*?)\$'                # $...$ (inline math, check last to avoid conflicts)
+    ]
+    
+    found_formulas = []
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, msg, re.DOTALL)
+        if matches:
+            logger.warning(f"LaTeX math expressions detected in final response")
+            return True
+    if found_formulas:
+        return found_formulas
+    
+    return None
+
+def parse_msg_with_latex(msg):
+    """parses a message with detected latex formulas and returns a list of alternating text and latex parts"""
+    if not msg:
+        return []
+
+    # Patterns for different LaTeX math formats
+    patterns = [
+        r'\$\$(.*?)\$\$',           # $$...$$
+        r'\\\[(.*?)\\\]',           # \[...\]
+        r'\\\((.*?)\\\)',           # \(...\)
+        r'\\begin\{equation\}(.*?)\\end\{equation\}',  # \begin{equation}...\end{equation}
+        r'\\begin\{align\}(.*?)\\end\{align\}',        # \begin{align}...\end{align}
+        r'\$(.*?)\$'                # $...$ (inline math, check last to avoid conflicts)
+    ]
+
+    # Find all formula positions in the text
+    formula_positions = []
+    for pattern in patterns:
+        for match in re.finditer(pattern, msg, re.DOTALL):
+            formula_positions.append({
+                'start': match.start(),
+                'end': match.end(),
+                'full_match': match.group(0),  # Full match including delimiters
+                'formula': match.group(1).strip(),  # Just the formula content
+                'type': 'latex'
+            })
+
+    # Sort by position to process in order
+    formula_positions.sort(key=lambda x: x['start'])
+
+    # Build the result list with alternating text and LaTeX parts
+    result = []
+    current_pos = 0
+
+    for formula_info in formula_positions:
+        # Add text before the formula (if any)
+        if current_pos < formula_info['start']:
+            text_part = msg[current_pos:formula_info['start']].strip()
+            if text_part:
+                result.append({
+                    'content': text_part,
+                    'type': 'text'
+                })
+        image_path = convert_latex_to_image(formula_info['formula'])  # Generate image for the LaTeX formula
+        # Add the LaTeX formula with image path
+        result.append({
+            'content': formula_info['formula'],
+            'full_match': formula_info['full_match'],
+            'image_path': image_path,  # Add the temp image path
+            'type': 'latex'
+        })
+        current_pos = formula_info['end']
+    # Add remaining text after all formulas (if any)
+    if current_pos < len(msg):
+        remaining_text = msg[current_pos:].strip()
+        if remaining_text:
+            result.append({
+                'content': remaining_text,
+                'type': 'text'
+            })
+    return result
+
+
+def convert_latex_to_image(latex_content: str) -> Optional[str]:
+    """converts latex content to an image using SymPy and returns the temporary file path"""
+
+    # Skip empty or whitespace-only content
+    if not latex_content or not latex_content.strip():
+        logger.warning("Empty LaTeX content provided, skipping image generation")
+        return None
+    
+    try:
+        # Try to parse the LaTeX content
+        try:
+            expr = parse_latex(latex_content)
+        except:
+            try:
+                expr = sympify(latex_content)
+            except:
+                logger.warning(f"Could not parse LaTeX content: {latex_content}")
+                return _matplotlib_fallback(latex_content)
+        
+        # Create a temporary file (SymPy preview needs a file path)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        try:
+            # Generate the image using SymPy's preview function
+            preview(expr, viewer='file', filename=temp_path, 
+                    dvioptions=['-T', 'tight', '-z', '0', '--truecolor', '-D 300'])
+            
+            # Return the temporary file path
+            return temp_path
+        except Exception as preview_error:
+            # If SymPy preview fails (LaTeX not installed), try matplotlib fallback
+            logger.warning(f"SymPy preview failed for '{latex_content}': {preview_error}")
+            os.unlink(temp_path)  # Clean up the empty file
+            return _matplotlib_fallback(latex_content)
+        
+    except Exception as e:
+        logger.warning(f"Failed to generate LaTeX image for '{latex_content}': {e}")
+        return None
+
+
+def _matplotlib_fallback(latex_content: str) -> Optional[str]:
+    """Fallback to matplotlib for basic LaTeX rendering when SymPy preview fails"""
+    try:
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        # Create figure with white background
+        fig, ax = plt.subplots(figsize=(8, 2), facecolor='white')
+        ax.set_facecolor('white')
+        
+        # Try to render LaTeX with matplotlib
+        try:
+            # Clean up the LaTeX for matplotlib (add $ if not present)
+            if not latex_content.startswith('$'):
+                latex_display = f'${latex_content}$'
+            else:
+                latex_display = latex_content
+                
+            ax.text(0.5, 0.5, latex_display, fontsize=16, ha='center', va='center',
+                   transform=ax.transAxes, usetex=False)
+        except:
+            # If LaTeX rendering fails, show as plain text
+            ax.text(0.5, 0.5, f"Formula: {latex_content}", fontsize=14, ha='center', va='center',
+                   transform=ax.transAxes, family='monospace')
+        
+        # Remove axes
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis('off')
+        
+        # Save with tight bbox
+        plt.savefig(temp_path, format='png', bbox_inches='tight', 
+                   facecolor='white', edgecolor='none', dpi=150)
+        plt.close(fig)
+        
+        logger.info(f"Generated fallback image for LaTeX: {latex_content}")
+        return temp_path
+        
+    except Exception as e:
+        logger.warning(f"Matplotlib fallback failed for '{latex_content}': {e}")
+        return None
