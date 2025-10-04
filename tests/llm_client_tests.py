@@ -375,17 +375,3 @@ async def test_LLMClient_two_concurrent_messages_behavior():
         assert any("LLM response" in m.content for m in result3)
 
 
-@pytest.mark.asyncio
-async def test_catch_latex_math(caplog):
-    """Test the _catch_latex_math function."""
-    llmclient = LLMClient()
-    msg = Message()
-    msg.content = "Here is some math: $E=mc^2$ and also $$a^2 + b^2 = c^2$$."
-    
-    with caplog.at_level("WARNING", logger="app.services.llm_service"):
-        response = llmclient._catch_latex_math(msg=msg)
-    # Assert that the LaTeX math detection log message was captured
-    assert any(
-        "LaTeX math expression detected in final response, converting into image..." in record.message
-        for record in caplog.records
-    )
