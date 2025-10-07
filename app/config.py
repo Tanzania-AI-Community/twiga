@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     global_message_limit: Optional[int] = None
     time_to_live: Optional[int] = None  # In seconds (a day is 86400)
 
+    # User inactivity settings
+    user_inactivity_threshold_hours: int = 24  # Hours after which user becomes inactive
+
     @field_validator("debug", mode="before")
     @classmethod
     def parse_business_env(cls, v):

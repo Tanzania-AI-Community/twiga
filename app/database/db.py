@@ -166,12 +166,23 @@ async def create_new_messages(messages: List[Message]) -> List[Message]:
 
 async def create_new_message(message: Message) -> Message:
     """
-    Create a single message in the database.
+    Create a single message in the database and update user's last_message_at.
     """
+    from datetime import datetime, timezone
+
     async with get_session() as session:
         try:
             # Add the message to the session
             session.add(message)
+
+            # Update user's last_message_at timestamp
+            if message.user_id:
+                user_statement = select(User).where(User.id == message.user_id)
+                user_result = await session.execute(user_statement)
+                user = user_result.scalar_one_or_none()
+                if user:
+                    user.last_message_at = datetime.now(timezone.utc)
+                    session.add(user)
 
             # Commit the transaction
             await session.commit()
@@ -502,3 +513,67 @@ async def assign_teacher_to_classes(
                 f"Failed to assign teacher {user.wa_id} to classes {class_ids}: {str(e)}"
             )
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
+
+
+async def get_users_by_state(state: enums.UserState) -> List[User]:
+    """
+    Get all users with a specific state.
+
+    Args:
+        state: The UserState to filter by
+
+    Returns:
+        List[User]: List of users with the specified state
+    """
+    async with get_session() as session:
+        try:
+            statement = select(User).where(User.state == state)
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+        except Exception as e:
+            logger.error(f"Failed to query users by state {state}: {str(e)}")
+            raise Exception(f"Failed to query users by state: {str(e)}")
+
+
+async def get_users_to_mark_inactive(hours_threshold: int) -> List[User]:
+    """
+    Get active users who haven't sent or received messages in the specified hours.
+
+    Args:
+        hours_threshold: Number of hours after which a user is considered inactive
+
+    Returns:
+        List[User]: List of active users who should be marked as inactive
+    """
+    from datetime import datetime, timezone, timedelta
+
+    async with get_session() as session:
+        try:
+            # Calculate the threshold datetime
+            threshold_time = datetime.now(timezone.utc) - timedelta(
+                hours=hours_threshold
+            )
+
+            # Find active users whose last_message_at is older than threshold
+            # OR users who have never sent/received messages (last_message_at is None)
+            from sqlalchemy import func
+
+            statement = select(User).where(
+                and_(
+                    User.state == enums.UserState.active,
+                    func.coalesce(
+                        User.last_message_at,
+                        text("'1970-01-01'::timestamp with time zone"),
+                    )
+                    < threshold_time,
+                )
+            )
+
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+
+        except Exception as e:
+            logger.error(
+                f"Failed to query inactive users with threshold {hours_threshold}h: {str(e)}"
+            )
+            raise Exception(f"Failed to query inactive users: {str(e)}")
