@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from typing import List, Optional
 from langchain_core.messages import (
     SystemMessage,
@@ -12,36 +11,11 @@ from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.database.db import get_user_message_history
 from app.utils.prompt_manager import prompt_manager
+from app.utils.message_processor import MessageProcessor
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
 from app.tools.tool_manager import ToolManager
 from abc import ABC, abstractmethod
-
-
-class MessageProcessor:
-    """Handles processing and batching of messages for a single user."""
-
-    def __init__(self, user_id: int):
-        self.user_id = user_id
-        self.lock = asyncio.Lock()
-        self.messages: List[Message] = []
-
-    def add_message(self, message: Message) -> None:
-        self.messages.append(message)
-
-    def get_pending_messages(self) -> List[Message]:
-        return self.messages.copy()
-
-    def clear_messages(self) -> None:
-        self.messages.clear()
-
-    @property
-    def has_messages(self) -> bool:
-        return bool(self.messages)
-
-    @property
-    def is_locked(self) -> bool:
-        return self.lock.locked()
 
 
 class ClientBase(ABC):

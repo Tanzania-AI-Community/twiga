@@ -93,10 +93,9 @@ class LLMClient(ClientBase):
 
                     # Create message from LangChain AIMessage directly
                     initial_message = self._llm_response_to_message(
-                        initial_response, user.id
+                        llm_response=initial_response, user_id=user.id
                     )
 
-                    # check for tool calls in the response
                     tool_calls = self.tool_manager.extract_tool_calls(initial_response)
                     if tool_calls:
                         initial_message.tool_calls = tool_calls
@@ -162,6 +161,7 @@ class LLMClient(ClientBase):
 
                     # 7. If we got this far, we return the messages
                     self.logger.debug("LLM finished.")
+                    self.logger.debug(f"New messages: {new_messages}")
                     return new_messages
 
                 except Exception as e:

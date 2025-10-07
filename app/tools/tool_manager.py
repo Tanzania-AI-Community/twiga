@@ -54,7 +54,6 @@ class ToolManager:
         """
         tool_calls = []
 
-        # Check if the response has valid tool calls
         if hasattr(llm_response, "tool_calls") and llm_response.tool_calls:
             tool_calls = [
                 {
@@ -68,7 +67,6 @@ class ToolManager:
                 for tool_call in llm_response.tool_calls
             ]
         else:
-            # If no valid tool calls, attempt to recover malformed tool calls
             self.logger.debug(
                 "No valid tool calls found, attempting to recover malformed tool calls."
             )
@@ -145,12 +143,9 @@ class ToolManager:
         """
         Process tool calls and return their responses as Message objects.
         """
-
-        assert user.id is not None, "User ID must be set"
-
         tool_calls = [
             ChatCompletionMessageToolCall(
-                id=call.get("id", f"call_{uuid.uuid4().hex[:22]}"),
+                id=call.get("id", f"call_{str(uuid.uuid4())}"),
                 function=Function(
                     name=call["function"]["name"],
                     arguments=call["function"]["arguments"],
@@ -160,7 +155,6 @@ class ToolManager:
             for call in tool_calls
         ]
 
-        # process tool calls
         tool_responses = []
         for tool_call in tool_calls:
             try:
