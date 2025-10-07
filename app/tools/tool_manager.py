@@ -57,7 +57,7 @@ class ToolManager:
         if hasattr(llm_response, "tool_calls") and llm_response.tool_calls:
             tool_calls = [
                 {
-                    "id": tool_call.get("id", f"call_{uuid.uuid4().hex[:22]}"),
+                    "id": tool_call.get("id", f"call_{str(uuid.uuid4())}"),
                     "function": {
                         "name": tool_call["name"],
                         "arguments": json.dumps(tool_call.get("args", {})),
@@ -94,7 +94,7 @@ class ToolManager:
                 "Malformed XML tool call detected, attempting recovery."
             )
             return ChatCompletionMessageToolCall(
-                id=f"call_{uuid.uuid4().hex[:22]}",
+                id=f"call_{str(uuid.uuid4())}",
                 function=Function(
                     name=xml_match.group(1),
                     arguments=json.dumps(json.loads(xml_match.group(2).strip())),
@@ -119,11 +119,13 @@ class ToolManager:
                     try:
                         # Try parsing it in case it's a string-encoded JSON
                         params = json.loads(params)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
                         # If it fails to parse, use it as is
-                        pass
+                        self.logger.warning(
+                            "Failed to decode tool call parameters: %s", e
+                        )
                 return ChatCompletionMessageToolCall(
-                    id=f"call_{uuid.uuid4().hex[:22]}",
+                    id=f"call_{str(uuid.uuid4())}",
                     function=Function(
                         name=json_data["name"],
                         arguments=(
@@ -132,8 +134,8 @@ class ToolManager:
                     ),
                     type="function",
                 )
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            self.logger.warning("Failed to decode tool call JSON content: %s", e)
 
         return None
 
