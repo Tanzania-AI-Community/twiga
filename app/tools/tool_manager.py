@@ -5,7 +5,7 @@ import logging
 from langchain_core.messages import AIMessage
 from app.database.models import Message
 from app.database.enums import MessageRole
-from typing import List, Optional, Dict, Any
+from typing import Optional, Any
 from dataclasses import dataclass
 from app.database.models import User
 from app.tools.registry import ToolName
@@ -26,7 +26,7 @@ class ChatCompletionMessageToolCall:
     function: Function
     type: str = "function"
 
-    def model_dump(self) -> Dict[str, Any]:
+    def model_dump(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "function": {
@@ -41,7 +41,7 @@ class ToolManager:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    def extract_tool_calls(self, llm_response: AIMessage) -> List[Dict[str, Any]]:
+    def extract_tool_calls(self, llm_response: AIMessage) -> list[dict[str, Any]]:
         """
         This method extracts valid tool calls from the LLM response. If no valid tool calls are found,
         it attempts to recover malformed tool calls from the response content.
@@ -50,7 +50,7 @@ class ToolManager:
             llm_response (AIMessage): The response from the LLM.
 
         Returns:
-            List[Dict[str, Any]]: A list of tool call dictionaries. If no tool calls are found, an empty list is returned.
+            list[dict[str, Any]]: A list of tool call dictionaries. If no tool calls are found, an empty list is returned.
         """
         tool_calls = []
 
@@ -138,8 +138,8 @@ class ToolManager:
         return None
 
     async def process_tool_calls(
-        self, tool_calls: List[Dict[str, Any]], user: User
-    ) -> List[Message]:
+        self, tool_calls: list[dict[str, Any]], user: User
+    ) -> list[Message]:
         """
         Process tool calls and return their responses as Message objects.
         """

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 from langchain_core.messages import (
     SystemMessage,
     HumanMessage,
@@ -51,8 +51,8 @@ class ClientBase(ABC):
     async def _build_api_messages(
         self,
         user: User,
-        messages_to_process: List[Message],
-    ) -> List[BaseMessage]:
+        messages_to_process: list[Message],
+    ) -> list[BaseMessage]:
         """Build the API messages from DB history + new messages"""
 
         self.logger.debug("Retrieving user message history")
@@ -123,10 +123,10 @@ class ClientBase(ABC):
 
     @staticmethod
     def _format_messages(
-        new_messages: List[Message],
-        database_messages: Optional[List[Message]],
+        new_messages: list[Message],
+        database_messages: Optional[list[Message]],
         user: User,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         Format messages for the API, removing duplicates between new messages and database history.
         """
@@ -171,6 +171,6 @@ class ClientBase(ABC):
         self,
         user: User,
         message: Message,
-    ) -> Optional[List[Message]]:
+    ) -> Optional[list[Message]]:
         """Generate a response, handling message batching and tool calls."""
         pass

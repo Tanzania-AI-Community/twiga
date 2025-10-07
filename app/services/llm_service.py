@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+from typing import Optional
 from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.config import settings
@@ -17,7 +17,7 @@ class LLMClient(ClientBase):
         self,
         user: User,
         message: Message,
-    ) -> Optional[List[Message]]:
+    ) -> Optional[list[Message]]:
         """Generate a response, handling message batching and tool calls."""
         assert user.id is not None
         processor = self._get_processor(user.id)
