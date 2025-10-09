@@ -99,6 +99,10 @@ If all worked smoothly, the command line output should suggest that ngrok is act
 
 ## 🤖 Get a Together AI or OpenAI API token
 
+> [!Tip]
+>
+> If you're planning to run every model locally with [Ollama](https://ollama.com/), you can skip this API token step and follow the [Ollama setup](#-set-up-ollama-for-local-llm-and-embeddings) below instead.
+
 In order to use large language and embedding models we need access to a high performance inference service. By default, this project uses Together AI, which gives us access to a wide range of open source models that can be run with OpenAI's software development kit (SDK).
 
 - If you want to use Together AI, [create an account](https://api.together.ai/) and get an API key
@@ -115,6 +119,24 @@ LLM_API_KEY=$YOUR_API_KEY
 > We recommend using Together AI, but if you decide on OpenAI there are a few extra steps to fill.
 
 Search the repository for the identifier `XXX:` and make sure to update the values according to the instructions so that the FastAPI application will run OpenAI models. At the time of writing, this should be within `app/config.py` and `app/database/models.py`.
+
+## 🦙 Set up Ollama for local LLM and embeddings
+
+If you prefer to run Twiga without using Together AI or OpenAI, you can host both chat and embedding models with [Ollama](https://ollama.com/).
+
+1. **Install Ollama** by following the [official instructions](https://github.com/ollama/ollama). The installer automatically starts the Ollama daemon on port `11434`.
+2. **Pull the models** you want to use. The defaults in `.env.template` expect `llama3.2` for chat completions and `mxbai-embed-large` for embeddings:
+
+    ```bash
+    ollama pull llama3.2
+    ollama pull mxbai-embed-large
+    ```
+
+3. **Expose the OpenAI-compatible API**. When the daemon is running, the API is already available at `http://localhost:11434/v1`. If you need to expose it over the internet, tunnel it (for example with `ngrok http 11434`) and copy the public base URL.
+
+4. **Restart the FastAPI stack** (`make run` or `docker-compose … up`) so that the new configuration is loaded.
+
+With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `LLM__AI_PROVIDER`.
 
 ## 📊 LangSmith Tracing (Optional)
 
