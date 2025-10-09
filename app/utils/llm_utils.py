@@ -2,11 +2,12 @@ import logging
 import backoff
 import os
 import requests
-from typing import List, Optional, Dict, cast
+from typing import List, Optional, Dict, cast, Union
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
 from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
 from app.config import llm_settings
@@ -73,20 +74,56 @@ if langsmith_active:
     )
 
 
-def get_llm_client() -> BaseChatModel:
+def get_llm_client(
+    tools: Optional[List[Dict]] = None, tool_choice: Optional[str] = None
+) -> Union[BaseChatModel, Runnable]:
     """Get the appropriate LangChain LLM client based on configuration."""
-    if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
-        return ChatTogether(
+    llm: BaseChatModel
+
+    if llm_settings.ai_provider == "together":
+        if not llm_settings.llm_api_key:
+            raise ValueError("Together provider requires LLM_API_KEY to be set.")
+
+        llm = ChatTogether(
             api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
             model=llm_settings.llm_model_name,
         )
-    elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
-        return ChatOpenAI(
+    elif llm_settings.ai_provider == "openai":
+        if not llm_settings.llm_api_key:
+            raise ValueError("OpenAI provider requires LLM_API_KEY to be set.")
+
+        llm = ChatOpenAI(
             api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
             model=llm_settings.llm_model_name,
+        )
+    elif llm_settings.ai_provider == "ollama":
+        model_name = (
+            llm_settings.ollama_model_name
+            if llm_settings.ollama_model_name
+            else llm_settings.llm_model_name
+        )
+        if not model_name:
+            raise ValueError(
+                "Ollama provider requires a model name. Set LLM__OLLAMA_MODEL_NAME or LLM__LLM_MODEL_NAME."
+            )
+
+        api_key = (
+            llm_settings.llm_api_key.get_secret_value()
+            if llm_settings.llm_api_key
+            else "ollama"
+        )
+        llm = ChatOpenAI(
+            api_key=SecretStr(api_key),
+            model=model_name,
+            base_url=llm_settings.ollama_base_url,
         )
     else:
         raise ValueError("No valid LLM provider configured")
+
+    if tools:
+        return llm.bind_tools(tools, tool_choice=tool_choice)
+
+    return llm
 
 
 @backoff.on_exception(
@@ -121,14 +158,10 @@ async def async_llm_request(
         Exception: If the LLM request fails after retries.
     """
     try:
-        llm = get_llm_client()
+        llm = get_llm_client(tools=tools, tool_choice=tool_choice)
 
         if verbose:
             logger.debug(f"Messages sent to LLM API:\n{messages}")
-
-        # Handle tools if provided
-        if tools:
-            llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
         # Prepare kwargs for LangSmith tracing
         invoke_kwargs = {}
