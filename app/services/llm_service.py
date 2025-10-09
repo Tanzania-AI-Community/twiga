@@ -4,7 +4,6 @@ from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.config import settings
 from app.utils.llm_utils import async_llm_request
-from app.tools.registry import get_tools_metadata
 from app.utils.string_manager import strings, StringCategory
 from app.services.client_base import ClientBase
 
@@ -73,7 +72,7 @@ class LLMClient(ClientBase):
                     self.logger.debug("Initiating LLM request")
                     initial_response = await async_llm_request(
                         messages=api_messages,
-                        tools=get_tools_metadata(
+                        tools=self.tool_manager.get_tools_metadata_from_registry(
                             available_classes=json.dumps(user.class_name_to_id_map)
                         ),
                         tool_choice="auto",

@@ -8,7 +8,7 @@ from app.database.enums import MessageRole
 from typing import Optional, Any
 from dataclasses import dataclass
 from app.database.models import User
-from app.tools.registry import ToolName
+from app.tools.registry import ToolName, get_tools_metadata
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 
@@ -40,6 +40,16 @@ class ChatCompletionMessageToolCall:
 class ToolManager:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+
+    def get_tools_metadata_from_registry(self, available_classes: str) -> list:
+        """
+        Get tools metadata with formatted class IDs for all tools from the tool registry.
+
+        Args:
+            available_classes: JSON string mapping class names to their IDs
+            e.g. '{"Geography Form 2": 1}'
+        """
+        return get_tools_metadata(available_classes=available_classes)
 
     def extract_tool_calls(self, llm_response: AIMessage) -> list[dict[str, Any]]:
         """
