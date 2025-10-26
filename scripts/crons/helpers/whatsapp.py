@@ -70,7 +70,7 @@ class WhatsAppClient:
         self,
         wa_id: str,
         template_name: str,
-        language_code: str = "en",
+        language_code: str = "en_us",
     ) -> None:
         """
         Send a WhatsApp template message.
