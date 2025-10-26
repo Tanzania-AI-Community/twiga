@@ -28,7 +28,7 @@ We would like to thank those who are sponsoring this project.
   <tr>
     <td align="center" style="padding:22px 20px; vertical-align:top;">
       <a href="https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/" style="display:block; margin:14px 0 10px;">
-        <img src="https://github.com/user-attachments/assets/b638f1e6-5a63-4406-bbc5-829341b167ab" alt="Meta" height="50" style="display:block;">
+        <img src="https://github.com/user-attachments/assets/b638f1e6-5a63-4406-bbc5-829341b167ab" alt="Meta" height="60" style="display:block;">
       </a>
       <p style="margin:10px 0 14px;">
         <strong>Meta</strong><br>
@@ -37,7 +37,7 @@ We would like to thank those who are sponsoring this project.
     </td>
     <td align="center" style="padding:22px 20px; vertical-align:top;">
       <a href="https://neon.tech/" style="display:block; margin:14px 0 10px;">
-        <img src="https://github.com/user-attachments/assets/cf268032-ac06-47ed-a3d9-3bfbbe3a083e" alt="Neon" height="50" style="display:block;">
+        <img src="https://github.com/user-attachments/assets/cf268032-ac06-47ed-a3d9-3bfbbe3a083e" alt="Neon" height="60" style="display:block;">
       </a>
       <p style="margin:10px 0 14px;">
         <strong>Neon</strong><br>
@@ -48,7 +48,7 @@ We would like to thank those who are sponsoring this project.
   <tr>
     <td align="center" style="padding:22px 20px; vertical-align:top;">
       <a href="https://modal.com/" style="display:block; margin:14px 0 10px;">
-        <img src="https://modal-cdn.com/modal-logo-icon.png" alt="Modal" height="50" style="display:block;">
+        <img src="https://modal-cdn.com/modal-logo-icon.png" alt="Modal" height="60" style="display:block;">
       </a>
       <p style="margin:10px 0 14px;">
         <strong>Modal</strong><br>
@@ -57,7 +57,7 @@ We would like to thank those who are sponsoring this project.
     </td>
     <td align="center" style="padding:22px 20px; vertical-align:top;">
       <a href="https://kthais.com/" style="display:block; margin:14px 0 10px;">
-        <img src="https://avatars.githubusercontent.com/u/57193069?s=200&v=4" alt="KTH AI Society" height="50" style="display:block;">
+        <img src="https://avatars.githubusercontent.com/u/57193069?s=200&v=4" alt="KTH AI Society" height="70" style="display:block;">
       </a>
       <p style="margin:10px 0 14px;">
         <strong>KTH AI Society</strong><br>
