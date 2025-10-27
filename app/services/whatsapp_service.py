@@ -62,6 +62,7 @@ class WhatsAppClient:
 
         try:
             media_id = await self.upload_media(image_path, mime_type)
+            
             if not media_id:
                 raise ValueError("Failed to retrieve media id for WhatsApp image message.")
 

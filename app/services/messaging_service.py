@@ -96,6 +96,7 @@ class MessagingService:
                                     mime_type='image/png',
                                     caption=f"LaTeX: {part['content']}"
                                 )
+
                             else:
                                 # Fallback to text if image generation failed
                                 await whatsapp_client.send_message(user.wa_id, f"Formula: {part['content']}")
