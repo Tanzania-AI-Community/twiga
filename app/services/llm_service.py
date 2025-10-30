@@ -18,16 +18,19 @@ class LLMClient(ClientBase):
         message: Message,
     ) -> Optional[list[Message]]:
         """Generate a response, handling message batching and tool calls."""
-        assert user.id is not None
+        if user.id is None:
+            self.logger.error("User object is missing an ID, cannot generate response.")
+            raise ValueError("User object must have an ID to generate a response.")
+
         processor = self._get_processor(user.id)
         processor.add_message(message)
 
         self.logger.debug(
-            f"Message buffer for user: {user.wa_id}, buffer: {processor.get_pending_messages()}"
+            f"Message buffer for user: {user.id}, buffer: {processor.get_pending_messages()}"
         )
 
         if processor.is_locked:
-            self.logger.info(f"Lock held for user {user.wa_id}, message buffered")
+            self.logger.info(f"Lock held for user {user.id}, message buffered")
             return None
 
         async with processor.lock:
@@ -36,7 +39,7 @@ class LLMClient(ClientBase):
                     messages_to_process = processor.get_pending_messages()
                     original_count = len(messages_to_process)
                     if not messages_to_process:
-                        self.logger.warning(f"No messages to process for {user.wa_id}.")
+                        self.logger.warning(f"No messages to process for {user.id}.")
                         return None  # cleanup in finally
 
                     # 1. Build the API messages from DB history + new messages
@@ -56,7 +59,7 @@ class LLMClient(ClientBase):
                     # TODO: Issue #92: Optimizing chat history usage & context window input
                     if message_lengths[-1] > settings.message_character_limit:
                         self.logger.error(
-                            f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
+                            f"User {user.id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
                         )
                         return [
                             Message(
@@ -77,11 +80,9 @@ class LLMClient(ClientBase):
                         ),
                         tool_choice="auto",
                         verbose=False,
-                        run_name=f"twiga_initial_chat_{user.wa_id}",
+                        run_name=f"twiga_initial_chat_{user.id}",
                         metadata={
                             "user_id": str(user.id),
-                            "user_wa_id": user.wa_id,
-                            "user_name": user.name,
                             "message_count": len(api_messages),
                             "phase": "initial_request",
                         },
@@ -138,11 +139,9 @@ class LLMClient(ClientBase):
                                 messages=api_messages,
                                 tools=None,
                                 tool_choice=None,
-                                run_name=f"twiga_final_chat_{user.wa_id}",
+                                run_name=f"twiga_final_chat_{user.id}",
                                 metadata={
                                     "user_id": str(user.id),
-                                    "user_wa_id": user.wa_id,
-                                    "user_name": user.name,
                                     "message_count": len(api_messages),
                                     "phase": "final_request_with_tools",
                                     "tool_calls_processed": len(tool_responses),
