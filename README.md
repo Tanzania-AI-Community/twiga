@@ -20,24 +20,54 @@ This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](htt
 
 We would like to thank those who are sponsoring this project.
 
-<table align="center" style="background-color: #f9f9f9; padding: 20px; border-radius: 10px;">
+<table align="center" style="background-color:#f9f9f9; padding:20px; border-radius:10px; width:100%; table-layout:fixed;">
+  <colgroup>
+    <col style="width:50%;">
+    <col style="width:50%;">
+  </colgroup>
   <tr>
-    <td align="center" style="padding: 20px;">
-      <a href="https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/">
-        <img src="https://github.com/user-attachments/assets/b638f1e6-5a63-4406-bbc5-829341b167ab" alt="Meta" height="50">
+    <td align="center" style="padding:22px 20px; vertical-align:top;">
+      <a href="https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/" style="display:block; margin:14px 0 10px;">
+        <img src="https://github.com/user-attachments/assets/b638f1e6-5a63-4406-bbc5-829341b167ab" alt="Meta" height="60" style="display:block;">
       </a>
-      <p><strong>Meta</strong><br>
-      Sponsoring us through the LLaMA Impact Grant Innovation Award, allowing us to build LLM tools for social good.</p>
+      <p style="margin:10px 0 14px;">
+        <strong>Meta</strong><br>
+        Sponsoring us through the LLaMA Impact Grant Innovation Award, allowing us to build LLM tools for social good.
+      </p>
     </td>
-    <td align="center" style="padding: 20px;">
-      <a href="https://neon.tech/">
-        <img src="https://github.com/user-attachments/assets/cf268032-ac06-47ed-a3d9-3bfbbe3a083e" alt="Neon" height="50">
+    <td align="center" style="padding:22px 20px; vertical-align:top;">
+      <a href="https://neon.tech/" style="display:block; margin:14px 0 10px;">
+        <img src="https://github.com/user-attachments/assets/cf268032-ac06-47ed-a3d9-3bfbbe3a083e" alt="Neon" height="60" style="display:block;">
       </a>
-      <p><strong>Neon</strong><br>
-      Providing database infrastructure that helps us maintain high performance.</p>
+      <p style="margin:10px 0 14px;">
+        <strong>Neon</strong><br>
+        Providing database infrastructure that helps us maintain high performance.
+      </p>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" style="padding:22px 20px; vertical-align:top;">
+      <a href="https://modal.com/" style="display:block; margin:14px 0 10px;">
+        <img src="https://modal-cdn.com/modal-logo-icon.png" alt="Modal" height="60" style="display:block;">
+      </a>
+      <p style="margin:10px 0 14px;">
+        <strong>Modal</strong><br>
+        Providing cloud computing resources for LLM and OCR inference.
+      </p>
+    </td>
+    <td align="center" style="padding:22px 20px; vertical-align:top;">
+      <a href="https://kthais.com/" style="display:block; margin:14px 0 10px;">
+        <img src="https://avatars.githubusercontent.com/u/57193069?s=200&v=4" alt="KTH AI Society" height="70" style="display:block;">
+      </a>
+      <p style="margin:10px 0 14px;">
+        <strong>KTH AI Society</strong><br>
+        KTH students' organization that leads some development areas in Twiga.
+      </p>
     </td>
   </tr>
 </table>
+
+
 
 ## 📱 Demo
 
