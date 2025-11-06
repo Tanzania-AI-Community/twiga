@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import tempfile
 import os
+import textwrap
 
 from app.models.message_models import (
     Row,
@@ -360,135 +361,129 @@ def get_request_type(body: dict) -> RequestType:
 
     return RequestType.VALID_MESSAGE
 
-def _catch_latex_math(msg):
-    """checks if the message contains LaTeX math expressions"""
-    if not msg:
-        return None
-    
-    # Patterns for different LaTeX math formats
-    patterns = [
-        r'\$\$(.*?)\$\$',           # $$...$$
-        r'\\\[(.*?)\\\]',           # \[...\]
-        r'\\\((.*?)\\\)',           # \(...\)
-        r'\\begin\{equation\}(.*?)\\end\{equation\}',  # \begin{equation}...\end{equation}
-        r'\\begin\{align\}(.*?)\\end\{align\}',        # \begin{align}...\end{align}
-        r'\$(.*?)\$'                # $...$ (inline math, check last to avoid conflicts)
-    ]
-    
-    found_formulas = []
-    
-    for pattern in patterns:
-        matches = re.findall(pattern, msg, re.DOTALL)
-        if matches:
-            logger.warning(f"LaTeX math expressions detected in final response")
-            return True
-    if found_formulas:
-        return found_formulas
-    
-    return None
 
-def parse_msg_with_latex(msg):
-    """parses a message with detected latex formulas and returns a list of alternating text and latex parts"""
-    if not msg:
+def convert_latex_to_image(llm_response: str) -> List[str]:
+    """Convert LLM response with <math> tags to document-style images with multi-page support"""
+    
+    # Split content by <math> tags while keeping both text and math parts
+    parts = re.split(r'(<math>.*?</math>)', llm_response, flags=re.DOTALL)
+    content_parts = [part for part in parts if part.strip()]  # Remove empty parts
+    
+    if not content_parts:
+        logger.warning("No content to process")
         return []
-
-    # Patterns for different LaTeX math formats
-    patterns = [
-        r'\$\$(.*?)\$\$',           # $$...$$
-        r'\\\[(.*?)\\\]',           # \[...\]
-        r'\\\((.*?)\\\)',           # \(...\)
-        r'\\begin\{equation\}(.*?)\\end\{equation\}',  # \begin{equation}...\end{equation}
-        r'\\begin\{align\}(.*?)\\end\{align\}',        # \begin{align}...\end{align}
-        r'\$(.*?)\$'                # $...$ (inline math, check last to avoid conflicts)
-    ]
-
-    # Find all formula positions in the text
-    formula_positions = []
-    for pattern in patterns:
-        for match in re.finditer(pattern, msg, re.DOTALL):
-            formula_positions.append({
-                'start': match.start(),
-                'end': match.end(),
-                'full_match': match.group(0),  # Full match including delimiters
-                'formula': match.group(1).strip(),  # Just the formula content
-                'type': 'latex'
-            })
-
-    # Sort by position to process in order
-    formula_positions.sort(key=lambda x: x['start'])
-
-    # Build the result list with alternating text and LaTeX parts
-    result = []
-    current_pos = 0
-
-    for formula_info in formula_positions:
-        # Add text before the formula (if any)
-        if current_pos < formula_info['start']:
-            text_part = msg[current_pos:formula_info['start']].strip()
-            if text_part:
-                result.append({
-                    'content': text_part,
-                    'type': 'text'
-                })
-        image_path = convert_latex_to_image(formula_info['formula'])  # Generate image for the LaTeX formula
-        # Add the LaTeX formula with image path
-        result.append({
-            'content': formula_info['formula'],
-            'full_match': formula_info['full_match'],
-            'image_path': image_path,  # Add the temp image path
-            'type': 'latex'
-        })
-        current_pos = formula_info['end']
-    # Add remaining text after all formulas (if any)
-    if current_pos < len(msg):
-        remaining_text = msg[current_pos:].strip()
-        if remaining_text:
-            result.append({
-                'content': remaining_text,
-                'type': 'text'
-            })
-    return result
-
-
-def convert_latex_to_image(latex_content: str) -> Optional[str]:
-    """converts latex content to an image using SymPy and returns the temporary file path"""
-
-    # Skip empty or whitespace-only content
-    if not latex_content or not latex_content.strip():
-        logger.warning("Empty LaTeX content provided, skipping image generation")
-        return None
     
-    try:
-        # Try to parse the LaTeX content
-        try:
-            expr = parse_latex(latex_content)
-        except:
-            try:
-                expr = sympify(latex_content)
-            except:
-                logger.warning(f"Could not parse LaTeX content: {latex_content}")
-                return _matplotlib_fallback(latex_content)
+    # Configuration for pagination
+    max_lines_per_page = 10  # Adjust based on your needs
+    line_height = 0.08
+    start_y = 0.95
+    
+    pages = []
+    current_page_parts = []
+    current_line_count = 0
+    
+    # Group content into pages
+    for part in content_parts:
+        # Estimate lines needed for this part
+        if part.startswith('<math>') and part.endswith('</math>'):
+            lines_needed = 1  # Math formulas take 1 line
+        else:
+            # Estimate text lines (rough approximation)
+            estimated_chars_per_line = 80
+            lines_needed = max(1, len(part.strip()) // estimated_chars_per_line)
         
-        # Create a temporary file (SymPy preview needs a file path)
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-            temp_path = temp_file.name
-        
+        # Check if this part fits on current page
+        if current_line_count + lines_needed > max_lines_per_page and current_page_parts:
+            # Start new page
+            pages.append(current_page_parts)
+            current_page_parts = [part]
+            current_line_count = lines_needed
+        else:
+            # Add to current page
+            current_page_parts.append(part)
+            current_line_count += lines_needed
+    
+    # Add the last page if it has content
+    if current_page_parts:
+        pages.append(current_page_parts)
+    
+    # Generate images for each page
+    image_paths = []
+    
+    for page_num, page_parts in enumerate(pages, 1):
         try:
-            # Generate the image using SymPy's preview function
-            preview(expr, viewer='file', filename=temp_path, 
-                    dvioptions=['-T', 'tight', '-z', '0', '--truecolor', '-D 300'])
+            # Create a temporary file for this page
+            with tempfile.NamedTemporaryFile(suffix=f'_page_{page_num}.png', delete=False) as temp_file:
+                temp_path = temp_file.name
             
-            # Return the temporary file path
-            return temp_path
-        except Exception as preview_error:
-            # If SymPy preview fails (LaTeX not installed), try matplotlib fallback
-            logger.warning(f"SymPy preview failed for '{latex_content}': {preview_error}")
-            os.unlink(temp_path)  # Clean up the empty file
-            return _matplotlib_fallback(latex_content)
-        
-    except Exception as e:
-        logger.warning(f"Failed to generate LaTeX image for '{latex_content}': {e}")
-        return None
+            # Calculate dynamic height based on content
+            estimated_lines = sum(1 if part.startswith('<math>') else max(1, len(part.strip()) // 80) 
+                                for part in page_parts)
+            dynamic_height = max(4, estimated_lines * line_height + 2)  # +2 for padding
+            
+            # Create figure with dynamic height
+            fig, ax = plt.subplots(figsize=(10, dynamic_height), facecolor='white')
+            ax.set_facecolor('white')
+            ax.axis('off')
+            
+            y_position = start_y
+            
+            # Render each part on this page
+            for part in page_parts:
+                if part.startswith('<math>') and part.endswith('</math>'):
+                    # Extract math content and render as formula
+                    math_content = part[6:-7].strip()  # Remove <math> and </math>
+                    try:
+                        # Render as LaTeX formula
+                        latex_display = f'${math_content}$'
+                        ax.text(0.5, y_position, latex_display, fontsize=14, ha='center', va='top',
+                               transform=ax.transAxes, usetex=False)
+                    except:
+                        # Fallback to plain text if LaTeX fails
+                        ax.text(0.5, y_position, f"Formula: {math_content}", fontsize=12, ha='center', va='top',
+                               transform=ax.transAxes, family='monospace')
+                    y_position -= line_height
+                else:
+                    # Render as regular text with word wrapping
+                    clean_text = part.strip()
+                    if clean_text:
+                        # Simple word wrapping for long text
+                        max_chars_per_line = 80
+                        if len(clean_text) > max_chars_per_line:
+                            wrapped_lines = textwrap.wrap(clean_text, width=max_chars_per_line)
+                            for line in wrapped_lines:
+                                ax.text(0.05, y_position, line, fontsize=12, ha='left', va='top',
+                                       transform=ax.transAxes)
+                                y_position -= line_height
+                        else:
+                            ax.text(0.05, y_position, clean_text, fontsize=12, ha='left', va='top',
+                                   transform=ax.transAxes)
+                            y_position -= line_height
+            
+            # Add page number at bottom
+            total_pages = len(pages)
+            if total_pages > 1:
+                ax.text(0.95, 0.05, f"Page {page_num}/{total_pages}", fontsize=10, ha='right', va='bottom',
+                       transform=ax.transAxes, alpha=0.7)
+            
+            # Save the page image
+            plt.savefig(temp_path, format='png', bbox_inches='tight', 
+                       facecolor='white', edgecolor='none', dpi=150)
+            plt.close(fig)
+            
+            image_paths.append(temp_path)
+            logger.info(f"Generated page {page_num}/{total_pages}: {temp_path}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate page {page_num}: {e}")
+            # Continue with other pages even if one fails
+    
+    if image_paths:
+        logger.info(f"Generated {len(image_paths)} document pages from LLM response")
+    else:
+        logger.warning("Failed to generate any document pages")
+    
+    return image_paths
 
 
 def _matplotlib_fallback(latex_content: str) -> Optional[str]:
