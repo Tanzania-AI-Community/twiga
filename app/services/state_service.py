@@ -16,6 +16,7 @@ from app.utils.whatsapp_utils import (
 from app.services.messaging_service import messaging_client
 from app.services.rate_limit_service import rate_limit_service
 from app.services.flow_service import flow_client
+from app.monitoring.metrics import record_messages_generated
 
 
 class StateHandler:
@@ -57,6 +58,7 @@ class StateHandler:
             )
         )
         self.logger.info(f"Sent blocked message to user {user.wa_id}")
+        record_messages_generated("blocked_notice")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
@@ -99,6 +101,7 @@ class StateHandler:
             )
         )
         self.logger.info(f"Sent rate limit message to user {user.wa_id}")
+        record_messages_generated("rate_limit_notice")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,

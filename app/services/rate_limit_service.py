@@ -1,9 +1,14 @@
 import logging
+from typing import Literal
 from app.redis.engine import get_redis_client, is_redis_available
 from app.redis.redis_keys import RedisKeys
 from app.config import settings, Environment
 from app.database import db, enums
 from app.database.models import User
+from app.metrics import (
+    record_rate_limit_block,
+    record_rate_limit_hit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +103,7 @@ class RateLimitService:
             user_key = RedisKeys.USER_RATE(phone_number)
             assert settings.user_message_limit is not None
             is_exceeded, result = await self._check_rate_limit(
-                user_key, settings.user_message_limit
+                user_key, settings.user_message_limit, scope="user"
             )
 
             if is_exceeded:
@@ -119,7 +124,7 @@ class RateLimitService:
             global_key = RedisKeys.GLOBAL_RATE
             assert settings.global_message_limit is not None
             is_exceeded, result = await self._check_rate_limit(
-                global_key, settings.global_message_limit
+                global_key, settings.global_message_limit, scope="global"
             )
 
             if is_exceeded:
@@ -146,7 +151,9 @@ class RateLimitService:
             # Don't block requests if Redis fails
             return False, user
 
-    async def _check_rate_limit(self, key: str, limit: int) -> tuple[bool, int]:
+    async def _check_rate_limit(
+        self, key: str, limit: int, *, scope: Literal["user", "global"]
+    ) -> tuple[bool, int]:
         """
         Check if rate limit is exceeded for given key and return (is_exceeded, current_count).
         If Redis is not available, always return (False, 0).
@@ -164,12 +171,14 @@ class RateLimitService:
         await pipe.expire(key, settings.time_to_live)
         result = await pipe.execute()
         count = int(result[0])
+        record_rate_limit_hit(scope)
 
         if count > limit:
             self.logger.warning(
                 f"Rate limit exceeded for {key}: {count}. The limit was {limit}"
             )
             ttl = await redis.ttl(key)
+            record_rate_limit_block(scope)
             return True, ttl
         return False, count
 

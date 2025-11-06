@@ -11,6 +11,7 @@ from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
 from app.config import llm_settings, LLMProvider
+from app.monitoring.metrics import LLMCallTracker
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
@@ -199,9 +200,17 @@ async def async_llm_request(
         # Merge any additional kwargs
         invoke_kwargs.update(kwargs)
 
-        # Make the async call
-        response = await llm.ainvoke(messages, **invoke_kwargs)
-        return cast(AIMessage, response)
+        model_name = (
+            llm_settings.ollama_model_name
+            if llm_settings.ai_provider == "ollama"
+            and llm_settings.ollama_model_name is not None
+            else llm_settings.llm_model_name
+        )
+
+        # Make the async call while tracking metrics
+        with LLMCallTracker(llm_settings.ai_provider, model_name):
+            response = await llm.ainvoke(messages, **invoke_kwargs)
+            return cast(AIMessage, response)
 
     except Exception as e:
         logger.error(f"LLM request failed: {str(e)}")
