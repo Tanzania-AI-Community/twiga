@@ -29,7 +29,7 @@ tools_metadata = [
                         "description": "The class id of the course the question should be based on. Available class IDs: {available_class_ids}",
                     },
                 },
-                "required": ["query", "class_id"],
+                "required": ["search_phrase", "class_id"],
             },
         },
     },
