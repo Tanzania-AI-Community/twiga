@@ -77,13 +77,15 @@ class MessagingService:
             assert llm_responses[-1].content is not None
             # Send the last message back to the user
             
+            final_content = llm_responses[-1].content
             #detect if math:
-            math_detected = True #mock for now
-
+            math_detected = "<math>" in final_content #mock for now
+            
             if math_detected:
+                final_content = final_content.replace("$","")  #remove dollar signs if any
 
                 #Make the llm_response into a latex document:
-                latex_document_path = convert_latex_to_image(llm_responses[-1].content)
+                latex_document_path = convert_latex_to_image(final_content)
                 
                 if latex_document_path:
                     # Send the LaTeX document as an image via WhatsApp
