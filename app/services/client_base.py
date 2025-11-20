@@ -10,6 +10,7 @@ from langchain_core.messages.base import BaseMessage
 from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.database.db import get_user_message_history
+from app.utils.enums import Prompt
 from app.utils.prompt_manager import prompt_manager
 from app.utils.message_processor import MessageProcessor
 from app.services.whatsapp_service import whatsapp_client
@@ -52,13 +53,16 @@ class ClientBase(ABC):
         self,
         user: User,
         messages_to_process: list[Message],
+        prompt: Prompt = Prompt.TWIGA_SYSTEM,
     ) -> list[BaseMessage]:
         """Build the API messages from DB history + new messages"""
 
         self.logger.debug("Retrieving user message history")
         history = await get_user_message_history(user.id)
 
-        formatted_messages = self._format_messages(messages_to_process, history, user)
+        formatted_messages = self._format_messages(
+            messages_to_process, history, user, prompt
+        )
 
         # Convert to LangChain BaseMessage objects
         api_messages = []
@@ -126,6 +130,7 @@ class ClientBase(ABC):
         new_messages: list[Message],
         database_messages: Optional[list[Message]],
         user: User,
+        prompt: Prompt,
     ) -> list[dict]:
         """
         Format messages for the API, removing duplicates between new messages and database history.
@@ -135,7 +140,7 @@ class ClientBase(ABC):
             {
                 "role": MessageRole.system,
                 "content": prompt_manager.format_prompt(
-                    "twiga_system",
+                    prompt_name=prompt.value,
                     user_name=user.name,
                     class_info=user.formatted_class_info,
                 ),
