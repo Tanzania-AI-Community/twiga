@@ -6,6 +6,7 @@ error:
   no_available_subjects: "Sorry, there are no available subjects to choose from. Please contact support (dev@ai.or.tz) for assistance."
   character_limit_exceeded: "Sorry, the message you sent is too long. Please try again with a shorter message."
   unsupported_message: "Sorry, I only understand textual messages."
+  registration_error: "Sorry, there was an error with your registration. Please try again later."
 
 info:
   help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."
@@ -17,6 +18,10 @@ onboarding:
   onboarding_override: "Looks like you're overriding the onboarding process. You've been given default classes and subjects. You can start talking to Twiga 🦒."
   in_review_message: "Thank you for reaching out! Your access is currently being reviewed. You'll hear from us soon."
 
+registration:
+  pending_approval: "Thank you for registering! Your application is being reviewed. You'll receive a message once approved."
+  approved: "Congratulations! Your registration has been approved. Let's complete your profile setup."
+
 settings:
   intro: "Welcome to the Settings Menu, please select what you want to update."
   personal_info: "Personal Info"
@@ -27,6 +32,9 @@ tools:
   search_knowledge: "📚 Searching the course content, please hold..."
 
 flows:
+  registration_header: "Welcome to Twiga! 🦒"
+  registration_body: "Please fill in your details to get started."
+  registration_cta: "Register"
   start_onboarding_header: "Start onboarding to Twiga 🦒"
   start_onboarding_body: "Welcome to Twiga! Looks like you are new here. Let's get started."
   start_onboarding_cta: "Introduction"

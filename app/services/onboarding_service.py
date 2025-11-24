@@ -48,9 +48,17 @@ class OnboardingHandler:
                 f"Error handling personal_info_submitted user {user.wa_id}: {str(e)}"
             )
 
-    def handle_completed(self, user: User):
+    async def handle_completed(self, user: User):
+        """Handle completed onboarding - keep user inactive until approved"""
         self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
-        # TODO: Send a welcome message as the first message in the chatbot thread
+
+        # Send message that registration is pending approval
+        pending_message = strings.get_string(
+            StringCategory.REGISTRATION, "pending_approval"
+        )
+        await whatsapp_client.send_message(user.wa_id, pending_message)
+
+        # User remains in inactive state until admin approval
 
     async def handle_default(self, user: User):
         await whatsapp_client.send_message(

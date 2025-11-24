@@ -16,6 +16,7 @@ class StringCategory(str, Enum):
     ERROR = "error"
     INFO = "info"
     ONBOARDING = "onboarding"
+    REGISTRATION = "registration"
     SYSTEM = "system"
     TOOLS = "tools"
     SETTINGS = "settings"
