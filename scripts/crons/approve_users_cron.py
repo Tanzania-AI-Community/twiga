@@ -77,7 +77,7 @@ async def approve_and_welcome_users():
         initialize_db()
 
         # Get all users with state 'new' (approved by dashboard but not yet welcomed)
-        new_users = await get_users_by_state(UserState.new)
+        new_users = await get_users_by_state(UserState.approved)
 
         if not new_users:
             logger.info("No new users found to approve and welcome")

@@ -168,6 +168,7 @@ class StateHandler:
         """Handle new users - create with in_review state and start onboarding flow"""
         try:
             from app.database.engine import get_session
+            from app.config import settings, Environment
 
             # Create a new user with in_review state (will remain in_review until approved by admin)
             new_user = User(
@@ -185,7 +186,14 @@ class StateHandler:
                 await session.commit()
                 await session.refresh(new_user)
 
-            # Start the onboarding flow
+            # Check if we should use dummy data (non-prod environments)
+            if settings.environment != Environment.PRODUCTION:
+                self.logger.info(
+                    f"Creating dummy user for {phone_number} in {settings.environment} environment"
+                )
+                return await self.handle_new_dummy(new_user)
+
+            # Production flow - start the onboarding flow
             await flow_client.send_personal_and_school_info_flow(new_user)
 
             self.logger.info(f"Started onboarding flow for new user {phone_number}")
@@ -238,10 +246,10 @@ class StateHandler:
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
-        """Handle users approved by dashboard - approve them immediately when they send a message"""
+        """Handle users approved by dashboard - send welcome message and move to onboarding"""
         try:
-            # Update user state to active immediately
-            user.state = UserState.active
+            # Update user state to onboarding (not active)
+            user.state = UserState.onboarding
             await db.update_user(user)
 
             # Send welcome template message
@@ -259,7 +267,7 @@ class StateHandler:
                 )
             )
 
-            self.logger.info(f"User {user.wa_id} approved and activated immediately")
+            self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         except Exception as e:
@@ -282,6 +290,54 @@ class StateHandler:
         except Exception as e:
             self.logger.error(f"Error reactivating inactive user {user.wa_id}: {e}")
             return JSONResponse(content={"status": "error"}, status_code=500)
+
+    async def handle_new_dummy(self, user: User) -> JSONResponse:
+        """Create a dummy user with pre-filled data for dev/test environments"""
+        try:
+            from app.database.models import ClassInfo
+            from app.database.enums import SubjectName, GradeLevel
+
+            # Update the user object with dummy data
+            user.state = UserState.active
+            user.onboarding_state = OnboardingState.completed
+            user.role = Role.teacher
+            user.class_info = ClassInfo(
+                classes={SubjectName.geography: [GradeLevel.os2]}
+            ).model_dump()
+
+            # Read the class IDs from the class info
+            class_ids = await db.get_class_ids_from_class_info(user.class_info)
+
+            assert class_ids is not None
+
+            # Update user and create teachers_classes entries
+            user = await db.update_user(user)
+            assert user.id is not None
+            await db.assign_teacher_to_classes(user, class_ids)
+
+            # Send a welcome message to the user
+            response_text = strings.get_string(
+                StringCategory.ONBOARDING, "onboarding_override"
+            )
+            await whatsapp_client.send_message(user.wa_id, response_text)
+            await db.create_new_message(
+                Message(
+                    user_id=user.id,
+                    role=MessageRole.assistant,
+                    content=response_text,
+                )
+            )
+            self.logger.warning(f"Dummy user {user.wa_id} created with data: {user}")
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
+        except Exception as e:
+            self.logger.error(f"Error while handling new dummy user: {e}")
+            return JSONResponse(
+                content={"status": "error"},
+                status_code=500,
+            )
 
 
 state_client = StateHandler()

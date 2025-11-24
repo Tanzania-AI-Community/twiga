@@ -14,7 +14,6 @@ from app.utils.whatsapp_utils import (
 from app.services.whatsapp_service import whatsapp_client
 from app.services.state_service import state_client
 import app.database.db as db
-from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
 
@@ -100,16 +99,11 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             return await state_client.handle_blocked(user)
         case enums.UserState.in_review:  # Handle registered but unapproved users
             return await state_client.handle_in_review_user(user)
-        case enums.UserState.new:
-            # Users approved by dashboard - send welcome message then process normally
-            welcome_response = await state_client.handle_new_approved_user(user)
-            if welcome_response.status_code != 200:
-                return welcome_response
-
-            # User is now active, process their message normally
-            # Create user message record
+        case enums.UserState.approved:
+            # Users approved by dashboard - send welcome message and transition to onboarding
+            # Persist the triggering user message but don't process it
             assert user.id is not None
-            user_message = await db.create_new_message(
+            await db.create_new_message(
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
@@ -118,7 +112,10 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                     .get("body", ""),
                 )
             )
-            return await state_client.handle_active(user, message_info, user_message)
+
+            # Send welcome message and move user to onboarding state
+            welcome_response = await state_client.handle_new_approved_user(user)
+            return welcome_response
 
         case enums.UserState.inactive:
             # Users who haven't been active - reactivate them then process normally
@@ -170,48 +167,3 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
         case _:
             logger.warning(f"Unknown user state: {user.state}")
             return JSONResponse(content={"status": "error"}, status_code=400)
-
-
-async def handle_new_dummy(user: models.User) -> JSONResponse:
-    try:
-        # Update the user object with dummy data
-        user.state = enums.UserState.active
-        user.onboarding_state = enums.OnboardingState.completed
-        user.role = enums.Role.teacher
-        user.class_info = models.ClassInfo(
-            classes={enums.SubjectName.geography: [enums.GradeLevel.os2]}
-        ).model_dump()
-
-        # Read the class IDs from the class info
-        class_ids = await db.get_class_ids_from_class_info(user.class_info)
-
-        assert class_ids is not None
-
-        # Update user and create teachers_classes entries
-        user = await db.update_user(user)
-        assert user.id is not None
-        await db.assign_teacher_to_classes(user, class_ids)
-
-        # Send a welcome message to the user
-        response_text = strings.get_string(
-            StringCategory.ONBOARDING, "onboarding_override"
-        )
-        await whatsapp_client.send_message(user.wa_id, response_text)
-        await db.create_new_message(
-            models.Message(
-                user_id=user.id,
-                role=enums.MessageRole.assistant,
-                content=response_text,
-            )
-        )
-        logger.warning(f"Dummy {user.wa_id} created with the data: {user}")
-        return JSONResponse(
-            content={"status": "ok"},
-            status_code=200,
-        )
-    except Exception as e:
-        logger.error(f"Error while handling new dummy user: {e}")
-        return JSONResponse(
-            content={"status": "error"},
-            status_code=500,
-        )

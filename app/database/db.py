@@ -18,76 +18,10 @@ import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
 from app.database.engine import get_session
 from app.utils import embedder
-from app.config import settings, Environment
 
 logger = logging.getLogger(__name__)
 
 # TODO: Add custom Exceptions for better error handling
-
-
-async def get_or_create_user(wa_id: str, name: Optional[str] = None) -> User:
-    """
-    Get existing user or create new one if they don't exist.
-    Handles all database operations and error logging.
-    This uses a lot of eager loading to get the class information from the user.
-
-    Returns:
-        User: user
-    """
-    # TODO: Remove eager loading if too slow
-    async with get_session() as session:
-        try:
-            # First try to get existing user
-            statement = select(User).where(User.wa_id == wa_id).with_for_update()
-            # First try to get existing user
-            statement = (
-                select(User)
-                .where(User.wa_id == wa_id)
-                .options(
-                    selectinload(User.taught_classes)  # type: ignore
-                    .selectinload(TeacherClass.class_)  # type: ignore
-                    .selectinload(Class.subject_)  # type: ignore
-                )
-                .with_for_update()
-            )
-            result = await session.execute(statement)
-            user = result.scalar_one_or_none()
-            if user:
-                await session.refresh(user)
-                return user  # Existing user
-
-            # Create new user if they don't exist
-            # In development/test environments, create users as 'new' to allow dummy data
-            # In production/staging, create users as 'in_review' for approval process
-            if settings.environment not in (
-                Environment.PRODUCTION,
-                Environment.STAGING,
-                Environment.DEVELOPMENT,
-            ):
-                initial_state = (
-                    enums.UserState.new
-                )  # Dev/test - will get dummy data when they text
-            else:
-                initial_state = (
-                    enums.UserState.in_review
-                )  # Production - require approval
-
-            new_user = User(
-                name=name,
-                wa_id=wa_id,
-                state=initial_state,
-                role=enums.Role.teacher,
-            )
-            session.add(new_user)
-            await session.flush()  # Get the ID without committing
-            await session.commit()
-            await session.refresh(new_user)
-            logger.debug(f"Created new user with wa_id: {wa_id}")
-            return new_user
-
-        except Exception as e:
-            logger.error(f"Failed to get or create user for wa_id {wa_id}: {str(e)}")
-            raise Exception(f"Failed to get or create user: {str(e)}")
 
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
