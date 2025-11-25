@@ -12,15 +12,19 @@ from app.config import llm_settings
 logger = logging.getLogger(__name__)
 
 
-class OllamaEmbeddingClient:
+class EmbeddingClient:
     """Simple HTTP client for retrieving embeddings from an Ollama server."""
 
-    def __init__(self, base_url: str, model: str):
+    def __init__(self, base_url: str, model: str, provider: str):
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.provider = provider
 
     def _endpoint(self) -> str:
-        return f"{self.base_url}/api/embed"
+        if self.provider == "ollama":
+            return f"{self.base_url}/api/embed"
+
+        return f"{self.base_url}/embed"
 
     def _request_embedding(self, prompt: str) -> List[float]:
         payload = {"model": self.model, "input": prompt}
@@ -82,7 +86,23 @@ def get_embedding_client():
         if base_url.endswith("/v1"):
             base_url = base_url[: -len("/v1")]
 
-        return OllamaEmbeddingClient(base_url=base_url, model=model_name)
+        return EmbeddingClient(base_url=base_url, model=model_name, provider=llm_settings.ai_provider)
+
+    elif llm_settings.ai_provider == "modal":
+        model_name = llm_settings.modal_embedding_model or llm_settings.embedding_model
+        if not model_name:
+            raise ValueError(
+                "Modal embeddings require a model name. Set LLM_MODAL_EMBEDDING_MODEL or LLM_EMBEDDING_MODEL."
+            )
+
+        base_url = llm_settings.modal_embedding_url.get_secret_value() or llm_settings.modal_base_url.get_secret_value()
+        if not base_url:
+            raise ValueError(
+                "Modal embeddings require LLM_MODAL_BASE_URL or LLM_MODAL_EMBEDDING_URL to be set."
+            )
+
+        return EmbeddingClient(base_url=base_url, model=model_name, provider=llm_settings.ai_provider)
+
     else:
         raise ValueError("No valid embedding provider configured")
 
