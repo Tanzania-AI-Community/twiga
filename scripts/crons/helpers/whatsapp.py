@@ -70,7 +70,7 @@ class WhatsAppClient:
         self,
         wa_id: str,
         template_name: str,
-        language_code: str = "en",
+        language_code: str = "en_US",
     ) -> None:
         """
         Send a WhatsApp template message.
@@ -78,7 +78,7 @@ class WhatsAppClient:
         Args:
             wa_id: WhatsApp ID (phone number) of recipient
             template_name: Name of the approved template message
-            language_code: Language code for the template (default: "en")
+            language_code: Language code for the template (default: "en_US")
 
         Raises:
             httpx.HTTPStatusError: If API request fails

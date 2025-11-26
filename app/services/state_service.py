@@ -267,9 +267,11 @@ class StateHandler:
 
             # Send welcome and onboarding flow in production
             if settings.environment == Environment.PRODUCTION:
-                # Send welcome template message
+                # Send welcome template message with en_US language code
                 await whatsapp_client.send_template_message(
-                    user.wa_id, settings.welcome_template_id
+                    user.wa_id,
+                    settings.welcome_template_id,
+                    language_code="en_US",
                 )
 
                 assert user.id is not None
