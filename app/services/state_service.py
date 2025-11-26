@@ -300,11 +300,13 @@ class StateHandler:
                     f"Skipping template and flow for user {user.wa_id} in {settings.environment} environment"
                 )
 
-            self.logger.info(f"User {user.wa_id} approved and onboarding flow sent")
+            self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         except Exception as e:
-            self.logger.error(f"Error approving user {user.wa_id}: {e}")
+            self.logger.error(
+                f"Error approving user {user.wa_id}: {str(e)}", exc_info=True
+            )
             return JSONResponse(content={"status": "error"}, status_code=500)
 
     async def handle_inactive_user(self, user: User) -> JSONResponse:
