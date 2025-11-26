@@ -63,7 +63,7 @@ class WhatsAppClient:
                                 {
                                     "type": "image",
                                     "image": {
-                                        "link": "https://private-user-images.githubusercontent.com/21913954/349197215-de0cc88b-b75f-43aa-850c-34c1315a5980.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTc0MDU0NzMsIm5iZiI6MTc1NzQwNTE3MywicGF0aCI6Ii8yMTkxMzk1NC8zNDkxOTcyMTUtZGUwY2M4OGItYjc1Zi00M2FhLTg1MGMtMzRjMTMxNWE1OTgwLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTA5MDklMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwOTA5VDA4MDYxM1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWFmOGI2NzY1MzQyZTA5YjkzN2U5NDBlNGM0MWU5N2IyODQ4YzU0NGM0Zjg5OTUxOTgwMDc1NTljOWVhMGM4Y2QmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.av3Z8fq9vxSZmZfPT9eXUKmp7zKU56YGUYRP_wxYGFw"
+                                        "link": "https://twiga.ai.or.tz/external/classroom-image.jpeg"
                                     },
                                 }
                             ],
