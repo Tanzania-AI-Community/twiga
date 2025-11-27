@@ -2,7 +2,7 @@
 This module sets the env configs for our WhatsApp app.
 """
 
-from typing import Literal, Optional
+from typing import Optional
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, field_validator
@@ -14,6 +14,13 @@ class Environment(str, Enum):
     STAGING = "staging"
     DEVELOPMENT = "development"
     LOCAL = "local"
+
+
+class AIProvider(str, Enum):
+    TOGETHER = "together"
+    OPENAI = "openai"
+    OLLAMA = "ollama"
+    MODAL = "modal"
 
 
 # Store configurations for the app
@@ -72,6 +79,9 @@ class Settings(BaseSettings):
     global_message_limit: Optional[int] = None
     time_to_live: Optional[int] = None  # In seconds (a day is 86400)
 
+    # User inactivity settings
+    user_inactivity_threshold_hours: int = 24  # Hours after which user becomes inactive
+
     @field_validator("debug", mode="before")
     @classmethod
     def parse_business_env(cls, v):
@@ -116,15 +126,20 @@ class LLMSettings(BaseSettings):
      - make sure your choice of LLM, embedder, and ai_provider are compatible
     """
 
-    ai_provider: Literal["together", "openai", "ollama"] = "ollama"
+    ai_provider: AIProvider = AIProvider.OLLAMA
     llm_model_name: str = llm_model_options["llama_4_maverick"]
     exercise_generator_model: str = llm_model_options["llama_4_scout"]
     embedding_model: str = embedder_model_options["bge-large"]
-    ollama_base_url: str = "https://localhost:12345/v1"
+    ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = "llama3.2"
     ollama_embedding_model: Optional[str] = "mxbai-embed-large"
-    ollama_embedding_url: Optional[str] = "https://localhost:12345"
+    ollama_embedding_url: Optional[str] = "http://host.docker.internal:11434"
     ollama_request_timeout: int = 30
+    modal_base_url: Optional[SecretStr] = None
+    modal_model_name: Optional[str] = "twiga-qwen"
+    modal_embedding_model: Optional[str] = "mxbai-embed-large"
+    modal_embedding_url: Optional[SecretStr] = None
+    modal_request_timeout: int = 30
 
     # LangSmith tracing settings
     langsmith_api_key: Optional[SecretStr] = None

@@ -67,7 +67,7 @@ class OnboardingState(str, Enum):
 class UserState(str, Enum):
     blocked = "blocked"
     rate_limited = "rate_limited"
-    new = "new"
+    approved = "approved"
     onboarding = "onboarding"
     active = "active"
     inactive = "inactive"

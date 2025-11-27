@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
-from app.config import llm_settings
+from app.config import llm_settings, AIProvider
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def get_llm_client(
     """Get the appropriate LangChain LLM client based on configuration."""
     llm: BaseChatModel
 
-    if llm_settings.ai_provider == "together":
+    if llm_settings.ai_provider == AIProvider.TOGETHER:
         if not llm_settings.llm_api_key:
             raise ValueError("Together provider requires LLM_API_KEY to be set.")
 
@@ -88,7 +88,7 @@ def get_llm_client(
             api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
             model=llm_settings.llm_model_name,
         )
-    elif llm_settings.ai_provider == "openai":
+    elif llm_settings.ai_provider == AIProvider.OPENAI:
         if not llm_settings.llm_api_key:
             raise ValueError("OpenAI provider requires LLM_API_KEY to be set.")
 
@@ -96,7 +96,7 @@ def get_llm_client(
             api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
             model=llm_settings.llm_model_name,
         )
-    elif llm_settings.ai_provider == "ollama":
+    elif llm_settings.ai_provider == AIProvider.OLLAMA:
         model_name = (
             llm_settings.ollama_model_name
             if llm_settings.ollama_model_name
@@ -117,6 +117,29 @@ def get_llm_client(
             model=model_name,
             base_url=llm_settings.ollama_base_url,
         )
+
+    elif llm_settings.ai_provider == AIProvider.MODAL:
+        model_name = (
+            llm_settings.modal_model_name
+            if llm_settings.modal_model_name
+            else llm_settings.llm_model_name
+        )
+        if not model_name:
+            raise ValueError(
+                "Modal provider requires a model name. Set LLM__MODAL_MODEL_NAME or LLM__LLM_MODEL_NAME."
+            )
+
+        api_key = (
+            llm_settings.llm_api_key.get_secret_value()
+            if llm_settings.llm_api_key
+            else "modal"
+        )
+        llm = ChatOpenAI(
+            api_key=SecretStr(api_key),
+            model=model_name,
+            base_url=llm_settings.modal_base_url.get_secret_value(),
+        )
+
     else:
         raise ValueError("No valid LLM provider configured")
 
