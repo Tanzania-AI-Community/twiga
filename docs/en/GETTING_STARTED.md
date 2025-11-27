@@ -138,7 +138,7 @@ If you prefer to run Twiga without using Together AI or OpenAI, you can host bot
 
 4. **Restart the FastAPI stack** (`make run` or `docker-compose … up`) so that the new configuration is loaded.
 
-With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `LLM_PROVIDER` and `Embedding_Provider`.
+With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `LLM_PROVIDER` and `EMBEDDING_PROVIDER`.
 
 ## 📊 LangSmith Tracing (Optional)
 
