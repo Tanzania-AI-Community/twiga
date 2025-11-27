@@ -17,7 +17,6 @@ class ImageMimeType(str, Enum):
     JPG = "image/jpg"
     
 class WhatsAppClient:
-    _ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
     def __init__(self):
         self.headers = {
