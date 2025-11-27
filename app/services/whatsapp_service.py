@@ -9,8 +9,13 @@ from app.config import settings
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
 from pathlib import Path
+from enum import Enum
 
-
+class ImageMimeType(str, Enum):
+    JPEG = "image/jpeg"
+    PNG = "image/png"
+    JPG = "image/jpg"
+    
 class WhatsAppClient:
     _ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
@@ -25,7 +30,7 @@ class WhatsAppClient:
 
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
-    ) -> None:
+        ) -> None:
         if settings.mock_whatsapp:
             return
 
@@ -44,7 +49,7 @@ class WhatsAppClient:
         self,
         wa_id: str,
         image_path: str,
-        mime_type: str,
+        img_type: str,
         caption: Optional[str] = None,
     ) -> None:
         """Upload an image and send it to a WhatsApp user."""
@@ -54,12 +59,16 @@ class WhatsAppClient:
                 "Mock send_image_message called for %s with image %s", wa_id, image_path
             )
             return
+        
+        if img_type not in ImageMimeType._value2member_map_:
+            self.logger.error("Image Message Request Error: Unsupported MIME type %s", img_type)
+            return
 
         media_id: Optional[str] = None
         message_sent_successfully = False
 
         try:
-            media_id = await self.upload_media(image_path, mime_type)
+            media_id = await self.upload_media(image_path, img_type)
             
             if not media_id:
                 raise ValueError("Failed to retrieve media id for WhatsApp image message.")
@@ -105,7 +114,7 @@ class WhatsAppClient:
             self.logger.error("Media Delete Unexpected Error: %s", e)
             raise
 
-    async def upload_media(self, path: str, mime_type: str) -> Optional[str]:
+    async def upload_media(self, path: str, img_type: str) -> Optional[str]:
         """Upload an image to WhatsApp and return the media ID."""
 
         if settings.mock_whatsapp:
@@ -117,11 +126,6 @@ class WhatsAppClient:
         if not file_path.is_file():
             raise FileNotFoundError(f"Image file not found at {path}")
 
-        if mime_type not in self._ALLOWED_IMAGE_MIME_TYPES:
-            raise ValueError(
-                f"Unsupported MIME type '{mime_type}'. Supported types: {self._ALLOWED_IMAGE_MIME_TYPES}."
-            )
-
         file_size = file_path.stat().st_size
         if file_size > self._MAX_IMAGE_SIZE_BYTES:
             raise ValueError(
@@ -131,7 +135,7 @@ class WhatsAppClient:
         try:
             with file_path.open("rb") as file_handle:
                 files = {
-                    "file": (file_path.name, file_handle, mime_type),
+                    "file": (file_path.name, file_handle, img_type),
                 }
                 data = {"messaging_product": "whatsapp"}
                 headers = {

@@ -80,7 +80,7 @@ class MessagingService:
             final_content = llm_responses[-1].content
             #detect if math:
             math_detected = "<math>" in final_content 
-            
+            image_type = 'image/png' 
             if math_detected:
                 final_content = final_content.replace("$","")  #remove dollar signs if any
 
@@ -92,8 +92,8 @@ class MessagingService:
                     await whatsapp_client.send_image_message(
                         wa_id=user.wa_id,
                         image_path=latex_document_path,
-                        mime_type='image/png',
-                        caption="LaTeX Document"
+                        mime_type=image_type,
+                        caption="Mathematical Content"
                     )
                 
             else:
