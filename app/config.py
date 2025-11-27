@@ -123,10 +123,7 @@ class LLMSettings(BaseSettings):
         "gpt-4o_mini": "gpt-4o-mini",
     }
 
-    """
-    XXX: FILL YOUR LLM PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
-     - make sure your choice of LLM and LLM provider are compatible
-    """
+    # LLM-related settings
     llm_provider: LLMProvider = LLMProvider.OLLAMA
     llm_model_name: str = llm_model_options["llama_4_maverick"]
     exercise_generator_model: str = llm_model_options["llama_4_scout"]
@@ -163,10 +160,7 @@ class EmbeddingSettings(BaseSettings):
         "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
     }
 
-    """
-    XXX: FILL YOUR EMBEDDING PROVIDER, AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
-     - make sure your choice of embedder and embedding provider are compatible
-    """
+    # Embedding-related settings
     embedding_provider: EmbeddingProvider = EmbeddingProvider.OLLAMA
     embedding_model: str = embedder_model_options["bge-large"]
 
