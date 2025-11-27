@@ -70,7 +70,7 @@ class WhatsAppClient:
         self,
         wa_id: str,
         template_name: str,
-        language_code: str = "en",
+        language_code: str = "en_US",
     ) -> None:
         """
         Send a WhatsApp template message.
@@ -78,7 +78,7 @@ class WhatsAppClient:
         Args:
             wa_id: WhatsApp ID (phone number) of recipient
             template_name: Name of the approved template message
-            language_code: Language code for the template (default: "en")
+            language_code: Language code for the template (default: "en_US")
 
         Raises:
             httpx.HTTPStatusError: If API request fails
@@ -103,7 +103,7 @@ class WhatsAppClient:
                                 {
                                     "type": "image",
                                     "image": {
-                                        "link": "https://private-user-images.githubusercontent.com/21913954/349197215-de0cc88b-b75f-43aa-850c-34c1315a5980.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE0NzUzNDgsIm5iZiI6MTc2MTQ3NTA0OCwicGF0aCI6Ii8yMTkxMzk1NC8zNDkxOTcyMTUtZGUwY2M4OGItYjc1Zi00M2FhLTg1MGMtMzRjMTMxNWE1OTgwLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTEwMjYlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUxMDI2VDEwMzcyOFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTE2MGEwYWYwZTFlZjhmYTIyM2Y2YmE3MGM2NzNhMmQ2ZDdlYTU5ZDFiZWJiMTM1NTRlYTI2NGE3ODM0ZjEwZDImWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.msEP9r7_Vf_XMLbl1EatIVVW5VOdDFVgquBazzJIemg"
+                                        "link": "https://twiga.ai.or.tz/external/classroom-image.jpeg"
                                     },
                                 }
                             ],

@@ -8,7 +8,6 @@ from app.database import db
 from app.services.whatsapp_service import whatsapp_client
 from app.database.enums import MessageRole, UserState, OnboardingState, Role
 from app.utils.string_manager import strings, StringCategory
-from app.config import settings
 from app.utils.whatsapp_utils import (
     ValidMessageType,
     get_valid_message_type,
@@ -165,7 +164,7 @@ class StateHandler:
     async def handle_new_user_registration(
         self, phone_number: str, message_info: dict
     ) -> JSONResponse:
-        """Handle new users - create with in_review state and start onboarding flow"""
+        """Handle new users - create with in_review state (flow sent after admin approval)"""
         try:
             from app.database.engine import get_session
             from app.config import settings, Environment
@@ -193,10 +192,23 @@ class StateHandler:
                 )
                 return await self.handle_new_dummy(new_user)
 
-            # Production flow - start the onboarding flow
-            await flow_client.send_personal_and_school_info_flow(new_user)
+            response_text = strings.get_string(
+                StringCategory.REGISTRATION, "registration_started"
+            )
+            await whatsapp_client.send_message(phone_number, response_text)
 
-            self.logger.info(f"Started onboarding flow for new user {phone_number}")
+            assert new_user.id is not None
+            await db.create_new_message(
+                Message(
+                    user_id=new_user.id,
+                    role=MessageRole.assistant,
+                    content=response_text,
+                )
+            )
+
+            self.logger.info(
+                f"New user {phone_number} registered and waiting for admin approval"
+            )
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         except Exception as e:
@@ -246,32 +258,55 @@ class StateHandler:
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
-        """Handle users approved by dashboard - send welcome message and move to onboarding"""
+        """Handle users approved by dashboard - send welcome message and onboarding flow"""
         try:
-            # Update user state to onboarding (not active)
+            from app.config import settings, Environment
+
             user.state = UserState.onboarding
             await db.update_user(user)
 
-            # Send welcome template message
-            await whatsapp_client.send_template_message(
-                user.wa_id, settings.welcome_template_id
-            )
-
-            # Log the template message to database (using template ID as content)
-            assert user.id is not None
-            await db.create_new_message(
-                Message(
-                    user_id=user.id,
-                    role=MessageRole.assistant,
-                    content=f"Welcome template sent: {settings.welcome_template_id}",
+            # Send welcome and onboarding flow in production
+            if settings.environment == Environment.PRODUCTION:
+                # Send welcome template message with en_US language code
+                await whatsapp_client.send_template_message(
+                    user.wa_id,
+                    settings.welcome_template_id,
+                    language_code="en_US",
                 )
-            )
+
+                assert user.id is not None
+                await db.create_new_message(
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.assistant,
+                        content=f"Welcome template sent: {settings.welcome_template_id}",
+                    )
+                )
+
+                # Send the onboarding flow NOW (after approval)
+                await flow_client.send_personal_and_school_info_flow(user)
+
+                await db.create_new_message(
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.assistant,
+                        content="Onboarding flow sent after approval",
+                    )
+                )
+            else:
+                # In non-production, skip template and flow
+                assert user.id is not None
+                self.logger.info(
+                    f"Skipping template and flow for user {user.wa_id} in {settings.environment} environment"
+                )
 
             self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         except Exception as e:
-            self.logger.error(f"Error approving user {user.wa_id}: {e}")
+            self.logger.error(
+                f"Error approving user {user.wa_id}: {str(e)}", exc_info=True
+            )
             return JSONResponse(content={"status": "error"}, status_code=500)
 
     async def handle_inactive_user(self, user: User) -> JSONResponse:
