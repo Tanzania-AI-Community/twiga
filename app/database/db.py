@@ -27,7 +27,15 @@ logger = logging.getLogger(__name__)
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
     async with get_session() as session:
         try:
-            statement = select(User).where(User.wa_id == wa_id)
+            statement = (
+                select(User)
+                .options(
+                    selectinload(User.taught_classes)
+                    .selectinload(TeacherClass.class_)
+                    .selectinload(Class.subject_)
+                )
+                .where(User.wa_id == wa_id)
+            )
             result = await session.execute(statement)
             return result.scalar_one_or_none()
         except Exception as e:
