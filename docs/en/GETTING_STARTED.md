@@ -112,7 +112,9 @@ Both providers have a free tier with a starting amount of free credits. Add the 
 
 ```bash
 LLM_API_KEY=$YOUR_API_KEY
+EMBEDDING_API_KEY=$EMBEDDING_API_KEY
 ```
+NOTE: You can use the same API_KEY for both the LLM and EMBEDING if you decide to use the same provider for both.
 
 > [!Important]
 >
@@ -136,7 +138,7 @@ If you prefer to run Twiga without using Together AI or OpenAI, you can host bot
 
 4. **Restart the FastAPI stack** (`make run` or `docker-compose … up`) so that the new configuration is loaded.
 
-With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `AI_PROVIDER`.
+With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `LLM_PROVIDER` and `Embedding_Provider`.
 
 ## 📊 LangSmith Tracing (Optional)
 
