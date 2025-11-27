@@ -16,7 +16,14 @@ class Environment(str, Enum):
     LOCAL = "local"
 
 
-class AIProvider(str, Enum):
+class LLMProvider(str, Enum):
+    TOGETHER = "together"
+    OPENAI = "openai"
+    OLLAMA = "ollama"
+    MODAL = "modal"
+
+
+class EmbeddingProvider(str, Enum):
     TOGETHER = "together"
     OPENAI = "openai"
     OLLAMA = "ollama"
@@ -101,7 +108,7 @@ class LLMSettings(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    # AI provider api key
+    # LLM provider api key
     llm_api_key: Optional[SecretStr] = None
 
     # Model selection
@@ -116,30 +123,21 @@ class LLMSettings(BaseSettings):
         "gpt-4o_mini": "gpt-4o-mini",
     }
 
-    embedder_model_options: dict = {
-        "bge-large": "BAAI/bge-large-en-v1.5",  # 1024 dimensions
-        "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
-    }
-
     """
-    XXX: FILL YOUR AI PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
-     - make sure your choice of LLM, embedder, and ai_provider are compatible
+    XXX: FILL YOUR LLM PROVIDER AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
+     - make sure your choice of LLM and LLM provider are compatible
     """
-
-    ai_provider: AIProvider = AIProvider.OLLAMA
+    llm_provider: LLMProvider = LLMProvider.OLLAMA
     llm_model_name: str = llm_model_options["llama_4_maverick"]
     exercise_generator_model: str = llm_model_options["llama_4_scout"]
-    embedding_model: str = embedder_model_options["bge-large"]
+
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = "llama3.2"
-    ollama_embedding_model: Optional[str] = "mxbai-embed-large"
-    ollama_embedding_url: Optional[str] = "http://host.docker.internal:11434"
-    ollama_request_timeout: int = 30
+    ollama_llm_request_timeout: int = 30
+
     modal_base_url: Optional[SecretStr] = None
     modal_model_name: Optional[str] = "twiga-qwen"
-    modal_embedding_model: Optional[str] = "mxbai-embed-large"
-    modal_embedding_url: Optional[SecretStr] = None
-    modal_request_timeout: int = 30
+    modal_llm_request_timeout: int = 30
 
     # LangSmith tracing settings
     langsmith_api_key: Optional[SecretStr] = None
@@ -148,9 +146,43 @@ class LLMSettings(BaseSettings):
     langsmith_endpoint: Optional[str] = "https://api.smith.langchain.com"
 
 
+class EmbeddingSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=os.getenv("TWIGA_ENV", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+        env_nested_delimiter="__",
+    )
+
+    # Embedding provider api key
+    embedding_api_key: Optional[SecretStr] = None
+
+    embedder_model_options: dict = {
+        "bge-large": "BAAI/bge-large-en-v1.5",  # 1024 dimensions
+        "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
+    }
+
+    """
+    XXX: FILL YOUR EMBEDDING PROVIDER, AND MODEL CHOICES HERE (DEFAULTS ARE PREFILLED)
+     - make sure your choice of embedder and embedding provider are compatible
+    """
+    embedding_provider: EmbeddingProvider = EmbeddingProvider.OLLAMA
+    embedding_model: str = embedder_model_options["bge-large"]
+
+    ollama_embedding_model: Optional[str] = "mxbai-embed-large"
+    ollama_embedding_url: Optional[str] = "http://host.docker.internal:11434"
+    ollama_embedding_request_timeout: int = 30
+
+    modal_embedding_model: Optional[str] = "mxbai-embed-large"
+    modal_embedding_url: Optional[SecretStr] = None
+    modal_embedding_request_timeout: int = 30
+
+
 def initialize_settings():
     settings = Settings()  # type: ignore
     llm_settings = LLMSettings()
+    embedding_settings = EmbeddingSettings()
 
     # Validate required Meta settings
     assert (
@@ -181,7 +213,7 @@ def initialize_settings():
         settings.database_url and settings.database_url.get_secret_value().strip()
     ), "DATABASE_URL is required"
 
-    return settings, llm_settings
+    return settings, llm_settings, embedding_settings
 
 
-settings, llm_settings = initialize_settings()
+settings, llm_settings, embedding_settings = initialize_settings()
