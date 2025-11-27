@@ -24,11 +24,11 @@ async def test_catch_malformed_tool_valid_XML() -> None:
     llmclient = LLMClient()
     msg = Message()
     msg.tool_calls = None
-    msg.content = '<function=clankerfunction>{"query": "Expected clanker answer"}</function>'
+    msg.content = '<function=clankerfunction>{"query": "Expected answer"}</function>'
     response = llmclient._catch_malformed_tool(msg)
     assert response is not None
     assert response.function.name == "clankerfunction"
-    assert response.function.arguments  == '{"query": "Expected clanker answer"}'
+    assert response.function.arguments  == '{"query": "Expected answer"}'
     assert response.type == "function"
 
 @pytest.mark.unittest

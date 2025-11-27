@@ -10,7 +10,7 @@ from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
 from pathlib import Path
 from enum import Enum
-
+import os
 class ImageMimeType(str, Enum):
     JPEG = "image/jpeg"
     PNG = "image/png"
@@ -89,11 +89,11 @@ class WhatsAppClient:
             
         finally:
             if message_sent_successfully:
-                await self.delete_media(media_id)  # Clean up media after sending
+                await self.delete_media(media_id,image_path)  # Clean up media after sending
 
 
-    async def delete_media(self, media_id: str) -> None:
-        """Delete upload media from WhatsApp. All media is deleted after 30 days even if not manually deleted"""         
+    async def delete_media(self, media_id: str, image_path: str) -> None:
+        """Delete upload media from WhatsApp and locally"""         
         if settings.mock_whatsapp:
             self.logger.info("Mock delete media called for media id %s", media_id)
             return
@@ -112,6 +112,11 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Media Delete Unexpected Error: %s", e)
             raise
+        
+        try:
+            os.remove(image_path)
+        except Exception as e:
+            self.logger.error(f"Failed to delete file {image_path}: {e}")
 
     async def upload_media(self, path: str, img_type: str) -> Optional[str]:
         """Upload an image to WhatsApp and return the media ID."""

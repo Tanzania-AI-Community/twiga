@@ -106,8 +106,6 @@ class MessagingService:
                 
             else:
                 #the normal case:
-                self.logger.error("CLANKER FOUND NO MATH")
-
                 await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
 
         else:
@@ -173,7 +171,7 @@ def text_to_img(content):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font('Helvetica', size=12)
+    pdf.set_font('Helvetica', size=25)
     
     # Create temporary directory for images and PDF
     temp_dir = tempfile.mkdtemp()
@@ -185,7 +183,6 @@ def text_to_img(content):
     try:
         # Parse content: split by <math> tags
         parts = re.split(r'<math>\s*(.*?)\s*(?:</math>|$)', content)
-        
         for i, part in enumerate(parts):
             if not part.strip():
                 continue
@@ -195,6 +192,7 @@ def text_to_img(content):
                 pdf.cell(0, 10, part.strip(), ln=False)
             else:  # Math content
                 try:
+                    part = part.replace("$","")
                     # Render math as image
                     img_path = render_latex_to_image(part.strip(), temp_dir)
                     
