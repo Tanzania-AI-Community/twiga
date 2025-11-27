@@ -14,7 +14,6 @@ from pathlib import Path
 class WhatsAppClient:
     _ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
-
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
@@ -27,7 +26,6 @@ class WhatsAppClient:
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
-        
         if settings.mock_whatsapp:
             return
 
@@ -77,17 +75,14 @@ class WhatsAppClient:
             
         except httpx.RequestError as e:
             self.logger.error("Image Message Request Error: %s", e)
-            raise
+            
         except Exception as e:
             self.logger.error("Image Message Unexpected Error: %s", e)
-            raise
+            
         finally:
-            if media_id and message_sent_successfully:
-                try:
-                    await self.delete_media(media_id)  # Clean up media after sending
-                    self.logger.info("Deleted WhatsApp media %s after sending", media_id)
-                except Exception as delete_error:
-                    self.logger.error("Failed to delete WhatsApp media %s: %s", media_id, delete_error)
+            if message_sent_successfully:
+                await self.delete_media(media_id)  # Clean up media after sending
+
 
     async def delete_media(self, media_id: str) -> None:
         """Delete upload media from WhatsApp. All media is deleted after 30 days even if not manually deleted"""         

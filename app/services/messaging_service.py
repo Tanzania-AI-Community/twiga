@@ -79,7 +79,7 @@ class MessagingService:
             
             final_content = llm_responses[-1].content
             #detect if math:
-            math_detected = "<math>" in final_content #mock for now
+            math_detected = "<math>" in final_content 
             
             if math_detected:
                 final_content = final_content.replace("$","")  #remove dollar signs if any
