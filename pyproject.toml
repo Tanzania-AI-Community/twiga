@@ -36,6 +36,9 @@ dependencies = [
     "sympy>=1.14.0",
     "tiktoken>=0.8.0",
     "uvicorn>=0.32.1",
+    "fpdf2>=2.8.2",
+    "PyMuPDF>=1.24.0",
+    "Pillow>=11.0.0",
 ]
 
 [build-system]

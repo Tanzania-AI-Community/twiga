@@ -88,6 +88,7 @@ class MessagingService:
             final_content = llm_responses[-1].content
             #detect if math:
             math_detected = "<math>" in final_content 
+
             if math_detected:
                 final_content = final_content.replace("$","")  #remove dollar signs if any
 
@@ -105,6 +106,8 @@ class MessagingService:
                 
             else:
                 #the normal case:
+                self.logger.error("CLANKER FOUND NO MATH")
+
                 await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
 
         else:
