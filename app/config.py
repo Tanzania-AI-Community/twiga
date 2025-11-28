@@ -5,7 +5,7 @@ This module sets the env configs for our WhatsApp app.
 from typing import Optional
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from enum import Enum
 
 
@@ -16,18 +16,25 @@ class Environment(str, Enum):
     LOCAL = "local"
 
 
-class LLMProvider(str, Enum):
+class BaseProviders(str, Enum):
     TOGETHER = "together"
     OPENAI = "openai"
     OLLAMA = "ollama"
     MODAL = "modal"
+
+
+class LLMProvider(str, Enum):
+    TOGETHER = BaseProviders.TOGETHER.value
+    OPENAI = BaseProviders.OPENAI.value
+    OLLAMA = BaseProviders.OLLAMA.value
+    MODAL = BaseProviders.MODAL.value
 
 
 class EmbeddingProvider(str, Enum):
-    TOGETHER = "together"
-    OPENAI = "openai"
-    OLLAMA = "ollama"
-    MODAL = "modal"
+    TOGETHER = BaseProviders.TOGETHER.value
+    OPENAI = BaseProviders.OPENAI.value
+    OLLAMA = BaseProviders.OLLAMA.value
+    MODAL = BaseProviders.MODAL.value
 
 
 # Store configurations for the app
@@ -109,10 +116,10 @@ class LLMSettings(BaseSettings):
     )
 
     # LLM provider api key
-    llm_api_key: Optional[SecretStr] = None
+    api_key: Optional[SecretStr] = Field(default=None, validation_alias="llm_api_key")
 
     # Model selection
-    llm_model_options: dict = {
+    llm_options: dict = {
         "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -124,17 +131,28 @@ class LLMSettings(BaseSettings):
     }
 
     # LLM-related settings
-    llm_provider: LLMProvider = LLMProvider.OLLAMA
-    llm_model_name: str = llm_model_options["llama_4_maverick"]
-    exercise_generator_model: str = llm_model_options["llama_4_scout"]
+    provider: LLMProvider = Field(
+        default=LLMProvider.OLLAMA, validation_alias="llm_provider"
+    )
+    llm_name: str = Field(
+        default=llm_options["llama_4_maverick"], validation_alias="llm_model_name"
+    )
+    exercise_generator_model: str = Field(
+        default=llm_options["llama_4_scout"],
+        validation_alias="exercise_generator_model",
+    )
 
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = "llama3.2"
-    ollama_llm_request_timeout: int = 30
+    ollama_request_timeout: int = Field(
+        default=30, validation_alias="ollama_llm_request_timeout"
+    )
 
     modal_base_url: Optional[SecretStr] = None
     modal_model_name: Optional[str] = "twiga-qwen"
-    modal_llm_request_timeout: int = 30
+    modal_request_timeout: int = Field(
+        default=30, validation_alias="modal_llm_request_timeout"
+    )
 
     # LangSmith tracing settings
     langsmith_api_key: Optional[SecretStr] = None
@@ -153,24 +171,43 @@ class EmbeddingSettings(BaseSettings):
     )
 
     # Embedding provider api key
-    embedding_api_key: Optional[SecretStr] = None
+    api_key: Optional[SecretStr] = Field(
+        default=None, validation_alias="embedding_api_key"
+    )
 
-    embedder_model_options: dict = {
+    embedder_options: dict = {
         "bge-large": "BAAI/bge-large-en-v1.5",  # 1024 dimensions
         "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
     }
 
     # Embedding-related settings
-    embedding_provider: EmbeddingProvider = EmbeddingProvider.OLLAMA
-    embedding_model: str = embedder_model_options["bge-large"]
+    provider: EmbeddingProvider = Field(
+        default=EmbeddingProvider.OLLAMA, validation_alias="embedding_provider"
+    )
+    embedder_name: str = Field(
+        default=embedder_options["bge-large"], validation_alias="embedding_model"
+    )
 
-    ollama_embedding_model: Optional[str] = "mxbai-embed-large"
-    ollama_embedding_url: Optional[str] = "http://host.docker.internal:11434"
-    ollama_embedding_request_timeout: int = 30
+    ollama_model: Optional[str] = Field(
+        default="mxbai-embed-large", validation_alias="ollama_embedding_model"
+    )
+    ollama_url: Optional[str] = Field(
+        default="http://host.docker.internal:11434",
+        validation_alias="ollama_embedding_url",
+    )
+    ollama_request_timeout: int = Field(
+        default=30, validation_alias="ollama_embedding_request_timeout"
+    )
 
-    modal_embedding_model: Optional[str] = "mxbai-embed-large"
-    modal_embedding_url: Optional[SecretStr] = None
-    modal_embedding_request_timeout: int = 30
+    modal_model: Optional[str] = Field(
+        default="mxbai-embed-large", validation_alias="modal_embedding_model"
+    )
+    modal_url: Optional[SecretStr] = Field(
+        default=None, validation_alias="modal_embedding_url"
+    )
+    modal_request_timeout: int = Field(
+        default=30, validation_alias="modal_embedding_request_timeout"
+    )
 
 
 def initialize_settings():

@@ -41,10 +41,8 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Starting with mock whatsapp disabled")
 
-        logger.info(f"Using LLM Provider: {llm_settings.llm_provider.value} 🦙")
-        logger.info(
-            f" and Embedding Provider: {embedding_settings.embedding_provider.value} 🧩"
-        )
+        logger.info(f"Using LLM Provider: {llm_settings.provider.value} 🦙")
+        logger.info(f" and Embedding Provider: {embedding_settings.provider.value} 🧩")
         logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:
