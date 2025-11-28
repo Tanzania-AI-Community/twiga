@@ -9,7 +9,7 @@ from app.services.whatsapp_service import whatsapp_client
 import app.database.db as db
 from app.services.llm_service import llm_client
 import app.database.enums as enums
-from app.metrics import record_messages_generated
+from app.monitoring.metrics import record_messages_generated
 
 
 class MessagingService:

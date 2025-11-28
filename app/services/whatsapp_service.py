@@ -6,9 +6,16 @@ import logging
 import httpx
 
 from app.config import settings
+from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import generate_payload
-from app.metrics import record_whatsapp_event
+
+
+def _extract_statuses(body: dict) -> list[dict]:
+    entry = (body.get("entry") or [{}])[0]
+    change = (entry.get("changes") or [{}])[0]
+    value = change.get("value") or {}
+    return value.get("statuses") or []
 
 
 class WhatsAppClient:
@@ -122,15 +129,8 @@ class WhatsAppClient:
         """
         Handles WhatsApp status updates (sent, delivered, read).
         """
-        self.logger.debug(
-            f"Received a WhatsApp status update: {body.get('entry', [{}])[0].get('changes', [{}])[0].get('value', {}).get('statuses')}"
-        )
-        statuses = (
-            body.get("entry", [{}])[0]
-            .get("changes", [{}])[0]
-            .get("value", {})
-            .get("statuses", [])
-        )
+        self.logger.debug(f"Received a WhatsApp status update: {body}")
+        statuses = _extract_statuses(body)
         if statuses:
             status = statuses[0].get("status", "unknown")
             record_whatsapp_event(f"status_update:{status}")

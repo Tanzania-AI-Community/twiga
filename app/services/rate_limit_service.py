@@ -1,14 +1,12 @@
 import logging
 from typing import Literal
-from app.redis.engine import get_redis_client, is_redis_available
-from app.redis.redis_keys import RedisKeys
-from app.config import settings, Environment
+
+from app.config import Environment, settings
 from app.database import db, enums
 from app.database.models import User
-from app.metrics import (
-    record_rate_limit_block,
-    record_rate_limit_hit,
-)
+from app.monitoring.metrics import record_rate_limit_block, record_rate_limit_hit
+from app.redis.engine import get_redis_client, is_redis_available
+from app.redis.redis_keys import RedisKeys
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +101,9 @@ class RateLimitService:
             user_key = RedisKeys.USER_RATE(phone_number)
             assert settings.user_message_limit is not None
             is_exceeded, result = await self._check_rate_limit(
-                user_key, settings.user_message_limit, scope="user"
+                key=user_key,
+                limit=settings.user_message_limit,
+                scope="user",
             )
 
             if is_exceeded:
@@ -124,7 +124,9 @@ class RateLimitService:
             global_key = RedisKeys.GLOBAL_RATE
             assert settings.global_message_limit is not None
             is_exceeded, result = await self._check_rate_limit(
-                global_key, settings.global_message_limit, scope="global"
+                key=global_key,
+                limit=settings.global_message_limit,
+                scope="global",
             )
 
             if is_exceeded:
@@ -152,7 +154,7 @@ class RateLimitService:
             return False, user
 
     async def _check_rate_limit(
-        self, key: str, limit: int, *, scope: Literal["user", "global"]
+        self, key: str, limit: int, scope: Literal["user", "global"]
     ) -> tuple[bool, int]:
         """
         Check if rate limit is exceeded for given key and return (is_exceeded, current_count).
