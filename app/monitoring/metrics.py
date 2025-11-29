@@ -2,6 +2,8 @@ import time
 from typing import Literal, Optional
 
 from prometheus_client import Counter, Histogram
+from functools import wraps
+from typing import Callable
 
 
 LLM_LATENCY_BUCKETS = (0.25, 0.5, 1, 2, 4, 8, 16)
@@ -75,6 +77,24 @@ def record_messages_generated(feature: str, count: int = 1) -> None:
     if count < 1:
         return
     messages_generated_total.labels(feature=feature).inc(count)
+
+
+def track_messages(feature: str, *, count: int = 1) -> Callable:
+    """
+    Decorator to record message generation for a fixed feature.
+    Optional static count can be provided; defaults to 1.
+    """
+
+    def decorator(fn: Callable):
+        @wraps(fn)
+        async def wrapper(*args, **kwargs):
+            result = await fn(*args, **kwargs)
+            record_messages_generated(feature, count)
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 class LLMCallTracker:
