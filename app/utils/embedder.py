@@ -1,26 +1,27 @@
 import logging
 from typing import List
-
 import requests
 from langchain_openai import OpenAIEmbeddings
 from langchain_together.embeddings import TogetherEmbeddings
 from pydantic import SecretStr
-
-from app.config import llm_settings
-
+from app.config import embedding_settings, EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
 
-class OllamaEmbeddingClient:
+class EmbeddingClient:
     """Simple HTTP client for retrieving embeddings from an Ollama server."""
 
-    def __init__(self, base_url: str, model: str):
+    def __init__(self, base_url: str, model: str, provider: EmbeddingProvider):
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.provider = provider
 
     def _endpoint(self) -> str:
-        return f"{self.base_url}/api/embed"
+        if self.provider == EmbeddingProvider.OLLAMA:
+            return f"{self.base_url}/api/embed"
+
+        return f"{self.base_url}/embed"
 
     def _request_embedding(self, prompt: str) -> List[float]:
         payload = {"model": self.model, "input": prompt}
@@ -29,7 +30,7 @@ class OllamaEmbeddingClient:
             response = requests.post(
                 self._endpoint(),
                 json=payload,
-                timeout=llm_settings.ollama_request_timeout,
+                timeout=embedding_settings.ollama_request_timeout,
             )
             response.raise_for_status()
         except Exception as exc:
@@ -51,38 +52,60 @@ class OllamaEmbeddingClient:
 
 def get_embedding_client():
     """Get the appropriate LangChain embedding client."""
-    if llm_settings.ai_provider == "openai":
-        if not llm_settings.llm_api_key:
-            raise ValueError("OpenAI embeddings require LLM_API_KEY to be set.")
+    if embedding_settings.provider == EmbeddingProvider.OPENAI:
+        if not embedding_settings.api_key:
+            raise ValueError("OpenAI embeddings require EMBEDDING_API_KEY to be set.")
         return OpenAIEmbeddings(
-            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
-            model=llm_settings.embedding_model,
+            api_key=SecretStr(embedding_settings.api_key.get_secret_value()),
+            model=embedding_settings.embedder_name,
         )
-    elif llm_settings.ai_provider == "together":
-        if not llm_settings.llm_api_key:
-            raise ValueError("Together embeddings require LLM_API_KEY to be set.")
+    elif embedding_settings.provider == EmbeddingProvider.TOGETHER:
+        if not embedding_settings.api_key:
+            raise ValueError("Together embeddings require EMBEDDING_API_KEY to be set.")
         return TogetherEmbeddings(
-            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
-            model=llm_settings.embedding_model,
+            api_key=SecretStr(embedding_settings.api_key.get_secret_value()),
+            model=embedding_settings.embedder_name,
         )
-    elif llm_settings.ai_provider == "ollama":
-        model_name = llm_settings.ollama_embedding_model or llm_settings.embedding_model
+    elif embedding_settings.provider == EmbeddingProvider.OLLAMA:
+        model_name = embedding_settings.ollama_model or embedding_settings.embedder_name
         if not model_name:
             raise ValueError(
-                "Ollama embeddings require a model name. Set LLM_OLLAMA_EMBEDDING_MODEL or LLM_EMBEDDING_MODEL."
+                "Ollama embeddings require a model name. Set OLLAMA_EMBEDDING_MODEL, or EMBEDDING_MODEL."
             )
 
-        base_url = llm_settings.ollama_embedding_url or llm_settings.ollama_base_url
+        base_url = embedding_settings.ollama_url
         if not base_url:
             raise ValueError(
-                "Ollama embeddings require LLM_OLLAMA_BASE_URL or LLM_OLLAMA_EMBEDDING_URL to be set."
+                "Ollama embeddings require OLLAMA_EMBEDDING_URL to be set."
             )
 
         base_url = base_url.rstrip("/")
         if base_url.endswith("/v1"):
             base_url = base_url[: -len("/v1")]
 
-        return OllamaEmbeddingClient(base_url=base_url, model=model_name)
+        return EmbeddingClient(
+            base_url=base_url,
+            model=model_name,
+            provider=embedding_settings.provider,
+        )
+
+    elif embedding_settings.provider == EmbeddingProvider.MODAL:
+        model_name = embedding_settings.modal_model or embedding_settings.embedder_name
+        if not model_name:
+            raise ValueError(
+                "Modal embeddings require a model name. Set MODAL_EMBEDDING_MODEL or EMBEDDING_MODEL."
+            )
+
+        base_url = embedding_settings.modal_url.get_secret_value()
+        if not base_url:
+            raise ValueError("Modal embeddings require MODAL_EMBEDDING_URL to be set.")
+
+        return EmbeddingClient(
+            base_url=base_url,
+            model=model_name,
+            provider=embedding_settings.provider,
+        )
+
     else:
         raise ValueError("No valid embedding provider configured")
 
