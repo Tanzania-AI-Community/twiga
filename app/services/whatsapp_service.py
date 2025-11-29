@@ -10,14 +10,18 @@ from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
 from pathlib import Path
 from enum import Enum
+import os
 
-class ImageMimeType(str, Enum):
+
+class ImageType(str, Enum):
     JPEG = "image/jpeg"
     PNG = "image/png"
     JPG = "image/jpg"
-    
+
+
 class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
@@ -29,7 +33,7 @@ class WhatsAppClient:
 
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
-        ) -> None:
+    ) -> None:
         if settings.mock_whatsapp:
             return
 
@@ -48,31 +52,28 @@ class WhatsAppClient:
         self,
         wa_id: str,
         image_path: str,
-        img_type: str,
+        img_type: ImageType,
         caption: Optional[str] = None,
     ) -> None:
-        """Upload an image and send it to a WhatsApp user."""
-
         if settings.mock_whatsapp:
             self.logger.info(
                 "Mock send_image_message called for %s with image %s", wa_id, image_path
             )
             return
-        
-        if img_type not in ImageMimeType._value2member_map_:
-            self.logger.error("Image Message Request Error: Unsupported MIME type %s", img_type)
-            return
 
-        media_id: Optional[str] = None
         message_sent_successfully = False
 
         try:
             media_id = await self.upload_media(image_path, img_type)
-            
-            if not media_id:
-                raise ValueError("Failed to retrieve media id for WhatsApp image message.")
 
-            payload = generate_payload_for_image(wa_id, media_id, caption)
+            if not media_id:
+                raise ValueError(
+                    "Failed to retrieve media id for WhatsApp image message."
+                )
+
+            payload = generate_payload_for_image(
+                wa_id=wa_id, media_id=media_id, caption=caption
+            )
 
             response = await self.client.post(
                 "/messages", json=payload, headers=self.headers
@@ -80,20 +81,21 @@ class WhatsAppClient:
             log_httpx_response(response)
             response.raise_for_status()
             message_sent_successfully = True
-            
+
         except httpx.RequestError as e:
             self.logger.error("Image Message Request Error: %s", e)
-            
+
         except Exception as e:
             self.logger.error("Image Message Unexpected Error: %s", e)
-            
+
         finally:
             if message_sent_successfully:
-                await self.delete_media(media_id)  # Clean up media after sending
+                await self.delete_media(
+                    media_id, image_path
+                )  # Clean up media after sending
 
-
-    async def delete_media(self, media_id: str) -> None:
-        """Delete upload media from WhatsApp. All media is deleted after 30 days even if not manually deleted"""         
+    async def delete_media(self, media_id: str, image_path: str) -> None:
+        """Delete upload media from WhatsApp and locally"""
         if settings.mock_whatsapp:
             self.logger.info("Mock delete media called for media id %s", media_id)
             return
@@ -113,7 +115,12 @@ class WhatsAppClient:
             self.logger.error("Media Delete Unexpected Error: %s", e)
             raise
 
-    async def upload_media(self, path: str, img_type: str) -> Optional[str]:
+        try:
+            os.remove(image_path)
+        except Exception as e:
+            self.logger.error(f"Failed to delete file {image_path}: {e}")
+
+    async def upload_media(self, path: str, img_type: ImageType) -> Optional[str]:
         """Upload an image to WhatsApp and return the media ID."""
 
         if settings.mock_whatsapp:
@@ -147,7 +154,9 @@ class WhatsAppClient:
             response.raise_for_status()
             media_id = response.json().get("id")
             if not media_id:
-                raise ValueError("WhatsApp media upload response did not include an id.")
+                raise ValueError(
+                    "WhatsApp media upload response did not include an id."
+                )
             return media_id
         except httpx.RequestError as e:
             self.logger.error("Media Upload Request Error: %s", e)
