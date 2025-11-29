@@ -142,17 +142,15 @@ class LLMSettings(BaseSettings):
         validation_alias="exercise_generator_model",
     )
 
+    ai_provider: Literal["together", "openai", "ollama"] = "ollama"
+    llm_model_name: str = llm_model_options["llama_4_maverick"]
+    exercise_generator_model: str = llm_model_options["llama_4_scout"]
+    embedding_model: str = embedder_model_options["bge-large"]
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = "llama3.2"
-    ollama_request_timeout: int = Field(
-        default=30, validation_alias="ollama_llm_request_timeout"
-    )
-
-    modal_base_url: Optional[SecretStr] = None
-    modal_model_name: Optional[str] = "twiga-qwen"
-    modal_request_timeout: int = Field(
-        default=30, validation_alias="modal_llm_request_timeout"
-    )
+    ollama_embedding_model: Optional[str] = "mxbai-embed-large"
+    ollama_embedding_url: Optional[str] = "http://host.docker.internal:11434"
+    ollama_request_timeout: int = 30
 
     # LangSmith tracing settings
     langsmith_api_key: Optional[SecretStr] = None
