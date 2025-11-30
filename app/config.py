@@ -138,10 +138,6 @@ class LLMSettings(BaseSettings):
     llm_name: str = Field(
         default=llm_options["llama_4_maverick"], validation_alias="llm_model_name"
     )
-    exercise_generator_model: str = Field(
-        default=llm_options["llama_4_scout"],
-        validation_alias="exercise_generator_model",
-    )
 
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = "llama3.2"
