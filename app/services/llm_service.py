@@ -100,9 +100,6 @@ class LLMClient(ClientBase):
                         initial_message.tool_calls = tool_calls
                         initial_message.content = None
 
-                    # Add the AI message with tool calls to api_messages, later add tool responses to keep the message order
-                    api_messages.append(initial_message.to_langchain_message())
-
                     # Track new messages
                     new_messages = [initial_message]
 
@@ -132,7 +129,8 @@ class LLMClient(ClientBase):
                         if tool_responses:
                             new_messages.extend(tool_responses)
 
-                            # Extend api_messages with new tool responses
+                            # Add the AI message with tool calls to api_messages, then add tool responses to keep the message order in history
+                            api_messages.append(initial_response)
                             api_messages.extend(
                                 msg.to_langchain_message() for msg in tool_responses
                             )
