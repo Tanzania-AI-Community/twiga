@@ -16,7 +16,7 @@ from app.services.request_service import handle_request
 from app.database.engine import db_engine, init_db
 from app.services.flow_service import flow_client
 from app.redis.engine import init_redis, disconnect_redis
-from app.config import settings, llm_settings, Environment
+from app.config import settings, llm_settings, embedding_settings, Environment
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,8 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Starting with mock whatsapp disabled")
 
-        logger.info(f"Using AI Provider: {llm_settings.ai_provider} 🤖")
+        logger.info(f"Using LLM Provider: {llm_settings.provider.value} 🦙")
+        logger.info(f" and Embedding Provider: {embedding_settings.provider.value} 🧩")
         logger.info("Application startup completed ✅ 🦒")
         yield
     except Exception as e:

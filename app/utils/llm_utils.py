@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
-from app.config import llm_settings, AIProvider
+from app.config import llm_settings, LLMProvider
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
@@ -80,27 +80,27 @@ def get_llm_client(
     """Get the appropriate LangChain LLM client based on configuration."""
     llm: BaseChatModel
 
-    if llm_settings.ai_provider == AIProvider.TOGETHER:
-        if not llm_settings.llm_api_key:
+    if llm_settings.provider == LLMProvider.TOGETHER:
+        if not llm_settings.api_key:
             raise ValueError("Together provider requires LLM_API_KEY to be set.")
 
         llm = ChatTogether(
-            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
-            model=llm_settings.llm_model_name,
+            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
+            model=llm_settings.llm_name,
         )
-    elif llm_settings.ai_provider == AIProvider.OPENAI:
-        if not llm_settings.llm_api_key:
+    elif llm_settings.provider == LLMProvider.OPENAI:
+        if not llm_settings.api_key:
             raise ValueError("OpenAI provider requires LLM_API_KEY to be set.")
 
         llm = ChatOpenAI(
-            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
-            model=llm_settings.llm_model_name,
+            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
+            model=llm_settings.llm_name,
         )
-    elif llm_settings.ai_provider == AIProvider.OLLAMA:
+    elif llm_settings.provider == LLMProvider.OLLAMA:
         model_name = (
             llm_settings.ollama_model_name
             if llm_settings.ollama_model_name
-            else llm_settings.llm_model_name
+            else llm_settings.llm_name
         )
         if not model_name:
             raise ValueError(
@@ -108,8 +108,8 @@ def get_llm_client(
             )
 
         api_key = (
-            llm_settings.llm_api_key.get_secret_value()
-            if llm_settings.llm_api_key
+            llm_settings.api_key.get_secret_value()
+            if llm_settings.api_key
             else "ollama"
         )
         llm = ChatOpenAI(
@@ -118,21 +118,19 @@ def get_llm_client(
             base_url=llm_settings.ollama_base_url,
         )
 
-    elif llm_settings.ai_provider == AIProvider.MODAL:
+    elif llm_settings.provider == LLMProvider.MODAL:
         model_name = (
             llm_settings.modal_model_name
             if llm_settings.modal_model_name
-            else llm_settings.llm_model_name
+            else llm_settings.llm_name
         )
         if not model_name:
             raise ValueError(
-                "Modal provider requires a model name. Set LLM__MODAL_MODEL_NAME or LLM__LLM_MODEL_NAME."
+                "Modal provider requires a model name. Set LLMProvider.MODAL_MODEL_NAME or LLMProvider.LLM_MODEL_NAME."
             )
 
         api_key = (
-            llm_settings.llm_api_key.get_secret_value()
-            if llm_settings.llm_api_key
-            else "modal"
+            llm_settings.api_key.get_secret_value() if llm_settings.api_key else "modal"
         )
         llm = ChatOpenAI(
             api_key=SecretStr(api_key),
