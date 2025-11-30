@@ -28,6 +28,7 @@ class LLMProvider(str, Enum):
     OPENAI = BaseProviders.OPENAI.value
     OLLAMA = BaseProviders.OLLAMA.value
     MODAL = BaseProviders.MODAL.value
+    GOOGLE = "google"
 
 
 class EmbeddingProvider(str, Enum):
@@ -136,10 +137,6 @@ class LLMSettings(BaseSettings):
     )
     llm_name: str = Field(
         default=llm_options["llama_4_maverick"], validation_alias="llm_model_name"
-    )
-    exercise_generator_model: str = Field(
-        default=llm_options["llama_4_scout"],
-        validation_alias="exercise_generator_model",
     )
 
     ollama_base_url: str = "http://host.docker.internal:11434/v1"

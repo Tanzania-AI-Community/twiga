@@ -4,7 +4,6 @@ from langchain_core.messages import (
     SystemMessage,
     HumanMessage,
     AIMessage,
-    ToolMessage,
 )
 from langchain_core.messages.base import BaseMessage
 from app.database.models import Message, User
@@ -61,6 +60,8 @@ class ClientBase(ABC):
         formatted_messages = self._format_messages(messages_to_process, history, user)
 
         # Convert to LangChain BaseMessage objects
+        # Skip tool-related messages from history for cross-provider compatibility
+        # (Some providers like Gemini require tool calls to be immediately followed by tool responses)
         api_messages = []
         for msg_dict in formatted_messages:
             role = msg_dict["role"]
@@ -70,22 +71,13 @@ class ClientBase(ABC):
             elif role == "user":
                 api_messages.append(HumanMessage(content=content))
             elif role == "assistant":
+                # Skip assistant messages with tool_calls from history
                 if msg_dict.get("tool_calls"):
-                    api_messages.append(
-                        AIMessage(
-                            content=content,
-                            additional_kwargs={"tool_calls": msg_dict["tool_calls"]},
-                        )
-                    )
-                else:
-                    api_messages.append(AIMessage(content=content))
+                    continue
+                api_messages.append(AIMessage(content=content))
             elif role == "tool":
-                api_messages.append(
-                    ToolMessage(
-                        content=content,
-                        tool_call_id=msg_dict.get("tool_call_id", ""),
-                    )
-                )
+                # Skip tool response messages from history
+                continue
             else:
                 # Fallback to system message
                 api_messages.append(SystemMessage(content=content))

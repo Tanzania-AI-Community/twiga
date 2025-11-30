@@ -100,6 +100,9 @@ class LLMClient(ClientBase):
                         initial_message.tool_calls = tool_calls
                         initial_message.content = None
 
+                    # Add the AI message with tool calls to api_messages, later add tool responses to keep the message order
+                    api_messages.append(initial_message.to_langchain_message())
+
                     # Track new messages
                     new_messages = [initial_message]
 
@@ -110,6 +113,7 @@ class LLMClient(ClientBase):
                     # 5. Process tool calls if present (whether normal or recovered)
                     if initial_message.tool_calls:
                         self.logger.debug("Processing tool calls 🛠️")
+                        self.logger.debug(f"Tool calls: {initial_message.tool_calls}")
 
                         # Send notifications for all unique tools upfront
                         unique_tools = {
