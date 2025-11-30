@@ -173,6 +173,9 @@ class ToolManager:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
 
+                # Convert class_id to int (Gemini returns it as string due to enum constraints)
+                function_args["class_id"] = int(function_args["class_id"])
+
                 if function_name == ToolName.search_knowledge.value:
                     result = await search_knowledge(**function_args)
                 elif function_name == ToolName.generate_exercise.value:

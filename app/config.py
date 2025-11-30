@@ -28,6 +28,7 @@ class LLMProvider(str, Enum):
     OPENAI = BaseProviders.OPENAI.value
     OLLAMA = BaseProviders.OLLAMA.value
     MODAL = BaseProviders.MODAL.value
+    GOOGLE = "google"
 
 
 class EmbeddingProvider(str, Enum):
