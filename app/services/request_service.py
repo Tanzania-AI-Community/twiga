@@ -14,9 +14,7 @@ from app.utils.whatsapp_utils import (
 from app.services.whatsapp_service import whatsapp_client
 from app.services.state_service import state_client
 import app.database.db as db
-from app.config import Environment, settings
 from app.monitoring.metrics import record_whatsapp_event
-from app.utils.string_manager import strings, StringCategory
 
 logger = logging.getLogger(__name__)
 
