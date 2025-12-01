@@ -142,10 +142,7 @@ class LLMSettings(BaseSettings):
         validation_alias="exercise_generator_model",
     )
 
-    ai_provider: Literal["together", "openai", "ollama"] = "ollama"
-    llm_model_name: str = llm_model_options["llama_4_maverick"]
-    exercise_generator_model: str = llm_model_options["llama_4_scout"]
-    embedding_model: str = embedder_model_options["bge-large"]
+    # Ollama specific settings
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = "llama3.2"
     ollama_embedding_model: Optional[str] = "mxbai-embed-large"
