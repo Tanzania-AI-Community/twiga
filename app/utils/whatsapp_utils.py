@@ -62,6 +62,7 @@ def get_template_payload(
     payload = TemplateMessage(to=recipient, template=template)
     return payload.model_dump()
 
+
 def generate_payload_for_image(
     wa_id: str,
     media_id: str,
@@ -81,6 +82,7 @@ def generate_payload_for_image(
         payload["image"]["caption"] = caption
 
     return payload
+
 
 def get_interactive_button_payload(
     recipient: str, text: str, options: List[str]

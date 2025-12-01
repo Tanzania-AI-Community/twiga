@@ -11,11 +11,13 @@ from app.utils.whatsapp_utils import generate_payload, generate_payload_for_imag
 from pathlib import Path
 from enum import Enum
 import os
+
+
 class ImageType(str, Enum):
     JPEG = "image/jpeg"
     PNG = "image/png"
     JPG = "image/jpg"
-    
+
 
 class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
@@ -63,14 +65,14 @@ class WhatsAppClient:
 
         try:
             media_id = await self.upload_media(image_path, img_type)
-            
+
             if not media_id:
-                raise ValueError("Failed to retrieve media id for WhatsApp image message.")
+                raise ValueError(
+                    "Failed to retrieve media id for WhatsApp image message."
+                )
 
             payload = generate_payload_for_image(
-                wa_id=wa_id,
-                media_id=media_id,
-                caption=caption
+                wa_id=wa_id, media_id=media_id, caption=caption
             )
 
             response = await self.client.post(
@@ -79,20 +81,21 @@ class WhatsAppClient:
             log_httpx_response(response)
             response.raise_for_status()
             message_sent_successfully = True
-            
+
         except httpx.RequestError as e:
             self.logger.error("Image Message Request Error: %s", e)
-            
+
         except Exception as e:
             self.logger.error("Image Message Unexpected Error: %s", e)
-            
+
         finally:
             if message_sent_successfully:
-                await self.delete_media(media_id, image_path)  # Clean up media after sending
-
+                await self.delete_media(
+                    media_id, image_path
+                )  # Clean up media after sending
 
     async def delete_media(self, media_id: str, image_path: str) -> None:
-        """Delete upload media from WhatsApp and locally"""         
+        """Delete upload media from WhatsApp and locally"""
         if settings.mock_whatsapp:
             return
 
@@ -110,7 +113,7 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Media Delete Unexpected Error: %s", e)
             raise
-        
+
         try:
             os.remove(image_path)
         except Exception as e:
@@ -129,8 +132,7 @@ class WhatsAppClient:
 
         file_size = file_path.stat().st_size
         if file_size > self._MAX_IMAGE_SIZE_BYTES:
-            raise ValueError(
-                "Image size exceeds limit for WhatsApp media uploads."            )
+            raise ValueError("Image size exceeds limit for WhatsApp media uploads.")
 
         try:
             with file_path.open("rb") as file_handle:
@@ -148,7 +150,9 @@ class WhatsAppClient:
             response.raise_for_status()
             media_id = response.json().get("id")
             if not media_id:
-                raise ValueError("WhatsApp media upload response did not include an id.")
+                raise ValueError(
+                    "WhatsApp media upload response did not include an id."
+                )
             return media_id
         except httpx.RequestError as e:
             self.logger.error("Media Upload Request Error: %s", e)
