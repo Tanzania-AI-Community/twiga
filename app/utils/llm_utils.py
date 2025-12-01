@@ -13,6 +13,7 @@ from pydantic import SecretStr
 from app.config import llm_settings, LLMProvider
 from app.monitoring.metrics import LLMCallTracker
 
+
 # Resolve model names per provider, honoring provider-specific overrides.
 def _resolve_model_name() -> str:
     name = llm_settings.llm_name
@@ -21,6 +22,7 @@ def _resolve_model_name() -> str:
     elif llm_settings.provider == LLMProvider.MODAL and llm_settings.modal_model_name:
         name = llm_settings.modal_model_name
     return name
+
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
