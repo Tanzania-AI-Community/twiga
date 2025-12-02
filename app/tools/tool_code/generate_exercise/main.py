@@ -17,7 +17,6 @@ async def generate_exercise(
     subject: str,
 ) -> str:
     try:
-        class_id = int(class_id)
         # Retrieve the resources for the class
         resource_ids = await db.get_class_resources(class_id)
         assert resource_ids
