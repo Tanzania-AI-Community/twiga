@@ -1,3 +1,4 @@
+import copy
 import logging
 import backoff
 import os
@@ -5,6 +6,7 @@ import requests
 from typing import List, Optional, Dict, cast, Union
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable
@@ -74,6 +76,24 @@ if langsmith_active:
     )
 
 
+def _convert_tools_for_gemini(tools: List[Dict]) -> List[Dict]:
+    """
+    Convert tool schemas to be compatible with Gemini.
+    Gemini only allows enum on STRING type properties, so we convert
+    integer enums to string enums and change the type accordingly.
+    """
+    converted_tools = copy.deepcopy(tools)
+    for tool in converted_tools:
+        if "function" in tool and "parameters" in tool["function"]:
+            properties = tool["function"]["parameters"].get("properties", {})
+            for prop_name, prop_value in properties.items():
+                if "enum" in prop_value:
+                    # Gemini requires enum values to be strings and type to be STRING
+                    prop_value["enum"] = [str(v) for v in prop_value["enum"]]
+                    prop_value["type"] = "string"
+    return converted_tools
+
+
 def get_llm_client(
     tools: Optional[List[Dict]] = None, tool_choice: Optional[str] = None
 ) -> Union[BaseChatModel, Runnable]:
@@ -138,10 +158,23 @@ def get_llm_client(
             base_url=llm_settings.modal_base_url.get_secret_value(),
         )
 
+    elif llm_settings.provider == LLMProvider.GOOGLE:
+        if not llm_settings.api_key:
+            raise ValueError("Google provider requires LLM_API_KEY to be set.")
+
+        llm = ChatGoogleGenerativeAI(
+            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
+            model=llm_settings.llm_name,
+            convert_system_message_to_human=True,
+        )
+
     else:
         raise ValueError("No valid LLM provider configured")
 
     if tools:
+        if llm_settings.provider == LLMProvider.GOOGLE:
+            tools = _convert_tools_for_gemini(tools)
+
         return llm.bind_tools(tools, tool_choice=tool_choice)
 
     return llm
