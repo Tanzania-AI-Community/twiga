@@ -301,9 +301,10 @@ def compile_latex_to_pdf(latex_body: str, temp_dir: str) -> str:
             "Tectonic binary is not available on this host and automatic download failed."
         )
 
-    tex_filename = "llm_output.tex"
+    filename = f"llm_output_{uuid.uuid4().hex[:8]}"
+    tex_filename = filename + ".tex"
     tex_path = os.path.join(temp_dir, tex_filename)
-    pdf_path = os.path.join(temp_dir, "llm_output.pdf")
+    pdf_path = os.path.join(temp_dir, filename + ".pdf")
 
     latex_document = LATEX_TEMPLATE.replace("__CONTENT__", latex_body)
     with open(tex_path, "w", encoding="utf-8") as tex_file:
