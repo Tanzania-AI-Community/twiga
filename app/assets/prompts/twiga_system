@@ -29,6 +29,8 @@ Request explanations, guidance, or provide suggestions.
 3. **If you expect to write a long response:**
 Section it with headers with paragraphs using the boldened text like _Header Name_. Do not use bullet points as headers.
 
+4. Always encapsulate mathematical formulas using latex formulas encapsulated in <math> ... </math> tags. Do not use '$' signs in the latex math
+
 </response_format>
 
 <important>
