@@ -92,13 +92,100 @@ Thank you to all the people that have contributed to Twiga so far!
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/jurmy24"><img src="https://avatars.githubusercontent.com/u/21913954?v=4?s=100" width="100px;" alt="Victor Oldensand"/><br /><sub><b>Victor Oldensand</b></sub></a><br /><a href="#infra-jurmy24" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#code-jurmy24" title="Code">💻</a> <a href="#bug-jurmy24" title="Bug reports">🐛</a> <a href="#doc-jurmy24" title="Documentation">📖</a> <a href="#design-jurmy24" title="Design">🎨</a> <a href="#example-jurmy24" title="Examples">💡</a> <a href="#eventOrganizing-jurmy24" title="Event Organizing">📋</a> <a href="#fundingFinding-jurmy24" title="Funding Finding">🔍</a> <a href="#ideas-jurmy24" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-jurmy24" title="Maintenance">🚧</a> <a href="#mentoring-jurmy24" title="Mentoring">🧑‍🏫</a> <a href="#projectManagement-jurmy24" title="Project Management">📆</a> <a href="#question-jurmy24" title="Answering Questions">💬</a> <a href="#review-jurmy24" title="Reviewed Pull Requests">👀</a> <a href="#research-jurmy24" title="Research">🔬</a> <a href="#tutorial-jurmy24" title="Tutorials">✅</a> <a href="#talk-jurmy24" title="Talks">📢</a> <a href="#userTesting-jurmy24" title="User Testing">📓</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/EssaMohamedali"><img src="https://avatars.githubusercontent.com/u/50261366?v=4?s=100" width="100px;" alt="EssaMohamedali"/><br /><sub><b>EssaMohamedali</b></sub></a><br /><a href="#business-EssaMohamedali" title="Business development">💼</a> <a href="#content-EssaMohamedali" title="Content">🖋</a> <a href="#eventOrganizing-EssaMohamedali" title="Event Organizing">📋</a> <a href="#financial-EssaMohamedali" title="Financial">💵</a> <a href="#fundingFinding-EssaMohamedali" title="Funding Finding">🔍</a> <a href="#ideas-EssaMohamedali" title="Ideas, Planning, & Feedback">🤔</a> <a href="#projectManagement-EssaMohamedali" title="Project Management">📆</a> <a href="#promotion-EssaMohamedali" title="Promotion">📣</a> <a href="#talk-EssaMohamedali" title="Talks">📢</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Annagrace1704"><img src="https://avatars.githubusercontent.com/u/180529411?v=4?s=100" width="100px;" alt="Annagrace1704"/><br /><sub><b>Annagrace1704</b></sub></a><br /><a href="#content-Annagrace1704" title="Content">🖋</a> <a href="#design-Annagrace1704" title="Design">🎨</a> <a href="#promotion-Annagrace1704" title="Promotion">📣</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://book.fredygerman.com"><img src="https://avatars.githubusercontent.com/u/26197540?v=4?s=100" width="100px;" alt="Fredy Mgimba"/><br /><sub><b>Fredy Mgimba</b></sub></a><br /><a href="#code-fredygerman" title="Code">💻</a> <a href="#infra-fredygerman" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/alvaro-mazcu"><img src="https://avatars.githubusercontent.com/u/102028776?v=4?s=100" width="100px;" alt="Álvaro Mazcuñán Herreros"/><br /><sub><b>Álvaro Mazcuñán Herreros</b></sub></a><br /><a href="#code-alvaro-mazcu" title="Code">💻</a> <a href="#doc-alvaro-mazcu" title="Documentation">📖</a> <a href="#test-alvaro-mazcu" title="Tests">⚠️</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/wjunwei2001"><img src="https://avatars.githubusercontent.com/u/109643278?v=4?s=100" width="100px;" alt="Wang Junwei"/><br /><sub><b>Wang Junwei</b></sub></a><br /><a href="#code-wjunwei2001" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://iamrobzy.github.io/"><img src="https://avatars.githubusercontent.com/u/60611384?v=4?s=100" width="100px;" alt="Robert"/><br /><sub><b>Robert</b></sub></a><br /><a href="#code-iamrobzy" title="Code">💻</a> <a href="#ideas-iamrobzy" title="Ideas, Planning, & Feedback">🤔</a> <a href="#mentoring-iamrobzy" title="Mentoring">🧑‍🏫</a> <a href="#projectManagement-iamrobzy" title="Project Management">📆</a> <a href="#question-iamrobzy" title="Answering Questions">💬</a></td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/jurmy24"><img src="https://avatars.githubusercontent.com/u/21913954?v=4?s=100" width="100px;" alt="Victor Oldensand"/>
+<br /><sub><b>Victor Oldensand</b></sub></a>
+<br />
+<a href="#infra-jurmy24" title="infra">🚇</a>
+<a href="#code-jurmy24" title="code">💻</a>
+<a href="#bug-jurmy24" title="bug">🐛</a>
+<a href="#doc-jurmy24" title="doc">📖</a>
+<a href="#design-jurmy24" title="design">🎨</a>
+<a href="#example-jurmy24" title="example">💡</a>
+<a href="#eventOrganizing-jurmy24" title="eventOrganizing">📋</a>
+<a href="#fundingFinding-jurmy24" title="fundingFinding">🔍</a>
+<a href="#ideas-jurmy24" title="ideas">🤔</a>
+<a href="#maintenance-jurmy24" title="maintenance">🚧</a>
+<a href="#mentoring-jurmy24" title="mentoring">🧑‍🏫</a>
+<a href="#projectManagement-jurmy24" title="projectManagement">📆</a>
+<a href="#question-jurmy24" title="question">💬</a>
+<a href="#review-jurmy24" title="review">👀</a>
+<a href="#research-jurmy24" title="research">🔬</a>
+<a href="#tutorial-jurmy24" title="tutorial">✅</a>
+<a href="#talk-jurmy24" title="talk">📢</a>
+<a href="#userTesting-jurmy24" title="userTesting">📓</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/EssaMohamedali"><img src="https://avatars.githubusercontent.com/u/50261366?v=4?s=100" width="100px;" alt="EssaMohamedali"/>
+<br /><sub><b>EssaMohamedali</b></sub></a>
+<br />
+<a href="#business-EssaMohamedali" title="business">💼</a>
+<a href="#content-EssaMohamedali" title="content">🖋</a>
+<a href="#eventOrganizing-EssaMohamedali" title="eventOrganizing">📋</a>
+<a href="#financial-EssaMohamedali" title="financial">💵</a>
+<a href="#fundingFinding-EssaMohamedali" title="fundingFinding">🔍</a>
+<a href="#ideas-EssaMohamedali" title="ideas">🤔</a>
+<a href="#projectManagement-EssaMohamedali" title="projectManagement">📆</a>
+<a href="#promotion-EssaMohamedali" title="promotion">📣</a>
+<a href="#talk-EssaMohamedali" title="talk">📢</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Annagrace1704"><img src="https://avatars.githubusercontent.com/u/180529411?v=4?s=100" width="100px;" alt="Annagrace1704"/>
+<br /><sub><b>Annagrace1704</b></sub></a>
+<br />
+<a href="#content-Annagrace1704" title="content">🖋</a>
+<a href="#design-Annagrace1704" title="design">🎨</a>
+<a href="#promotion-Annagrace1704" title="promotion">📣</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://book.fredygerman.com"><img src="https://avatars.githubusercontent.com/u/26197540?v=4?s=100" width="100px;" alt="Fredy Mgimba"/>
+<br /><sub><b>Fredy Mgimba</b></sub></a>
+<br />
+<a href="#code-fredygerman" title="code">💻</a>
+<a href="#infra-fredygerman" title="infra">🚇</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/alvaro-mazcu"><img src="https://avatars.githubusercontent.com/u/102028776?v=4?s=100" width="100px;" alt="Álvaro Mazcuñán Herreros"/>
+<br /><sub><b>Álvaro Mazcuñán Herreros</b></sub></a>
+<br />
+<a href="#code-alvaro-mazcu" title="code">💻</a>
+<a href="#doc-alvaro-mazcu" title="doc">📖</a>
+<a href="#test-alvaro-mazcu" title="test">⚠️</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/wjunwei2001"><img src="https://avatars.githubusercontent.com/u/109643278?v=4?s=100" width="100px;" alt="Wang Junwei"/>
+<br /><sub><b>Wang Junwei</b></sub></a>
+<br />
+<a href="#code-wjunwei2001" title="code">💻</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://iamrobzy.github.io/"><img src="https://avatars.githubusercontent.com/u/60611384?v=4?s=100" width="100px;" alt="Robert"/>
+<br /><sub><b>Robert</b></sub></a>
+<br />
+<a href="#code-iamrobzy" title="code">💻</a>
+<a href="#ideas-iamrobzy" title="ideas">🤔</a>
+<a href="#mentoring-iamrobzy" title="mentoring">🧑‍🏫</a>
+<a href="#projectManagement-iamrobzy" title="projectManagement">📆</a>
+<a href="#question-iamrobzy" title="question">💬</a>
+</td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Ben-Temming"><img src="https://avatars.githubusercontent.com/u/91560536?v=4?s=100" width="100px;" alt="Ben-Temming"/>
+<br /><sub><b>Ben-Temming</b></sub></a>
+<br />
+<a href="#code-Ben-Temming" title="code">💻</a>
+<a href="#ideas-Ben-Temming" title="ideas">🤔</a>
+<a href="#design-Ben-Temming" title="design">🎨</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/JohanL01"><img src="https://avatars.githubusercontent.com/u/55000709?v=4?s=100" width="100px;" alt="JohanJohanJohan"/>
+<br /><sub><b>JohanJohanJohan</b></sub></a>
+<br />
+<a href="#code-JohanL01" title="code">💻</a>
+<a href="#design-JohanL01" title="design">🎨</a>
+<a href="#ideas-JohanL01" title="ideas">🤔</a>
+</td>
     </tr>
   </tbody>
 </table>
