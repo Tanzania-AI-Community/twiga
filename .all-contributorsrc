@@ -74,7 +74,7 @@
     },
     {
       "login": "alvaro-mazcu",
-      "name": "Álvaro Mazcuñán Herreros",
+      "name": "\u00c1lvaro Mazcu\u00f1\u00e1n Herreros",
       "avatar_url": "https://avatars.githubusercontent.com/u/102028776?v=4",
       "profile": "https://github.com/alvaro-mazcu",
       "contributions": [
@@ -103,6 +103,28 @@
         "mentoring",
         "projectManagement",
         "question"
+      ]
+    },
+    {
+      "login": "Ben-Temming",
+      "name": "Ben-Temming",
+      "avatar_url": "https://avatars.githubusercontent.com/u/91560536?v=4",
+      "profile": "https://github.com/Ben-Temming",
+      "contributions": [
+        "code",
+        "ideas",
+        "design"
+      ]
+    },
+    {
+      "login": "JohanL01",
+      "name": "JohanJohanJohan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/55000709?v=4",
+      "profile": "https://github.com/JohanL01",
+      "contributions": [
+        "code",
+        "design",
+        "ideas"
       ]
     }
   ]

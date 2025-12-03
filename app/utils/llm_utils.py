@@ -1,15 +1,18 @@
+import copy
 import logging
 import backoff
 import os
 import requests
-from typing import List, Optional, Dict, cast
+from typing import List, Optional, Dict, cast, Union
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
-from app.config import llm_settings
+from app.config import llm_settings, LLMProvider
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
@@ -73,20 +76,108 @@ if langsmith_active:
     )
 
 
-def get_llm_client() -> BaseChatModel:
+def _convert_tools_for_gemini(tools: List[Dict]) -> List[Dict]:
+    """
+    Convert tool schemas to be compatible with Gemini.
+    Gemini only allows enum on STRING type properties, so we convert
+    integer enums to string enums and change the type accordingly.
+    """
+    converted_tools = copy.deepcopy(tools)
+    for tool in converted_tools:
+        if "function" in tool and "parameters" in tool["function"]:
+            properties = tool["function"]["parameters"].get("properties", {})
+            for prop_name, prop_value in properties.items():
+                if "enum" in prop_value:
+                    # Gemini requires enum values to be strings and type to be STRING
+                    prop_value["enum"] = [str(v) for v in prop_value["enum"]]
+                    prop_value["type"] = "string"
+    return converted_tools
+
+
+def get_llm_client(
+    tools: Optional[List[Dict]] = None, tool_choice: Optional[str] = None
+) -> Union[BaseChatModel, Runnable]:
     """Get the appropriate LangChain LLM client based on configuration."""
-    if llm_settings.ai_provider == "together" and llm_settings.llm_api_key:
-        return ChatTogether(
-            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
-            model=llm_settings.llm_model_name,
+    llm: BaseChatModel
+
+    if llm_settings.provider == LLMProvider.TOGETHER:
+        if not llm_settings.api_key:
+            raise ValueError("Together provider requires LLM_API_KEY to be set.")
+
+        llm = ChatTogether(
+            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
+            model=llm_settings.llm_name,
         )
-    elif llm_settings.ai_provider == "openai" and llm_settings.llm_api_key:
-        return ChatOpenAI(
-            api_key=SecretStr(llm_settings.llm_api_key.get_secret_value()),
-            model=llm_settings.llm_model_name,
+    elif llm_settings.provider == LLMProvider.OPENAI:
+        if not llm_settings.api_key:
+            raise ValueError("OpenAI provider requires LLM_API_KEY to be set.")
+
+        llm = ChatOpenAI(
+            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
+            model=llm_settings.llm_name,
         )
+    elif llm_settings.provider == LLMProvider.OLLAMA:
+        model_name = (
+            llm_settings.ollama_model_name
+            if llm_settings.ollama_model_name
+            else llm_settings.llm_name
+        )
+        if not model_name:
+            raise ValueError(
+                "Ollama provider requires a model name. Set LLM__OLLAMA_MODEL_NAME or LLM__LLM_MODEL_NAME."
+            )
+
+        api_key = (
+            llm_settings.api_key.get_secret_value()
+            if llm_settings.api_key
+            else "ollama"
+        )
+        llm = ChatOpenAI(
+            api_key=SecretStr(api_key),
+            model=model_name,
+            base_url=llm_settings.ollama_base_url,
+        )
+
+    elif llm_settings.provider == LLMProvider.MODAL:
+        model_name = (
+            llm_settings.modal_model_name
+            if llm_settings.modal_model_name
+            else llm_settings.llm_name
+        )
+        if not model_name:
+            raise ValueError(
+                "Modal provider requires a model name. Set LLMProvider.MODAL_MODEL_NAME or LLMProvider.LLM_MODEL_NAME."
+            )
+
+        api_key = (
+            llm_settings.api_key.get_secret_value() if llm_settings.api_key else "modal"
+        )
+        llm = ChatOpenAI(
+            api_key=SecretStr(api_key),
+            model=model_name,
+            base_url=llm_settings.modal_base_url.get_secret_value(),
+        )
+
+    elif llm_settings.provider == LLMProvider.GOOGLE:
+        if not llm_settings.api_key:
+            raise ValueError("Google provider requires LLM_API_KEY to be set.")
+
+        llm = ChatGoogleGenerativeAI(
+            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
+            model=llm_settings.llm_name,
+            convert_system_message_to_human=True,
+        )
+
     else:
         raise ValueError("No valid LLM provider configured")
+
+    if tools:
+        if llm_settings.provider == LLMProvider.GOOGLE:
+            tools = _convert_tools_for_gemini(tools)
+
+        return llm.bind_tools(tools, tool_choice=tool_choice)
+
+    return llm
 
 
 @backoff.on_exception(
@@ -121,14 +212,10 @@ async def async_llm_request(
         Exception: If the LLM request fails after retries.
     """
     try:
-        llm = get_llm_client()
+        llm = get_llm_client(tools=tools, tool_choice=tool_choice)
 
         if verbose:
             logger.debug(f"Messages sent to LLM API:\n{messages}")
-
-        # Handle tools if provided
-        if tools:
-            llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
         # Prepare kwargs for LangSmith tracing
         invoke_kwargs = {}
