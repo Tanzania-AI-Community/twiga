@@ -23,6 +23,11 @@ from app.services.llm_service import llm_client
 import app.database.enums as enums
 from app.utils.llm_utils import async_llm_request
 
+
+# Tectonic (https://tectonic-typesetting.github.io/) is a fast
+# LaTeX engine we invoke to turn the LLM output into a PDF. We bootstrap a
+# platform-specific binary at runtime so deployments don't need a heavyweight
+# TeX distribution baked in, yet we still get consistent rendering everywhere.
 TECTONIC_VERSION = "0.15.0"
 TECTONIC_CACHE_ROOT = os.path.join(
     os.path.expanduser("~/.cache"),
