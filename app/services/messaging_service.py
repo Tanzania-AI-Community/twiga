@@ -1,15 +1,17 @@
 import logging
-import re
 import os
+import platform
+import re
+import shutil
+import stat
+import subprocess
+import tarfile
 import tempfile
 import uuid
+from urllib import request
 
 from fastapi.responses import JSONResponse
-from fpdf import FPDF
-import matplotlib.pyplot as plt
-import matplotlib
 import fitz
-from PIL import Image as PILImage
 
 import app.database.models as models
 from app.services.flow_service import flow_client
@@ -18,6 +20,45 @@ from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db
 from app.services.llm_service import llm_client
 import app.database.enums as enums
+
+TECTONIC_VERSION = "0.15.0"
+TECTONIC_CACHE_ROOT = os.path.join(
+    os.path.expanduser("~/.cache"),
+    "twiga",
+    "tectonic",
+)
+
+LATEX_TRIGGER_RE = re.compile(
+    r"(\\begin\{|\\end\{|\\documentclass|\\usepackage|\\frac|\\sum|"
+    r"\\int|\\sqrt|\\left|\\right|\\text\{|\\section|\\alpha|\\beta|"
+    r"\\gamma|\\pi|\\theta|\\[|\\]|\\(|\\)|\$)"
+)
+
+LATEX_TEMPLATE = r"""
+\documentclass[11pt]{article}
+\usepackage{amsmath, amssymb}
+\usepackage{geometry}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\geometry{paperwidth=210mm, paperheight=297mm, margin=15mm}
+\setlength{\parskip}{0.75em}
+\setlength{\parindent}{0pt}
+\pagenumbering{gobble}
+\begin{document}
+__CONTENT__
+\end{document}
+"""
+
+
+def looks_like_latex(text: str | None) -> bool:
+    """Heuristic to determine if text contains LaTeX markup."""
+    if not text:
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return bool(LATEX_TRIGGER_RE.search(stripped))
 
 
 class MessagingService:
@@ -84,14 +125,8 @@ class MessagingService:
             # Send the last message back to the user
 
             llm_content = llm_responses[-1].content
-            math_detected = "<math>" in llm_content
 
-            if math_detected:
-                llm_content = llm_content.replace("<math>$", "<math>").replace(
-                    "$</math>", "</math>"
-                )
-
-                # Make the llm_response into a latex document:
+            if looks_like_latex(llm_content):
                 latex_document_path = text_to_img(llm_content)
 
                 if latex_document_path:
@@ -100,9 +135,12 @@ class MessagingService:
                         wa_id=user.wa_id,
                         image_path=latex_document_path,
                         img_type=ImageType.PNG,
-                        caption="Mathematical Content",
                     )
-
+                else:
+                    self.logger.warning(
+                        "Falling back to plain text delivery; LaTeX render failed."
+                    )
+                    await whatsapp_client.send_message(user.wa_id, llm_content)
             else:
                 await whatsapp_client.send_message(user.wa_id, llm_content)
 
@@ -135,134 +173,135 @@ class MessagingService:
         )
 
 
-def render_latex_to_image(latex_string, temp_dir):
-    """
-    Render LaTeX math to an image using matplotlib
-    """
-    # Configure matplotlib to use LaTeX rendering
-    matplotlib.rcParams["text.usetex"] = (
-        False  # Use matplotlib's math renderer, not external LaTeX
+def _tectonic_artifact_name() -> str | None:
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+
+    if system == "darwin":
+        if machine in ("arm64", "aarch64"):
+            return "aarch64-apple-darwin"
+        if machine in ("x86_64", "amd64"):
+            return "x86_64-apple-darwin"
+    elif system == "linux":
+        if machine in ("x86_64", "amd64"):
+            return "x86_64-unknown-linux-gnu"
+        if machine in ("arm64", "aarch64"):
+            return "aarch64-unknown-linux-musl"
+    return None
+
+
+def _ensure_tectonic_binary() -> str | None:
+    existing_path = shutil.which("tectonic")
+    if existing_path:
+        return existing_path
+
+    artifact = _tectonic_artifact_name()
+    if artifact is None:
+        return None
+
+    cache_dir = os.path.join(TECTONIC_CACHE_ROOT, f"{TECTONIC_VERSION}-{artifact}")
+    os.makedirs(cache_dir, exist_ok=True)
+    binary_path = os.path.join(cache_dir, "tectonic")
+    if os.path.exists(binary_path):
+        return binary_path
+
+    archive_name = f"tectonic-{TECTONIC_VERSION}-{artifact}.tar.gz"
+    download_url = (
+        "https://github.com/tectonic-typesetting/tectonic/releases/download/"
+        f"tectonic%40{TECTONIC_VERSION}/{archive_name}"
     )
-    matplotlib.rcParams["mathtext.fontset"] = "cm"  # Use Computer Modern font
-    # Create a figure with matplotlib
-    fig = plt.figure(figsize=(10, 10), facecolor="white")
-    ax = fig.add_subplot(111)
-    ax.axis("off")
+    archive_path = os.path.join(cache_dir, archive_name)
 
-    # Render the LaTeX
-    ax.text(
-        0.5,
-        0.5,
-        f"${latex_string}$",
-        fontsize=100,
-        ha="center",
-        va="center",
-        transform=ax.transAxes,
-        color="black",
+    try:
+        with request.urlopen(download_url) as response, open(
+            archive_path, "wb"
+        ) as archive_file:
+            shutil.copyfileobj(response, archive_file)
+    except Exception as exc:
+        logging.getLogger(__name__).error("Failed to download Tectonic: %s", exc)
+        return None
+
+    try:
+        with tarfile.open(archive_path, mode="r:gz") as archive:
+            archive.extractall(path=cache_dir)
+    except Exception as exc:
+        logging.getLogger(__name__).error("Failed to extract Tectonic archive: %s", exc)
+        return None
+    finally:
+        try:
+            os.remove(archive_path)
+        except OSError:
+            pass
+
+    if os.path.exists(binary_path):
+        current_mode = os.stat(binary_path).st_mode
+        os.chmod(binary_path, current_mode | stat.S_IEXEC)
+        return binary_path
+
+    return None
+
+
+def compile_latex_to_pdf(latex_body: str, temp_dir: str) -> str:
+    """Compile a LaTeX string into a PDF stored in temp_dir using Tectonic."""
+    tectonic_path = _ensure_tectonic_binary()
+    if tectonic_path is None:
+        raise RuntimeError(
+            "Tectonic binary is not available on this host and automatic download failed."
+        )
+
+    tex_filename = "llm_output.tex"
+    tex_path = os.path.join(temp_dir, tex_filename)
+    pdf_path = os.path.join(temp_dir, "llm_output.pdf")
+
+    latex_document = LATEX_TEMPLATE.replace("__CONTENT__", latex_body)
+    with open(tex_path, "w", encoding="utf-8") as tex_file:
+        tex_file.write(latex_document)
+
+    cmd = [tectonic_path, "--outdir", temp_dir, tex_filename]
+    result = subprocess.run(
+        cmd,
+        cwd=temp_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
 
-    # Save to temporary file
-    img_path = os.path.join(temp_dir, f"math_{abs(hash(latex_string))}.png")
-    plt.savefig(
-        img_path,
-        format="png",
-        bbox_inches="tight",
-        dpi=200,
-        facecolor="white",
-        edgecolor="none",
-        pad_inches=0.2,
-    )
-    plt.close(fig)
+    if result.returncode != 0 or not os.path.exists(pdf_path):
+        raise RuntimeError(
+            f"Tectonic failed with code {result.returncode}: {result.stderr.strip()}"
+        )
 
-    return img_path
+    return pdf_path
 
 
-def text_to_img(content):
+def text_to_img(content: str) -> str | None:
     """
-    Convert text with LaTeX math to a PNG image. Returns the path to the PNG image.
+    Convert a LaTeX document body to a PNG image. Returns the path to the PNG image.
     """
-    # Create PDF
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Helvetica", size=25)
-
-    # Create temporary directory for images and PDF
     temp_dir = tempfile.mkdtemp()
-    temp_pdf = os.path.join(temp_dir, "temp.pdf")
-
-    # Generate unique output filename
     output_path = f"output_{uuid.uuid4().hex[:8]}.png"
 
     try:
-        # Parse content: split by <math> tags
-        parts = re.split(r"<math>\s*(.*?)\s*(?:</math>|$)", content)
-        for i, part in enumerate(parts):
-            if not part.strip():
-                continue
+        pdf_path = compile_latex_to_pdf(content, temp_dir)
+    except Exception as exc:
+        print(f"Error compiling LaTeX: {exc}")
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return None
 
-            if i % 2 == 0:  # Regular text
-                # Add text in a cell
-                pdf.cell(0, 10, part.strip(), ln=False)
-            else:  # Math content
-                try:
-                    part = part.replace("$", "")
-                    # Render math as image
-                    img_path = render_latex_to_image(part.strip(), temp_dir)
-
-                    # Add line break before image
-                    pdf.ln()
-
-                    # Get current position and insert image
-                    current_y = pdf.get_y()
-                    img_width = 100  # Width in mm
-
-                    # Get image dimensions to calculate actual height
-                    with PILImage.open(img_path) as img:
-                        img_pixel_width, img_pixel_height = img.size
-
-                    # Calculate height in mm based on width ratio
-                    img_height = img_width * (img_pixel_height / img_pixel_width)
-
-                    # Center the image horizontally
-                    page_width = pdf.w - pdf.l_margin - pdf.r_margin
-                    x_centered = pdf.l_margin + (page_width - img_width) / 2
-
-                    pdf.image(img_path, x=x_centered, y=current_y, w=img_width)
-
-                    # Move cursor below the image using actual height
-                    pdf.set_y(current_y + img_height + 2)  # +2mm for spacing
-
-                    # Clean up image
-                    os.remove(img_path)
-
-                except Exception as e:
-                    # Fallback to plain text
-                    pdf.cell(0, 10, f"[{part.strip()}]", ln=True)
-                    print(f"Error rendering LaTeX: {e}")
-
-        # Save PDF to temp file
-        pdf.output(temp_pdf)
-
-        # Convert PDF to PNG
-        pdf_document = fitz.open(temp_pdf)
-        page = pdf_document[0]  # Get first page
-
-        # Render page to an image (higher dpi = better quality)
-        pix = page.get_pixmap(dpi=300)
-        pix.save(output_path)
-
-        pdf_document.close()
-        print(f"Saved PNG: {output_path}")
-
+    try:
+        pdf_document = fitz.open(pdf_path)
+        try:
+            page = pdf_document[0]
+            pix = page.get_pixmap(dpi=300)
+            pix.save(output_path)
+        finally:
+            pdf_document.close()
         return output_path
-
+    except Exception as exc:
+        print(f"Error converting LaTeX PDF to image: {exc}")
+        return None
     finally:
-        # Clean up temp directory and files
-        if os.path.exists(temp_pdf):
-            os.remove(temp_pdf)
-        if os.path.exists(temp_dir):
-            os.rmdir(temp_dir)
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 messaging_client = MessagingService()
