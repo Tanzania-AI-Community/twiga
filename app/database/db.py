@@ -1,8 +1,8 @@
 from typing import Dict, List, Optional
 from sqlalchemy import text
+from sqlalchemy.orm import selectinload
 from sqlmodel import and_, select, or_, delete, insert, exists, desc
 import logging
-from sqlalchemy.orm import selectinload
 
 from app.database.models import (
     User,
@@ -25,16 +25,40 @@ logger = logging.getLogger(__name__)
 
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
+    """
+    Get user by WhatsApp ID with basic relationships loaded.
+    """
     async with get_session() as session:
         try:
+            # Load only taught_classes, without nested relationships
             statement = (
                 select(User)
-                .options(
-                    selectinload(User.taught_classes)
-                    .selectinload(TeacherClass.class_)
-                    .selectinload(Class.subject_)
-                )
                 .where(User.wa_id == wa_id)
+                .options(selectinload(User.taught_classes))  # type: ignore
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to query user {wa_id}: {str(e)}")
+            raise Exception(f"Failed to query user: {str(e)}")
+
+
+async def get_user_by_waid_with_classes(wa_id: str) -> Optional[User]:
+    """
+    Get user by WhatsApp ID with full class hierarchy loaded.
+    Loads: User -> taught_classes -> class_ -> subject_
+    """
+    async with get_session() as session:
+        try:
+            # Eagerly load full relationship chain: User -> TeacherClass -> Class -> Subject
+            statement = (
+                select(User)
+                .where(User.wa_id == wa_id)
+                .options(
+                    selectinload(User.taught_classes)  # type: ignore
+                    .selectinload(TeacherClass.class_)  # type: ignore
+                    .selectinload(Class.subject_)  # type: ignore
+                )
             )
             result = await session.execute(statement)
             return result.scalar_one_or_none()
@@ -469,6 +493,7 @@ async def get_users_by_state(state: enums.UserState) -> List[User]:
     """
     async with get_session() as session:
         try:
+            # Simple load without full class hierarchy
             statement = select(User).where(User.state == state)
             result = await session.execute(statement)
             return list(result.scalars().all())
