@@ -6,7 +6,9 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 # Install system dependencies required by LaTeX rendering
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fontconfig \
+    && apt-get install -y --no-install-recommends \
+        fontconfig \
+        libgraphite2-3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
