@@ -12,6 +12,7 @@ from urllib import request
 
 from fastapi.responses import JSONResponse
 import fitz
+from langchain_core.messages import SystemMessage, HumanMessage
 
 import app.database.models as models
 from app.services.flow_service import flow_client
@@ -20,6 +21,7 @@ from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db
 from app.services.llm_service import llm_client
 import app.database.enums as enums
+from app.utils.llm_utils import async_llm_request
 
 TECTONIC_VERSION = "0.15.0"
 TECTONIC_CACHE_ROOT = os.path.join(
@@ -32,6 +34,12 @@ LATEX_TRIGGER_RE = re.compile(
     r"(\\begin\{|\\end\{|\\documentclass|\\usepackage|\\frac|\\sum|"
     r"\\int|\\sqrt|\\left|\\right|\\text\{|\\section|\\alpha|\\beta|"
     r"\\gamma|\\pi|\\theta|\\[|\\]|\\(|\\)|\$)"
+)
+
+LATEX_CONVERTER_SYSTEM_PROMPT = (
+    "You are a conversion assistant. Rewrite any provided content as valid LaTeX "
+    "that can be inserted inside a document body. Do not include markdown, "
+    "preambles, explanations, or surrounding fences—only the LaTeX content."
 )
 
 LATEX_TEMPLATE = r"""
@@ -59,6 +67,41 @@ def looks_like_latex(text: str | None) -> bool:
     if not stripped:
         return False
     return bool(LATEX_TRIGGER_RE.search(stripped))
+
+
+async def convert_text_to_latex(content: str) -> str | None:
+    """Ask the LLM to convert arbitrary text into LaTeX-only content."""
+    messages = [
+        SystemMessage(content=LATEX_CONVERTER_SYSTEM_PROMPT),
+        HumanMessage(content=content),
+    ]
+    try:
+        response = await async_llm_request(
+            messages=messages,
+            tools=None,
+            tool_choice=None,
+            run_name="latex_conversion",
+            metadata={"phase": "latex_conversion"},
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Latex conversion request failed: %s", exc)
+        return None
+
+    converted = response.content
+    if isinstance(converted, str):
+        cleaned = converted.strip()
+    elif isinstance(converted, list):
+        pieces = []
+        for chunk in converted:
+            if isinstance(chunk, str):
+                pieces.append(chunk)
+            elif isinstance(chunk, dict) and "text" in chunk:
+                pieces.append(chunk["text"])
+        cleaned = "".join(pieces).strip()
+    else:
+        cleaned = str(converted).strip()
+
+    return cleaned or None
 
 
 class MessagingService:
@@ -126,8 +169,16 @@ class MessagingService:
 
             llm_content = llm_responses[-1].content
 
+            # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
-                latex_document_path = text_to_img(llm_content)
+                latex_ready_content = await convert_text_to_latex(llm_content)
+                if latex_ready_content is None:
+                    self.logger.warning(
+                        "Latex conversion returned empty result; using original content."
+                    )
+                    latex_ready_content = llm_content
+
+                latex_document_path = text_to_img(latex_ready_content)
 
                 if latex_document_path:
                     # Send the LaTeX document as an image via WhatsApp
@@ -213,9 +264,10 @@ def _ensure_tectonic_binary() -> str | None:
     archive_path = os.path.join(cache_dir, archive_name)
 
     try:
-        with request.urlopen(download_url) as response, open(
-            archive_path, "wb"
-        ) as archive_file:
+        with (
+            request.urlopen(download_url) as response,
+            open(archive_path, "wb") as archive_file,
+        ):
             shutil.copyfileobj(response, archive_file)
     except Exception as exc:
         logging.getLogger(__name__).error("Failed to download Tectonic: %s", exc)
