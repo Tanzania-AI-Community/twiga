@@ -21,9 +21,7 @@ from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db
 from app.services.llm_service import llm_client
 import app.database.enums as enums
-<<<<<<< HEAD
 from app.monitoring.metrics import record_messages_generated, track_messages
-=======
 from app.utils.llm_utils import async_llm_request
 
 
@@ -110,7 +108,6 @@ async def convert_text_to_latex(content: str) -> str | None:
         cleaned = str(converted).strip()
 
     return cleaned or None
->>>>>>> origin/development
 
 
 class MessagingService:
@@ -197,10 +194,8 @@ class MessagingService:
 
             assert llm_responses[-1].content is not None
             # Send the last message back to the user
-<<<<<<< HEAD
             await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
             record_messages_generated("chat_response", len(llm_responses))
-=======
 
             llm_content = llm_responses[-1].content
 
@@ -230,7 +225,6 @@ class MessagingService:
             else:
                 await whatsapp_client.send_message(user.wa_id, llm_content)
 
->>>>>>> origin/development
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
             await whatsapp_client.send_message(user.wa_id, err_message)
