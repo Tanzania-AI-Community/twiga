@@ -100,8 +100,8 @@ async def approve_and_welcome_users():
                     )
                     logger.info(f"Sent welcome template message to user: {user.wa_id}")
 
-                    # Update user state to active
-                    user.state = UserState.active
+                    # Update user state to onboarding
+                    user.state = UserState.onboarding
                     await update_user(user)
 
                     # Create a message record in the database

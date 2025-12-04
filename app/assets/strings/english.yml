@@ -19,6 +19,7 @@ onboarding:
   in_review_message: "Thank you for reaching out! Your access is currently being reviewed. You'll hear from us soon."
 
 registration:
+  registration_started: "Thank you for registering! Your account is being reviewed by our team. You'll receive a message once approved. Thank you for your patience!"
   pending_approval: "Thank you for registering! Your application is being reviewed. You'll receive a message once approved."
   approved: "Congratulations! Your registration has been approved. Let's complete your profile setup."
 

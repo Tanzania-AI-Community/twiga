@@ -156,6 +156,13 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             return await state_client.handle_onboarding(user)
 
         case enums.UserState.active:
+            # Reload user with full class information for LLM processing
+            user = await db.get_user_by_waid_with_classes(phone_number)
+
+            if not user:
+                logger.error(f"User {phone_number} not found on reload (should exist)")
+                return JSONResponse(content={"status": "error"}, status_code=500)
+
             # Create user message record
             assert user.id is not None
             user_message = await db.create_new_message(

@@ -1,11 +1,59 @@
 import json
+import uuid
 from typing import Optional
+from langchain_core.messages import AIMessage, HumanMessage
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.config import settings
+from app.config import settings, llm_settings, LLMProvider
 from app.utils.llm_utils import async_llm_request
 from app.utils.string_manager import strings, StringCategory
 from app.services.client_base import ClientBase
+
+
+def _prepare_message_for_together(message: AIMessage) -> HumanMessage | AIMessage:
+    """Ensure Together receives tool calls with stringified arguments and correct role."""
+    content = message.content if message.content is not None else ""
+    raw_tool_calls = getattr(message, "tool_calls", None)
+
+    if not raw_tool_calls:
+        return message if content == message.content else AIMessage(content=content)
+
+    sanitized_tool_calls = []
+    for call in raw_tool_calls:
+        if hasattr(call, "model_dump"):
+            call_dict = call.model_dump()
+        elif isinstance(call, dict):
+            call_dict = dict(call)
+        else:
+            call_dict = json.loads(json.dumps(call))
+
+        function = call_dict.get("function", {})
+        name = call_dict.get("name") or function.get("name", "")
+        arguments = (
+            function.get("arguments")
+            if function.get("arguments") is not None
+            else call_dict.get("arguments")
+        )
+        if arguments is None:
+            arguments = call_dict.get("args", {})
+        if not isinstance(arguments, str):
+            try:
+                arguments = json.dumps(arguments)
+            except TypeError:
+                arguments = json.dumps(str(arguments))
+
+        sanitized_tool_calls.append(
+            {
+                "id": call_dict.get("id") or f"call_{uuid.uuid4()}",
+                "type": call_dict.get("type", "function"),
+                "function": {"name": name, "arguments": arguments},
+            }
+        )
+
+    additional_kwargs = dict(message.additional_kwargs or {})
+    additional_kwargs["tool_calls"] = sanitized_tool_calls
+
+    return HumanMessage(content=content, additional_kwargs=additional_kwargs)
 
 
 class LLMClient(ClientBase):
@@ -130,7 +178,16 @@ class LLMClient(ClientBase):
                             new_messages.extend(tool_responses)
 
                             # Add the AI message with tool calls to api_messages, then add tool responses to keep the message order in history
-                            api_messages.append(initial_response)
+                            assistant_message = initial_response
+                            if (
+                                llm_settings.provider == LLMProvider.TOGETHER
+                                and isinstance(initial_response, AIMessage)
+                            ):
+                                assistant_message = _prepare_message_for_together(
+                                    initial_response
+                                )
+
+                            api_messages.append(assistant_message)
                             api_messages.extend(
                                 msg.to_langchain_message() for msg in tool_responses
                             )
