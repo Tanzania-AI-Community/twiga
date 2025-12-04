@@ -172,7 +172,25 @@ class MessagingService:
             assert llm_responses[-1].content is not None
             # Send the last message back to the user
 
-            llm_content = llm_responses[-1].content
+            final_message = next(
+                (
+                    msg
+                    for msg in reversed(llm_responses)
+                    if msg.role == enums.MessageRole.assistant and msg.content
+                ),
+                None,
+            )
+
+            if not final_message:
+                self.logger.warning(
+                    "No assistant response with content available; sending fallback."
+                )
+                await whatsapp_client.send_message(
+                    user.wa_id, strings.get_string(StringCategory.ERROR, "general")
+                )
+                return JSONResponse(content={"status": "ok"}, status_code=200)
+
+            llm_content = final_message.content
 
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
