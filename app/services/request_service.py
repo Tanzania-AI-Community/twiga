@@ -63,14 +63,17 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information
     message_info = extract_message_info(body)
 
-    message = extract_message(message_info.get("message") or {})
+    message_content = extract_message(message_info.get("message") or {})
 
-    if not message:
+    if not message_content:
         logger.warning("Empty message received")
         return JSONResponse(
             content={"status": "error", "message": "Invalid message"},
             status_code=400,
         )
+
+    # Store extracted message content in message_info for use downstream
+    message_info["extracted_content"] = message_content
 
     # Main message routing logic
     return await handle_chat_message(message_info["wa_id"], message_info)
@@ -107,9 +110,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("message", {})
-                    .get("text", {})
-                    .get("body", ""),
+                    content=message_info.get("extracted_content", ""),
                 )
             )
 
@@ -130,9 +131,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("message", {})
-                    .get("text", {})
-                    .get("body", ""),
+                    content=message_info.get("extracted_content", ""),
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
@@ -144,9 +143,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("message", {})
-                    .get("text", {})
-                    .get("body", ""),
+                    content=message_info.get("extracted_content", ""),
                 )
             )
             return await state_client.handle_onboarding(user)
@@ -165,9 +162,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("message", {})
-                    .get("text", {})
-                    .get("body", ""),
+                    content=message_info.get("extracted_content", ""),
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
