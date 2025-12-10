@@ -41,11 +41,20 @@ LATEX_TRIGGER_RE = re.compile(
     r"\\gamma|\\pi|\\theta|\\[|\\]|\\(|\\)|\$)"
 )
 
-LATEX_CONVERTER_SYSTEM_PROMPT = (
-    "You are a conversion assistant. Rewrite any provided content as valid LaTeX "
-    "that can be inserted inside a document body. Do not include markdown, "
-    "preambles, explanations, or surrounding fences—only the LaTeX content."
-)
+LATEX_CONVERTER_SYSTEM_PROMPT = """
+    You are a LaTeX transcriber.
+
+    Task: Convert the user's input into LaTeX that can be inserted inside a document body.
+
+    Hard rules:
+    - Do NOT solve, answer, explain, or add any new content.
+    - Do NOT remove any content.
+    - Preserve the original meaning, order, and intent exactly.
+    - If the input contains questions or instructions, keep them as text.
+    - Only convert formatting to LaTeX (e.g., headings -> \section, lists -> itemize).
+    - Keep all numbers, math expressions, and wording unchanged except for required LaTeX syntax.
+    - Output ONLY LaTeX. No markdown, no preamble, no commentary.
+    """
 
 LATEX_TEMPLATE = r"""
 \documentclass[11pt]{article}
@@ -86,6 +95,7 @@ async def convert_text_to_latex(content: str) -> str | None:
             tools=None,
             tool_choice=None,
             run_name="latex_conversion",
+            temperature=0.0,
             metadata={"phase": "latex_conversion"},
         )
     except Exception as exc:
@@ -195,6 +205,7 @@ class MessagingService:
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
                 latex_ready_content = await convert_text_to_latex(llm_content)
+
                 if latex_ready_content is None:
                     self.logger.warning(
                         "Latex conversion returned empty result; using original content."
