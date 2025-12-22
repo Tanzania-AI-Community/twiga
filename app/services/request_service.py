@@ -23,7 +23,6 @@ async def handle_request(request: Request) -> JSONResponse:
     Handles HTTP requests to the 'webhooks' and 'flows' endpoints.
     """
     try:
-
         body = await request.json()
 
         request_type = get_request_type(body)
@@ -80,9 +79,13 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
 
 async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResponse:
-    """Main entry point for handling all valid WhatsApp messages based on user state"""
+    """Main entry point for handling all valid WhatsApp messages based on user state
 
-    # Try to get existing user
+    Fetch all data upfront with one method.
+    All data is loaded while session is open, then used from memory.
+    """
+
+    # Fetch user with FULL data (one method does everything)
     user = await db.get_user_by_waid(phone_number)
 
     if not user:
@@ -100,11 +103,12 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
     match user.state:
         case enums.UserState.blocked:
             return await state_client.handle_blocked(user)
-        case enums.UserState.in_review:  # Handle registered but unapproved users
+
+        case enums.UserState.in_review:
             return await state_client.handle_in_review_user(user)
+
         case enums.UserState.approved:
             # Users approved by dashboard - send welcome message and transition to onboarding
-            # Persist the triggering user message but don't process it
             assert user.id is not None
             await db.create_new_message(
                 models.Message(
@@ -119,13 +123,12 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             return welcome_response
 
         case enums.UserState.inactive:
-            # Users who haven't been active - reactivate them then process normally
+            # Reactivate user
             reactivate_response = await state_client.handle_inactive_user(user)
             if reactivate_response.status_code != 200:
                 return reactivate_response
 
-            # User is now active, process their message normally
-            # Create user message record
+            # Process their message
             assert user.id is not None
             user_message = await db.create_new_message(
                 models.Message(
@@ -149,14 +152,6 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             return await state_client.handle_onboarding(user)
 
         case enums.UserState.active:
-            # Reload user with full class information for LLM processing
-            user = await db.get_user_by_waid_with_classes(phone_number)
-
-            if not user:
-                logger.error(f"User {phone_number} not found on reload (should exist)")
-                return JSONResponse(content={"status": "error"}, status_code=500)
-
-            # Create user message record
             assert user.id is not None
             user_message = await db.create_new_message(
                 models.Message(
@@ -166,6 +161,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
+
         case _:
             logger.warning(f"Unknown user state: {user.state}")
             return JSONResponse(content={"status": "error"}, status_code=400)
