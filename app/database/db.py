@@ -26,27 +26,11 @@ logger = logging.getLogger(__name__)
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:
     """
-    Get user by WhatsApp ID with basic relationships loaded.
-    """
-    async with get_session() as session:
-        try:
-            # Load only taught_classes, without nested relationships
-            statement = (
-                select(User)
-                .where(User.wa_id == wa_id)
-                .options(selectinload(User.taught_classes))  # type: ignore
-            )
-            result = await session.execute(statement)
-            return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"Failed to query user {wa_id}: {str(e)}")
-            raise Exception(f"Failed to query user: {str(e)}")
+    Get user by WhatsApp ID with FULL class hierarchy loaded.
+    Always loads: User -> taught_classes -> class_ -> subject_
 
-
-async def get_user_by_waid_with_classes(wa_id: str) -> Optional[User]:
-    """
-    Get user by WhatsApp ID with full class hierarchy loaded.
-    Loads: User -> taught_classes -> class_ -> subject_
+    This is the ONLY method to fetch users - it loads everything needed.
+    All data is loaded while the session is open, then returned from memory.
     """
     async with get_session() as session:
         try:
@@ -61,7 +45,16 @@ async def get_user_by_waid_with_classes(wa_id: str) -> Optional[User]:
                 )
             )
             result = await session.execute(statement)
-            return result.scalar_one_or_none()
+            user = result.scalar_one_or_none()
+
+            # Access relationships to trigger loading while session is still open
+            if user and user.taught_classes:
+                for tc in user.taught_classes:
+                    # Access attributes to ensure they're loaded
+                    _ = tc.class_id
+                    _ = tc.teacher_id
+
+            return user
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
             raise Exception(f"Failed to query user: {str(e)}")
