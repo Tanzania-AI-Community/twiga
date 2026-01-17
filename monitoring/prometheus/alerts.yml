@@ -1,0 +1,36 @@
+groups:
+  - name: twiga-alerts
+    rules:
+      - alert: TwigaHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx rate observed"
+          description: "More than 5% of requests returned 5xx responses over the last 10 minutes."
+
+      - alert: TwigaHighP99Latency
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow p99 latency"
+          description: "p99 HTTP latency is above 2 seconds for more than 10 minutes."
+
+      - alert: RedisExporterDown
+        expr: up{job="redis-exporter"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis exporter is down"
+          description: "Prometheus has not scraped the Redis exporter for 5 minutes."
