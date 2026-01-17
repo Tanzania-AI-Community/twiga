@@ -21,6 +21,7 @@ from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db
 from app.services.llm_service import llm_client
 import app.database.enums as enums
+from app.monitoring.metrics import record_messages_generated, track_messages
 from app.utils.llm_utils import async_llm_request
 
 
@@ -112,48 +113,70 @@ async def convert_text_to_latex(content: str) -> str | None:
 class MessagingService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self._settings_handlers = {
+            "personal info": self._handle_personal_info_settings,
+            "classes and subjects": self._handle_classes_subjects_settings,
+        }
+        self._command_handlers = {
+            "settings": self._command_settings,
+            "help": self._command_help,
+        }
 
     async def handle_settings_selection(
         self, user: models.User, message: models.Message
     ) -> JSONResponse:
         self.logger.debug(f"Handling interactive message with title: {message.content}")
-        if message.content == "Personal Info":
-            self.logger.debug("Sending update personal and school info flow")
-            await flow_client.send_user_settings_flow(user)
-        elif message.content == "Classes and Subjects":
-            self.logger.debug("Sending update class and subject info flow")
-            await flow_client.send_subjects_classes_flow(user)
-        else:
+        key = (message.content or "").strip().lower()
+        handler = self._settings_handlers.get(key)
+        if handler is None:
             raise Exception(f"Unrecognized user reply: {message.content}")
+        await handler(user)
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
         )
+
+    @track_messages("settings_flow_personal_info")
+    async def _handle_personal_info_settings(self, user: models.User) -> None:
+        self.logger.debug("Sending update personal and school info flow")
+        await flow_client.send_user_settings_flow(user)
+
+    @track_messages("settings_flow_classes_subjects")
+    async def _handle_classes_subjects_settings(self, user: models.User) -> None:
+        self.logger.debug("Sending update class and subject info flow")
+        await flow_client.send_subjects_classes_flow(user)
 
     async def handle_command_message(
         self, user: models.User, message: models.Message
     ) -> JSONResponse:
         self.logger.debug(f"Handling command message: {message.content}")
         assert message.content is not None
-        if message.content.lower() == "settings":
-            response_text = strings.get_string(StringCategory.SETTINGS, "intro")
-            options = [
-                strings.get_string(StringCategory.SETTINGS, "personal_info"),
-                strings.get_string(StringCategory.SETTINGS, "class_subject_info"),
-            ]
-            await whatsapp_client.send_message(user.wa_id, response_text, options)
-        elif message.content.lower() == "help":
-            response_text = strings.get_string(StringCategory.INFO, "help")
-            await whatsapp_client.send_message(user.wa_id, response_text)
-        else:
-            response_text = strings.get_string(
-                StringCategory.ERROR, "command_not_found"
-            )
-            await whatsapp_client.send_message(user.wa_id, response_text)
+        key = message.content.lower()
+        handler = self._command_handlers.get(key, self._command_unknown)
+        await handler(user)
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
         )
+
+    @track_messages("command_settings")
+    async def _command_settings(self, user: models.User) -> None:
+        response_text = strings.get_string(StringCategory.SETTINGS, "intro")
+        options = [
+            strings.get_string(StringCategory.SETTINGS, "personal_info"),
+            strings.get_string(StringCategory.SETTINGS, "class_subject_info"),
+        ]
+        await whatsapp_client.send_message(user.wa_id, response_text, options)
+
+    @track_messages("command_help")
+    async def _command_help(self, user: models.User) -> None:
+        response_text = strings.get_string(StringCategory.INFO, "help")
+        await whatsapp_client.send_message(user.wa_id, response_text)
+
+    @track_messages("command_unknown")
+    async def _command_unknown(self, user: models.User) -> None:
+        response_text = strings.get_string(StringCategory.ERROR, "command_not_found")
+        await whatsapp_client.send_message(user.wa_id, response_text)
 
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
@@ -171,6 +194,8 @@ class MessagingService:
 
             assert llm_responses[-1].content is not None
             # Send the last message back to the user
+            await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
+            record_messages_generated("chat_response", len(llm_responses))
 
             final_message = next(
                 (
@@ -221,6 +246,7 @@ class MessagingService:
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
             await whatsapp_client.send_message(user.wa_id, err_message)
+            record_messages_generated("chat_error")
 
         return JSONResponse(
             content={"status": "ok"},
@@ -241,6 +267,7 @@ class MessagingService:
         await whatsapp_client.send_message(
             user.wa_id, strings.get_string(StringCategory.ERROR, "unsupported_message")
         )
+        record_messages_generated("unsupported_message")
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,

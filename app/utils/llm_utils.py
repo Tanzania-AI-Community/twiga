@@ -13,6 +13,18 @@ from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
 from app.config import llm_settings, LLMProvider
+from app.monitoring.metrics import LLMCallTracker
+
+
+# Resolve model names per provider, honoring provider-specific overrides.
+def _resolve_model_name() -> str:
+    name = llm_settings.llm_name
+    if llm_settings.provider == LLMProvider.OLLAMA and llm_settings.ollama_model_name:
+        name = llm_settings.ollama_model_name
+    elif llm_settings.provider == LLMProvider.MODAL and llm_settings.modal_model_name:
+        name = llm_settings.modal_model_name
+    return name
+
 
 # Set up basic logging configuration
 logger = logging.getLogger(__name__)
@@ -117,11 +129,7 @@ def get_llm_client(
             model=llm_settings.llm_name,
         )
     elif llm_settings.provider == LLMProvider.OLLAMA:
-        model_name = (
-            llm_settings.ollama_model_name
-            if llm_settings.ollama_model_name
-            else llm_settings.llm_name
-        )
+        model_name = _resolve_model_name()
         if not model_name:
             raise ValueError(
                 "Ollama provider requires a model name. Set LLM__OLLAMA_MODEL_NAME or LLM__LLM_MODEL_NAME."
@@ -139,11 +147,7 @@ def get_llm_client(
         )
 
     elif llm_settings.provider == LLMProvider.MODAL:
-        model_name = (
-            llm_settings.modal_model_name
-            if llm_settings.modal_model_name
-            else llm_settings.llm_name
-        )
+        model_name = _resolve_model_name()
         if not model_name:
             raise ValueError(
                 "Modal provider requires a model name. Set LLMProvider.MODAL_MODEL_NAME or LLMProvider.LLM_MODEL_NAME."
@@ -232,9 +236,12 @@ async def async_llm_request(
         # Merge any additional kwargs
         invoke_kwargs.update(kwargs)
 
-        # Make the async call
-        response = await llm.ainvoke(messages, **invoke_kwargs)
-        return cast(AIMessage, response)
+        model_name = _resolve_model_name()
+
+        # Make the async call while tracking metrics
+        with LLMCallTracker(llm_settings.provider.value, model_name):
+            response = await llm.ainvoke(messages, **invoke_kwargs)
+            return cast(AIMessage, response)
 
     except Exception as e:
         logger.error(f"LLM request failed: {str(e)}")
