@@ -10,8 +10,8 @@ scrape_configs:
   - job_name: "twiga-app"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["${TWIGA_METRICS_TARGET}"]
-
-  - job_name: "redis-exporter"
-    static_configs:
-      - targets: ["${REDIS_EXPORTER_TARGET}"]
+      - targets: "${TWIGA_METRICS_TARGET}"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: twiga-app

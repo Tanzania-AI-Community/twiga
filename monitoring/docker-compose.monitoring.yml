@@ -14,9 +14,6 @@ services:
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
-    depends_on:
-      redis_exporter:
-        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -37,22 +34,6 @@ services:
         condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--save", ""]
-
-  redis_exporter:
-    image: oliver006/redis_exporter:v1.62.0
-    restart: unless-stopped
-    environment:
-      - REDIS_ADDR=redis:6379
-    ports:
-      - "9121:9121"
-    depends_on:
-      redis:
-        condition: service_started
 
 volumes:
   prometheus-data:

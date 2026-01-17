@@ -25,12 +25,3 @@ groups:
         annotations:
           summary: "Slow p99 latency"
           description: "p99 HTTP latency is above 2 seconds for more than 10 minutes."
-
-      - alert: RedisExporterDown
-        expr: up{job="redis-exporter"} == 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Redis exporter is down"
-          description: "Prometheus has not scraped the Redis exporter for 5 minutes."
