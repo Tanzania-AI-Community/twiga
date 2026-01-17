@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.55.0
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -21,7 +21,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.2.0
     restart: unless-stopped
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=false
@@ -44,7 +44,7 @@ services:
     command: ["redis-server", "--save", ""]
 
   redis_exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.62.0
     restart: unless-stopped
     environment:
       - REDIS_ADDR=redis:6379
