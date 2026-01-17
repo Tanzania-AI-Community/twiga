@@ -198,10 +198,10 @@ Thank you to all the people that have contributed to Twiga so far!
 ## 📈 Monitoring
 
 - The FastAPI service now exposes `GET /metrics`, backed by `prometheus-fastapi-instrumentator` and custom counters for WhatsApp webhooks, LLM calls, rate limiting, and generated messages.
-- Launch the local Prometheus + Grafana stack with `docker compose -f monitoring/docker-compose.monitoring.yml up`; Prometheus listens on `:9090`, Grafana on `:3000`, and the bundled Redis + exporter feed Redis dashboards.
+- Launch the local Prometheus + Grafana stack with `docker compose -f monitoring/docker-compose.monitoring.yml up`; Prometheus listens on `:9090` and Grafana on `:3000`.
 - Prometheus scrapes the Twiga app at `host.docker.internal:8000/metrics` by default—if you run the API elsewhere, edit `monitoring/prometheus/prometheus.yml` accordingly.
 - Grafana auto-provisions a Prometheus datasource plus three dashboards (`FastAPI Overview`, `LLM Performance`, `Redis Overview`) from `monitoring/grafana/provisioning`.
-- Example alerts (5xx rate, slow latency, Redis exporter down) ship in `monitoring/prometheus/alerts.yml`; wire Alertmanager to your channel of choice before production use.
+- Example alerts (5xx rate, slow latency) ship in `monitoring/prometheus/alerts.yml`.
 
 ## 📜 License
 
