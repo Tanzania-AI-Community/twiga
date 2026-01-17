@@ -2,33 +2,38 @@ version: "3.9"
 
 services:
   prometheus:
-    image: prom/prometheus:v2.55.0
+    build:
+      context: ..
+      dockerfile: monitoring/prometheus/Dockerfile
     restart: unless-stopped
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=7d"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - prometheus-data:/prometheus
+    environment:
+      - ENVIRONMENT=local
+      - TWIGA_LOCAL_TARGET=host.docker.internal:8000
     ports:
       - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   grafana:
-    image: grafana/grafana:11.2.0
+    build:
+      context: ..
+      dockerfile: monitoring/grafana/Dockerfile
     restart: unless-stopped
     environment:
+      - PROMETHEUS_HOST=prometheus
+      - PROMETHEUS_PORT=9090
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_AUTH_DISABLE_LOGIN_FORM=false
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana-data:/var/lib/grafana
+      # Optional local admin creds (prod should be secrets in Render)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     ports:
-      - "3000:3000"
+      - "4000:4000"
+    volumes:
+      - grafana-data:/var/lib/grafana
     depends_on:
       prometheus:
         condition: service_started

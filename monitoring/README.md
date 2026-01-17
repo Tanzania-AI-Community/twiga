@@ -18,4 +18,4 @@ cd monitoring
 docker compose -f docker-compose.monitoring.yml up
 ```
 - Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000 (anonymous view enabled)
+- Grafana: http://localhost:4000 (anonymous view enabled)

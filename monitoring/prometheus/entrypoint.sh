@@ -11,7 +11,7 @@ else
   export TWIGA_METRICS_TARGET="${TWIGA_LOCAL_TARGET:-host.docker.internal:8000}"
 fi
 
-envsubst < /etc/prometheus/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml
+envsubst < /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml
 
 echo "ENVIRONMENT=$ENVIRONMENT"
 echo "TWIGA_METRICS_TARGET=$TWIGA_METRICS_TARGET"
