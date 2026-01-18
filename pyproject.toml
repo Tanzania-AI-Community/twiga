@@ -1,6 +1,6 @@
 [project]
 name = "twiga"
-version = "0.1.4"
+version = "0.1.5"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = [
@@ -25,6 +25,8 @@ dependencies = [
     "langchain-together>=0.2.0",
     "matplotlib>=3.10.6",
     "pgvector>=0.3.5",
+    "prometheus-client>=0.20.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",
     "pre-commit>=4.0.1",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",

@@ -5,10 +5,12 @@ build:
 run:
 	@echo 'Running containers ...'
 	@docker-compose -f docker/dev/docker-compose.yml --env-file .env up -d
+	@docker-compose -f monitoring/docker-compose.monitoring.yml up -d
 
 stop:
 	@echo 'Stopping containers ...'
 	@docker-compose -f docker/dev/docker-compose.yml down
+	@docker-compose -f monitoring/docker-compose.monitoring.yml down
 
 restart: stop run
 
