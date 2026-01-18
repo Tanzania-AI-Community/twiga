@@ -31,7 +31,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     ports:
-      - "4000:4000"
+      - "4000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:
