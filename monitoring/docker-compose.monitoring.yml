@@ -26,7 +26,7 @@ services:
       - PROMETHEUS_PORT=9090
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_AUTH_DISABLE_LOGIN_FORM=false
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_PATHS_PROVISIONING=/tmp/provisioning
       # Optional local admin creds (prod should be secrets in Render)
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
