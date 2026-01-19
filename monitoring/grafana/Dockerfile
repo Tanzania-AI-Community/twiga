@@ -2,10 +2,10 @@ FROM grafana/grafana:11.2.0
 
 USER root
 
-COPY provisioning /tmp/provisioning
-COPY entrypoint.sh /entrypoint.sh
+COPY provisioning /etc/grafana/provisioning
 
-RUN chmod -R a+rwX /tmp/provisioning && chmod +x /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]
