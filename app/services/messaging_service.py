@@ -8,6 +8,8 @@ from app.utils.string_manager import strings, StringCategory
 from app.services.whatsapp_service import whatsapp_client
 import app.database.db as db
 from app.services.llm_service import llm_client
+from app.services.agent_client import agent_client
+from app.config import llm_settings
 import app.database.enums as enums
 
 
@@ -60,9 +62,21 @@ class MessagingService:
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
-        llm_responses = await llm_client.generate_response(
-            user=user, message=user_message
-        )
+
+        if llm_settings.agentic_mode:
+            self.logger.info(
+                "Agentic mode is enabled. Using AgentClient for response generation."
+            )
+            llm_responses = await agent_client.generate_response(
+                user=user, message=user_message
+            )
+        else:
+            self.logger.info(
+                "Agentic mode is disabled. Using standard LLMClient for response generation."
+            )
+            llm_responses = await llm_client.generate_response(
+                user=user, message=user_message
+            )
         if llm_responses:
             self.logger.debug(
                 f"Sending message to {user.wa_id}: {llm_responses[-1].content}"

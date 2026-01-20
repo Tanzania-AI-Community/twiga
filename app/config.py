@@ -157,6 +157,10 @@ class LLMSettings(BaseSettings):
     langsmith_tracing: bool = False
     langsmith_endpoint: Optional[str] = "https://api.smith.langchain.com"
 
+    # Agent settings
+    agentic_mode: bool = Field(default=False, validation_alias="agentic_mode_enabled")
+    MAX_AGENT_ITERATIONS: int = 5
+
 
 class EmbeddingSettings(BaseSettings):
     model_config = SettingsConfigDict(
