@@ -1,22 +1,18 @@
-from fastapi import (
-    FastAPI,
-    Request,
-    Depends,
-    BackgroundTasks,
-    Response,
-)
-from fastapi.responses import JSONResponse, PlainTextResponse
 import logging
 from contextlib import asynccontextmanager
 
-from app.security import signature_required
-from app.security import flows_signature_required
-from app.services.whatsapp_service import whatsapp_client
-from app.services.request_service import handle_request
+from fastapi import BackgroundTasks, Depends, FastAPI, Request, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from app.config import Environment, embedding_settings, llm_settings, settings
 from app.database.engine import db_engine, init_db
+from app.monitoring import metrics  # noqa: F401 - registers metrics on import
+from app.redis.engine import disconnect_redis, init_redis
+from app.security import flows_signature_required, signature_required
 from app.services.flow_service import flow_client
-from app.redis.engine import init_redis, disconnect_redis
-from app.config import settings, llm_settings, embedding_settings, Environment
+from app.services.request_service import handle_request
+from app.services.whatsapp_service import whatsapp_client
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +54,8 @@ async def lifespan(app: FastAPI):
 
 # Create a FastAPI application instance
 app = FastAPI(lifespan=lifespan)
+
+Instrumentator().instrument(app).expose(app)  # adds /metrics
 
 logger.info("FastAPI app initialized successfully ✅")
 

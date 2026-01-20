@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  prometheus:
+    build:
+      context: ..
+      dockerfile: monitoring/prometheus/Dockerfile
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=local
+      - TWIGA_LOCAL_TARGET=host.docker.internal:8000
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    build:
+      context: ..
+      dockerfile: monitoring/grafana/Dockerfile
+    restart: unless-stopped
+    environment:
+      - PROMETHEUS_HOST=prometheus
+      - PROMETHEUS_PORT=9090
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_PATHS_PROVISIONING=/tmp/provisioning
+      # Optional local admin creds (prod should be secrets in Render)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "4000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  prometheus-data:
+  grafana-data:

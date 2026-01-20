@@ -6,11 +6,30 @@ import logging
 import httpx
 
 from app.config import settings
+from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
-from app.utils.whatsapp_utils import generate_payload
+from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
+from pathlib import Path
+from enum import Enum
+import os
+
+
+class ImageType(str, Enum):
+    JPEG = "image/jpeg"
+    PNG = "image/png"
+    JPG = "image/jpg"
+
+
+def _extract_statuses(body: dict) -> list[dict]:
+    entry = (body.get("entry") or [{}])[0]
+    change = (entry.get("changes") or [{}])[0]
+    value = change.get("value") or {}
+    return value.get("statuses") or []
 
 
 class WhatsAppClient:
+    _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
@@ -23,7 +42,6 @@ class WhatsAppClient:
     async def send_message(
         self, wa_id: str, message: str, options: Optional[List[str]] = None
     ) -> None:
-
         if settings.mock_whatsapp:
             return
 
@@ -37,6 +55,119 @@ class WhatsAppClient:
             self.logger.error("Request Error: %s", e)
         except Exception as e:
             self.logger.error("Unexpected Error: %s", e)
+
+    async def send_image_message(
+        self,
+        wa_id: str,
+        image_path: str,
+        img_type: ImageType,
+        caption: Optional[str] = None,
+    ) -> None:
+        if settings.mock_whatsapp:
+            self.logger.info(
+                "Mock send_image_message called for %s with image %s", wa_id, image_path
+            )
+            return
+
+        message_sent_successfully = False
+
+        try:
+            media_id = await self.upload_media(image_path, img_type)
+
+            if not media_id:
+                raise ValueError(
+                    "Failed to retrieve media id for WhatsApp image message."
+                )
+
+            payload = generate_payload_for_image(
+                wa_id=wa_id, media_id=media_id, caption=caption
+            )
+
+            response = await self.client.post(
+                "/messages", json=payload, headers=self.headers
+            )
+            log_httpx_response(response)
+            response.raise_for_status()
+            message_sent_successfully = True
+
+        except httpx.RequestError as e:
+            self.logger.error("Image Message Request Error: %s", e)
+
+        except Exception as e:
+            self.logger.error("Image Message Unexpected Error: %s", e)
+
+        finally:
+            if message_sent_successfully:
+                await self.delete_media(
+                    media_id, image_path
+                )  # Clean up media after sending
+
+    async def delete_media(self, media_id: str, image_path: str) -> None:
+        """Delete upload media from WhatsApp and locally"""
+        if settings.mock_whatsapp:
+            return
+
+        try:
+            headers = {
+                "Authorization": self.headers["Authorization"],
+            }
+            url = f"https://graph.facebook.com/{settings.meta_api_version}/{media_id}"
+            response = await self.client.delete(url, headers=headers)
+            log_httpx_response(response)
+            response.raise_for_status()
+        except httpx.RequestError as e:
+            self.logger.error("Media Delete Request Error: %s", e)
+            raise
+        except Exception as e:
+            self.logger.error("Media Delete Unexpected Error: %s", e)
+            raise
+
+        try:
+            os.remove(image_path)
+        except Exception as e:
+            self.logger.error(f"Failed to delete file {image_path}: {e}")
+
+    async def upload_media(self, path: str, img_type: ImageType) -> Optional[str]:
+        """Upload an image to WhatsApp and return the media ID."""
+
+        if settings.mock_whatsapp:
+            return None
+
+        file_path = Path(path)
+
+        if not file_path.is_file():
+            raise FileNotFoundError(f"Image file not found at {path}")
+
+        file_size = file_path.stat().st_size
+        if file_size > self._MAX_IMAGE_SIZE_BYTES:
+            raise ValueError("Image size exceeds limit for WhatsApp media uploads.")
+
+        try:
+            with file_path.open("rb") as file_handle:
+                files = {
+                    "file": (file_path.name, file_handle, img_type),
+                }
+                data = {"messaging_product": "whatsapp"}
+                headers = {
+                    "Authorization": self.headers["Authorization"],
+                }
+                response = await self.client.post(
+                    "/media", data=data, files=files, headers=headers
+                )
+            log_httpx_response(response)
+            response.raise_for_status()
+            media_id = response.json().get("id")
+            if not media_id:
+                raise ValueError(
+                    "WhatsApp media upload response did not include an id."
+                )
+            return media_id
+        except httpx.RequestError as e:
+            self.logger.error("Media Upload Request Error: %s", e)
+            raise
+        except Exception as e:
+            self.logger.error("Media Upload Unexpected Error: %s", e)
+            raise
 
     async def send_template_message(
         self, wa_id: str, template_name: str, language_code: str = "en"
@@ -63,7 +194,7 @@ class WhatsAppClient:
                                 {
                                     "type": "image",
                                     "image": {
-                                        "link": "https://private-user-images.githubusercontent.com/21913954/349197215-de0cc88b-b75f-43aa-850c-34c1315a5980.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTc0MDU0NzMsIm5iZiI6MTc1NzQwNTE3MywicGF0aCI6Ii8yMTkxMzk1NC8zNDkxOTcyMTUtZGUwY2M4OGItYjc1Zi00M2FhLTg1MGMtMzRjMTMxNWE1OTgwLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTA5MDklMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwOTA5VDA4MDYxM1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWFmOGI2NzY1MzQyZTA5YjkzN2U5NDBlNGM0MWU5N2IyODQ4YzU0NGM0Zjg5OTUxOTgwMDc1NTljOWVhMGM4Y2QmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.av3Z8fq9vxSZmZfPT9eXUKmp7zKU56YGUYRP_wxYGFw"
+                                        "link": "https://twiga.ai.or.tz/external/classroom-image.jpeg"
                                     },
                                 }
                             ],
@@ -111,6 +242,7 @@ class WhatsAppClient:
 
     def handle_outdated_message(self, body: dict) -> JSONResponse:
         self.logger.warning("Received a message with an outdated timestamp. Ignoring.")
+        record_whatsapp_event("handler:outdated_message")
         return JSONResponse(
             content={"status": "error", "message": "Message is outdated"},
             status_code=400,
@@ -120,9 +252,11 @@ class WhatsAppClient:
         """
         Handles WhatsApp status updates (sent, delivered, read).
         """
-        self.logger.debug(
-            f"Received a WhatsApp status update: {body.get('entry', [{}])[0].get('changes', [{}])[0].get('value', {}).get('statuses')}"
-        )
+        self.logger.debug(f"Received a WhatsApp status update: {body}")
+        statuses = _extract_statuses(body)
+        if statuses:
+            status = statuses[0].get("status", "unknown")
+            record_whatsapp_event(f"status_update:{status}")
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     def handle_flow_event(self, body: dict) -> JSONResponse:
@@ -131,6 +265,7 @@ class WhatsAppClient:
         """
         self.logger.debug(f"Received a WhatsApp Flow event: {body}")
         event_type = body["entry"][0]["changes"][0]["value"]["event"]
+        record_whatsapp_event(f"flow_event:{event_type.lower()}")
 
         if event_type == "ENDPOINT_AVAILABILITY":
             flow_id = body["entry"][0]["changes"][0]["value"]["flow_id"]
@@ -191,6 +326,7 @@ class WhatsAppClient:
         self.logger.debug(
             f"Received a WhatsApp Flow message complete event. Ignoring: {body}"
         )
+        record_whatsapp_event("handler:flow_message_complete")
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     def handle_invalid_message(self, body: dict) -> JSONResponse:
@@ -198,6 +334,7 @@ class WhatsAppClient:
         Handles invalid WhatsApp messages.
         """
         self.logger.error(f"Received an invalid WhatsApp message: {body}")
+        record_whatsapp_event("handler:invalid_message")
         return JSONResponse(
             content={"status": "error", "message": "Not a valid WhatsApp API event"},
             status_code=404,

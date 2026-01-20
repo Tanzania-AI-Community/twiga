@@ -14,6 +14,7 @@ from app.utils.whatsapp_utils import (
 from app.services.whatsapp_service import whatsapp_client
 from app.services.state_service import state_client
 import app.database.db as db
+from app.monitoring.metrics import record_whatsapp_event
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ async def handle_request(request: Request) -> JSONResponse:
         body = await request.json()
 
         request_type = get_request_type(body)
+        record_whatsapp_event(request_type.name.lower())
         logger.info(f"Received a request of type: {request_type}")
 
         # Route the basic and stateless request types
@@ -46,12 +48,14 @@ async def handle_request(request: Request) -> JSONResponse:
 
         raise Exception(f"Invalid request type. This is the request body: {body}")
     except json.JSONDecodeError:
+        record_whatsapp_event("invalid_json")
         logger.error("Failed to decode JSON")
         return JSONResponse(
             content={"status": "error", "message": "Invalid JSON provided"},
             status_code=400,
         )
     except Exception as e:
+        record_whatsapp_event("internal_error")
         logger.error(f"Unexpected error in webhook handler: {str(e)}")
         return JSONResponse(
             content={"status": "error", "message": "Internal server error"},
@@ -152,6 +156,13 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             return await state_client.handle_onboarding(user)
 
         case enums.UserState.active:
+            # Reload user with full class information for LLM processing
+            user = await db.get_user_by_waid_with_classes(phone_number)
+
+            if not user:
+                logger.error(f"User {phone_number} not found on reload (should exist)")
+                return JSONResponse(content={"status": "error"}, status_code=500)
+
             # Create user message record
             assert user.id is not None
             user_message = await db.create_new_message(

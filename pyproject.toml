@@ -1,6 +1,6 @@
 [project]
 name = "twiga"
-version = "0.1.3"
+version = "0.1.5"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = [
@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "alembic>=1.13.3",
+    "antlr4-python3-runtime==4.11",
     "apscheduler>=3.11.0",
     "asyncpg>=0.29.0",
     "backoff>=2.2.1",
@@ -22,7 +23,10 @@ dependencies = [
     "langchain-google-genai>=2.0.0",
     "langchain-openai>=0.2.6",
     "langchain-together>=0.2.0",
+    "matplotlib>=3.10.6",
     "pgvector>=0.3.5",
+    "prometheus-client>=0.20.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",
     "pre-commit>=4.0.1",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.5.2",
@@ -32,8 +36,12 @@ dependencies = [
     "pytz>=2024.2",
     "redis>=5.2.1",
     "sqlmodel>=0.0.22",
+    "sympy>=1.14.0",
     "tiktoken>=0.8.0",
     "uvicorn>=0.32.1",
+    "fpdf2>=2.8.2",
+    "PyMuPDF>=1.24.0",
+    "Pillow>=11.0.0",
 ]
 
 [build-system]
@@ -51,6 +59,10 @@ dev-dependencies = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "unittest: marks tests as unit tests",
+    "integration: marks tests for integration tests"
+]
 
 [project.scripts]
 all-contributors = "scripts.ci.all_contributors:main"
