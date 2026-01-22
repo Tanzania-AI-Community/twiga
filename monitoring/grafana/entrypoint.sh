@@ -4,14 +4,23 @@ set -eu
 : "${PROMETHEUS_HOST:?PROMETHEUS_HOST must be set}"
 : "${PROMETHEUS_PORT:?PROMETHEUS_PORT must be set}"
 
-export GF_PATHS_PROVISIONING="${GF_PATHS_PROVISIONING:-/tmp/provisioning}"
+DATASOURCE_DIR="/usr/share/grafana/conf/provisioning/datasources"
+DATASOURCE_FILE="$DATASOURCE_DIR/datasource.yaml"
 
-tmpl="$GF_PATHS_PROVISIONING/datasources/datasource.yaml.template"
-out="$GF_PATHS_PROVISIONING/datasources/datasource.yaml"
+mkdir -p "$DATASOURCE_DIR"
 
-sed \
-  -e "s|\${PROMETHEUS_HOST}|${PROMETHEUS_HOST}|g" \
-  -e "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}|g" \
-  "$tmpl" > "$out"
+cat <<EOF > "$DATASOURCE_FILE"
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://${PROMETHEUS_HOST}:${PROMETHEUS_PORT}
+    isDefault: true
+    editable: false
+EOF
+
+cat "$DATASOURCE_FILE"
 
 exec /run.sh

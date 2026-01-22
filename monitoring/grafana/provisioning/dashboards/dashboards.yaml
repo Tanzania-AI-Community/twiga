@@ -8,4 +8,4 @@ providers:
     editable: false
     allowUiUpdates: false
     options:
-      path: /tmp/provisioning/dashboards/json
+      path: /usr/share/grafana/conf/provisioning/dashboards/json
