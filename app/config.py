@@ -38,6 +38,13 @@ class EmbeddingProvider(str, Enum):
     MODAL = BaseProviders.MODAL.value
 
 
+class Prompt(str, Enum):
+    """Enumeration for system prompt names."""
+
+    TWIGA_SYSTEM = "twiga_system"
+    TWIGA_AGENT_SYSTEM = "twiga_agent_system"
+
+
 # Store configurations for the app
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

@@ -9,7 +9,7 @@ from langchain_core.messages.base import BaseMessage
 from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.database.db import get_user_message_history
-from app.utils.enums import Prompt
+from app.config import Prompt
 from app.utils.prompt_manager import prompt_manager
 from app.utils.message_processor import MessageProcessor
 from app.services.whatsapp_service import whatsapp_client

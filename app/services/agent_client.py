@@ -4,12 +4,10 @@ from typing import Optional, List
 from langchain_core.messages import AIMessage
 from app.database.models import Message, User
 from app.services.client_base import ClientBase
-from app.utils.enums import Prompt
 from app.utils.llm_utils import async_llm_request
 from app.database.enums import MessageRole
 from app.utils.string_manager import strings, StringCategory
-from app.config import llm_settings
-from app.config import settings
+from app.config import llm_settings, settings, Prompt
 
 
 class AgentClient(ClientBase):
