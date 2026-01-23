@@ -203,9 +203,6 @@ class MessagingService:
             await db.create_new_messages(llm_responses)
 
             assert llm_responses[-1].content is not None
-            # Send the last message back to the user
-            await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
-            record_messages_generated("chat_response", len(llm_responses))
 
             final_message = next(
                 (
@@ -223,6 +220,8 @@ class MessagingService:
                 await whatsapp_client.send_message(
                     user.wa_id, strings.get_string(StringCategory.ERROR, "general")
                 )
+                record_messages_generated("chat_error")
+
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
             llm_content = final_message.content
@@ -246,13 +245,18 @@ class MessagingService:
                         image_path=latex_document_path,
                         img_type=ImageType.PNG,
                     )
+                    record_messages_generated("chat_response_with_latex_image")
+
                 else:
                     self.logger.warning(
                         "Falling back to plain text delivery; LaTeX render failed."
                     )
                     await whatsapp_client.send_message(user.wa_id, llm_content)
+                    record_messages_generated("chat_response_with_latex_image_fallback")
+
             else:
                 await whatsapp_client.send_message(user.wa_id, llm_content)
+                record_messages_generated("chat_response")
 
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
