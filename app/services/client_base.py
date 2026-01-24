@@ -9,7 +9,7 @@ from langchain_core.messages.base import BaseMessage
 from app.database.models import Message, User
 from app.database.enums import MessageRole
 from app.database.db import get_user_message_history
-from app.config import Prompt
+from app.config import Prompt, settings
 from app.utils.prompt_manager import prompt_manager
 from app.utils.message_processor import MessageProcessor
 from app.services.whatsapp_service import whatsapp_client
@@ -47,6 +47,59 @@ class ClientBase(ABC):
         await whatsapp_client.send_message(
             user.wa_id, strings.get_string(StringCategory.TOOLS, tool_name)
         )
+
+    async def _preprocess_messages(
+        self,
+        user: User,
+        processor: MessageProcessor,
+        prompt: Prompt = Prompt.TWIGA_SYSTEM,
+    ) -> tuple[Optional[list[BaseMessage]], Optional[list[Message]]]:
+        """
+        Preprocess messages: validate, build API messages, check character limits.
+
+        Args:
+            user: User object for context
+            processor: MessageProcessor with pending messages
+            prompt: Prompt to use for system message
+
+        Returns:
+            Tuple of (api_messages, None) if successful
+            Tuple of (None, error_messages) if validation failed
+        """
+        messages_to_process = processor.get_pending_messages()
+
+        if not messages_to_process:
+            self.logger.warning(f"No messages to process for user.id={user.id}.")
+            return None, None
+
+        # Build API messages
+        api_messages = await self._build_api_messages(
+            user=user,
+            messages_to_process=messages_to_process,
+            prompt=prompt,
+        )
+
+        # Check character limits
+        message_lengths = [
+            0 if msg.content is None else len(msg.content) for msg in api_messages
+        ]
+        self.logger.debug(f"Total characters in API messages: {sum(message_lengths)}")
+
+        # TODO: Issue #92: Optimizing chat history usage & context window input
+        if message_lengths[-1] > settings.message_character_limit:
+            self.logger.error(
+                f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
+            )
+            error_message = Message(
+                user_id=user.id,
+                role=MessageRole.system,
+                content=strings.get_string(
+                    StringCategory.ERROR, "character_limit_exceeded"
+                ),
+            )
+            return None, [error_message]
+
+        return api_messages, None
 
     async def _build_api_messages(
         self,

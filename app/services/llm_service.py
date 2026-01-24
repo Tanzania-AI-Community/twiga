@@ -3,10 +3,8 @@ import uuid
 from typing import Optional
 from langchain_core.messages import AIMessage, HumanMessage
 from app.database.models import Message, User
-from app.database.enums import MessageRole
-from app.config import settings, llm_settings, LLMProvider
+from app.config import llm_settings, LLMProvider
 from app.utils.llm_utils import async_llm_request
-from app.utils.string_manager import strings, StringCategory
 from app.services.client_base import ClientBase
 
 
@@ -84,40 +82,20 @@ class LLMClient(ClientBase):
         async with processor.lock:
             while True:
                 try:
-                    messages_to_process = processor.get_pending_messages()
-                    original_count = len(messages_to_process)
-                    if not messages_to_process:
-                        self.logger.warning(f"No messages to process for {user.id}.")
-                        return None  # cleanup in finally
-
-                    # 1. Build the API messages from DB history + new messages
-                    api_messages = await self._build_api_messages(
-                        user, messages_to_process
+                    # Preprocess messages: validate and build API messages
+                    api_messages, error_messages = await self._preprocess_messages(
+                        user=user,
+                        processor=processor,
                     )
 
-                    # Check the length of the messages, make sure it does not exceed character limit
-                    message_lengths = [
-                        0 if msg.content is None else len(msg.content)
-                        for msg in api_messages
-                    ]
-                    self.logger.debug(
-                        f"Total number of characters in user API messages: {sum(message_lengths)}"
-                    )
+                    # Return early if validation failed or no messages
+                    if error_messages:
+                        return error_messages
+                    if api_messages is None:
+                        return None
 
-                    # TODO: Issue #92: Optimizing chat history usage & context window input
-                    if message_lengths[-1] > settings.message_character_limit:
-                        self.logger.error(
-                            f"User {user.id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
-                        )
-                        return [
-                            Message(
-                                user_id=user.id,
-                                role=MessageRole.system,
-                                content=strings.get_string(
-                                    StringCategory.ERROR, "character_limit_exceeded"
-                                ),
-                            )
-                        ]
+                    # Track original message count for new message detection
+                    original_count = len(processor.get_pending_messages())
 
                     # 2. Call the LLM with tools enabled
                     self.logger.debug("Initiating LLM request")
