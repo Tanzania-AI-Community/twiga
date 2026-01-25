@@ -199,6 +199,8 @@ class Message(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     role: enums.MessageRole = Field(max_length=20)
     content: Optional[str] = Field(default=None)  # None when tool_calls present
+    media_id: Optional[str] = Field(default=None)   
+    mime_type: Optional[str] = Field(default=None)
 
     # Tool call related fields
     tool_calls: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
@@ -233,6 +235,10 @@ class Message(SQLModel, table=True):
             message["tool_call_id"] = self.tool_call_id
         if self.tool_name is not None:
             message["name"] = self.tool_name
+        if self.media_id is not None:
+            message["media_id"] = self.media_id
+        if self.mime_type is not None:
+            message["mime_type"] = self.mime_type
 
         return message
 
