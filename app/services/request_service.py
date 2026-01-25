@@ -68,7 +68,8 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
     message_content = extract_message(message_info.get("message") or {})
 
-    if not message_content:
+
+    if not message_content and message_info.get("message", {}).get("type") != "image":
         logger.warning("Empty message received")
         return JSONResponse(
             content={"status": "error", "message": "Invalid message"},
@@ -83,11 +84,20 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
 
 async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResponse:
-    """Main entry point for handling all valid WhatsApp messages based on user state
-
+    """
+    Main entry point for handling all valid WhatsApp messages based on user state
     Fetch all data upfront with one method.
     All data is loaded while session is open, then used from memory.
     """
+    # extract data once
+    raw_message_data = message_info.get("message", {})
+    message_type = raw_message_data.get("type")
+    content = extract_message(raw_message_data)
+    media_id = None
+    mime_type = None
+    if message_type == "image":
+        media_id = raw_message_data.get("image", {}).get("id")
+        mime_type = raw_message_data.get("image", {}).get("mime_type")
 
     # Fetch user with FULL data (one method does everything)
     user = await db.get_user_by_waid(phone_number)
@@ -118,7 +128,11 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
+
+                    content=content,
+                    media_id=media_id,   
+                    mime_type=mime_type
+
                 )
             )
 
@@ -138,7 +152,9 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
+                    content=content,
+                    media_id=media_id,   
+                    mime_type=mime_type
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
@@ -150,7 +166,9 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
+                    content=content,
+                    media_id=media_id,   
+                    mime_type=mime_type
                 )
             )
             return await state_client.handle_onboarding(user)
@@ -161,7 +179,9 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
+                    content=content,
+                    media_id=media_id,   
+                    mime_type=mime_type
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)

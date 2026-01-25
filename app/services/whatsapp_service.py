@@ -339,6 +339,20 @@ class WhatsAppClient:
             content={"status": "error", "message": "Not a valid WhatsApp API event"},
             status_code=404,
         )
-
+    
+    async def download_media(self, media_id: str) -> tuple[bytes, str]:
+        """Download media from Whatsapp."""
+        token = settings.whatsapp_api_token.get_secret_value().strip()
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        url = f"https://graph.facebook.com/{settings.meta_api_version}/{media_id}"
+        resp = await self.client.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        media_resp = await self.client.get(data["url"], headers=headers)
+        media_resp.raise_for_status()
+        
+        return media_resp.content, data.get("mime_type", "image/jpeg")
 
 whatsapp_client = WhatsAppClient()

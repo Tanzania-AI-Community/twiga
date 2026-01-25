@@ -239,6 +239,8 @@ def extract_message(message: dict) -> str:
     message_type = message.get("type")
     if message_type == "text":
         return message["text"]["body"]
+    elif message_type == "image":
+        return message.get("image", {}).get("caption", "")
     elif message_type == "interactive":
         interactive_type = message["interactive"]["type"]
         if interactive_type == "button_reply":
@@ -318,7 +320,7 @@ def get_flow_payload(wa_id: str, flow: dict) -> dict:
 
 
 def is_other_message(message_info: dict) -> bool:
-    return message_info.get("message", {}).get("type") not in ["text", "interactive"]
+    return message_info.get("message", {}).get("type") not in ["text", "interactive", "image"]
 
 
 def get_valid_message_type(message_info: dict) -> ValidMessageType:

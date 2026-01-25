@@ -15,6 +15,7 @@ from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
 from app.tools.tool_manager import ToolManager
 from abc import ABC, abstractmethod
+import base64
 
 
 class ClientBase(ABC):
@@ -69,7 +70,17 @@ class ClientBase(ABC):
             if role == "system":
                 api_messages.append(SystemMessage(content=content))
             elif role == "user":
-                api_messages.append(HumanMessage(content=content))
+                media_id = msg_dict.get("media_id")
+                mime_type = msg_dict.get("mime_type")
+                if media_id and mime_type:
+                    image_bytes, _ = await whatsapp_client.download_media(media_id)
+                    base64_url = self._encode_image_to_base64(image_bytes, mime_type)
+                    multimodal_content = []
+                    multimodal_content.append({"type": "text", "text": content})
+                    multimodal_content.append({"type": "image_url","image_url": {"url": base64_url}})
+                    api_messages.append(HumanMessage(content=multimodal_content))
+                else:
+                    api_messages.append(HumanMessage(content=content))
             elif role == "assistant":
                 # Skip assistant messages with tool_calls from history
                 if msg_dict.get("tool_calls"):
@@ -83,6 +94,12 @@ class ClientBase(ABC):
                 api_messages.append(SystemMessage(content=content))
 
         return api_messages
+
+    def _encode_image_to_base64(self, image_bytes: bytes, mime_type: str) -> str:
+        """Encodes image bytes to a Base64 data URL string"""
+        base64_encoded_data = base64.b64encode(image_bytes)
+        base64_string = base64_encoded_data.decode('utf-8') 
+        return f"data:{mime_type};base64,{base64_string}"
 
     def _llm_response_to_message(
         self, llm_response: AIMessage, user_id: int
