@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class ToolName(str, Enum):
     search_knowledge = "search_knowledge"
     generate_exercise = "generate_exercise"
+    solve_equation = "solve_equation"
 
 
 tools_metadata = [
@@ -55,6 +56,27 @@ tools_metadata = [
                     },
                 },
                 "required": ["query", "class_id", "subject"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": ToolName.solve_equation.value,
+            "description": "Solve a mathematical equation and return step-by-step solution.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equation": {
+                        "type": "string",
+                        "description": "A string containing the equation in LaTeX syntax.",
+                    },
+                    "concise": {
+                        "type": "boolean",
+                        "description": "If true (default), returns only mathematical steps. If false, returns detailed explanations with reasoning for each step.",
+                    },
+                },
+                "required": ["equation"],
             },
         },
     },
