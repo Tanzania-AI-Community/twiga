@@ -31,6 +31,7 @@ settings:
 tools:
   generate_exercise: "📑 Generating exercises from the course content, please hold..."
   search_knowledge: "📚 Searching the course content, please hold..."
+  solve_equation: "🧮 Solving the equation, please hold..."
 
 flows:
   registration_header: "Welcome to Twiga! 🦒"
