@@ -35,7 +35,6 @@ class AgentClient(ClientBase):
         Returns:
             AIMessage from the LLM
         """
-        self.logger.debug("Initiating LLM request")
         return await async_llm_request(
             messages=api_messages,
             tools=self.tool_manager.get_tools_metadata_from_registry(
