@@ -73,14 +73,11 @@ class AgentClient(ClientBase):
         self.logger.info(f"Agent action: processing {len(tool_calls)} tool call(s).")
         self.logger.debug(f"Tool calls: {tool_calls}")
 
-        # Send notifications for all unique tools upfront
         unique_tools = {tool_call["function"]["name"] for tool_call in tool_calls}
         for tool_name in unique_tools:
             await self._tool_call_notification(user, tool_name)
 
-        # Process tool calls and track the tool response messages
         tool_responses = await self.tool_manager.process_tool_calls(tool_calls, user)
-
         return tool_responses
 
     async def _force_final(
@@ -139,14 +136,12 @@ class AgentClient(ClientBase):
         async with processor.lock:
             while True:
                 try:
-                    # Preprocess messages: validate and build API messages
                     api_messages, error_messages = await self._preprocess_messages(
                         user=user,
                         processor=processor,
                         prompt=Prompt.TWIGA_AGENT_SYSTEM,
                     )
 
-                    # Return early if validation failed or no messages
                     if error_messages:
                         return error_messages
                     if api_messages is None:
@@ -159,39 +154,38 @@ class AgentClient(ClientBase):
                     Basic Agentic approach, run until no more tools are called
                     """
                     final_messages: list[Message] = []
-                    for i in range(llm_settings.MAX_AGENT_ITERATIONS):
+                    for iteration in range(llm_settings.MAX_AGENT_ITERATIONS):
                         self.logger.debug(
-                            f"Agent iteration {i + 1}/{llm_settings.MAX_AGENT_ITERATIONS}"
+                            f"Agent iteration {iteration + 1}/{llm_settings.MAX_AGENT_ITERATIONS}"
                         )
 
                         # 1. THINK: Call the LLM with tools
-                        llm_response = await self._think(api_messages, user, i)
-
+                        llm_response = await self._think(
+                            api_messages=api_messages, user=user, iteration=iteration
+                        )
                         response_message = self._llm_response_to_message(
                             llm_response=llm_response, user_id=user.id
                         )
 
-                        self.logger.debug(
-                            f"LLM Response (AGENT LOOP): {llm_response.content}"
-                        )
+                        self.logger.debug(f"LLM Response: {llm_response.content}")
 
                         tool_calls = self.tool_manager.extract_tool_calls(llm_response)
                         if not tool_calls:
-                            # No tool calls, this is the final answer
                             self.logger.info("Agent finished: No tool calls detected.")
                             final_messages.append(response_message)
                             break
 
                         # 2. ACT: Record that we're calling tools
                         response_message.tool_calls = tool_calls
-                        response_message.content = (
-                            None  # Content is empty for tool calls
-                        )
+                        response_message.content = None
                         final_messages.append(response_message)
 
                         # 3. OBSERVE: Execute tools and get responses
                         tool_responses = await self._observe(
-                            tool_calls, user, api_messages, final_messages
+                            tool_calls=tool_calls,
+                            user=user,
+                            api_messages=api_messages,
+                            final_messages=final_messages,
                         )
 
                         if tool_responses:
@@ -203,11 +197,10 @@ class AgentClient(ClientBase):
                                 [msg.to_langchain_message() for msg in tool_responses]
                             )
                     else:
-                        # Max iterations reached, force a final response
+                        # Max iterations reached, force a final response (does not run if break is hit)
                         final_message = await self._force_final(api_messages, user)
                         final_messages.append(final_message)
 
-                    # Before returning, check if new messages arrived during processing
                     if self._check_new_messages(processor, original_count):
                         self.logger.warning("New messages buffered during processing")
                         continue
