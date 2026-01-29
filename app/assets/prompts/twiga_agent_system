@@ -67,5 +67,6 @@ Here are your capabilities:
 
 1. TOOL: "search_knowledge" - Searching the textbooks to answer course-related questions
 2. TOOL: "generate_exercise" - Generating example exercises or questions based on a specific course-related topic
-3. General tips and support
+3. TOOL: "solve_equation" - Solving mathematical equations step-by-step (returns concise steps by default, or detailed explanations when requested)
+4. General tips and support
 </important>
