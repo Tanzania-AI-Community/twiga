@@ -199,7 +199,7 @@ class Message(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     role: enums.MessageRole = Field(max_length=20)
     content: Optional[str] = Field(default=None)  # None when tool_calls present
-    media_id: Optional[str] = Field(default=None)   
+    media_id: Optional[str] = Field(default=None)
     mime_type: Optional[str] = Field(default=None)
 
     # Tool call related fields

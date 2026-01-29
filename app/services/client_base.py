@@ -77,7 +77,9 @@ class ClientBase(ABC):
                     base64_url = self._encode_image_to_base64(image_bytes, mime_type)
                     multimodal_content = []
                     multimodal_content.append({"type": "text", "text": content})
-                    multimodal_content.append({"type": "image_url","image_url": {"url": base64_url}})
+                    multimodal_content.append(
+                        {"type": "image_url", "image_url": {"url": base64_url}}
+                    )
                     api_messages.append(HumanMessage(content=multimodal_content))
                 else:
                     api_messages.append(HumanMessage(content=content))
@@ -98,7 +100,7 @@ class ClientBase(ABC):
     def _encode_image_to_base64(self, image_bytes: bytes, mime_type: str) -> str:
         """Encodes image bytes to a Base64 data URL string"""
         base64_encoded_data = base64.b64encode(image_bytes)
-        base64_string = base64_encoded_data.decode('utf-8') 
+        base64_string = base64_encoded_data.decode("utf-8")
         return f"data:{mime_type};base64,{base64_string}"
 
     def _llm_response_to_message(

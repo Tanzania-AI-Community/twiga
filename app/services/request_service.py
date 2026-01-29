@@ -68,7 +68,6 @@ async def handle_valid_message(body: dict) -> JSONResponse:
 
     message_content = extract_message(message_info.get("message") or {})
 
-
     if not message_content and message_info.get("message", {}).get("type") != "image":
         logger.warning("Empty message received")
         return JSONResponse(
@@ -128,11 +127,9 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 models.Message(
                     user_id=user.id,
                     role=enums.MessageRole.user,
-
                     content=content,
-                    media_id=media_id,   
-                    mime_type=mime_type
-
+                    media_id=media_id,
+                    mime_type=mime_type,
                 )
             )
 
@@ -153,8 +150,8 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                     user_id=user.id,
                     role=enums.MessageRole.user,
                     content=content,
-                    media_id=media_id,   
-                    mime_type=mime_type
+                    media_id=media_id,
+                    mime_type=mime_type,
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
@@ -167,8 +164,8 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                     user_id=user.id,
                     role=enums.MessageRole.user,
                     content=content,
-                    media_id=media_id,   
-                    mime_type=mime_type
+                    media_id=media_id,
+                    mime_type=mime_type,
                 )
             )
             return await state_client.handle_onboarding(user)
@@ -180,8 +177,8 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                     user_id=user.id,
                     role=enums.MessageRole.user,
                     content=content,
-                    media_id=media_id,   
-                    mime_type=mime_type
+                    media_id=media_id,
+                    mime_type=mime_type,
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
