@@ -3,10 +3,8 @@ import uuid
 from typing import Optional
 from langchain_core.messages import AIMessage, HumanMessage
 from app.database.models import Message, User
-from app.database.enums import MessageRole
-from app.config import settings, llm_settings, LLMProvider
+from app.config import llm_settings, LLMProvider
 from app.utils.llm_utils import async_llm_request
-from app.utils.string_manager import strings, StringCategory
 from app.services.client_base import ClientBase
 
 
@@ -66,55 +64,38 @@ class LLMClient(ClientBase):
         message: Message,
     ) -> Optional[list[Message]]:
         """Generate a response, handling message batching and tool calls."""
-        assert user.id is not None
+        if user.id is None:
+            self.logger.error("User object is missing an ID, cannot generate response.")
+            raise ValueError("User object must have an ID to generate a response.")
+
         processor = self._get_processor(user.id)
         processor.add_message(message)
 
         self.logger.debug(
-            f"Message buffer for user: {user.wa_id}, buffer: {processor.get_pending_messages()}"
+            f"Message buffer for user: {user.id}, buffer: {processor.get_pending_messages()}"
         )
 
         if processor.is_locked:
-            self.logger.info(f"Lock held for user {user.wa_id}, message buffered")
+            self.logger.info(f"Lock held for user {user.id}, message buffered")
             return None
 
         async with processor.lock:
             while True:
                 try:
-                    messages_to_process = processor.get_pending_messages()
-                    original_count = len(messages_to_process)
-                    if not messages_to_process:
-                        self.logger.warning(f"No messages to process for {user.wa_id}.")
-                        return None  # cleanup in finally
-
-                    # 1. Build the API messages from DB history + new messages
-                    api_messages = await self._build_api_messages(
-                        user, messages_to_process
+                    # Preprocess messages: validate and build API messages
+                    api_messages, error_messages = await self._preprocess_messages(
+                        user=user,
+                        processor=processor,
                     )
 
-                    # Check the length of the messages, make sure it does not exceed character limit
-                    message_lengths = [
-                        0 if msg.content is None else len(msg.content)
-                        for msg in api_messages
-                    ]
-                    self.logger.debug(
-                        f"Total number of characters in user API messages: {sum(message_lengths)}"
-                    )
+                    # Return early if validation failed or no messages
+                    if error_messages:
+                        return error_messages
+                    if api_messages is None:
+                        return None
 
-                    # TODO: Issue #92: Optimizing chat history usage & context window input
-                    if message_lengths[-1] > settings.message_character_limit:
-                        self.logger.error(
-                            f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
-                        )
-                        return [
-                            Message(
-                                user_id=user.id,
-                                role=MessageRole.system,
-                                content=strings.get_string(
-                                    StringCategory.ERROR, "character_limit_exceeded"
-                                ),
-                            )
-                        ]
+                    # Track original message count for new message detection
+                    original_count = len(processor.get_pending_messages())
 
                     # 2. Call the LLM with tools enabled
                     self.logger.debug("Initiating LLM request")
@@ -125,11 +106,9 @@ class LLMClient(ClientBase):
                         ),
                         tool_choice="auto",
                         verbose=False,
-                        run_name=f"twiga_initial_chat_{user.wa_id}",
+                        run_name=f"twiga_initial_chat_{user.id}",
                         metadata={
                             "user_id": str(user.id),
-                            "user_wa_id": user.wa_id,
-                            "user_name": user.name,
                             "message_count": len(api_messages),
                             "phase": "initial_request",
                         },
@@ -197,11 +176,9 @@ class LLMClient(ClientBase):
                                 messages=api_messages,
                                 tools=None,
                                 tool_choice=None,
-                                run_name=f"twiga_final_chat_{user.wa_id}",
+                                run_name=f"twiga_final_chat_{user.id}",
                                 metadata={
                                     "user_id": str(user.id),
-                                    "user_wa_id": user.wa_id,
-                                    "user_name": user.name,
                                     "message_count": len(api_messages),
                                     "phase": "final_request_with_tools",
                                     "tool_calls_processed": len(tool_responses),

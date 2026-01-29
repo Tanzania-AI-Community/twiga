@@ -38,6 +38,13 @@ class EmbeddingProvider(str, Enum):
     MODAL = BaseProviders.MODAL.value
 
 
+class Prompt(str, Enum):
+    """Enumeration for system prompt names."""
+
+    TWIGA_SYSTEM = "twiga_system"
+    TWIGA_AGENT_SYSTEM = "twiga_agent_system"
+
+
 # Store configurations for the app
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -156,6 +163,10 @@ class LLMSettings(BaseSettings):
     langsmith_project: Optional[str] = "twiga-whatsapp-chatbot"
     langsmith_tracing: bool = False
     langsmith_endpoint: Optional[str] = "https://api.smith.langchain.com"
+
+    # Agent settings
+    agentic_mode: bool = Field(default=False, validation_alias="agentic_mode_enabled")
+    MAX_AGENT_ITERATIONS: int = 5
 
 
 class EmbeddingSettings(BaseSettings):
