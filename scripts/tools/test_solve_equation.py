@@ -14,8 +14,6 @@ import sys
 import logging
 from app.tools.tool_code.solve_equation.main import solve_equation
 
-
-# Configure logging to see what's happening
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -23,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 async def test_solve_linear_equation():
-    """Test solving a simple linear equation."""
     logger.info("Testing linear equation: 2x + 5 = 13")
     try:
         result = await solve_equation("2x + 5 = 13", concise=True)
@@ -35,7 +32,6 @@ async def test_solve_linear_equation():
 
 
 async def test_solve_linear_equation_detailed():
-    """Test solving a linear equation with detailed output."""
     logger.info("Testing linear equation (detailed): 2x + 5 = 13")
     try:
         result = await solve_equation("2x + 5 = 13", concise=False)
@@ -47,7 +43,6 @@ async def test_solve_linear_equation_detailed():
 
 
 async def test_solve_quadratic_equation():
-    """Test solving a quadratic equation."""
     logger.info("Testing quadratic equation: x^2 - 5x + 6 = 0")
     try:
         result = await solve_equation("x^2 - 5x + 6 = 0", concise=True)
@@ -59,7 +54,6 @@ async def test_solve_quadratic_equation():
 
 
 async def test_solve_quadratic_equation_detailed():
-    """Test solving a quadratic equation with detailed output."""
     logger.info("Testing quadratic equation (detailed): x^2 - 5x + 6 = 0")
     try:
         result = await solve_equation("x^2 - 5x + 6 = 0", concise=False)
@@ -71,7 +65,6 @@ async def test_solve_quadratic_equation_detailed():
 
 
 async def test_solve_with_latex():
-    """Test solving an equation with LaTeX formatting."""
     logger.info(r"Testing LaTeX equation: \frac{1}{2}x + 3 = 7")
     try:
         result = await solve_equation(r"\frac{1}{2}x + 3 = 7", concise=True)
@@ -83,7 +76,6 @@ async def test_solve_with_latex():
 
 
 async def test_invalid_equation():
-    """Test error handling for invalid equation."""
     logger.info("Testing invalid equation: not a valid equation")
     try:
         result = await solve_equation("not a valid equation")
@@ -95,7 +87,6 @@ async def test_invalid_equation():
 
 
 async def run_all_tests():
-    """Run all manual tests."""
     logger.info("=" * 70)
     logger.info("MANUAL TEST SUITE FOR SOLVE_EQUATION")
     logger.info("Testing actual LLM integration")

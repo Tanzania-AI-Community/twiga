@@ -19,7 +19,6 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
         A string containing the step-by-step solution to the equation in LaTeX syntax.
     """
     try:
-        # Choose prompt style based on concise parameter
         system_prompt_name = (
             "equation_solver_system_concise" if concise else "equation_solver_system"
         )
@@ -27,17 +26,15 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
             "equation_solver_user_concise" if concise else "equation_solver_user"
         )
 
-        # Format prompts
         system_prompt = prompt_manager.format_prompt(system_prompt_name)
         user_prompt = prompt_manager.format_prompt(user_prompt_name, equation=equation)
 
-        # Create messages
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt),
         ]
 
-        # Use default LLM with math-specific parameters
+        # Use default LLM with math-specific parameters, this can be changed to custom math model later
         response = await async_llm_request(
             messages=messages,
             run_name="twiga_solve_equation",
@@ -47,7 +44,6 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
             },
         )
 
-        # Handle different content types
         content = response.content
         if isinstance(content, list):
             content_str = ""
