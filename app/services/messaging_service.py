@@ -25,6 +25,7 @@ from app.config import llm_settings
 import app.database.enums as enums
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.utils.llm_utils import async_llm_request
+from app.tools.registry import ToolName
 
 
 # Tectonic (https://tectonic-typesetting.github.io/) is a fast
@@ -123,6 +124,8 @@ async def convert_text_to_latex(content: str) -> str | None:
 
 
 class MessagingService:
+    _TOOL_NAME_MARKERS = tuple(tool_name.value for tool_name in ToolName)
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self._settings_handlers = {
@@ -208,18 +211,12 @@ class MessagingService:
             llm_responses = await llm_client.generate_response(
                 user=user, message=user_message
             )
-        if llm_responses:
-            self.logger.debug(
-                f"Sending message to {user.wa_id}: {llm_responses[-1].content}"
-            )
 
+        if llm_responses:
             # Update the database with the responses
             await db.create_new_messages(llm_responses)
 
             assert llm_responses[-1].content is not None
-            # Send the last message back to the user
-            await whatsapp_client.send_message(user.wa_id, llm_responses[-1].content)
-            record_messages_generated("chat_response", len(llm_responses))
 
             final_message = next(
                 (
@@ -237,9 +234,25 @@ class MessagingService:
                 await whatsapp_client.send_message(
                     user.wa_id, strings.get_string(StringCategory.ERROR, "general")
                 )
+                record_messages_generated("chat_error")
+
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
             llm_content = final_message.content
+
+            if self._are_the_tools_names_mentioned(llm_content):
+                self.logger.warning(
+                    "Tool name leakage detected in LLM response; sending fallback message."
+                )
+                await whatsapp_client.send_message(
+                    user.wa_id, strings.get_string(StringCategory.ERROR, "tool_leakage")
+                )
+                record_messages_generated("tool_names_mentioned_error")
+                return JSONResponse(content={"status": "ok"}, status_code=200)
+
+            self.logger.debug(
+                f"Sending message to {user.wa_id}: {llm_responses[-1].content}"
+            )
 
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
@@ -260,13 +273,18 @@ class MessagingService:
                         image_path=latex_document_path,
                         img_type=ImageType.PNG,
                     )
+                    record_messages_generated("chat_response_with_latex_image")
+
                 else:
                     self.logger.warning(
                         "Falling back to plain text delivery; LaTeX render failed."
                     )
                     await whatsapp_client.send_message(user.wa_id, llm_content)
+                    record_messages_generated("chat_response_with_latex_image_fallback")
+
             else:
                 await whatsapp_client.send_message(user.wa_id, llm_content)
+                record_messages_generated("chat_response")
 
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
@@ -277,6 +295,18 @@ class MessagingService:
             content={"status": "ok"},
             status_code=200,
         )
+
+    def _are_the_tools_names_mentioned(self, message: str) -> bool:
+        tool_names = self._TOOL_NAME_MARKERS
+        if not tool_names:
+            return False
+
+        message_lower = message.lower()
+        for tool_name in tool_names:
+            if tool_name in message_lower:
+                return True
+
+        return False
 
     async def handle_other_message(
         self, user: models.User, user_message: models.Message
