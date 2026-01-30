@@ -25,6 +25,7 @@ from app.config import llm_settings
 import app.database.enums as enums
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.utils.llm_utils import async_llm_request
+from app.tools.registry import ToolName
 
 
 # Tectonic (https://tectonic-typesetting.github.io/) is a fast
@@ -123,6 +124,8 @@ async def convert_text_to_latex(content: str) -> str | None:
 
 
 class MessagingService:
+    _TOOL_NAME_MARKERS = tuple(tool_name.value for tool_name in ToolName)
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self._settings_handlers = {
@@ -210,10 +213,6 @@ class MessagingService:
             )
 
         if llm_responses:
-            self.logger.debug(
-                f"Sending message to {user.wa_id}: {llm_responses[-1].content}"
-            )
-
             # Update the database with the responses
             await db.create_new_messages(llm_responses)
 
@@ -240,6 +239,20 @@ class MessagingService:
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
             llm_content = final_message.content
+
+            if self._are_the_tools_names_mentioned(llm_content):
+                self.logger.warning(
+                    "Tool name leakage detected in LLM response; sending fallback message."
+                )
+                await whatsapp_client.send_message(
+                    user.wa_id, strings.get_string(StringCategory.ERROR, "tool_leakage")
+                )
+                record_messages_generated("tool_names_mentioned_error")
+                return JSONResponse(content={"status": "ok"}, status_code=200)
+
+            self.logger.debug(
+                f"Sending message to {user.wa_id}: {llm_responses[-1].content}"
+            )
 
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
@@ -282,6 +295,18 @@ class MessagingService:
             content={"status": "ok"},
             status_code=200,
         )
+
+    def _are_the_tools_names_mentioned(self, message: str) -> bool:
+        tool_names = self._TOOL_NAME_MARKERS
+        if not tool_names:
+            return False
+
+        message_lower = message.lower()
+        for tool_name in tool_names:
+            if tool_name in message_lower:
+                return True
+
+        return False
 
     async def handle_other_message(
         self, user: models.User, user_message: models.Message
