@@ -251,7 +251,7 @@ class MessagingService:
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
             self.logger.debug(
-                f"Sending message to {user.wa_id}: {llm_responses[-1].content}"
+                f"Sending message to {user.wa_id}: {llm_content}"
             )
 
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
