@@ -7,7 +7,7 @@ error:
   character_limit_exceeded: "Sorry, the message you sent is too long. Please try again with a shorter message."
   unsupported_message: "Sorry, I only understand textual messages."
   registration_error: "Sorry, there was an error with your registration. Please try again later."
-  tool_leakage: "Sorry, I am not able to provide an answer for that request. Please try asking in a different way."
+  tool_leakage: "Sorry, I can't help with that request. If you have another question or need help with a different topic, I'm happy to assist."
 
 info:
   help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."
