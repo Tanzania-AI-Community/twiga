@@ -213,9 +213,6 @@ class MessagingService:
             )
 
         if llm_responses:
-            # Update the database with the responses
-            await db.create_new_messages(llm_responses)
-
             assert llm_responses[-1].content is not None
 
             final_message = next(
@@ -227,6 +224,8 @@ class MessagingService:
                 None,
             )
 
+            error_message = None
+
             if not final_message:
                 self.logger.warning(
                     "No assistant response with content available; sending fallback."
@@ -236,10 +235,13 @@ class MessagingService:
                 )
                 record_messages_generated("chat_error")
 
-                return JSONResponse(content={"status": "ok"}, status_code=200)
+                error_message = models.Message.from_attributes(
+                    user_id=user.id,
+                    role=enums.MessageRole.assistant,
+                    content=strings.get_string(StringCategory.ERROR, "general"),
+                )
 
             llm_content = final_message.content
-
             if self._are_the_tools_names_mentioned(llm_content):
                 self.logger.warning(
                     "Tool name leakage detected in LLM response; sending fallback message."
@@ -248,7 +250,21 @@ class MessagingService:
                     user.wa_id, strings.get_string(StringCategory.ERROR, "tool_leakage")
                 )
                 record_messages_generated("tool_names_mentioned_error")
+
+                error_message = models.Message.from_attributes(
+                    user_id=user.id,
+                    role=enums.MessageRole.assistant,
+                    content=strings.get_string(StringCategory.ERROR, "tool_leakage"),
+                )
+
+            if error_message is not None:
+                messages_to_add = llm_responses + [error_message]
+                await db.create_new_messages(messages_to_add)
+
                 return JSONResponse(content={"status": "ok"}, status_code=200)
+
+            # Update the database with the responses
+            await db.create_new_messages(llm_responses)
 
             self.logger.debug(
                 f"Sending message to {user.wa_id}: {llm_content}"

@@ -285,6 +285,17 @@ class Message(SQLModel, table=True):
         return cls(**message_data)
 
     @classmethod
+    def from_attributes(cls, user_id: int, role: enums.MessageRole, content: Optional[str]) -> "Message":
+        """Create message from attributes"""
+
+        message_data = {
+            "user_id": user_id,
+            "role": role,
+            "content": content,
+        }
+        return cls(**message_data)
+
+    @classmethod
     def from_langchain_message(cls, message: "BaseMessage", user_id: int) -> "Message":
         """Create message from LangChain BaseMessage format"""
         from langchain_core.messages import (
