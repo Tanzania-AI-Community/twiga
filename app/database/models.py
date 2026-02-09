@@ -79,6 +79,7 @@ class User(SQLModel, table=True):
     school_name: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
+    agentic_mode_enabled: bool = Field(default=False)
     last_message_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))  # type: ignore
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
