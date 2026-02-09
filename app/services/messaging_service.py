@@ -265,9 +265,7 @@ class MessagingService:
 
             await db.create_new_messages(llm_responses)
 
-            self.logger.debug(
-                f"Sending message to {user.wa_id}: {llm_content}"
-            )
+            self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
 
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):

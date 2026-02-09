@@ -285,7 +285,9 @@ class Message(SQLModel, table=True):
         return cls(**message_data)
 
     @classmethod
-    def from_attributes(cls, user_id: int, role: enums.MessageRole, content: Optional[str]) -> "Message":
+    def from_attributes(
+        cls, user_id: int, role: enums.MessageRole, content: Optional[str]
+    ) -> "Message":
         message_data = {
             "user_id": user_id,
             "role": role,
