@@ -263,7 +263,6 @@ class MessagingService:
 
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
-            # Update the database with the responses
             await db.create_new_messages(llm_responses)
 
             self.logger.debug(

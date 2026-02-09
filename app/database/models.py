@@ -286,8 +286,6 @@ class Message(SQLModel, table=True):
 
     @classmethod
     def from_attributes(cls, user_id: int, role: enums.MessageRole, content: Optional[str]) -> "Message":
-        """Create message from attributes"""
-
         message_data = {
             "user_id": user_id,
             "role": role,
