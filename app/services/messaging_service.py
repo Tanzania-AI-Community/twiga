@@ -194,19 +194,16 @@ class MessagingService:
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
 
-        # Check user's agentic mode preference first, fall back to global setting
-        use_agentic_mode = user.agentic_mode_enabled or llm_settings.agentic_mode
-
-        if use_agentic_mode:
+        if llm_settings.agentic_mode:
             self.logger.info(
-                f"Agentic mode is enabled for user {user.id}. Using AgentClient for response generation."
+                "Agentic mode is enabled. Using AgentClient for response generation."
             )
             llm_responses = await agent_client.generate_response(
                 user=user, message=user_message
             )
         else:
             self.logger.info(
-                f"Agentic mode is disabled for user {user.id}. Using standard LLMClient for response generation."
+                "Agentic mode is disabled. Using standard LLMClient for response generation."
             )
             llm_responses = await llm_client.generate_response(
                 user=user, message=user_message
