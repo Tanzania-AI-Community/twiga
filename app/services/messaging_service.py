@@ -38,6 +38,8 @@ TECTONIC_CACHE_ROOT = os.path.join(
     "twiga",
     "tectonic",
 )
+WHATSAPP_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+PDF_RENDER_DPI_CANDIDATES = (300, 250, 200, 150, 120)
 
 LATEX_TRIGGER_RE = re.compile(
     r"(\\begin\{|\\end\{|\\documentclass|\\usepackage|\\frac|\\sum|"
@@ -280,13 +282,21 @@ class MessagingService:
                 latex_document_path = text_to_img(latex_ready_content)
 
                 if latex_document_path:
-                    # Send the LaTeX document as an image via WhatsApp
-                    await whatsapp_client.send_image_message(
+                    image_sent = await whatsapp_client.send_image_message(
                         wa_id=user.wa_id,
                         image_path=latex_document_path,
                         img_type=ImageType.PNG,
                     )
-                    record_messages_generated("chat_response_with_latex_image")
+                    if image_sent:
+                        record_messages_generated("chat_response_with_latex_image")
+                    else:
+                        self.logger.warning(
+                            "Falling back to plain text delivery; WhatsApp image send failed."
+                        )
+                        await whatsapp_client.send_message(user.wa_id, llm_content)
+                        record_messages_generated(
+                            "chat_response_with_latex_image_fallback"
+                        )
 
                 else:
                     self.logger.warning(
@@ -449,13 +459,22 @@ def text_to_img(content: str) -> str | None:
     """
     Convert a LaTeX document body to a PNG image. Returns the path to the PNG image.
     """
+    logger = logging.getLogger(__name__)
     temp_dir = tempfile.mkdtemp()
-    output_path = f"output_{uuid.uuid4().hex[:8]}.png"
+    output_file_descriptor, output_path = tempfile.mkstemp(
+        prefix="twiga_latex_", suffix=".png"
+    )
+    os.close(output_file_descriptor)
+    rendered_image_ready = False
 
     try:
         pdf_path = compile_latex_to_pdf(content, temp_dir)
     except Exception as exc:
-        print(f"Error compiling LaTeX: {exc}")
+        logger.error("Error compiling LaTeX: %s", exc)
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass
         shutil.rmtree(temp_dir, ignore_errors=True)
         return None
 
@@ -463,15 +482,27 @@ def text_to_img(content: str) -> str | None:
         pdf_document = fitz.open(pdf_path)
         try:
             page = pdf_document[0]
-            pix = page.get_pixmap(dpi=300)
-            pix.save(output_path)
+            for dpi in PDF_RENDER_DPI_CANDIDATES:
+                pix = page.get_pixmap(dpi=dpi)
+                pix.save(output_path)
+                if os.path.getsize(output_path) <= WHATSAPP_MAX_IMAGE_SIZE_BYTES:
+                    rendered_image_ready = True
+                    return output_path
+            logger.warning(
+                "Generated image exceeds WhatsApp upload limit after DPI fallback (%s).",
+                output_path,
+            )
         finally:
             pdf_document.close()
-        return output_path
     except Exception as exc:
-        print(f"Error converting LaTeX PDF to image: {exc}")
+        logger.error("Error converting LaTeX PDF to image: %s", exc)
         return None
     finally:
+        if not rendered_image_ready and os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
