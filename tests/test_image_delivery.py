@@ -4,7 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import app.database.enums as enums
 from app.database.models import Message, User
-from app.services.messaging_service import MessagingService
+from app.services.messaging_service import (
+    MessagingService,
+    _escape_text_mode_special_chars,
+    _extract_latex_document_body,
+    _extract_tectonic_error_context,
+    build_latex_render_candidates,
+)
 from app.services.whatsapp_service import ImageType, WhatsAppClient
 from app.config import settings
 
@@ -155,3 +161,46 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
     assert response.status_code == 200
     mock_send_image.assert_awaited_once()
     mock_send_message.assert_awaited_once_with(user.wa_id, llm_message.content)
+
+
+def test_extract_latex_document_body() -> None:
+    content = r"""
+\documentclass{article}
+\begin{document}
+Example with x_1 and x^2
+\end{document}
+"""
+    assert _extract_latex_document_body(content) == "Example with x_1 and x^2"
+
+
+def test_escape_text_mode_special_chars() -> None:
+    escaped = _escape_text_mode_special_chars("Value x_1 and y^2 in text mode")
+    assert escaped == r"Value x\_1 and y\^{}2 in text mode"
+
+
+def test_escape_text_mode_preserves_math_mode() -> None:
+    escaped = _escape_text_mode_special_chars(r"Text x_1 and math $y_2 + z^3$")
+    assert escaped == r"Text x\_1 and math $y_2 + z^3$"
+
+
+def test_build_latex_render_candidates_include_escaped_variant() -> None:
+    candidates = build_latex_render_candidates(r"x_1 + y^2")
+    assert candidates == [r"x_1 + y^2", r"x\_1 + y\^{}2"]
+
+
+def test_extract_tectonic_error_context_returns_line_snippet() -> None:
+    latex_document = "\n".join(
+        [
+            r"\documentclass{article}",
+            r"\begin{document}",
+            "Bad text with x_1",
+            r"\end{document}",
+        ]
+    )
+    stderr = "error: llm_output_abcd.tex:3: Missing $ inserted"
+
+    context = _extract_tectonic_error_context(latex_document, stderr)
+
+    assert "line 3: Missing $ inserted" in context
+    assert "2:\\begin{document}" in context
+    assert "3:Bad text with x_1" in context

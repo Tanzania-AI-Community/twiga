@@ -46,8 +46,13 @@ LATEX_TRIGGER_RE = re.compile(
     r"\\int|\\sqrt|\\left|\\right|\\text\{|\\section|\\alpha|\\beta|"
     r"\\gamma|\\pi|\\theta|\\[|\\]|\\(|\\)|\$)"
 )
+LATEX_DOCUMENT_BODY_RE = re.compile(
+    r"\\begin\{document\}(.*?)\\end\{document\}",
+    re.DOTALL,
+)
+TECTONIC_ERROR_LINE_RE = re.compile(r":[^:\n]+:(\d+):\s*(.+)")
 
-LATEX_CONVERTER_SYSTEM_PROMPT = """
+LATEX_CONVERTER_SYSTEM_PROMPT = r"""
     You are a LaTeX transcriber.
 
     Task: Convert the user's input into LaTeX that can be inserted inside a document body.
@@ -77,6 +82,137 @@ LATEX_TEMPLATE = r"""
 __CONTENT__
 \end{document}
 """
+
+
+def _strip_markdown_code_fences(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("```") and stripped.endswith("```"):
+        lines = stripped.splitlines()
+        if len(lines) >= 2:
+            return "\n".join(lines[1:-1]).strip()
+    return stripped
+
+
+def _extract_latex_document_body(content: str) -> str:
+    match = LATEX_DOCUMENT_BODY_RE.search(content)
+    if match:
+        return match.group(1).strip()
+    return content.strip()
+
+
+def _escape_text_mode_special_chars(content: str) -> str:
+    escaped_chars: list[str] = []
+    in_inline_math = False
+    in_display_math = False
+    last_inline_math_index: int | None = None
+    last_display_math_index: int | None = None
+
+    i = 0
+    while i < len(content):
+        if content.startswith(r"\(", i):
+            in_inline_math = True
+            escaped_chars.append(r"\(")
+            i += 2
+            continue
+        if content.startswith(r"\)", i):
+            in_inline_math = False
+            escaped_chars.append(r"\)")
+            i += 2
+            continue
+        if content.startswith(r"\[", i):
+            in_display_math = True
+            escaped_chars.append(r"\[")
+            i += 2
+            continue
+        if content.startswith(r"\]", i):
+            in_display_math = False
+            escaped_chars.append(r"\]")
+            i += 2
+            continue
+        if content.startswith("$$", i):
+            if in_display_math:
+                in_display_math = False
+            else:
+                in_display_math = True
+                last_display_math_index = len(escaped_chars)
+            escaped_chars.append("$$")
+            i += 2
+            continue
+
+        current_char = content[i]
+        if current_char == "\\":
+            if i + 1 < len(content):
+                escaped_chars.append(content[i : i + 2])
+                i += 2
+                continue
+            escaped_chars.append("\\")
+            i += 1
+            continue
+
+        if current_char == "$":
+            if in_inline_math:
+                in_inline_math = False
+            else:
+                in_inline_math = True
+                last_inline_math_index = len(escaped_chars)
+            escaped_chars.append("$")
+            i += 1
+            continue
+
+        in_math_mode = in_inline_math or in_display_math
+        if not in_math_mode and current_char == "_":
+            escaped_chars.append(r"\_")
+        elif not in_math_mode and current_char == "^":
+            escaped_chars.append(r"\^{}")
+        elif not in_math_mode and current_char in {"#", "%", "&"}:
+            escaped_chars.append(f"\\{current_char}")
+        else:
+            escaped_chars.append(current_char)
+        i += 1
+
+    if in_inline_math and last_inline_math_index is not None:
+        escaped_chars[last_inline_math_index] = r"\$"
+    if in_display_math and last_display_math_index is not None:
+        escaped_chars[last_display_math_index] = r"\$\$"
+
+    return "".join(escaped_chars).strip()
+
+
+def build_latex_render_candidates(content: str) -> list[str]:
+    normalized = _extract_latex_document_body(_strip_markdown_code_fences(content))
+    if not normalized:
+        return []
+
+    candidates: list[str] = [normalized]
+    escaped = _escape_text_mode_special_chars(normalized)
+    if escaped and escaped not in candidates:
+        candidates.append(escaped)
+    return candidates
+
+
+def _extract_tectonic_error_context(latex_document: str, stderr: str) -> str:
+    match = TECTONIC_ERROR_LINE_RE.search(stderr)
+    if not match:
+        return ""
+
+    line_number = int(match.group(1))
+    error_message = match.group(2).strip()
+    latex_lines = latex_document.splitlines()
+    if line_number < 1 or line_number > len(latex_lines):
+        return f"line {line_number}: {error_message}"
+
+    start_line = max(1, line_number - 1)
+    end_line = min(len(latex_lines), line_number + 1)
+    context_parts: list[str] = []
+    for current_line in range(start_line, end_line + 1):
+        snippet = latex_lines[current_line - 1].strip()
+        if len(snippet) > 120:
+            snippet = f"{snippet[:117]}..."
+        context_parts.append(f"{current_line}:{snippet}")
+
+    return (
+        f"line {line_number}: {error_message} | context: {' || '.join(context_parts)}"
+    )
 
 
 def looks_like_latex(text: str | None) -> bool:
@@ -271,15 +407,21 @@ class MessagingService:
 
             # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
-                latex_ready_content = await convert_text_to_latex(llm_content)
+                latex_document_path = None
+                for candidate in build_latex_render_candidates(llm_content):
+                    latex_document_path = text_to_img(candidate)
+                    if latex_document_path:
+                        break
 
-                if latex_ready_content is None:
-                    self.logger.warning(
-                        "Latex conversion returned empty result; using original content."
-                    )
-                    latex_ready_content = llm_content
-
-                latex_document_path = text_to_img(latex_ready_content)
+                if latex_document_path is None:
+                    latex_ready_content = await convert_text_to_latex(llm_content)
+                    if latex_ready_content:
+                        for candidate in build_latex_render_candidates(
+                            latex_ready_content
+                        ):
+                            latex_document_path = text_to_img(candidate)
+                            if latex_document_path:
+                                break
 
                 if latex_document_path:
                     image_sent = await whatsapp_client.send_image_message(
@@ -423,6 +565,7 @@ def _ensure_tectonic_binary() -> str | None:
 
 def compile_latex_to_pdf(latex_body: str, temp_dir: str) -> str:
     """Compile a LaTeX string into a PDF stored in temp_dir using Tectonic."""
+    logger = logging.getLogger(__name__)
     tectonic_path = _ensure_tectonic_binary()
     if tectonic_path is None:
         raise RuntimeError(
@@ -448,8 +591,13 @@ def compile_latex_to_pdf(latex_body: str, temp_dir: str) -> str:
     )
 
     if result.returncode != 0 or not os.path.exists(pdf_path):
+        error_context = _extract_tectonic_error_context(latex_document, result.stderr)
+        if error_context:
+            logger.error("LaTeX compile context: %s", error_context)
         raise RuntimeError(
-            f"Tectonic failed with code {result.returncode}: {result.stderr.strip()}"
+            "Tectonic failed with code "
+            f"{result.returncode}: {result.stderr.strip()} "
+            f"{error_context}".strip()
         )
 
     return pdf_path
