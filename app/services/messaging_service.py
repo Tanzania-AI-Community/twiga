@@ -20,7 +20,7 @@ from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db
 from app.services.llm_service import llm_client
 from app.services.agent_client import agent_client
-from app.config import llm_settings
+from app.config import llm_settings, settings, Environment
 import app.database.enums as enums
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.tools.registry import ToolName
@@ -205,6 +205,13 @@ def _extract_tectonic_error_context(latex_document: str, stderr: str) -> str:
 
     return (
         f"line {line_number}: {error_message} | context: {' || '.join(context_parts)}"
+    )
+
+
+def _should_persist_latex_image_locally() -> bool:
+    return settings.mock_whatsapp or settings.environment in (
+        Environment.LOCAL,
+        Environment.DEVELOPMENT,
     )
 
 
@@ -556,8 +563,11 @@ def text_to_img(content: str) -> str | None:
     """
     logger = logging.getLogger(__name__)
     temp_dir = tempfile.mkdtemp()
+    output_dir = os.getcwd() if _should_persist_latex_image_locally() else None
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
     output_file_descriptor, output_path = tempfile.mkstemp(
-        prefix="twiga_latex_", suffix=".png"
+        prefix="twiga_latex_", suffix=".png", dir=output_dir
     )
     os.close(output_file_descriptor)
     rendered_image_ready = False
@@ -582,6 +592,11 @@ def text_to_img(content: str) -> str | None:
                 pix.save(output_path)
                 if os.path.getsize(output_path) <= WHATSAPP_MAX_IMAGE_SIZE_BYTES:
                     rendered_image_ready = True
+                    if output_dir is not None:
+                        logger.info(
+                            "Saved LaTeX image locally for debugging: %s",
+                            output_path,
+                        )
                     return output_path
             logger.warning(
                 "Generated image exceeds WhatsApp upload limit after DPI fallback (%s).",
