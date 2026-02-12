@@ -37,7 +37,10 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
         # Use default LLM with math-specific parameters, this can be changed to custom math model later
         response = await async_llm_request(
             messages=messages,
+            tools=None,
+            tool_choice=None,
             run_name="twiga_solve_equation",
+            temperature=0.0,
             metadata={
                 "tool": "solve_equation",
                 "equation": equation,
