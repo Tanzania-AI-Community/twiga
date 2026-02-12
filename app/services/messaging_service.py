@@ -12,7 +12,6 @@ from urllib import request
 
 from fastapi.responses import JSONResponse
 import fitz
-from langchain_core.messages import SystemMessage, HumanMessage
 
 import app.database.models as models
 from app.services.flow_service import flow_client
@@ -24,7 +23,6 @@ from app.services.agent_client import agent_client
 from app.config import llm_settings
 import app.database.enums as enums
 from app.monitoring.metrics import record_messages_generated, track_messages
-from app.utils.llm_utils import async_llm_request
 from app.tools.registry import ToolName
 
 
@@ -51,21 +49,6 @@ LATEX_DOCUMENT_BODY_RE = re.compile(
     re.DOTALL,
 )
 TECTONIC_ERROR_LINE_RE = re.compile(r":[^:\n]+:(\d+):\s*(.+)")
-
-LATEX_CONVERTER_SYSTEM_PROMPT = r"""
-    You are a LaTeX transcriber.
-
-    Task: Convert the user's input into LaTeX that can be inserted inside a document body.
-
-    Hard rules:
-    - Do NOT solve, answer, explain, or add any new content.
-    - Do NOT remove any content.
-    - Preserve the original meaning, order, and intent exactly.
-    - If the input contains questions or instructions, keep them as text.
-    - Only convert formatting to LaTeX (e.g., headings -> \section, lists -> itemize).
-    - Keep all numbers, math expressions, and wording unchanged except for required LaTeX syntax.
-    - Output ONLY LaTeX. No markdown, no preamble, no commentary.
-    """
 
 LATEX_TEMPLATE = r"""
 \documentclass[11pt]{article}
@@ -98,6 +81,17 @@ def _extract_latex_document_body(content: str) -> str:
     if match:
         return match.group(1).strip()
     return content.strip()
+
+
+def _normalize_markdown_headings(content: str) -> str:
+    normalized_lines: list[str] = []
+    for line in content.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            normalized_lines.append(re.sub(r"^#+\s*", "", stripped).strip())
+            continue
+        normalized_lines.append(line)
+    return "\n".join(normalized_lines)
 
 
 def _escape_text_mode_special_chars(content: str) -> str:
@@ -178,16 +172,15 @@ def _escape_text_mode_special_chars(content: str) -> str:
     return "".join(escaped_chars).strip()
 
 
-def build_latex_render_candidates(content: str) -> list[str]:
+def prepare_latex_body(content: str) -> str | None:
     normalized = _extract_latex_document_body(_strip_markdown_code_fences(content))
     if not normalized:
-        return []
+        return None
 
-    candidates: list[str] = [normalized]
+    normalized = _normalize_markdown_headings(normalized)
     escaped = _escape_text_mode_special_chars(normalized)
-    if escaped and escaped not in candidates:
-        candidates.append(escaped)
-    return candidates
+    cleaned = escaped.strip()
+    return cleaned or None
 
 
 def _extract_tectonic_error_context(latex_document: str, stderr: str) -> str:
@@ -223,42 +216,6 @@ def looks_like_latex(text: str | None) -> bool:
     if not stripped:
         return False
     return bool(LATEX_TRIGGER_RE.search(stripped))
-
-
-async def convert_text_to_latex(content: str) -> str | None:
-    """Ask the LLM to convert arbitrary text into LaTeX-only content."""
-    messages = [
-        SystemMessage(content=LATEX_CONVERTER_SYSTEM_PROMPT),
-        HumanMessage(content=content),
-    ]
-    try:
-        response = await async_llm_request(
-            messages=messages,
-            tools=None,
-            tool_choice=None,
-            run_name="latex_conversion",
-            temperature=0.0,
-            metadata={"phase": "latex_conversion"},
-        )
-    except Exception as exc:
-        logging.getLogger(__name__).warning("Latex conversion request failed: %s", exc)
-        return None
-
-    converted = response.content
-    if isinstance(converted, str):
-        cleaned = converted.strip()
-    elif isinstance(converted, list):
-        pieces = []
-        for chunk in converted:
-            if isinstance(chunk, str):
-                pieces.append(chunk)
-            elif isinstance(chunk, dict) and "text" in chunk:
-                pieces.append(chunk["text"])
-        cleaned = "".join(pieces).strip()
-    else:
-        cleaned = str(converted).strip()
-
-    return cleaned or None
 
 
 class MessagingService:
@@ -405,23 +362,13 @@ class MessagingService:
 
             self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
 
-            # TODO: all this part must be improved. Main goal is to avoid the extra LLM call.
             if looks_like_latex(llm_content):
-                latex_document_path = None
-                for candidate in build_latex_render_candidates(llm_content):
-                    latex_document_path = text_to_img(candidate)
-                    if latex_document_path:
-                        break
-
-                if latex_document_path is None:
-                    latex_ready_content = await convert_text_to_latex(llm_content)
-                    if latex_ready_content:
-                        for candidate in build_latex_render_candidates(
-                            latex_ready_content
-                        ):
-                            latex_document_path = text_to_img(candidate)
-                            if latex_document_path:
-                                break
+                prepared_latex_content = prepare_latex_body(llm_content)
+                latex_document_path = (
+                    text_to_img(prepared_latex_content)
+                    if prepared_latex_content is not None
+                    else None
+                )
 
                 if latex_document_path:
                     image_sent = await whatsapp_client.send_image_message(
