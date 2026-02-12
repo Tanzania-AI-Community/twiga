@@ -9,7 +9,7 @@ from app.services.messaging_service import (
     _escape_text_mode_special_chars,
     _extract_latex_document_body,
     _extract_tectonic_error_context,
-    build_latex_render_candidates,
+    prepare_latex_body,
 )
 from app.services.whatsapp_service import ImageType, WhatsAppClient
 from app.config import settings
@@ -137,10 +137,6 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
         patch(
-            "app.services.messaging_service.convert_text_to_latex",
-            AsyncMock(return_value="\\frac{1}{2}"),
-        ),
-        patch(
             "app.services.messaging_service.text_to_img",
             return_value="/tmp/twiga_latex_image.png",
         ),
@@ -183,9 +179,9 @@ def test_escape_text_mode_preserves_math_mode() -> None:
     assert escaped == r"Text x\_1 and math $y_2 + z^3$"
 
 
-def test_build_latex_render_candidates_include_escaped_variant() -> None:
-    candidates = build_latex_render_candidates(r"x_1 + y^2")
-    assert candidates == [r"x_1 + y^2", r"x\_1 + y\^{}2"]
+def test_prepare_latex_body_normalizes_markdown_headings() -> None:
+    prepared = prepare_latex_body("## Step 1\nUse $x_1$ and y^2")
+    assert prepared == "Step 1\nUse $x_1$ and y\\^{}2"
 
 
 def test_extract_tectonic_error_context_returns_line_snippet() -> None:
