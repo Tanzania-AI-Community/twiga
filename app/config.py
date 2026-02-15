@@ -5,7 +5,7 @@ This module sets the env configs for our WhatsApp app.
 from typing import Optional
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, SecretStr, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from enum import Enum
 
 
@@ -218,10 +218,50 @@ class EmbeddingSettings(BaseSettings):
     )
 
 
+class ToolLLMConfig(BaseModel):
+    """LLM configuration for a specific tool"""
+
+    tool_model_name: str
+    provider: LLMProvider
+    api_key: Optional[SecretStr] = None
+    tool_model_params: dict = {}
+
+
+class ToolSettings(BaseSettings):
+    """Per-tool LLM configurations"""
+
+    model_config = SettingsConfigDict(
+        env_file=os.getenv("TWIGA_ENV", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        env_prefix="TOOL_",
+    )
+
+    solve_equation_api_key: Optional[SecretStr] = Field(
+        default=None, validation_alias="llm_api_key"
+    )
+    solve_equation: ToolLLMConfig = Field(
+        default=ToolLLMConfig(
+            tool_model_name="Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+            provider=LLMProvider.TOGETHER,
+            tool_model_params={"temperature": 0.0},
+        )
+    )
+
+    @model_validator(mode="after")
+    def inject_api_keys(self):
+        if self.solve_equation_api_key:
+            self.solve_equation.api_key = self.solve_equation_api_key
+        return self
+
+
 def initialize_settings():
     settings = Settings()  # type: ignore
     llm_settings = LLMSettings()
     embedding_settings = EmbeddingSettings()
+    tool_settings = ToolSettings()
 
     # Validate required Meta settings
     assert (
@@ -252,7 +292,7 @@ def initialize_settings():
         settings.database_url and settings.database_url.get_secret_value().strip()
     ), "DATABASE_URL is required"
 
-    return settings, llm_settings, embedding_settings
+    return settings, llm_settings, embedding_settings, tool_settings
 
 
-settings, llm_settings, embedding_settings = initialize_settings()
+settings, llm_settings, embedding_settings, tool_settings = initialize_settings()

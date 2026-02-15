@@ -2,6 +2,7 @@ import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.utils.prompt_manager import prompt_manager
 from app.utils.llm_utils import async_llm_request
+from app.config import tool_settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,20 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
             HumanMessage(content=user_prompt),
         ]
 
-        # Use default LLM with math-specific parameters, this can be changed to custom math model later
+        logger.debug(
+            f"Solving equation: {equation}, with model: {tool_settings.solve_equation.tool_model_name}"
+        )
         response = await async_llm_request(
             messages=messages,
             tools=None,
             tool_choice=None,
+            model_name=tool_settings.solve_equation.tool_model_name,
+            provider=tool_settings.solve_equation.provider,
+            api_key=tool_settings.solve_equation.api_key,
             run_name="twiga_solve_equation",
-            temperature=0.0,
+            temperature=tool_settings.solve_equation.tool_model_params.get(
+                "temperature", 0
+            ),
             metadata={
                 "tool": "solve_equation",
                 "equation": equation,
