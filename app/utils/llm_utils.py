@@ -182,6 +182,28 @@ def _create_llm_client(
     return llm
 
 
+def _check_correct_overriding(
+    has_model_name: bool, has_provider: bool, has_api_key: bool
+) -> None:
+    """Validate that all three parameters are specified together when overriding defaults.
+
+    Args:
+        has_model_name: Whether model_name is provided
+        has_provider: Whether provider is provided
+        has_api_key: Whether api_key is provided
+
+    Raises:
+        ValueError: If only some parameters are provided
+    """
+    if has_model_name or has_provider or has_api_key:
+        if not (has_model_name and has_provider and has_api_key):
+            raise ValueError(
+                "When overriding async_llm_request defaults, all three parameters must be specified together: "
+                "'model_name', 'provider', and 'api_key'. "
+                "Providing only some would lead to ambiguous behavior."
+            )
+
+
 @backoff.on_exception(
     backoff.expo,
     (requests.exceptions.RequestException, Exception),
@@ -222,18 +244,11 @@ async def async_llm_request(
         Exception: If the LLM request fails after retries
     """
     try:
-        # Validate: if overriding, must specify model_name, provider, AND api_key for custom model call
-        has_model = model_name is not None
-        has_provider = provider is not None
-        has_api_key = api_key is not None
-        if has_model or has_provider or has_api_key:
-            # If any is specified, all must be specified
-            if not (has_model and has_provider and has_api_key):
-                raise ValueError(
-                    "When overriding async_llm_request defaults, all three parameters must be specified together: "
-                    "'model_name', 'provider', and 'api_key'. "
-                    "Providing only some would lead to ambiguous behavior."
-                )
+        _check_correct_overriding(
+            has_model_name=model_name is not None,
+            has_provider=provider is not None,
+            has_api_key=api_key is not None,
+        )
 
         if model_name and provider and api_key:
             effective_provider = provider
@@ -245,7 +260,6 @@ async def async_llm_request(
             effective_model = _resolve_model_name()
             effective_api_key = llm_settings.api_key
 
-        # Determine base_url for OLLAMA/MODAL providers
         if effective_provider == LLMProvider.OLLAMA:
             effective_base_url = llm_settings.ollama_base_url
         elif effective_provider == LLMProvider.MODAL:
