@@ -89,7 +89,6 @@ class SubjectName(str, Enum):
     arts_and_design = "arts_and_design"
     auto_body_repair = "auto_body_repair"
     bible_knowledge = "bible_knowledge"
-    biology = "biology"
     book_keeping = "book_keeping"
     chemistry = "chemistry"
     computer_science = "computer_science"
