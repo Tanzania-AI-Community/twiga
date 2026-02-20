@@ -94,6 +94,17 @@ class SubjectName(str, Enum):
     computer_science = "computer_science"
     engineering_science = "engineering_science"
     physics = "physics"
+    acting = "acting"
+    business_studies = "business_studies"
+    additional_mathematics = "additional_mathematics"
+    autio_electric = "autio_electric"
+    carpentry = "carpentry"
+    civil_draughting = "civil_draughting"
+    horticultural_production = "horticultural_production"
+    leather_goods_and_footwear = "leather_goods_and_footwear"
+    literature_in_english = "literature_in_english"
+    information_and_computer_studies = "information_and_computer_studies"
+    commerce = "commerce"
 
     @property
     def display_format(self) -> str:
@@ -117,10 +128,21 @@ class SubjectName(str, Enum):
             "computer_science": "💻",
             "engineering_science": "📐",
             "physics": "🚀",
+            "acting": "🎭",
+            "business_studies": "💼",
+            "additional_mathematics": "➕",
+            "autio_electric": "🚗",
+            "carpentry": "🪚",
+            "civil_draughting": "📏",
+            "horticultural_production": "🌱",
+            "leather_goods_and_footwear": "👞",
+            "literature_in_english": "📖",
+            "information_and_computer_studies": "🖥️",
+            "commerce": "💹",
         }
 
         emoji = emoji_map.get(self, "")
-        return f"{self.capitalize()} {emoji}"
+        return f"{self.replace('_', ' ').title()} {emoji}".strip()
 
 
 class ChunkType(str, Enum):

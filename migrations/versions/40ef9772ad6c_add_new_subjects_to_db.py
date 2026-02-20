@@ -33,6 +33,27 @@ def upgrade() -> None:
     op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'computer_science';")
     op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'engineering_science';")
     op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'physics';")
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'acting';")
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'business_studies';")
+    op.execute(
+        "ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'additional_mathematics';"
+    )
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'autio_electric';")
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'carpentry';")
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'civil_draughting';")
+    op.execute(
+        "ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'horticultural_production';"
+    )
+    op.execute(
+        "ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'leather_goods_and_footwear';"
+    )
+    op.execute(
+        "ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'literature_in_english';"
+    )
+    op.execute(
+        "ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'information_and_computer_studies';"
+    )
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'commerce';")
     # ### end Alembic commands ###
 
 
@@ -52,7 +73,18 @@ def downgrade() -> None:
             'chemistry',
             'computer_science',
             'engineering_science',
-            'physics'
+            'physics',
+            'acting',
+            'business_studies',
+            'additional_mathematics',
+            'autio_electric',
+            'carpentry',
+            'civil_draughting',
+            'horticultural_production',
+            'leather_goods_and_footwear',
+            'literature_in_english',
+            'information_and_computer_studies',
+            'commerce'
         );
         """
     )
