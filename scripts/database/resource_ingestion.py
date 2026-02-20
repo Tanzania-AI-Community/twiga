@@ -195,14 +195,14 @@ async def process_chunks(
             batch_items = chunks[start_idx:end_idx]
 
             for item in batch_items:
+                title = chapter_number_to_name_mapper.get(item.chapter_number)
+
                 chunk = models.Chunk(
                     resource_id=resource_id,
                     content=item.content,
                     chunk_type=ChunkType.text,  # TODO: include in json
                     top_level_section_index=str(item.chapter_number),
-                    top_level_section_title=chapter_number_to_name_mapper.get(
-                        item.chapter_number
-                    ),
+                    top_level_section_title=title[:100] if title else None,
                     embedding=item.embedding,
                 )
                 session.add(chunk)
