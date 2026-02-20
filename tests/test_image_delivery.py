@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import app.database.enums as enums
 from app.database.models import Message, User
-from app.services.messaging_service import (
-    MessagingService,
+from app.services.latex_image_service import (
     _escape_text_mode_special_chars,
     _extract_latex_document_body,
     _extract_tectonic_error_context,
     prepare_latex_body,
 )
+from app.services.messaging_service import MessagingService
 from app.services.whatsapp_service import ImageType, WhatsAppClient
 from app.config import settings
 
