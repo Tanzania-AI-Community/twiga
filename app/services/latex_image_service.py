@@ -40,6 +40,7 @@ LATEX_DOCUMENT_BODY_RE = re.compile(
 TECTONIC_ERROR_LINE_RE = re.compile(r":[^:\n]+:(\d+):\s*(.+)")
 MARKDOWN_BOLD_RE = re.compile(r"(?<![\\\w])\*\*(?=\S)(.+?)(?<=\S)\*\*(?!\w)")
 MARKDOWN_ITALIC_RE = re.compile(r"(?<![\\\w])\*(?=\S)(.+?)(?<=\S)\*(?!\w)")
+MARKDOWN_HEADING_RE = re.compile(r"^\s*(#{1,6})\s+(.*?)\s*$")
 
 LATEX_TEMPLATE = r"""
 \documentclass[11pt]{article}
@@ -75,14 +76,26 @@ def _extract_latex_document_body(content: str) -> str:
 
 
 def _normalize_markdown_headings(content: str) -> str:
+    def to_latex_heading(level: int, text: str) -> str:
+        if level == 1:
+            return rf"\section*{{{text}}}"
+        if level in (2, 3):
+            return rf"\subsection*{{{text}}}"
+        if level == 4:
+            return rf"\subsubsection*{{{text}}}"
+        return rf"\textbf{{{text}}}"
+
     normalized_lines: list[str] = []
     for line in content.splitlines():
-        stripped = line.lstrip()
-        if stripped.startswith("#"):
-            normalized_lines.append(re.sub(r"^#+\s*", "", stripped).strip())
+        match = MARKDOWN_HEADING_RE.match(line)
+        if match:
+            level = len(match.group(1))
+            heading_text = match.group(2)
+            normalized_lines.append(to_latex_heading(level, heading_text))
+            normalized_lines.append("")
             continue
         normalized_lines.append(line)
-    return "\n".join(normalized_lines)
+    return "\n".join(normalized_lines).strip()
 
 
 def _convert_markdown_emphasis_in_text(content: str) -> str:

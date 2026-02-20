@@ -181,7 +181,12 @@ def test_escape_text_mode_preserves_math_mode() -> None:
 
 def test_prepare_latex_body_normalizes_markdown_headings() -> None:
     prepared = prepare_latex_body("## Step 1\nUse $x_1$ and y^2")
-    assert prepared == "Step 1\nUse $x_1$ and y\\^{}2"
+    assert prepared == "\\subsection*{Step 1}\n\nUse $x_1$ and y\\^{}2"
+
+
+def test_prepare_latex_body_renders_h3_as_subsection_heading() -> None:
+    prepared = prepare_latex_body("### Step 3: Group Terms\nContent")
+    assert prepared == "\\subsection*{Step 3: Group Terms}\n\nContent"
 
 
 def test_prepare_latex_body_converts_markdown_emphasis() -> None:
