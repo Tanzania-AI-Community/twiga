@@ -38,7 +38,7 @@ def upgrade() -> None:
     op.execute(
         "ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'additional_mathematics';"
     )
-    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'autio_electric';")
+    op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'auto_electric';")
     op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'carpentry';")
     op.execute("ALTER TYPE subjectname ADD VALUE IF NOT EXISTS 'civil_draughting';")
     op.execute(
@@ -77,7 +77,7 @@ def downgrade() -> None:
             'acting',
             'business_studies',
             'additional_mathematics',
-            'autio_electric',
+            'auto_electric',
             'carpentry',
             'civil_draughting',
             'horticultural_production',
