@@ -106,82 +106,102 @@ def _convert_tools_for_gemini(tools: List[Dict]) -> List[Dict]:
     return converted_tools
 
 
-def get_llm_client(
-    tools: Optional[List[Dict]] = None, tool_choice: Optional[str] = None
+def _create_llm_client(
+    provider: LLMProvider,
+    model_name: str,
+    api_key: Optional[SecretStr],
+    base_url: Optional[str] = None,
+    tools: Optional[List[Dict]] = None,
+    tool_choice: Optional[str] = None,
 ) -> Union[BaseChatModel, Runnable]:
-    """Get the appropriate LangChain LLM client based on configuration."""
-    llm: BaseChatModel
+    """
+    Internal function to create an LLM client for a specific provider, optionally bound with tools.
 
-    if llm_settings.provider == LLMProvider.TOGETHER:
-        if not llm_settings.api_key:
-            raise ValueError("Together provider requires LLM_API_KEY to be set.")
+    Args:
+        provider: The LLM provider to use
+        model_name: The model name to use
+        api_key: API key as a SecretStr (can be None for OLLAMA/MODAL)
+        base_url: Base URL for providers that support it (OLLAMA/MODAL)
+        tools: Optional list of tools for function calling
+        tool_choice: Optional tool choice strategy ("auto", "required", etc.)
 
+    Returns:
+        A configured LangChain LLM client, optionally bound with tools
+    """
+    if provider == LLMProvider.TOGETHER:
+        if not api_key:
+            raise ValueError("Together provider requires API_KEY.")
         llm = ChatTogether(
-            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
-            model=llm_settings.llm_name,
-        )
-    elif llm_settings.provider == LLMProvider.OPENAI:
-        if not llm_settings.api_key:
-            raise ValueError("OpenAI provider requires LLM_API_KEY to be set.")
-
-        llm = ChatOpenAI(
-            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
-            model=llm_settings.llm_name,
-        )
-    elif llm_settings.provider == LLMProvider.OLLAMA:
-        model_name = _resolve_model_name()
-        if not model_name:
-            raise ValueError(
-                "Ollama provider requires a model name. Set LLM__OLLAMA_MODEL_NAME or LLM__LLM_MODEL_NAME."
-            )
-
-        api_key = (
-            llm_settings.api_key.get_secret_value()
-            if llm_settings.api_key
-            else "ollama"
-        )
-        llm = ChatOpenAI(
-            api_key=SecretStr(api_key),
+            api_key=api_key,
             model=model_name,
-            base_url=llm_settings.ollama_base_url,
         )
 
-    elif llm_settings.provider == LLMProvider.MODAL:
-        model_name = _resolve_model_name()
-        if not model_name:
-            raise ValueError(
-                "Modal provider requires a model name. Set LLMProvider.MODAL_MODEL_NAME or LLMProvider.LLM_MODEL_NAME."
-            )
-
-        api_key = (
-            llm_settings.api_key.get_secret_value() if llm_settings.api_key else "modal"
-        )
+    elif provider == LLMProvider.OPENAI:
+        if not api_key:
+            raise ValueError("OpenAI provider requires API_KEY.")
         llm = ChatOpenAI(
-            api_key=SecretStr(api_key),
+            api_key=api_key,
             model=model_name,
-            base_url=llm_settings.modal_base_url.get_secret_value(),
         )
 
-    elif llm_settings.provider == LLMProvider.GOOGLE:
-        if not llm_settings.api_key:
-            raise ValueError("Google provider requires LLM_API_KEY to be set.")
+    elif provider == LLMProvider.OLLAMA:
+        if not model_name:
+            raise ValueError("Ollama provider requires a model name.")
+        llm = ChatOpenAI(
+            api_key=api_key or SecretStr("ollama"),
+            model=model_name,
+            base_url=base_url,
+        )
 
+    elif provider == LLMProvider.MODAL:
+        if not model_name:
+            raise ValueError("Modal provider requires a model name.")
+        llm = ChatOpenAI(
+            api_key=api_key or SecretStr("modal"),
+            model=model_name,
+            base_url=base_url,
+        )
+
+    elif provider == LLMProvider.GOOGLE:
+        if not api_key:
+            raise ValueError("Google provider requires API_KEY.")
         llm = ChatGoogleGenerativeAI(
-            api_key=SecretStr(llm_settings.api_key.get_secret_value()),
-            model=llm_settings.llm_name,
+            api_key=api_key,
+            model=model_name,
             convert_system_message_to_human=True,
         )
 
     else:
-        raise ValueError("No valid LLM provider configured")
+        raise ValueError(f"No valid LLM provider configured: {provider}")
 
     if tools:
-        if llm_settings.provider == LLMProvider.GOOGLE:
+        if provider == LLMProvider.GOOGLE:
             tools = _convert_tools_for_gemini(tools)
-
-        return llm.bind_tools(tools, tool_choice=tool_choice)
+        llm = llm.bind_tools(tools, tool_choice=tool_choice)
 
     return llm
+
+
+def _check_correct_overriding(
+    has_model_name: bool, has_provider: bool, has_api_key: bool
+) -> None:
+    """Validate that all three parameters are specified together when overriding defaults.
+
+    Args:
+        has_model_name: Whether model_name is provided
+        has_provider: Whether provider is provided
+        has_api_key: Whether api_key is provided
+
+    Raises:
+        ValueError: If only some parameters are provided
+    """
+    if has_model_name or has_provider or has_api_key:
+        if not (has_model_name and has_provider and has_api_key):
+            raise ValueError(
+                "When overriding async_llm_request defaults, all three parameters must be specified together: "
+                "'model_name', 'provider', and 'api_key'. "
+                "Providing only some would lead to ambiguous behavior."
+            )
 
 
 @backoff.on_exception(
@@ -194,6 +214,9 @@ async def async_llm_request(
     messages: List[BaseMessage],
     tools: Optional[List[Dict]] = None,
     tool_choice: Optional[str] = None,
+    model_name: Optional[str] = None,
+    provider: Optional[LLMProvider] = None,
+    api_key: Optional[SecretStr] = None,
     verbose: bool = False,
     run_name: Optional[str] = None,
     metadata: Optional[Dict] = None,
@@ -203,49 +226,77 @@ async def async_llm_request(
     Make a request to LLM using LangChain with exponential backoff retry logic.
 
     Args:
-        messages (List[BaseMessage]): List of LangChain message objects.
-        tools (Optional[List[Dict]], optional): List of tools to use with the LLM. Defaults to None.
-        tool_choice (Optional[str], optional): Tool choice for the LLM. Defaults to None.
-        verbose (bool, optional): Whether to log debug information. Defaults to False.
-        run_name (Optional[str], optional): Name for the LangSmith trace run. Defaults to None.
-        metadata (Optional[Dict], optional): Additional metadata for LangSmith tracing. Defaults to None.
-        **kwargs: Additional keyword arguments for the LLM call.
+        messages: List of LangChain message objects
+        tools: Optional list of tools for function calling
+        tool_choice: Optional tool choice strategy ("auto", "required", etc.)
+        model_name: Optional model name override (defaults to llm settings)
+        provider: Optional provider override (defaults to llm settings)
+        api_key: Optional API key override (defaults to llm settings)
+        verbose: Whether to log debug information
+        run_name: Optional name for LangSmith trace run
+        metadata: Optional metadata for LangSmith tracing
+        **kwargs: Additional keyword arguments for the LLM call
+
     Returns:
-        AIMessage: The response from the LLM as a LangChain AIMessage.
+        AIMessage: The response from the LLM as a LangChain AIMessage
+
     Raises:
-        Exception: If the LLM request fails after retries.
+        Exception: If the LLM request fails after retries
     """
     try:
-        llm = get_llm_client(tools=tools, tool_choice=tool_choice)
+        _check_correct_overriding(
+            has_model_name=model_name is not None,
+            has_provider=provider is not None,
+            has_api_key=api_key is not None,
+        )
+
+        if model_name and provider and api_key:
+            effective_provider = provider
+            effective_model = model_name
+            effective_api_key = api_key
+        else:
+            # Use default settings (provides backward compatibility for existing calls that don't specify these parameters)
+            effective_provider = llm_settings.provider
+            effective_model = _resolve_model_name()
+            effective_api_key = llm_settings.api_key
+
+        if effective_provider == LLMProvider.OLLAMA:
+            effective_base_url = llm_settings.ollama_base_url
+        elif effective_provider == LLMProvider.MODAL:
+            effective_base_url = llm_settings.modal_base_url.get_secret_value()
+        else:
+            effective_base_url = None
+
+        llm = _create_llm_client(
+            provider=effective_provider,
+            model_name=effective_model,
+            api_key=effective_api_key,
+            base_url=effective_base_url,
+            tools=tools,
+            tool_choice=tool_choice,
+        )
 
         if verbose:
             logger.debug(f"Messages sent to LLM API:\n{messages}")
 
-        # Prepare kwargs for LangSmith tracing
+        # Prepare kwargs for LangSmith tracing and additional parameters
         invoke_kwargs = {}
-        if llm_settings.langsmith_tracing:
-            # Add tracing configuration
+        if llm_settings.langsmith_tracing and (run_name or metadata):
             config = {}
             if run_name:
                 config["run_name"] = run_name
             if metadata:
                 config["metadata"] = metadata
-            if config:
-                invoke_kwargs["config"] = config
+            invoke_kwargs["config"] = config
 
-        # Merge any additional kwargs
+        # Merge any additional kwargs (like temperature, max_tokens, etc.) otherwise they dont get passed to the LLM call
         invoke_kwargs.update(kwargs)
 
-        model_name = _resolve_model_name()
-
         # Make the async call while tracking metrics
-        with LLMCallTracker(llm_settings.provider.value, model_name):
+        with LLMCallTracker(effective_provider.value, effective_model):
             response = await llm.ainvoke(messages, **invoke_kwargs)
             return cast(AIMessage, response)
 
     except Exception as e:
         logger.error(f"LLM request failed: {str(e)}")
         raise
-
-
-# Removed conversion functions - now using native LangChain types

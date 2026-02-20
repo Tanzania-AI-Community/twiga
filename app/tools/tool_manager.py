@@ -11,6 +11,7 @@ from app.database.models import User
 from app.tools.registry import ToolName, get_tools_metadata
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.search_knowledge.main import search_knowledge
+from app.tools.tool_code.solve_equation.main import solve_equation
 
 
 # Simple Types replacements for OpenAI types
@@ -174,12 +175,15 @@ class ToolManager:
                 function_args = json.loads(tool_call.function.arguments)
 
                 # Convert class_id to int (Gemini returns it as string due to enum constraints)
-                function_args["class_id"] = int(function_args["class_id"])
+                if "class_id" in function_args:
+                    function_args["class_id"] = int(function_args["class_id"])
 
                 if function_name == ToolName.search_knowledge.value:
                     result = await search_knowledge(**function_args)
                 elif function_name == ToolName.generate_exercise.value:
                     result = await generate_exercise(**function_args)
+                elif function_name == ToolName.solve_equation.value:
+                    result = await solve_equation(**function_args)
 
                 tool_responses.append(
                     Message(
