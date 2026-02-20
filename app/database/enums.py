@@ -97,7 +97,7 @@ class SubjectName(str, Enum):
     acting = "acting"
     business_studies = "business_studies"
     additional_mathematics = "additional_mathematics"
-    autio_electric = "autio_electric"
+    auto_electric = "auto_electric"
     carpentry = "carpentry"
     civil_draughting = "civil_draughting"
     horticultural_production = "horticultural_production"
@@ -131,7 +131,7 @@ class SubjectName(str, Enum):
             "acting": "🎭",
             "business_studies": "💼",
             "additional_mathematics": "➕",
-            "autio_electric": "🚗",
+            "auto_electric": "🚗",
             "carpentry": "🪚",
             "civil_draughting": "📏",
             "horticultural_production": "🌱",
