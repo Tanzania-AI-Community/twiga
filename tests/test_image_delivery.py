@@ -184,6 +184,23 @@ def test_prepare_latex_body_normalizes_markdown_headings() -> None:
     assert prepared == "Step 1\nUse $x_1$ and y\\^{}2"
 
 
+def test_prepare_latex_body_converts_markdown_emphasis() -> None:
+    prepared = prepare_latex_body(
+        "1. **Identify Common Factors**\n*Factorization is complete.*"
+    )
+    assert (
+        prepared
+        == "1. \\textbf{Identify Common Factors}\n\\emph{Factorization is complete.}"
+    )
+
+
+def test_prepare_latex_body_preserves_math_operators_while_converting_emphasis() -> (
+    None
+):
+    prepared = prepare_latex_body("Use $a*b*c$ and **bold**")
+    assert prepared == "Use $a*b*c$ and \\textbf{bold}"
+
+
 def test_extract_tectonic_error_context_returns_line_snippet() -> None:
     latex_document = "\n".join(
         [

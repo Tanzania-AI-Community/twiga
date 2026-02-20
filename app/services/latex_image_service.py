@@ -38,6 +38,8 @@ LATEX_DOCUMENT_BODY_RE = re.compile(
     re.DOTALL,
 )
 TECTONIC_ERROR_LINE_RE = re.compile(r":[^:\n]+:(\d+):\s*(.+)")
+MARKDOWN_BOLD_RE = re.compile(r"(?<![\\\w])\*\*(?=\S)(.+?)(?<=\S)\*\*(?!\w)")
+MARKDOWN_ITALIC_RE = re.compile(r"(?<![\\\w])\*(?=\S)(.+?)(?<=\S)\*(?!\w)")
 
 LATEX_TEMPLATE = r"""
 \documentclass[11pt]{article}
@@ -81,6 +83,73 @@ def _normalize_markdown_headings(content: str) -> str:
             continue
         normalized_lines.append(line)
     return "\n".join(normalized_lines)
+
+
+def _convert_markdown_emphasis_in_text(content: str) -> str:
+    content = MARKDOWN_BOLD_RE.sub(r"\\textbf{\1}", content)
+    return MARKDOWN_ITALIC_RE.sub(r"\\emph{\1}", content)
+
+
+def _convert_markdown_emphasis(content: str) -> str:
+    converted_parts: list[str] = []
+    text_buffer: list[str] = []
+    in_inline_math = False
+    in_display_math = False
+
+    def flush_text_buffer() -> None:
+        if text_buffer:
+            converted_parts.append(
+                _convert_markdown_emphasis_in_text("".join(text_buffer))
+            )
+            text_buffer.clear()
+
+    i = 0
+    while i < len(content):
+        if content.startswith(r"\(", i):
+            flush_text_buffer()
+            in_inline_math = True
+            converted_parts.append(r"\(")
+            i += 2
+            continue
+        if content.startswith(r"\)", i):
+            flush_text_buffer()
+            in_inline_math = False
+            converted_parts.append(r"\)")
+            i += 2
+            continue
+        if content.startswith(r"\[", i):
+            flush_text_buffer()
+            in_display_math = True
+            converted_parts.append(r"\[")
+            i += 2
+            continue
+        if content.startswith(r"\]", i):
+            flush_text_buffer()
+            in_display_math = False
+            converted_parts.append(r"\]")
+            i += 2
+            continue
+        if content.startswith("$$", i):
+            flush_text_buffer()
+            in_display_math = not in_display_math
+            converted_parts.append("$$")
+            i += 2
+            continue
+        if content[i] == "$":
+            flush_text_buffer()
+            in_inline_math = not in_inline_math
+            converted_parts.append("$")
+            i += 1
+            continue
+
+        if in_inline_math or in_display_math:
+            converted_parts.append(content[i])
+        else:
+            text_buffer.append(content[i])
+        i += 1
+
+    flush_text_buffer()
+    return "".join(converted_parts)
 
 
 def _escape_text_mode_special_chars(content: str) -> str:
@@ -167,6 +236,7 @@ def prepare_latex_body(content: str) -> str | None:
         return None
 
     normalized = _normalize_markdown_headings(normalized)
+    normalized = _convert_markdown_emphasis(normalized)
     escaped = _escape_text_mode_special_chars(normalized)
     cleaned = escaped.strip()
     return cleaned or None
