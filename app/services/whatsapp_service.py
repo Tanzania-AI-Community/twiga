@@ -17,7 +17,7 @@ import os
 class ImageType(str, Enum):
     JPEG = "image/jpeg"
     PNG = "image/png"
-    JPG = "image/jpg"
+    JPG = "image/jpeg"
 
 
 def _extract_statuses(body: dict) -> list[dict]:
@@ -62,14 +62,14 @@ class WhatsAppClient:
         image_path: str,
         img_type: ImageType,
         caption: Optional[str] = None,
-    ) -> None:
+    ) -> bool:
         if settings.mock_whatsapp:
             self.logger.info(
                 "Mock send_image_message called for %s with image %s", wa_id, image_path
             )
-            return
+            return True
 
-        message_sent_successfully = False
+        media_id: Optional[str] = None
 
         try:
             media_id = await self.upload_media(image_path, img_type)
@@ -88,7 +88,7 @@ class WhatsAppClient:
             )
             log_httpx_response(response)
             response.raise_for_status()
-            message_sent_successfully = True
+            return True
 
         except httpx.RequestError as e:
             self.logger.error("Image Message Request Error: %s", e)
@@ -97,10 +97,22 @@ class WhatsAppClient:
             self.logger.error("Image Message Unexpected Error: %s", e)
 
         finally:
-            if message_sent_successfully:
-                await self.delete_media(
-                    media_id, image_path
-                )  # Clean up media after sending
+            if media_id:
+                try:
+                    await self.delete_media(
+                        media_id, image_path
+                    )  # Clean up uploaded media and local file
+                except Exception as exc:
+                    self.logger.warning(
+                        "Image cleanup failed for media %s (%s): %s",
+                        media_id,
+                        image_path,
+                        exc,
+                    )
+            else:
+                self._delete_local_file(image_path)
+
+        return False
 
     async def delete_media(self, media_id: str, image_path: str) -> None:
         """Delete upload media from WhatsApp and locally"""
@@ -121,11 +133,15 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Media Delete Unexpected Error: %s", e)
             raise
+        finally:
+            self._delete_local_file(image_path)
 
+    def _delete_local_file(self, image_path: str) -> None:
         try:
-            os.remove(image_path)
+            if os.path.exists(image_path):
+                os.remove(image_path)
         except Exception as e:
-            self.logger.error(f"Failed to delete file {image_path}: {e}")
+            self.logger.error("Failed to delete file %s: %s", image_path, e)
 
     async def upload_media(self, path: str, img_type: ImageType) -> Optional[str]:
         """Upload an image to WhatsApp and return the media ID."""
@@ -145,7 +161,7 @@ class WhatsAppClient:
         try:
             with file_path.open("rb") as file_handle:
                 files = {
-                    "file": (file_path.name, file_handle, img_type),
+                    "file": (file_path.name, file_handle, img_type.value),
                 }
                 data = {"messaging_product": "whatsapp"}
                 headers = {
