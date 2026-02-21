@@ -2,6 +2,9 @@ import copy
 from enum import Enum
 import json
 import logging
+from app.tools.tool_code.generate_exercise.main import generate_exercise
+from app.tools.tool_code.search_knowledge.main import search_knowledge
+from app.tools.tool_code.solve_equation.main import solve_equation
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,14 @@ class ToolName(str, Enum):
     solve_equation = "solve_equation"
 
 
-tools_metadata = [
+TOOL_FUNCTION_MAP = {
+    ToolName.search_knowledge.value: search_knowledge,
+    ToolName.generate_exercise.value: generate_exercise,
+    ToolName.solve_equation.value: solve_equation,
+}
+
+
+TOOLS_METADATA = [
     {
         "type": "function",
         "function": {
@@ -93,7 +103,7 @@ def get_tools_metadata(available_classes: str) -> list:
     """
     try:
         # Make a deep copy to avoid modifying the original
-        tools = copy.deepcopy(tools_metadata)
+        tools = copy.deepcopy(TOOLS_METADATA)
 
         # Format class_id description for all tools
         for tool in tools:

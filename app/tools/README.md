@@ -29,21 +29,14 @@ The `main.py` file should contain your tool's main function.
 
 Update `app/tools/registry.py`:
 
-a) Add tool name to ToolName enum:
+a) Add tool name to `ToolName` enum
 
-b) Add tool metadata to `tools_metadata` list
+b) Add function to `TOOL_FUNCTION_MAP` dictionary
 
-
-### 3. Connect Tool in Tool Manager
-
-Update `app/tools/tool_manager.py`:
-
-a) Import tool function
-
-b) Add case to `process_tool_calls` method
+c) Add tool metadata to `TOOLS_METADATA` list
 
 
-### 4. Update System Prompts
+### 3. Update System Prompts
 
 Add tool usage guidance to the agent's system prompts:
 
@@ -52,7 +45,7 @@ Add tool usage guidance to the agent's system prompts:
 
 Add appropriate instructions in the tool usage section describing when and how to use your tool.
 
-### 5. Add User-Facing Message
+### 4. Add User-Facing Message
 
 Update `app/assets/strings/english.yml` to add a loading message for your tool:
 
