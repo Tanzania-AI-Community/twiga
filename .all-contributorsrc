@@ -126,6 +126,30 @@
         "design",
         "ideas"
       ]
+    },
+    {
+      "login": "Silvia-00",
+      "name": "Silvia Mosca",
+      "avatar_url": "https://avatars.githubusercontent.com/u/144936497?v=4",
+      "profile": "https://github.com/Silvia-00",
+      "contributions": [
+        "audio",
+        "code",
+        "ideas"
+      ]
+    },
+    {
+      "login": "Erikbou",
+      "name": "Erik Boustedt ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16526330?v=4",
+      "profile": "https://github.com/Erikbou",
+      "contributions": [
+        "code",
+        "content",
+        "data",
+        "ideas",
+        "financial"
+      ]
     }
   ]
 }

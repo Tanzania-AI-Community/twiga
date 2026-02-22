@@ -186,6 +186,24 @@ Thank you to all the people that have contributed to Twiga so far!
 <a href="#design-JohanL01" title="design">🎨</a>
 <a href="#ideas-JohanL01" title="ideas">🤔</a>
 </td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Silvia-00"><img src="https://avatars.githubusercontent.com/u/144936497?v=4?s=100" width="100px;" alt="Silvia Mosca"/>
+<br /><sub><b>Silvia Mosca</b></sub></a>
+<br />
+<a href="#audio-Silvia-00" title="audio">🔊</a>
+<a href="#code-Silvia-00" title="code">💻</a>
+<a href="#ideas-Silvia-00" title="ideas">🤔</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Erikbou"><img src="https://avatars.githubusercontent.com/u/16526330?v=4?s=100" width="100px;" alt="Erik Boustedt "/>
+<br /><sub><b>Erik Boustedt </b></sub></a>
+<br />
+<a href="#code-Erikbou" title="code">💻</a>
+<a href="#content-Erikbou" title="content">🖋</a>
+<a href="#data-Erikbou" title="data">🔣</a>
+<a href="#ideas-Erikbou" title="ideas">🤔</a>
+<a href="#financial-Erikbou" title="financial">💵</a>
+</td>
     </tr>
   </tbody>
 </table>
