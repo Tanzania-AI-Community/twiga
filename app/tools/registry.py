@@ -2,6 +2,9 @@ import copy
 from enum import Enum
 import json
 import logging
+from app.tools.tool_code.generate_exercise.main import generate_exercise
+from app.tools.tool_code.search_knowledge.main import search_knowledge
+from app.tools.tool_code.solve_equation.main import solve_equation
 
 logger = logging.getLogger(__name__)
 
@@ -9,9 +12,17 @@ logger = logging.getLogger(__name__)
 class ToolName(str, Enum):
     search_knowledge = "search_knowledge"
     generate_exercise = "generate_exercise"
+    solve_equation = "solve_equation"
 
 
-tools_metadata = [
+TOOL_FUNCTION_MAP = {
+    ToolName.search_knowledge.value: search_knowledge,
+    ToolName.generate_exercise.value: generate_exercise,
+    ToolName.solve_equation.value: solve_equation,
+}
+
+
+TOOLS_METADATA = [
     {
         "type": "function",
         "function": {
@@ -58,6 +69,27 @@ tools_metadata = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": ToolName.solve_equation.value,
+            "description": "Solve a mathematical equation and return step-by-step solution.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equation": {
+                        "type": "string",
+                        "description": "A string containing the equation in LaTeX syntax.",
+                    },
+                    "concise": {
+                        "type": "boolean",
+                        "description": "If true (default), returns only mathematical steps. If false, returns detailed explanations with reasoning for each step.",
+                    },
+                },
+                "required": ["equation"],
+            },
+        },
+    },
 ]
 
 
@@ -71,7 +103,7 @@ def get_tools_metadata(available_classes: str) -> list:
     """
     try:
         # Make a deep copy to avoid modifying the original
-        tools = copy.deepcopy(tools_metadata)
+        tools = copy.deepcopy(TOOLS_METADATA)
 
         # Format class_id description for all tools
         for tool in tools:

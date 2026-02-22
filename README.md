@@ -151,6 +151,18 @@ Thank you to all the people that have contributed to Twiga so far!
 <a href="#code-alvaro-mazcu" title="code">💻</a>
 <a href="#doc-alvaro-mazcu" title="doc">📖</a>
 <a href="#test-alvaro-mazcu" title="test">⚠️</a>
+<a href="#infra-alvaro-mazcu" title="infra">🚇</a>
+<a href="#bug-alvaro-mazcu" title="bug">🐛</a>
+<a href="#design-alvaro-mazcu" title="design">🎨</a>
+<a href="#example-alvaro-mazcu" title="example">💡</a>
+<a href="#ideas-alvaro-mazcu" title="ideas">🤔</a>
+<a href="#maintenance-alvaro-mazcu" title="maintenance">🚧</a>
+<a href="#mentoring-alvaro-mazcu" title="mentoring">🧑‍🏫</a>
+<a href="#projectManagement-alvaro-mazcu" title="projectManagement">📆</a>
+<a href="#question-alvaro-mazcu" title="question">💬</a>
+<a href="#review-alvaro-mazcu" title="review">👀</a>
+<a href="#research-alvaro-mazcu" title="research">🔬</a>
+<a href="#talk-alvaro-mazcu" title="talk">📢</a>
 </td>
       <td align="center" valign="top" width="14.285714285714286%">
 <a href="https://github.com/wjunwei2001"><img src="https://avatars.githubusercontent.com/u/109643278?v=4?s=100" width="100px;" alt="Wang Junwei"/>
@@ -177,6 +189,11 @@ Thank you to all the people that have contributed to Twiga so far!
 <a href="#code-Ben-Temming" title="code">💻</a>
 <a href="#ideas-Ben-Temming" title="ideas">🤔</a>
 <a href="#design-Ben-Temming" title="design">🎨</a>
+<a href="#infra-Ben-Temming" title="infra">🚇</a>
+<a href="#example-Ben-Temming" title="example">💡</a>
+<a href="#ideas-Ben-Temming" title="ideas">🤔</a>
+<a href="#review-Ben-Temming" title="review">👀</a>
+<a href="#research-Ben-Temming" title="research">🔬</a>
 </td>
       <td align="center" valign="top" width="14.285714285714286%">
 <a href="https://github.com/JohanL01"><img src="https://avatars.githubusercontent.com/u/55000709?v=4?s=100" width="100px;" alt="JohanJohanJohan"/>
@@ -185,6 +202,24 @@ Thank you to all the people that have contributed to Twiga so far!
 <a href="#code-JohanL01" title="code">💻</a>
 <a href="#design-JohanL01" title="design">🎨</a>
 <a href="#ideas-JohanL01" title="ideas">🤔</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Silvia-00"><img src="https://avatars.githubusercontent.com/u/144936497?v=4?s=100" width="100px;" alt="Silvia Mosca"/>
+<br /><sub><b>Silvia Mosca</b></sub></a>
+<br />
+<a href="#audio-Silvia-00" title="audio">🔊</a>
+<a href="#code-Silvia-00" title="code">💻</a>
+<a href="#ideas-Silvia-00" title="ideas">🤔</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Erikbou"><img src="https://avatars.githubusercontent.com/u/16526330?v=4?s=100" width="100px;" alt="Erik Boustedt "/>
+<br /><sub><b>Erik Boustedt </b></sub></a>
+<br />
+<a href="#code-Erikbou" title="code">💻</a>
+<a href="#content-Erikbou" title="content">🖋</a>
+<a href="#data-Erikbou" title="data">🔣</a>
+<a href="#ideas-Erikbou" title="ideas">🤔</a>
+<a href="#financial-Erikbou" title="financial">💵</a>
 </td>
     </tr>
   </tbody>
