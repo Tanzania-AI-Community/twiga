@@ -184,7 +184,7 @@ class EmbeddingSettings(BaseSettings):
     )
 
     embedder_options: dict = {
-        "bge-large": "BAAI/bge-large-en-v1.5",  # 1024 dimensions
+        "bge-base": "BAAI/bge-base-en-v1.5",  # 1024 dimensions
         "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
     }
 
@@ -193,7 +193,7 @@ class EmbeddingSettings(BaseSettings):
         default=EmbeddingProvider.OLLAMA, validation_alias="embedding_provider"
     )
     embedder_name: str = Field(
-        default=embedder_options["bge-large"], validation_alias="embedding_model"
+        default=embedder_options["bge-base"], validation_alias="embedding_model"
     )
 
     ollama_model: Optional[str] = Field(

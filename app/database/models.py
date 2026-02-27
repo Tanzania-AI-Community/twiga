@@ -420,7 +420,7 @@ class Chunk(SQLModel, table=True):
     chunk_type: Optional[enums.ChunkType] = Field(max_length=30, default=None)
     """
     XXX: FILL IN THE EMBEDDING LENGTH FOR YOUR EMBEDDINGS
-    - Default is set to 1024 (for bge-large vectors)
+    - Default is set to 1024 (for bge-base vectors)
     - Replace with 1536 for text-embedding-3-small if using OpenAI's embedder
     """
     embedding: Any = Field(sa_column=Column(Vector(1024)))
