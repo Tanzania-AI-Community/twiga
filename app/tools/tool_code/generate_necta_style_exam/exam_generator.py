@@ -2,6 +2,7 @@ import copy
 import json
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -867,6 +868,7 @@ class ExamGenerator:
         chunks_by_topic: Dict[str, List[Any]],
     ) -> None:
         exam_json["generation_trace"] = {
+            "exam_id": str(uuid.uuid4()),
             "generated_at_utc": datetime.now(timezone.utc).isoformat(),
             "topics": list(chunks_by_topic.keys()),
             "topic_chunk_ids": {
