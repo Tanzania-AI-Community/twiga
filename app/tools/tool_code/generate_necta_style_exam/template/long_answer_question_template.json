@@ -1,0 +1,16 @@
+{
+    "id": null,
+    "marks": null,
+    "question_description": null,
+    "question": null,
+    "answer": {
+        "example_answer": null,
+        "marking_scheme": null,
+        "accepted_answers": [],
+        "marking_points": []
+    },
+    "metadata": {
+        "topic": null,
+        "difficulty": null
+    }
+}

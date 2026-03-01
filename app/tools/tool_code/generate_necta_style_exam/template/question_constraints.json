@@ -1,0 +1,19 @@
+{
+  "multiple_choice": [
+    "Exactly 5 options.",
+    "Exactly one correct answer.",
+    "Keep distractors plausible."
+  ],
+  "item_matching": [
+    "Use 5 items in listA and 7 items in listB to allow for distractors.",
+    "Fill answers_pairs fully."
+  ],
+  "short_answer": [
+    "Keep response concise and syllabus-aligned.",
+    "Provide accepted_answers and marking_points."
+  ],
+  "long_answer": [
+    "Provide a complete example answer.",
+    "Include concepts and marking_points."
+  ]
+}
