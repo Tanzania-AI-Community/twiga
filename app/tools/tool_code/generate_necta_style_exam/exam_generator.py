@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
@@ -173,13 +173,18 @@ class ExamGenerator:
                 previous_questions=previous_questions,
                 difficulty=spec.default_difficulty,
             )
-            section_a_questions.append(mcq_block)
+            if mcq_block.get("items"):
+                section_a_questions.append(mcq_block)
+            else:
+                logger.warning(
+                    "Skipping Section A MCQ block: no valid items were generated."
+                )
 
         for idx in range(max(0, spec.num_section_a_matching_questions)):
             topic = topics[
                 idx % len(topics)
             ]  # maybe make this more randomized in the future
-            matching_q = await self._generate_single_question(
+            success, matching_q = await self._generate_single_question(
                 question_type="item_matching",
                 subject=subject,
                 topic=topic,
@@ -190,11 +195,16 @@ class ExamGenerator:
                 num_marks=5,
                 difficulty=spec.default_difficulty,
             )
-            section_a_questions.append(matching_q)
+            if success:
+                section_a_questions.append(matching_q)
+            else:
+                logger.warning(
+                    "Skipping invalid item_matching question at index %s.", idx
+                )
 
         for idx in range(max(0, spec.num_section_b_short_answer_questions)):
             topic = topics[idx % len(topics)]
-            short_q = await self._generate_single_question(
+            success, short_q = await self._generate_single_question(
                 question_type="short_answer",
                 subject=subject,
                 topic=topic,
@@ -205,11 +215,16 @@ class ExamGenerator:
                 num_marks=14,
                 difficulty=spec.default_difficulty,
             )
-            section_b_questions.append(short_q)
+            if success:
+                section_b_questions.append(short_q)
+            else:
+                logger.warning(
+                    "Skipping invalid short_answer question at index %s.", idx
+                )
 
         for idx in range(max(0, spec.num_section_c_long_answer_questions)):
             topic = topics[idx % len(topics)]
-            long_q = await self._generate_single_question(
+            success, long_q = await self._generate_single_question(
                 question_type="long_answer",
                 subject=subject,
                 topic=topic,
@@ -220,7 +235,12 @@ class ExamGenerator:
                 num_marks=15,
                 difficulty="hard",
             )
-            section_c_questions.append(long_q)
+            if success:
+                section_c_questions.append(long_q)
+            else:
+                logger.warning(
+                    "Skipping invalid long_answer question at index %s.", idx
+                )
 
         section_a["question_list"] = section_a_questions
         section_b["question_list"] = section_b_questions
@@ -274,7 +294,7 @@ class ExamGenerator:
 
         for question_num in range(num_items):
             topic = topics[question_num % len(topics)]
-            item = await self._generate_single_question(
+            success, item = await self._generate_single_question(
                 question_type="multiple_choice",
                 subject=subject,
                 topic=topic,
@@ -285,6 +305,11 @@ class ExamGenerator:
                 num_marks=1,
                 difficulty=difficulty,
             )
+            if not success:
+                logger.warning(
+                    "Skipping invalid multiple_choice item at index %s.", question_num
+                )
+                continue
 
             item["label"] = (
                 self.ROMAN_LABELS[question_num]
@@ -298,7 +323,7 @@ class ExamGenerator:
         return {
             "id": "A-Q1",
             "type": "multiple_choice",
-            "marks": num_items,
+            "marks": len(items),
             "prompt": "For each of the following items, choose the correct answer among the given alternatives and write its letter beside the item number provided.",
             "items": items,
             "metadata": {
@@ -318,76 +343,92 @@ class ExamGenerator:
         question_id: str,
         num_marks: int,
         difficulty: str,
-    ) -> Dict[str, Any]:
-        context_str = self._format_context(chunk_list)
-        previous_questions_str = (
-            "\n".join(previous_questions) if previous_questions else "None"
-        )
+    ) -> Tuple[bool, Dict[str, Any]]:
+        try:
+            context_str = self._format_context(chunk_list)
+            previous_questions_str = (
+                "\n".join(previous_questions) if previous_questions else "None"
+            )
 
-        system_prompt = prompt_manager.format_prompt("exam_generator_system")
-        user_prompt = prompt_manager.format_prompt(
-            "exam_generator_user",
-            question_type=question_type,
-            topic=topic,
-            previous_questions=previous_questions_str,
-            context_str=context_str,
-        )
+            system_prompt = prompt_manager.format_prompt("exam_generator_system")
+            user_prompt = prompt_manager.format_prompt(
+                "exam_generator_user",
+                question_type=question_type,
+                topic=topic,
+                previous_questions=previous_questions_str,
+                context_str=context_str,
+            )
 
-        constraints = self._constraints_for(question_type)
-        prompt_template = self._template_without_system_fields(template)
-        template_json = json.dumps(prompt_template, indent=2, ensure_ascii=False)
-        user_prompt_with_template = (
-            f"{user_prompt}\n\n"
-            f"Additional constraints:\n{constraints}\n\n"
-            "Output requirements (strict):\n"
-            "- Return ONLY one valid JSON object.\n"
-            "- Do NOT include explanations, reasoning, notes, or analysis.\n"
-            "- Do NOT include markdown code fences.\n"
-            "- Do NOT include any text before or after the JSON object.\n"
-            "Use this template shape exactly:\n"
-            f"{template_json}"
-        )
+            constraints = self._constraints_for(question_type)
+            prompt_template = self._template_without_system_fields(template)
+            template_json = json.dumps(prompt_template, indent=2, ensure_ascii=False)
+            user_prompt_with_template = (
+                f"{user_prompt}\n\n"
+                f"Additional constraints:\n{constraints}\n\n"
+                "Output requirements (strict):\n"
+                "- Return ONLY one valid JSON object.\n"
+                "- Do NOT include explanations, reasoning, notes, or analysis.\n"
+                "- Do NOT include markdown code fences.\n"
+                "- Do NOT include any text before or after the JSON object.\n"
+                "Use this template shape exactly:\n"
+                f"{template_json}"
+            )
 
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt_with_template),
-        ]
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt_with_template),
+            ]
 
-        response = await async_llm_request(
-            messages=messages,
-            tools=None,
-            tool_choice=None,
-            run_name="twiga_necta_exam_generator",
-            metadata={
-                "tool": "generate_necta_style_exam",
-                "subject": subject,
-                "topic": topic,
-                "question_type": question_type,
-            },
-        )
+            response = await async_llm_request(
+                messages=messages,
+                tools=None,
+                tool_choice=None,
+                run_name="twiga_necta_exam_generator",
+                metadata={
+                    "tool": "generate_necta_style_exam",
+                    "subject": subject,
+                    "topic": topic,
+                    "question_type": question_type,
+                },
+            )
 
-        logger.debug(
-            f"Raw LLM response content for question generation (question_type={question_type}, topic={topic}): {response.content if response else 'No response'}"
-        )
+            logger.debug(
+                f"Raw LLM response content for question generation (question_type={question_type}, topic={topic}): {response.content if response else 'No response'}"
+            )
 
-        parsed = self._parse_json_response(response.content if response else "")
-        merged = self._merge_with_template(template=template, payload=parsed)
+            parsed = self._parse_json_response(response.content if response else "")
+            merged = self._merge_with_template(template=template, payload=parsed)
 
-        # set the system fields
-        merged["id"] = question_id
-        merged["marks"] = num_marks
-        metadata = merged.setdefault("metadata", {})
-        metadata["topic"] = metadata.get("topic") or topic
-        metadata["difficulty"] = metadata.get("difficulty") or difficulty
-        merged["source_chunk_ids"] = self._extract_chunk_ids(chunk_list)
+            # set the system fields
+            merged["id"] = question_id
+            merged["marks"] = num_marks
+            metadata = merged.setdefault("metadata", {})
+            metadata["topic"] = metadata.get("topic") or topic
+            metadata["difficulty"] = metadata.get("difficulty") or difficulty
+            merged["source_chunk_ids"] = self._extract_chunk_ids(chunk_list)
 
-        # track previous questions by their signature to help the LLM avoid repetition and encourage diversity in question phrasing and focus
-        signature = self._question_signature(
-            question_type=question_type, payload=merged
-        )
-        if signature:
-            previous_questions.append(signature)
-        return merged
+            is_valid = self._validate_question_format(
+                question_type=question_type,
+                payload=merged,
+            )
+            if not is_valid:
+                return False, {}
+
+            # track previous questions by their signature to help the LLM avoid repetition and encourage diversity in question phrasing and focus
+            signature = self._question_signature(
+                question_type=question_type, payload=merged
+            )
+            if signature:
+                previous_questions.append(signature)
+            return True, merged
+        except Exception as exc:
+            logger.warning(
+                "Failed generating question (question_type=%s, topic=%s): %s",
+                question_type,
+                topic,
+                exc,
+            )
+            return False, {}
 
     def _constraints_for(self, question_type: str) -> str:
         constraints_list = self.question_constraints.get(question_type, [])
@@ -556,6 +597,177 @@ class ExamGenerator:
                     return str(label).upper()
         return None
 
+    def _validate_question_format(
+        self,
+        question_type: str,
+        payload: Dict[str, Any],
+    ) -> bool:
+        try:
+            if question_type == "multiple_choice":
+                self._validate_multiple_choice(payload)
+            elif question_type == "item_matching":
+                self._validate_item_matching(payload)
+            elif question_type == "short_answer":
+                self._validate_short_answer(payload)
+            elif question_type == "long_answer":
+                self._validate_long_answer(payload)
+            else:
+                logger.warning(
+                    "Unsupported question_type for validation: %s", question_type
+                )
+                return False
+            return True
+        except ExamGenerationError as exc:
+            logger.warning(
+                "Question format validation failed (question_type=%s): %s",
+                question_type,
+                exc,
+            )
+            return False
+
+    def _validate_multiple_choice(self, payload: Dict[str, Any]) -> None:
+        question = str(payload.get("question", "")).strip()
+        if not question:
+            raise ExamGenerationError("multiple_choice.question is required.")
+
+        options = payload.get("options")
+        if not isinstance(options, (list, dict)):
+            raise ExamGenerationError(
+                "multiple_choice.options must be a list or object."
+            )
+
+        if isinstance(options, list) and len(options) != 5:
+            raise ExamGenerationError(
+                "multiple_choice.options must contain exactly 5 options."
+            )
+
+        if isinstance(options, dict):
+            option_count = sum(
+                1 for label in self.MCQ_OPTION_LABELS if label in options
+            )
+            if option_count != 5:
+                raise ExamGenerationError(
+                    "multiple_choice.options object must contain labels A-E."
+                )
+
+        answer = payload.get("answer")
+        has_answer = isinstance(answer, str) and bool(answer.strip())
+        if not has_answer and self._normalize_mcq_answer(payload) is None:
+            raise ExamGenerationError("multiple_choice.answer is required.")
+
+    def _validate_item_matching(self, payload: Dict[str, Any]) -> None:
+        prompt = str(payload.get("prompt", "")).strip()
+        if not prompt:
+            raise ExamGenerationError("item_matching.prompt is required.")
+
+        list_a = payload.get("listA", [])
+        list_b = payload.get("listB", [])
+        if not isinstance(list_a, list) or not list_a:
+            raise ExamGenerationError("item_matching.listA must be a non-empty list.")
+        if not isinstance(list_b, list) or not list_b:
+            raise ExamGenerationError("item_matching.listB must be a non-empty list.")
+
+        answers_pairs = payload.get("answers_pairs", {})
+        if not isinstance(answers_pairs, dict) or not answers_pairs:
+            raise ExamGenerationError(
+                "item_matching.answers_pairs must be a non-empty object."
+            )
+
+    def _validate_short_answer(self, payload: Dict[str, Any]) -> None:
+        question_description = str(payload.get("question_description", "")).strip()
+        if not question_description:
+            raise ExamGenerationError("short_answer.question_description is required.")
+
+        sub_questions = payload.get("sub_questions", [])
+        if not isinstance(sub_questions, list):
+            raise ExamGenerationError("short_answer.sub_questions must be a list.")
+
+        answer = payload.get("answer", {})
+        if not isinstance(answer, dict):
+            raise ExamGenerationError("short_answer.answer must be an object.")
+
+        example_answer = str(answer.get("example_answer", "")).strip()
+        marking_points = answer.get("marking_points", [])
+        if not example_answer and not marking_points:
+            raise ExamGenerationError(
+                "short_answer.answer must include example_answer or marking_points."
+            )
+
+    def _validate_long_answer(self, payload: Dict[str, Any]) -> None:
+        description = str(payload.get("description", "")).strip()
+        if not description:
+            raise ExamGenerationError(
+                "long_answer.description is required and must be non-empty."
+            )
+
+        task = payload.get("task")
+        if not isinstance(task, dict):
+            raise ExamGenerationError("long_answer.task must be an object.")
+
+        task_prompt = str(task.get("prompt", "")).strip()
+        if not task_prompt:
+            raise ExamGenerationError(
+                "long_answer.task.prompt is required and must be non-empty."
+            )
+
+        sub_questions = task.get("sub_questions", [])
+        if not isinstance(sub_questions, list):
+            raise ExamGenerationError("long_answer.task.sub_questions must be a list.")
+
+        if not sub_questions:
+            return
+
+        try:
+            total_marks = int(payload.get("marks", 0))
+        except (TypeError, ValueError) as exc:
+            raise ExamGenerationError(
+                "long_answer.marks must be a valid integer."
+            ) from exc
+
+        if total_marks <= 0:
+            raise ExamGenerationError(
+                "long_answer.marks must be > 0 when sub_questions are used."
+            )
+
+        marks_sum = 0
+        for idx, sub_question in enumerate(sub_questions):
+            if not isinstance(sub_question, dict):
+                raise ExamGenerationError(
+                    f"long_answer.task.sub_questions[{idx}] must be an object."
+                )
+
+            sub_prompt = str(sub_question.get("prompt", "")).strip()
+            if not sub_prompt:
+                raise ExamGenerationError(
+                    f"long_answer.task.sub_questions[{idx}].prompt must be non-empty."
+                )
+
+            if "marks" not in sub_question:
+                raise ExamGenerationError(
+                    f"long_answer.task.sub_questions[{idx}].marks is required."
+                )
+
+            marks_raw = sub_question.get("marks")
+            try:
+                marks = int(marks_raw)
+            except (TypeError, ValueError) as exc:
+                raise ExamGenerationError(
+                    f"long_answer.task.sub_questions[{idx}].marks must be an integer."
+                ) from exc
+
+            if marks <= 0:
+                raise ExamGenerationError(
+                    f"long_answer.task.sub_questions[{idx}].marks must be > 0."
+                )
+
+            sub_question["marks"] = marks
+            marks_sum += marks
+
+        if marks_sum != total_marks:
+            raise ExamGenerationError(
+                f"long_answer.task.sub_questions marks ({marks_sum}) must equal long_answer.marks ({total_marks})."
+            )
+
     def _question_signature(self, question_type: str, payload: Dict[str, Any]) -> str:
         if question_type == "multiple_choice":
             return str(payload.get("question", "")).strip()
@@ -564,7 +776,20 @@ class ExamGenerator:
         if question_type == "short_answer":
             return str(payload.get("question_description", "")).strip()
         if question_type == "long_answer":
-            return str(payload.get("question", "")).strip()
+            description = str(payload.get("description", "")).strip()
+            task = payload.get("task", {})
+            prompt = (
+                str(task.get("prompt", "")).strip() if isinstance(task, dict) else ""
+            )
+            sub_prompts: List[str] = []
+            if isinstance(task, dict):
+                for sub_question in task.get("sub_questions", []):
+                    if isinstance(sub_question, dict):
+                        sub_prompt = str(sub_question.get("prompt", "")).strip()
+                        if sub_prompt:
+                            sub_prompts.append(sub_prompt)
+            parts = [description, prompt] + sub_prompts
+            return " | ".join(part for part in parts if part)
         return ""
 
     def _format_context(self, chunks: Sequence[Any]) -> str:

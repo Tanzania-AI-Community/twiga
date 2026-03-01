@@ -1,8 +1,11 @@
 {
     "id": null,
     "marks": null,
-    "question_description": null,
-    "question": null,
+    "description": null,
+    "task": {
+        "prompt": null,
+        "sub_questions": []
+    },
     "answer": {
         "example_answer": null,
         "marking_scheme": null,

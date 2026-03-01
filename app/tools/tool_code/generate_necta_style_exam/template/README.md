@@ -20,6 +20,8 @@ This folder defines the base JSON templates for exam generation.
 
 ### Part C
 - `long_answer`: Extended response and essay-style reasoning.
+- Use `description` for setup/context and `task.prompt` for the actual instruction.
+- Use `task.sub_questions` only when the question has explicit parts `(a), (b), ...`.
 - Solution format:
   - `example_answer`
   - `accepted_answers`
@@ -183,8 +185,11 @@ Example filled output:
 {
   "id": "C-Q13",
   "marks": 15,
-  "question_description": "Answer in a well-structured paragraph with equations.",
-  "question": "Describe the extraction of iron from hematite ore in a blast furnace. Include the role of coke and limestone, and relevant equations.",
+  "description": "In iron extraction, a blast furnace is charged continuously with hematite, coke, and limestone under high temperature.",
+  "task": {
+    "prompt": "Describe the extraction of iron from hematite ore in a blast furnace. Include the role of coke and limestone, and relevant equations.",
+    "sub_questions": []
+  },
   "answer": {
     "example_answer": "Coke burns to form carbon monoxide which reduces iron(III) oxide to iron. Limestone decomposes to calcium oxide which removes silica as slag.",
     "marking_scheme": "Award for process flow, correct role of coke and limestone, and balanced equations.",

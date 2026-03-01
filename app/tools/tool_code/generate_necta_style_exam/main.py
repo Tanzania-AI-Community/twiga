@@ -91,7 +91,7 @@ async def generate_necta_style_exam(
         ##### Save exam JSON to file (for debug)
         output_dir = Path(__file__).parent / "output_tool"
         output_dir.mkdir(parents=True, exist_ok=True)
-        exam_json_path = output_dir / "exam_test.json"
+        exam_json_path = output_dir / "exam_test4.json"
         exam_json_path.write_text(
             json.dumps(exam_json, indent=2, ensure_ascii=False),
             encoding="utf-8",

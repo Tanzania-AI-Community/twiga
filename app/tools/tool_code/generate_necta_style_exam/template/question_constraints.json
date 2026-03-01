@@ -14,6 +14,10 @@
   ],
   "long_answer": [
     "Provide a complete example answer.",
-    "Include concepts and marking_points."
+    "Include concepts and marking_points.",
+    "IMPORTANT: The description must never include the answer or solution content.",
+    "Set description as setup/context only and task.prompt as the instruction only.",
+    "Do not repeat the same wording between description and task.prompt.",
+    "If task.sub_questions is not empty, labels must be sequential (a, b, c, ...) and marks must sum to the total question marks."
   ]
 }
