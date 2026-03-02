@@ -1,0 +1,331 @@
+{
+  "meta": {
+    "country": "THE UNITED REPUBLIC OF TANZANIA",
+    "office": "PRESIDENT’S OFFICE\nREGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
+    "exam_title": "FORM FOUR EXAMINATION - SERIES 10",
+    "subject": "CHEMISTRY",
+    "duration": "3:00 Hrs",
+    "year": 2024
+  },
+  "instructions": [
+    "This paper consists of three sections A, B and C with total of fourteen (14) questions.",
+    "Answer all questions in section A and B and one (1) question from section C.",
+    "Calculators and cellular phones are not allowed in the examination room.",
+    "Write your Examination number on every page of your answer sheets/booklet(s)."
+  ],
+  "constants": {
+    "atomic_masses": {
+      "H": 1,
+      "C": 12,
+      "N": 14,
+      "O": 16,
+      "Na": 23,
+      "Mg": 24,
+      "Al": 27,
+      "S": 32,
+      "Cl": 35.5,
+      "K": 39,
+      "Ca": 40,
+      "Fe": 56,
+      "Cu": 63.5,
+      "Zn": 65,
+      "Ag": 108,
+      "I": 127,
+      "Ba": 137,
+      "Pb": 207
+    },
+    "avogadro": "6.02 x 10^23 mol^-1",
+    "gmv_stp": "22.4 dm^3 mol^-1",
+    "faraday": "96500 Coulombs",
+    "std_temp": "273 K",
+    "litre_equiv": "1 litre = 1 dm^3 = 1000 cm^3"
+  },
+  "sections": {
+    "A": {
+      "marks": 15,
+      "q1_mcq": {
+        "stem": "For each of the following items (i) – (x), choose the correct answer among the given alternatives and write its letter beside the item number provided.",
+        "items": [
+          {
+            "label": "i",
+            "question": "Which one of the following is a physical change?",
+            "options": {
+              "A": "Rusting of iron",
+              "B": "Burning of magnesium ribbon",
+              "C": "Boiling of water",
+              "D": "Fermentation of glucose",
+              "E": "Decomposition of hydrogen peroxide"
+            },
+            "answer": "C"
+          },
+          {
+            "label": "ii",
+            "question": "The number of protons in an atom is equal to its:",
+            "options": {
+              "A": "Mass number",
+              "B": "Atomic number",
+              "C": "Neutron number",
+              "D": "Nucleon number",
+              "E": "Isotopic number"
+            },
+            "answer": "B"
+          },
+          {
+            "label": "iii",
+            "question": "Which gas is produced when dilute hydrochloric acid reacts with zinc granules?",
+            "options": {
+              "A": "Carbon dioxide",
+              "B": "Hydrogen",
+              "C": "Chlorine",
+              "D": "Oxygen",
+              "E": "Sulphur dioxide"
+            },
+            "answer": "B"
+          },
+          {
+            "label": "iv",
+            "question": "A solution with pH = 3 is:",
+            "options": {
+              "A": "Strongly alkaline",
+              "B": "Weakly alkaline",
+              "C": "Neutral",
+              "D": "Acidic",
+              "E": "A buffer solution"
+            },
+            "answer": "D"
+          },
+          {
+            "label": "v",
+            "question": "Which one of the following is an example of an alkene?",
+            "options": {
+              "A": "Ethane",
+              "B": "Ethanol",
+              "C": "Ethene",
+              "D": "Ethanoic acid",
+              "E": "Ethyne"
+            },
+            "answer": "C"
+          },
+          {
+            "label": "vi",
+            "question": "The main ore of aluminium is:",
+            "options": {
+              "A": "Hematite",
+              "B": "Bauxite",
+              "C": "Galena",
+              "D": "Chalcopyrite",
+              "E": "Magnetite"
+            },
+            "answer": "B"
+          },
+          {
+            "label": "vii",
+            "question": "Which of the following is the correct ionic equation for precipitation of silver chloride?",
+            "options": {
+              "A": "Ag(s) + Cl2(g) → AgCl(s)",
+              "B": "Ag+(aq) + Cl-(aq) → AgCl(s)",
+              "C": "Ag-(aq) + Cl+(aq) → AgCl(s)",
+              "D": "Ag2+(aq) + 2Cl-(aq) → AgCl2(s)",
+              "E": "AgCl(aq) → Ag+(aq) + Cl-(aq)"
+            },
+            "answer": "B"
+          },
+          {
+            "label": "viii",
+            "question": "The process of separating a mixture of ethanol and water is best done by:",
+            "options": {
+              "A": "Filtration",
+              "B": "Sublimation",
+              "C": "Fractional distillation",
+              "D": "Simple distillation",
+              "E": "Evaporation to dryness"
+            },
+            "answer": "C"
+          },
+          {
+            "label": "ix",
+            "question": "How many moles are present in 11.2 dm^3 of carbon dioxide gas at s.t.p?",
+            "options": {
+              "A": "0.25 mol",
+              "B": "0.50 mol",
+              "C": "1.00 mol",
+              "D": "2.00 mol",
+              "E": "22.4 mol"
+            },
+            "answer": "B"
+          },
+          {
+            "label": "x",
+            "question": "Which one of the following is an oxidizing agent?",
+            "options": {
+              "A": "Hydrogen gas",
+              "B": "Carbon monoxide",
+              "C": "Potassium permanganate",
+              "D": "Zinc metal",
+              "E": "Sulphur dioxide"
+            },
+            "answer": "C"
+          }
+        ]
+      },
+      "q2_matching": {
+        "prompt": "Match the items in List A with the responses in List B by writing the letter of the correct response beside the item number provided. (One response in List B may be used more than once.)",
+        "listA": [
+          { "label": "i", "text": "A compound that turns blue litmus red" },
+          { "label": "ii", "text": "A substance that speeds up a reaction without being used up" },
+          { "label": "iii", "text": "The smallest particle of an element that can take part in chemical reaction" },
+          { "label": "iv", "text": "Process of loss of electrons" },
+          { "label": "v", "text": "A solution that resists change in pH" }
+        ],
+        "listB": [
+          { "label": "A", "text": "Atom" },
+          { "label": "B", "text": "Oxidation" },
+          { "label": "C", "text": "Catalyst" },
+          { "label": "D", "text": "Base" },
+          { "label": "E", "text": "Acid" },
+          { "label": "F", "text": "Buffer solution" },
+          { "label": "G", "text": "Reduction" },
+          { "label": "H", "text": "Salt" },
+          { "label": "I", "text": "Distillation" }
+        ],
+        "answers": {
+          "i": "E",
+          "ii": "C",
+          "iii": "A",
+          "iv": "B",
+          "v": "F"
+        }
+      }
+    },
+    "B": {
+      "marks": 70,
+      "questions": [
+        {
+          "number": 3,
+          "parts": [
+            {
+              "label": "a",
+              "type": "short_answer",
+              "prompt": "Define the following terms:",
+              "subparts": [
+                { "label": "i", "text": "Electrolysis" },
+                { "label": "ii", "text": "Mole" },
+                { "label": "iii", "text": "Homologous series" }
+              ]
+            },
+            {
+              "label": "b",
+              "type": "short_answer",
+              "prompt": "State two (2) differences between ionic and covalent compounds.",
+              "subparts": []
+            }
+          ]
+        },
+        {
+          "number": 4,
+          "parts": [
+            {
+              "label": "a",
+              "type": "table_question",
+              "prompt": "A sample of bottled water was analyzed for the ions shown in the table below.",
+              "table": {
+                "headers": ["Ion", "Concentration (mg/L)"],
+                "rows": [
+                  ["Ca2+", "40"],
+                  ["Mg2+", "12"],
+                  ["Na+", "8"],
+                  ["Cl-", "15"],
+                  ["HCO3-", "120"]
+                ]
+              },
+              "subparts": [
+                { "label": "i", "text": "Name two ions that contribute to temporary hardness of water." },
+                { "label": "ii", "text": "Give one method used to remove temporary hardness of water." },
+                { "label": "iii", "text": "State one advantage of drinking water containing calcium ions." }
+              ]
+            },
+            {
+              "label": "b",
+              "type": "short_answer",
+              "prompt": "Explain why distilled water does not conduct electricity but tap water can conduct electricity.",
+              "subparts": []
+            }
+          ]
+        },
+        {
+          "number": 5,
+          "parts": [
+            {
+              "label": "a",
+              "type": "short_answer",
+              "prompt": "Write balanced chemical equations for the following reactions:",
+              "subparts": [
+                { "label": "i", "text": "Sodium reacts with water to form sodium hydroxide and hydrogen gas." },
+                { "label": "ii", "text": "Calcium carbonate decomposes on heating." }
+              ]
+            },
+            {
+              "label": "b",
+              "type": "short_answer",
+              "prompt": "A metal M reacts with dilute sulphuric acid to produce 2.24 dm^3 of hydrogen gas at s.t.p. Calculate the number of moles of hydrogen produced.",
+              "subparts": []
+            }
+          ]
+        },
+        {
+          "number": 6,
+          "parts": [
+            {
+              "label": "a",
+              "type": "short_answer",
+              "prompt": "State three (3) laboratory safety precautions to be observed when handling concentrated acids.",
+              "subparts": []
+            },
+            {
+              "label": "b",
+              "type": "short_answer",
+              "prompt": "Mention two (2) uses of sulphuric acid in industries.",
+              "subparts": []
+            }
+          ]
+        },
+        {
+          "number": 7,
+          "parts": [
+            {
+              "label": "a",
+              "type": "short_answer",
+              "prompt": "Explain the following observations:",
+              "subparts": [
+                { "label": "i", "text": "Ammonia gas turns red litmus paper blue." },
+                { "label": "ii", "text": "Aqueous sodium chloride conducts electricity but solid sodium chloride does not." }
+              ]
+            },
+            {
+              "label": "b",
+              "type": "short_answer",
+              "prompt": "Draw and label the apparatus used to prepare oxygen gas in the laboratory (diagram not required here; describe the set-up).",
+              "subparts": []
+            }
+          ]
+        }
+      ]
+    },
+    "C": {
+      "marks": 15,
+      "rule": "Answer only one (1) question in this section",
+      "questions": [
+        {
+          "number": 13,
+          "type": "essay",
+          "prompt": "Describe the extraction of iron from hematite ore in a blast furnace. Your answer should include the role of coke and limestone, and the chemical equations involved."
+        },
+        {
+          "number": 14,
+          "type": "calculation_essay",
+          "prompt": "A solution contains 5.85 g of sodium chloride (NaCl) dissolved in water to make 500 cm^3 of solution. Calculate: (a) the molarity of the solution, and (b) the number of chloride ions present in the solution. (Avogadro’s number = 6.02 x 10^23 mol^-1)."
+        }
+      ]
+    }
+  }
+}

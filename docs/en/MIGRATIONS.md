@@ -20,7 +20,7 @@ Notes:
 If you're not using Docker to run Twiga, then you can initialize the database and inject seed data with the command:
 
 ```
-uv run python -m scripts.database.seed --create --sample-data --vector-data chunks_BAAI.json
+uv run python -m scripts.database.seed --create --sample-data --vector-data chunks_multilingual.json
 ```
 
 This will remove all tables in the database if they exist, create new ones, install pgvector and inject sample data and vector data so that the database is ready to accept new users.
