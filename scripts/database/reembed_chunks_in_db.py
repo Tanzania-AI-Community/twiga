@@ -2,12 +2,15 @@ import argparse
 import asyncio
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
+import math
 from pathlib import Path
 import re
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+import tiktoken
 from scripts.database.reembedding_utils import (
     TogetherEmbeddingClient,
     project_root,
@@ -20,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE = 8
 DEFAULT_MODEL = "intfloat/multilingual-e5-large-instruct"
+DEFAULT_MAX_TOKEN_ESTIMATE = 500
+DEFAULT_TOKEN_CHAR_RATIO = 4
+DEFAULT_TOKEN_SAFETY_FACTOR = 1.2
 TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -27,6 +33,7 @@ TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 class ReembeddingStats:
     processed_chunks: int = 0
     processed_batches: int = 0
+    over_token_limit_chunks: int = 0
     last_chunk_id: int | None = None
 
 
@@ -124,6 +131,69 @@ def _to_pgvector_literal(values: list[float]) -> str:
     return "[" + ",".join(format(float(value), ".15g") for value in values) + "]"
 
 
+@lru_cache(maxsize=1)
+def _get_default_tokenizer():
+    return tiktoken.get_encoding("cl100k_base")
+
+
+def _count_tokens_with_tiktoken(content: str) -> int | None:
+    try:
+        tokenizer = _get_default_tokenizer()
+        return len(tokenizer.encode(content, disallowed_special=()))
+    except Exception:
+        return None
+
+
+def estimate_tokens_from_content(
+    content: str,
+    token_char_ratio: int = DEFAULT_TOKEN_CHAR_RATIO,
+    token_safety_factor: float = DEFAULT_TOKEN_SAFETY_FACTOR,
+) -> int:
+    tiktoken_count = _count_tokens_with_tiktoken(content)
+    if tiktoken_count is not None:
+        return int(math.ceil(tiktoken_count * token_safety_factor))
+
+    char_estimate = len(content) / token_char_ratio
+    return int(math.ceil(char_estimate * token_safety_factor))
+
+
+def prepare_content_for_embedding(
+    content: str,
+    max_token_estimate: int = DEFAULT_MAX_TOKEN_ESTIMATE,
+    token_char_ratio: int = DEFAULT_TOKEN_CHAR_RATIO,
+    token_safety_factor: float = DEFAULT_TOKEN_SAFETY_FACTOR,
+) -> tuple[str, bool]:
+    token_estimate = estimate_tokens_from_content(
+        content=content,
+        token_char_ratio=token_char_ratio,
+        token_safety_factor=token_safety_factor,
+    )
+    if token_estimate <= max_token_estimate:
+        return content, False
+
+    # Iteratively truncate by the estimated overflow ratio to keep more useful context.
+    clipped_content = content
+    for _ in range(8):
+        estimated_tokens = estimate_tokens_from_content(
+            content=clipped_content,
+            token_char_ratio=token_char_ratio,
+            token_safety_factor=token_safety_factor,
+        )
+        if estimated_tokens <= max_token_estimate:
+            return clipped_content, True
+
+        keep_chars = max(
+            1,
+            int(len(clipped_content) * (max_token_estimate / estimated_tokens) * 0.95),
+        )
+        if keep_chars >= len(clipped_content):
+            keep_chars = len(clipped_content) - 1
+        clipped_content = clipped_content[:keep_chars]
+
+    max_chars_fallback = max_token_estimate * token_char_ratio
+    return clipped_content[:max_chars_fallback], True
+
+
 async def prepare_target_table(
     session: AsyncSession,
     source_table_name: str,
@@ -143,7 +213,9 @@ async def prepare_target_table(
         await session.execute(
             text(f"CREATE TABLE {target_sql} (LIKE {source_sql} INCLUDING ALL)")
         )
-        await session.execute(text(f"INSERT INTO {target_sql} SELECT * FROM {source_sql}"))
+        await session.execute(
+            text(f"INSERT INTO {target_sql} SELECT * FROM {source_sql}")
+        )
     else:
         await session.execute(
             text(
@@ -213,6 +285,9 @@ async def reembed_chunks_in_database(
     database_url: str,
     embedding_client: TogetherEmbeddingClient,
     batch_size: int = DEFAULT_BATCH_SIZE,
+    max_token_estimate: int = DEFAULT_MAX_TOKEN_ESTIMATE,
+    token_char_ratio: int = DEFAULT_TOKEN_CHAR_RATIO,
+    token_safety_factor: float = DEFAULT_TOKEN_SAFETY_FACTOR,
     limit: int | None = None,
     start_after_id: int = 0,
     resource_id: int | None = None,
@@ -225,6 +300,12 @@ async def reembed_chunks_in_database(
 ) -> ReembeddingStats:
     if batch_size <= 0:
         raise ValueError("batch_size must be greater than 0.")
+    if max_token_estimate <= 0:
+        raise ValueError("max_token_estimate must be greater than 0.")
+    if token_char_ratio <= 0:
+        raise ValueError("token_char_ratio must be greater than 0.")
+    if token_safety_factor <= 0:
+        raise ValueError("token_safety_factor must be greater than 0.")
     if limit is not None and limit <= 0:
         raise ValueError("limit must be greater than 0 when provided.")
     if start_after_id < 0:
@@ -271,7 +352,28 @@ async def reembed_chunks_in_database(
                     break
 
                 chunk_ids = [chunk_id for chunk_id, _ in batch_rows]
-                chunk_texts = [content for _, content in batch_rows]
+                chunk_texts: list[str] = []
+                over_limit_in_batch = 0
+                for _, content in batch_rows:
+                    clipped_content, is_over_limit = prepare_content_for_embedding(
+                        content=content,
+                        max_token_estimate=max_token_estimate,
+                        token_char_ratio=token_char_ratio,
+                        token_safety_factor=token_safety_factor,
+                    )
+                    if is_over_limit:
+                        over_limit_in_batch += 1
+                    chunk_texts.append(clipped_content)
+
+                stats.over_token_limit_chunks += over_limit_in_batch
+                if over_limit_in_batch > 0:
+                    logger.info(
+                        "Batch %s has %s chunks above the estimated %s token limit. Truncating inputs before embedding.",
+                        stats.processed_batches + 1,
+                        over_limit_in_batch,
+                        max_token_estimate,
+                    )
+
                 embeddings = embedding_client.embed_documents(chunk_texts)
 
                 if len(embeddings) != len(batch_rows):
@@ -343,6 +445,33 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=DEFAULT_BATCH_SIZE,
         help=f"Embedding batch size. Defaults to {DEFAULT_BATCH_SIZE}.",
+    )
+    parser.add_argument(
+        "--max-token-estimate",
+        type=int,
+        default=DEFAULT_MAX_TOKEN_ESTIMATE,
+        help=(
+            "Maximum estimated tokens per chunk before truncation. "
+            f"Defaults to {DEFAULT_MAX_TOKEN_ESTIMATE}."
+        ),
+    )
+    parser.add_argument(
+        "--token-char-ratio",
+        type=int,
+        default=DEFAULT_TOKEN_CHAR_RATIO,
+        help=(
+            "Character-per-token ratio for estimation. "
+            f"Defaults to {DEFAULT_TOKEN_CHAR_RATIO}."
+        ),
+    )
+    parser.add_argument(
+        "--token-safety-factor",
+        type=float,
+        default=DEFAULT_TOKEN_SAFETY_FACTOR,
+        help=(
+            "Safety multiplier applied on estimated token counts to avoid "
+            f"underestimation. Defaults to {DEFAULT_TOKEN_SAFETY_FACTOR}."
+        ),
     )
     parser.add_argument(
         "--limit",
@@ -458,6 +587,9 @@ async def main() -> None:
         database_url=database_url,
         embedding_client=embedder,
         batch_size=args.batch_size,
+        max_token_estimate=args.max_token_estimate,
+        token_char_ratio=args.token_char_ratio,
+        token_safety_factor=args.token_safety_factor,
         limit=args.limit,
         start_after_id=args.start_after_id,
         resource_id=args.resource_id,
@@ -470,9 +602,10 @@ async def main() -> None:
     )
 
     logger.info(
-        "Done. Processed %s chunks in %s batches. Last chunk ID: %s. Dry run: %s. Target table: %s",
+        "Done. Processed %s chunks in %s batches. Chunks above token estimate limit: %s. Last chunk ID: %s. Dry run: %s. Target table: %s",
         stats.processed_chunks,
         stats.processed_batches,
+        stats.over_token_limit_chunks,
         stats.last_chunk_id,
         args.dry_run,
         args.target_table_name,

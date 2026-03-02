@@ -116,7 +116,23 @@ class TogetherEmbeddingClient:
             json={"model": self.model, "input": list(texts)},
             timeout=self.timeout_seconds,
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            # Intentionally using print for immediate visibility in terminal runs.
+            print(
+                (
+                    "[Together Embeddings HTTP Error] "
+                    f"status={response.status_code} "
+                    f"url={response.url} "
+                    f"model={self.model} "
+                    f"batch_size={len(texts)} "
+                    f"text_lengths={[len(text) for text in texts]} "
+                    f"response_body={response.text}"
+                ),
+                flush=True,
+            )
+            raise exc
 
         payload = response.json()
         data = payload.get("data")

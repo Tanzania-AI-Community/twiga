@@ -6,7 +6,9 @@ import pytest
 
 from scripts.database.reembed_chunks_in_db import (
     _to_pgvector_literal,
+    estimate_tokens_from_content,
     normalize_database_url,
+    prepare_content_for_embedding,
     rewrite_container_hostname,
     validate_table_name,
 )
@@ -134,6 +136,65 @@ def test_validate_table_name_rejects_invalid_identifier() -> None:
 def test_to_pgvector_literal_builds_pgvector_string() -> None:
     literal = _to_pgvector_literal([1.0, 2.5, -3.2])
     assert literal == "[1,2.5,-3.2]"
+
+
+@pytest.mark.unittest
+def test_estimate_tokens_from_content_uses_char_ratio() -> None:
+    with patch(
+        "scripts.database.reembed_chunks_in_db._count_tokens_with_tiktoken",
+        return_value=None,
+    ):
+        assert (
+            estimate_tokens_from_content(
+                "a" * 2000,
+                token_char_ratio=4,
+                token_safety_factor=1.0,
+            )
+            == 500
+        )
+
+
+@pytest.mark.unittest
+def test_prepare_content_for_embedding_truncates_above_limit() -> None:
+    content = "x" * 2200
+    with patch(
+        "scripts.database.reembed_chunks_in_db._count_tokens_with_tiktoken",
+        return_value=None,
+    ):
+        clipped, is_over_limit = prepare_content_for_embedding(
+            content,
+            max_token_estimate=500,
+            token_char_ratio=4,
+            token_safety_factor=1.0,
+        )
+    assert is_over_limit is True
+    assert len(clipped) < len(content)
+
+
+@pytest.mark.unittest
+def test_prepare_content_for_embedding_keeps_content_at_limit() -> None:
+    content = "x" * 2000
+    with patch(
+        "scripts.database.reembed_chunks_in_db._count_tokens_with_tiktoken",
+        return_value=None,
+    ):
+        clipped, is_over_limit = prepare_content_for_embedding(
+            content,
+            max_token_estimate=500,
+            token_char_ratio=4,
+            token_safety_factor=1.0,
+        )
+    assert is_over_limit is False
+    assert clipped == content
+
+
+@pytest.mark.unittest
+def test_estimate_tokens_from_content_uses_tiktoken_when_available() -> None:
+    with patch(
+        "scripts.database.reembed_chunks_in_db._count_tokens_with_tiktoken",
+        return_value=100,
+    ):
+        assert estimate_tokens_from_content("abc", token_safety_factor=1.2) == 120
 
 
 @pytest.mark.unittest
