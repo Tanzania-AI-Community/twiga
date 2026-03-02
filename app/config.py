@@ -194,7 +194,8 @@ class EmbeddingSettings(BaseSettings):
         default=EmbeddingProvider.OLLAMA, validation_alias="embedding_provider"
     )
     embedder_name: str = Field(
-        default=embedder_options["multilingual-large"], validation_alias="embedding_model"
+        default=embedder_options["multilingual-large"],
+        validation_alias="embedding_model",
     )
 
     ollama_model: Optional[str] = Field(

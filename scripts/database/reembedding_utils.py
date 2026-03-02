@@ -37,11 +37,7 @@ def _parse_dotenv_file(dotenv_path: str) -> dict[str, str]:
         key = key.strip()
         value = raw_value.strip()
 
-        if (
-            len(value) >= 2
-            and value[0] == value[-1]
-            and value[0] in {'"', "'"}
-        ):
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
             value = value[1:-1]
         else:
             comment_idx = value.find(" #")
@@ -142,7 +138,9 @@ class TogetherEmbeddingClient:
         embeddings_by_index: dict[int, list[float]] = {}
         for item in data:
             if not isinstance(item, dict):
-                raise ValueError("Together response included an invalid embedding item.")
+                raise ValueError(
+                    "Together response included an invalid embedding item."
+                )
 
             index = item.get("index")
             embedding = item.get("embedding")
