@@ -3,13 +3,11 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from urllib.parse import parse_qsl, urlencode, urlparse
 
-from sqlalchemy import update
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlmodel import select
-
-from app.database.models import Chunk
 from scripts.database.reembedding_utils import (
     TogetherEmbeddingClient,
     project_root,
@@ -22,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE = 8
 DEFAULT_MODEL = "intfloat/multilingual-e5-large-instruct"
+TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @dataclass
@@ -49,12 +48,39 @@ def normalize_database_url(database_url: str) -> str:
         )
 
     parsed = urlparse(normalized)
-    if parsed.hostname and "neon.tech" in parsed.hostname:
-        query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
-        query_params.setdefault("ssl", "require")
-        normalized = parsed._replace(query=urlencode(query_params)).geturl()
+    query_params = parse_qsl(parsed.query, keep_blank_values=True)
+    normalized_query_params: list[tuple[str, str]] = []
+    sslmode_value: str | None = None
+    has_ssl = False
+
+    for key, value in query_params:
+        normalized_key = key.lower()
+        if normalized_key == "sslmode":
+            sslmode_value = value
+            continue
+        if normalized_key == "channel_binding":
+            continue
+        if normalized_key == "ssl":
+            has_ssl = True
+        normalized_query_params.append((key, value))
+
+    if not has_ssl and sslmode_value is not None:
+        normalized_query_params.append(("ssl", _map_sslmode_to_ssl(sslmode_value)))
+        has_ssl = True
+
+    if parsed.hostname and "neon.tech" in parsed.hostname and not has_ssl:
+        normalized_query_params.append(("ssl", "require"))
+
+    normalized = parsed._replace(query=urlencode(normalized_query_params)).geturl()
 
     return normalized
+
+
+def _map_sslmode_to_ssl(sslmode: str) -> str:
+    lowered = sslmode.strip().lower()
+    if lowered in {"disable", "false", "off", "0"}:
+        return "false"
+    return "require"
 
 
 def rewrite_container_hostname(
@@ -82,19 +108,105 @@ def rewrite_container_hostname(
     return rewritten.geturl()
 
 
+def validate_table_name(table_name: str) -> str:
+    if not table_name or not TABLE_NAME_PATTERN.match(table_name):
+        raise ValueError(
+            "Invalid table name. Use letters, numbers, and underscores only."
+        )
+    return table_name
+
+
+def _quote_identifier(identifier: str) -> str:
+    return f'"{identifier}"'
+
+
+def _to_pgvector_literal(values: list[float]) -> str:
+    return "[" + ",".join(format(float(value), ".15g") for value in values) + "]"
+
+
+async def prepare_target_table(
+    session: AsyncSession,
+    source_table_name: str,
+    target_table_name: str,
+    refresh_target_table: bool,
+) -> None:
+    source_table = validate_table_name(source_table_name)
+    target_table = validate_table_name(target_table_name)
+    if source_table == target_table:
+        raise ValueError("source_table_name and target_table_name must be different.")
+
+    source_sql = _quote_identifier(source_table)
+    target_sql = _quote_identifier(target_table)
+
+    if refresh_target_table:
+        await session.execute(text(f"DROP TABLE IF EXISTS {target_sql}"))
+        await session.execute(
+            text(f"CREATE TABLE {target_sql} (LIKE {source_sql} INCLUDING ALL)")
+        )
+        await session.execute(text(f"INSERT INTO {target_sql} SELECT * FROM {source_sql}"))
+    else:
+        await session.execute(
+            text(
+                f"CREATE TABLE IF NOT EXISTS {target_sql} "
+                f"(LIKE {source_sql} INCLUDING ALL)"
+            )
+        )
+        result = await session.execute(text(f"SELECT COUNT(*) FROM {target_sql}"))
+        row_count = int(result.scalar_one())
+        if row_count == 0:
+            await session.execute(
+                text(f"INSERT INTO {target_sql} SELECT * FROM {source_sql}")
+            )
+
+    await session.commit()
+    logger.info(
+        "Prepared target table '%s' from source table '%s' (refresh=%s)",
+        target_table_name,
+        source_table_name,
+        refresh_target_table,
+    )
+
+
 async def _fetch_chunk_batch(
     session: AsyncSession,
+    table_name: str,
     start_after_id: int,
     batch_size: int,
     resource_id: int | None = None,
 ) -> list[tuple[int, str]]:
-    statement = select(Chunk.id, Chunk.content).where(Chunk.id > start_after_id)
+    table_sql = _quote_identifier(validate_table_name(table_name))
+    base_query = (
+        f"SELECT id, content FROM {table_sql} WHERE id > :start_after_id "
+        f"{'AND resource_id = :resource_id' if resource_id is not None else ''} "
+        "ORDER BY id LIMIT :batch_size"
+    )
+    params = {
+        "start_after_id": start_after_id,
+        "batch_size": batch_size,
+    }
     if resource_id is not None:
-        statement = statement.where(Chunk.resource_id == resource_id)
-    statement = statement.order_by(Chunk.id).limit(batch_size)
+        params["resource_id"] = resource_id
 
-    result = await session.execute(statement)
+    result = await session.execute(text(base_query), params)
     return [(row[0], row[1]) for row in result.all()]
+
+
+async def _update_chunk_embedding(
+    session: AsyncSession,
+    table_name: str,
+    chunk_id: int,
+    embedding: list[float],
+) -> None:
+    table_sql = _quote_identifier(validate_table_name(table_name))
+    statement = text(
+        f"UPDATE {table_sql} "
+        "SET embedding = CAST(:embedding AS vector) "
+        "WHERE id = :chunk_id"
+    )
+    await session.execute(
+        statement,
+        {"chunk_id": chunk_id, "embedding": _to_pgvector_literal(embedding)},
+    )
 
 
 async def reembed_chunks_in_database(
@@ -104,6 +216,9 @@ async def reembed_chunks_in_database(
     limit: int | None = None,
     start_after_id: int = 0,
     resource_id: int | None = None,
+    source_table_name: str = "chunks",
+    target_table_name: str = "chunks_tmp_reembed",
+    refresh_target_table: bool = True,
     docker_db_host: str = "db",
     host_db_host: str = "localhost",
     dry_run: bool = False,
@@ -131,6 +246,13 @@ async def reembed_chunks_in_database(
 
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
+            await prepare_target_table(
+                session=session,
+                source_table_name=source_table_name,
+                target_table_name=target_table_name,
+                refresh_target_table=refresh_target_table,
+            )
+
             while True:
                 current_batch_size = (
                     min(batch_size, remaining) if remaining is not None else batch_size
@@ -140,6 +262,7 @@ async def reembed_chunks_in_database(
 
                 batch_rows = await _fetch_chunk_batch(
                     session=session,
+                    table_name=target_table_name,
                     start_after_id=current_id,
                     batch_size=current_batch_size,
                     resource_id=resource_id,
@@ -158,10 +281,11 @@ async def reembed_chunks_in_database(
 
                 if not dry_run:
                     for chunk_id, embedding in zip(chunk_ids, embeddings):
-                        await session.execute(
-                            update(Chunk)
-                            .where(Chunk.id == chunk_id)
-                            .values(embedding=embedding)
+                        await _update_chunk_embedding(
+                            session=session,
+                            table_name=target_table_name,
+                            chunk_id=chunk_id,
+                            embedding=embedding,
                         )
                     await session.commit()
 
@@ -237,6 +361,27 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Optional resource_id filter to re-embed only chunks from one resource.",
+    )
+    parser.add_argument(
+        "--source-table-name",
+        default="chunks",
+        help="Source table to copy from before re-embedding. Defaults to chunks.",
+    )
+    parser.add_argument(
+        "--target-table-name",
+        default="chunks_tmp_reembed",
+        help=(
+            "Target table where embeddings are updated. "
+            "Defaults to chunks_tmp_reembed."
+        ),
+    )
+    parser.add_argument(
+        "--no-refresh-target-table",
+        action="store_true",
+        help=(
+            "Do not drop/recreate target table. If empty, it will be backfilled once "
+            "from source table."
+        ),
     )
     parser.add_argument(
         "--docker-db-host",
@@ -316,17 +461,21 @@ async def main() -> None:
         limit=args.limit,
         start_after_id=args.start_after_id,
         resource_id=args.resource_id,
+        source_table_name=args.source_table_name,
+        target_table_name=args.target_table_name,
+        refresh_target_table=not args.no_refresh_target_table,
         docker_db_host=args.docker_db_host,
         host_db_host=args.host_db_host,
         dry_run=args.dry_run,
     )
 
     logger.info(
-        "Done. Processed %s chunks in %s batches. Last chunk ID: %s. Dry run: %s",
+        "Done. Processed %s chunks in %s batches. Last chunk ID: %s. Dry run: %s. Target table: %s",
         stats.processed_chunks,
         stats.processed_batches,
         stats.last_chunk_id,
         args.dry_run,
+        args.target_table_name,
     )
 
 

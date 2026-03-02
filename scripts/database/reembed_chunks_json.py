@@ -27,7 +27,7 @@ DEFAULT_OUTPUT_FILE = (
     Path(__file__).resolve().parent.parent
     / "assets"
     / "sample_data"
-    / "chunks_multimodal.json"
+    / "chunks_multilingual.json"
 )
 
 

@@ -5,8 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.database.reembed_chunks_in_db import (
+    _to_pgvector_literal,
     normalize_database_url,
     rewrite_container_hostname,
+    validate_table_name,
 )
 from scripts.database.reembed_chunks_json import (
     reembed_chunks_file,
@@ -88,10 +90,18 @@ def test_normalize_database_url_converts_postgresql_scheme() -> None:
 
 @pytest.mark.unittest
 def test_normalize_database_url_adds_ssl_for_neon() -> None:
-    normalized = normalize_database_url(
-        "postgresql+asyncpg://user:pass@mydb.neon.tech/twiga"
-    )
+    normalized = normalize_database_url("postgresql://user:pass@mydb.neon.tech/twiga")
     assert normalized.startswith("postgresql+asyncpg://user:pass@mydb.neon.tech/twiga")
+    assert "ssl=require" in normalized
+
+
+@pytest.mark.unittest
+def test_normalize_database_url_rewrites_sslmode_and_drops_channel_binding() -> None:
+    normalized = normalize_database_url(
+        "postgresql://user:pass@host:5432/db?sslmode=require&channel_binding=require"
+    )
+    assert "sslmode" not in normalized
+    assert "channel_binding" not in normalized
     assert "ssl=require" in normalized
 
 
@@ -112,6 +122,18 @@ def test_read_env_value_uses_dotenv_when_runtime_var_missing(tmp_path: Path) -> 
         value = read_env_value("EMBEDDING_API_KEY", env_file=env_file)
 
     assert value == "abc123"
+
+
+@pytest.mark.unittest
+def test_validate_table_name_rejects_invalid_identifier() -> None:
+    with pytest.raises(ValueError):
+        validate_table_name("chunks;DROP TABLE chunks;")
+
+
+@pytest.mark.unittest
+def test_to_pgvector_literal_builds_pgvector_string() -> None:
+    literal = _to_pgvector_literal([1.0, 2.5, -3.2])
+    assert literal == "[1,2.5,-3.2]"
 
 
 @pytest.mark.unittest
@@ -143,7 +165,7 @@ def test_reembed_chunks_payload_updates_embeddings_in_batches() -> None:
 @pytest.mark.unittest
 def test_reembed_chunks_file_writes_updated_output(tmp_path: Path) -> None:
     input_file = tmp_path / "chunks_BAAI.json"
-    output_file = tmp_path / "chunks_multimodal.json"
+    output_file = tmp_path / "chunks_multilingual.json"
 
     with input_file.open("w", encoding="utf-8") as file:
         json.dump(
