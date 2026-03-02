@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
@@ -24,6 +24,7 @@ from reportlab.platypus import (
 # ----------------------------
 # Text + formatting helpers
 # ----------------------------
+
 
 def safe_text(value: Any) -> str:
     """Convert to string and normalize whitespace."""
@@ -49,6 +50,7 @@ def roman_like_label(i: int) -> str:
 # ----------------------------
 # Styles
 # ----------------------------
+
 
 @dataclass(frozen=True)
 class Styles:
@@ -118,6 +120,7 @@ def build_styles() -> Styles:
 # Rendering blocks
 # ----------------------------
 
+
 def render_header(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
     meta = exam.get("meta", {})
 
@@ -158,7 +161,9 @@ def render_header(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
         )
     )
     story.append(time_year_tbl)
-    horizontal_line = HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=0)
+    horizontal_line = HRFlowable(
+        width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=0
+    )
     story.append(horizontal_line)
     story.append(Spacer(1, 6))
 
@@ -410,6 +415,7 @@ def page_number_footer(canvas, doc) -> None:
 # Public API
 # ----------------------------
 
+
 def build_story(exam: Dict[str, Any], st: Styles) -> List[Any]:
     story: List[Any] = []
 
@@ -450,12 +456,17 @@ def load_exam_json(json_path: str) -> Dict[str, Any]:
 # CLI
 # ----------------------------
 
+
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate NECTA-style exam PDF from JSON.")
+    parser = argparse.ArgumentParser(
+        description="Generate NECTA-style exam PDF from JSON."
+    )
     parser.add_argument("json_path", help="Path to exam JSON file")
-    parser.add_argument("-o", "--output", default="exam.pdf", help="Output PDF filename")
+    parser.add_argument(
+        "-o", "--output", default="exam.pdf", help="Output PDF filename"
+    )
     args = parser.parse_args()
 
     exam = load_exam_json(args.json_path)

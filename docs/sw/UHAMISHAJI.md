@@ -20,7 +20,7 @@ Maelezo:
 Ikiwa hutumii Docker kuendesha Twiga, basi unaweza kuanzisha hifadhidata na kuingiza data ya sampuli kwa kutumia amri:
 
 ```bash
-uv run python -m scripts.database.seed --create --sample-data --vector-data chunks_BAAI.json
+uv run python -m scripts.database.seed --create --sample-data --vector-data chunks_multilingual.json
 ```
 
 Hii itaondoa meza zote zilizopo kwenye hifadhidata, kuunda mpya, kusakinisha pgvector na kuingiza data ya sampuli na data ya vekta ili hifadhidata iwe tayari kukubali watumiaji wapya.
