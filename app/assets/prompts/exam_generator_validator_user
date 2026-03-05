@@ -1,0 +1,22 @@
+Validate and correct this generated exam question.
+
+Question type:
+{question_type}
+
+Topic:
+{topic}
+
+Constraints:
+{constraints}
+
+Required template shape:
+{template_json}
+
+Generated question JSON to validate:
+{candidate_json}
+
+Task:
+1. Ensure the JSON follows the required template shape and constraints.
+2. Ensure question-facing fields do not reveal the answer or include large hint paragraphs.
+3. If leakage or format issues exist, fix them.
+4. Return ONLY one corrected JSON object.

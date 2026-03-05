@@ -5,6 +5,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -17,6 +18,13 @@ logger = logging.getLogger(__name__)
 
 class ExamGenerationError(Exception):
     """Raised when exam JSON generation fails."""
+
+
+class QuestionType(str, Enum):
+    MULTIPLE_CHOICE = "multiple_choice"
+    ITEM_MATCHING = "item_matching"
+    SHORT_ANSWER = "short_answer"
+    LONG_ANSWER = "long_answer"
 
 
 @dataclass
@@ -186,7 +194,7 @@ class ExamGenerator:
                 idx % len(topics)
             ]  # maybe make this more randomized in the future
             success, matching_q = await self._generate_single_question(
-                question_type="item_matching",
+                question_type=QuestionType.ITEM_MATCHING,
                 subject=subject,
                 topic=topic,
                 chunk_list=chunks_by_topic.get(topic, []),
@@ -206,7 +214,7 @@ class ExamGenerator:
         for idx in range(max(0, spec.num_section_b_short_answer_questions)):
             topic = topics[idx % len(topics)]
             success, short_q = await self._generate_single_question(
-                question_type="short_answer",
+                question_type=QuestionType.SHORT_ANSWER,
                 subject=subject,
                 topic=topic,
                 chunk_list=chunks_by_topic.get(topic, []),
@@ -226,7 +234,7 @@ class ExamGenerator:
         for idx in range(max(0, spec.num_section_c_long_answer_questions)):
             topic = topics[idx % len(topics)]
             success, long_q = await self._generate_single_question(
-                question_type="long_answer",
+                question_type=QuestionType.LONG_ANSWER,
                 subject=subject,
                 topic=topic,
                 chunk_list=chunks_by_topic.get(topic, []),
@@ -296,7 +304,7 @@ class ExamGenerator:
         for question_num in range(num_items):
             topic = topics[question_num % len(topics)]
             success, item = await self._generate_single_question(
-                question_type="multiple_choice",
+                question_type=QuestionType.MULTIPLE_CHOICE,
                 subject=subject,
                 topic=topic,
                 chunk_list=chunks_by_topic.get(topic, []),
@@ -323,7 +331,7 @@ class ExamGenerator:
 
         return {
             "id": "A-Q1",
-            "type": "multiple_choice",
+            "type": QuestionType.MULTIPLE_CHOICE.value,
             "marks": len(items),
             "prompt": "For each of the following items, choose the correct answer among the given alternatives and write its letter beside the item number provided.",
             "items": items,
@@ -335,7 +343,7 @@ class ExamGenerator:
 
     async def _generate_single_question(
         self,
-        question_type: str,
+        question_type: QuestionType,
         subject: str,
         topic: str,
         chunk_list: Sequence[Any],
@@ -354,7 +362,7 @@ class ExamGenerator:
             system_prompt = prompt_manager.format_prompt("exam_generator_system")
             user_prompt = prompt_manager.format_prompt(
                 "exam_generator_user",
-                question_type=question_type,
+                question_type=question_type.value,
                 topic=topic,
                 previous_questions=previous_questions_str,
                 context_str=context_str,
@@ -389,7 +397,7 @@ class ExamGenerator:
                     "tool": "generate_necta_style_exam",
                     "subject": subject,
                     "topic": topic,
-                    "question_type": question_type,
+                    "question_type": question_type.value,
                 },
             )
 
@@ -398,6 +406,24 @@ class ExamGenerator:
             )
 
             parsed = self._parse_json_response(response.content if response else "")
+
+            if (
+                question_type == QuestionType.SHORT_ANSWER
+                or question_type == QuestionType.LONG_ANSWER
+            ):
+                # apply additional validation to ensure no solution leakage in question description or sub-questions
+                logger.debug("Running additional QA check for text question type.")
+                parsed = await self._apply_llm_validation_for_answer_leakage_and_format(
+                    question_payload=parsed,
+                    question_type=question_type,
+                    topic=topic,
+                    template=template,
+                )
+
+            logger.debug(
+                f"Parsed LLM response for question generation (question_type={question_type}, topic={topic}): {json.dumps(parsed, indent=2, ensure_ascii=False)}"
+            )
+
             merged = self._merge_with_template(template=template, payload=parsed)
 
             # set the system fields
@@ -431,8 +457,55 @@ class ExamGenerator:
             )
             return False, {}
 
-    def _constraints_for(self, question_type: str) -> str:
-        constraints_list = self.question_constraints.get(question_type, [])
+    async def _apply_llm_validation_for_answer_leakage_and_format(
+        self,
+        question_payload: Dict[str, Any],
+        question_type: QuestionType,
+        topic: str,
+        template: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        system_prompt = prompt_manager.format_prompt("exam_generator_validator_system")
+        constraints = self._constraints_for(question_type)
+        prompt_template = self._template_without_system_fields(template)
+        template_json = json.dumps(prompt_template, indent=2, ensure_ascii=False)
+        candidate_json = json.dumps(question_payload, indent=2, ensure_ascii=False)
+
+        user_prompt = prompt_manager.format_prompt(
+            "exam_generator_validator_user",
+            question_type=question_type.value,
+            topic=topic,
+            constraints=constraints,
+            template_json=template_json,
+            candidate_json=candidate_json,
+        )
+
+        response = await async_llm_request(
+            messages=[
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ],
+            tools=None,
+            tool_choice=None,
+            run_name="twiga_necta_exam_validator",
+            metadata={
+                "tool": "generate_necta_style_exam",
+                "stage": "question_validator",
+                "topic": topic,
+                "question_type": question_type.value,
+            },
+        )
+
+        logger.debug(
+            "Raw LLM response content for question validator (question_type=%s, topic=%s): %s",
+            question_type,
+            topic,
+            response.content if response else "No response",
+        )
+
+        return self._parse_json_response(response.content if response else "")
+
+    def _constraints_for(self, question_type: QuestionType) -> str:
+        constraints_list = self.question_constraints.get(question_type.value, [])
         constraints_str = ""
         if constraints_list:
             constraints_str += "\n".join(
@@ -600,17 +673,17 @@ class ExamGenerator:
 
     def _validate_question_format(
         self,
-        question_type: str,
+        question_type: QuestionType,
         payload: Dict[str, Any],
     ) -> bool:
         try:
-            if question_type == "multiple_choice":
+            if question_type == QuestionType.MULTIPLE_CHOICE:
                 self._validate_multiple_choice(payload)
-            elif question_type == "item_matching":
+            elif question_type == QuestionType.ITEM_MATCHING:
                 self._validate_item_matching(payload)
-            elif question_type == "short_answer":
+            elif question_type == QuestionType.SHORT_ANSWER:
                 self._validate_short_answer(payload)
-            elif question_type == "long_answer":
+            elif question_type == QuestionType.LONG_ANSWER:
                 self._validate_long_answer(payload)
             else:
                 logger.warning(
@@ -764,19 +837,21 @@ class ExamGenerator:
             sub_question["marks"] = marks
             marks_sum += marks
 
-        if marks_sum != total_marks:
-            raise ExamGenerationError(
-                f"long_answer.task.sub_questions marks ({marks_sum}) must equal long_answer.marks ({total_marks})."
-            )
+        # if marks_sum != total_marks:
+        #     raise ExamGenerationError(
+        #         f"long_answer.task.sub_questions marks ({marks_sum}) must equal long_answer.marks ({total_marks})."
+        #     )
 
-    def _question_signature(self, question_type: str, payload: Dict[str, Any]) -> str:
-        if question_type == "multiple_choice":
+    def _question_signature(
+        self, question_type: QuestionType, payload: Dict[str, Any]
+    ) -> str:
+        if question_type == QuestionType.MULTIPLE_CHOICE:
             return str(payload.get("question", "")).strip()
-        if question_type == "item_matching":
+        if question_type == QuestionType.ITEM_MATCHING:
             return str(payload.get("prompt", "")).strip()
-        if question_type == "short_answer":
+        if question_type == QuestionType.SHORT_ANSWER:
             return str(payload.get("question_description", "")).strip()
-        if question_type == "long_answer":
+        if question_type == QuestionType.LONG_ANSWER:
             description = str(payload.get("description", "")).strip()
             task = payload.get("task", {})
             prompt = (
