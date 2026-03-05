@@ -24,7 +24,7 @@ This folder defines the base JSON templates for exam generation.
 - Use `task.sub_questions` only when the question has explicit parts `(a), (b), ...`.
 - Solution format:
   - `example_answer`
-  - `accepted_answers`
+  - `marking_scheme`
   - `marking_points`
 
 ## Template Files and Example Outputs
@@ -193,10 +193,6 @@ Example filled output:
   "answer": {
     "example_answer": "Coke burns to form carbon monoxide which reduces iron(III) oxide to iron. Limestone decomposes to calcium oxide which removes silica as slag.",
     "marking_scheme": "Award for process flow, correct role of coke and limestone, and balanced equations.",
-    "accepted_answers": [
-      "Fe2O3 is reduced by CO to Fe.",
-      "CaCO3 decomposes to CaO and CO2, then CaO reacts with SiO2."
-    ],
     "marking_points": [
       {"point": "States combustion of coke and formation of CO", "marks": 3},
       {"point": "Correct reduction equation for iron oxide", "marks": 4},
