@@ -1,10 +1,8 @@
 import logging
 
 from app.database import db
-from app.database.enums import MessageRole
-from app.database.models import Message
 from app.database.models import User
-from app.database.enums import OnboardingState
+from app.database.enums import OnboardingState, MessageRole
 from app.services.flow_service import flow_client
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
@@ -61,13 +59,11 @@ class OnboardingHandler:
             StringCategory.REGISTRATION, "pending_approval"
         )
         await whatsapp_client.send_message(user.wa_id, pending_message)
-        await db.create_new_message(
-            Message(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=pending_message,
-                is_present_in_conversation=True,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=pending_message,
+            is_present_in_conversation=True,
         )
 
         # User remains in inactive state until admin approval
@@ -76,13 +72,11 @@ class OnboardingHandler:
         assert user.id is not None
         err_message = strings.get_string(StringCategory.ERROR, "general")
         await whatsapp_client.send_message(user.wa_id, err_message)
-        await db.create_new_message(
-            Message(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=err_message,
-                is_present_in_conversation=True,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=err_message,
+            is_present_in_conversation=True,
         )
 
 

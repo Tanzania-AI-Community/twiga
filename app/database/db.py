@@ -176,6 +176,28 @@ async def create_new_message(message: Message) -> Message:
             raise Exception(f"Failed to create message: {str(e)}")
 
 
+async def create_new_message_by_fields(
+    *,
+    user_id: int,
+    role: enums.MessageRole,
+    content: Optional[str] = None,
+    is_present_in_conversation: bool = False,
+    tool_calls: Optional[List[dict]] = None,
+    tool_call_id: Optional[str] = None,
+    tool_name: Optional[str] = None,
+) -> Message:
+    message = Message(
+        user_id=user_id,
+        role=role,
+        content=content,
+        is_present_in_conversation=is_present_in_conversation,
+        tool_calls=tool_calls,
+        tool_call_id=tool_call_id,
+        tool_name=tool_name,
+    )
+    return await create_new_message(message)
+
+
 async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
     try:
         query_vector = embedder.get_embedding(query)

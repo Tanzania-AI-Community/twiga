@@ -468,20 +468,20 @@ class FlowService:
         )
         await self._persist_visible_assistant_message(user, flow_message)
 
-    async def _persist_visible_assistant_message(self, user: User, content: str) -> None:
+    async def _persist_visible_assistant_message(
+        self, user: User, content: str
+    ) -> None:
         if user.id is None:
             self.logger.warning(
                 "Skipping flow message persistence for user without ID."
             )
             return
 
-        await db.create_new_message(
-            models.Message(
-                user_id=user.id,
-                role=enums.MessageRole.assistant,
-                content=content,
-                is_present_in_conversation=True,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=enums.MessageRole.assistant,
+            content=content,
+            is_present_in_conversation=True,
         )
 
 

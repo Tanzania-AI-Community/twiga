@@ -8,7 +8,6 @@ import httpx
 
 from app.config import settings
 import app.database.db as db
-import app.database.models as models
 import app.database.enums as enums
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
@@ -360,13 +359,11 @@ class WhatsAppClient:
 
             user = await db.get_user_by_waid(wa_id)
             if user and user.id is not None:
-                await db.create_new_message(
-                    models.Message(
-                        user_id=user.id,
-                        role=enums.MessageRole.user,
-                        content=f"[FLOW_COMPLETED] {json.dumps(response_payload, default=str)}",
-                        is_present_in_conversation=True,
-                    )
+                await db.create_new_message_by_fields(
+                    user_id=user.id,
+                    role=enums.MessageRole.user,
+                    content=f"[FLOW_COMPLETED] {json.dumps(response_payload, default=str)}",
+                    is_present_in_conversation=True,
                 )
             else:
                 self.logger.warning(

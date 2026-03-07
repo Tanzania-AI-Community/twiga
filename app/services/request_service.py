@@ -3,7 +3,6 @@ import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-import app.database.models as models
 import app.database.enums as enums
 from app.utils.whatsapp_utils import (
     RequestType,
@@ -99,13 +98,11 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
         )
 
     assert user.id is not None
-    user_message = await db.create_new_message(
-        models.Message(
-            user_id=user.id,
-            role=enums.MessageRole.user,
-            content=message_info.get("extracted_content", ""),
-            is_present_in_conversation=True,
-        )
+    user_message = await db.create_new_message_by_fields(
+        user_id=user.id,
+        role=enums.MessageRole.user,
+        content=message_info.get("extracted_content", ""),
+        is_present_in_conversation=True,
     )
 
     # Handle rate limiting

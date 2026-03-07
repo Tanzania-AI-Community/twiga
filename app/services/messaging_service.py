@@ -126,7 +126,9 @@ class MessagingService:
                 self.logger.warning(
                     "No assistant response with content available; sending fallback."
                 )
-                fallback_error_text = strings.get_string(StringCategory.ERROR, "general")
+                fallback_error_text = strings.get_string(
+                    StringCategory.ERROR, "general"
+                )
                 await whatsapp_client.send_message(user.wa_id, fallback_error_text)
                 record_messages_generated("chat_error")
 
@@ -151,9 +153,7 @@ class MessagingService:
                 tool_leakage_message = strings.get_string(
                     StringCategory.ERROR, "tool_leakage"
                 )
-                await whatsapp_client.send_message(
-                    user.wa_id, tool_leakage_message
-                )
+                await whatsapp_client.send_message(user.wa_id, tool_leakage_message)
                 record_messages_generated("tool_names_mentioned_error")
 
                 error_message = models.Message.from_attributes(
@@ -212,13 +212,11 @@ class MessagingService:
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
             await whatsapp_client.send_message(user.wa_id, err_message)
-            await db.create_new_message(
-                models.Message(
-                    user_id=user.id,
-                    role=enums.MessageRole.assistant,
-                    content=err_message,
-                    is_present_in_conversation=True,
-                )
+            await db.create_new_message_by_fields(
+                user_id=user.id,
+                role=enums.MessageRole.assistant,
+                content=err_message,
+                is_present_in_conversation=True,
             )
             record_messages_generated("chat_error")
 
@@ -244,13 +242,12 @@ class MessagingService:
     ) -> JSONResponse:
         assert user.id is not None
         err_message = strings.get_string(StringCategory.ERROR, "unsupported_message")
-        message = models.Message(
+        await db.create_new_message_by_fields(
             user_id=user.id,
             role=enums.MessageRole.assistant,
             content=err_message,
             is_present_in_conversation=True,
         )
-        await db.create_new_message(message)
         # Send message to the user
         await whatsapp_client.send_message(wa_id=user.wa_id, message=err_message)
         record_messages_generated("unsupported_message")
@@ -268,13 +265,11 @@ class MessagingService:
             )
             return
 
-        await db.create_new_message(
-            models.Message(
-                user_id=user.id,
-                role=enums.MessageRole.assistant,
-                content=content,
-                is_present_in_conversation=True,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=enums.MessageRole.assistant,
+            content=content,
+            is_present_in_conversation=True,
         )
 
 

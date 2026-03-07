@@ -8,7 +8,7 @@ from langchain_core.messages import (
 from langchain_core.messages.base import BaseMessage
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.database.db import create_new_message, get_user_message_history
+from app.database.db import create_new_message_by_fields, get_user_message_history
 from app.config import Prompt, settings
 from app.utils.prompt_manager import prompt_manager
 from app.utils.message_processor import MessageProcessor
@@ -53,13 +53,11 @@ class ClientBase(ABC):
             )
             return
 
-        await create_new_message(
-            Message(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=notification_text,
-                is_present_in_conversation=True,
-            )
+        await create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=notification_text,
+            is_present_in_conversation=True,
         )
 
     async def _preprocess_messages(
