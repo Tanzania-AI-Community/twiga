@@ -7,6 +7,7 @@ This package contains all the tool calls available to Twiga. Each tool is isolat
 - **search_knowledge** - Retrieves relevant information from the knowledge base (TIE textbooks)
 - **generate_exercise** - Generates practice questions based on course literature
 - **solve_equation** - Solves mathematical equations with step-by-step solutions
+- **generate_necta_style_exam** - Generates exams based on course literature using the NECTA style
 
 ## Adding a New Tool
 
@@ -76,9 +77,9 @@ For testing that requires LLM calls, create a script in the `scripts/tools/` dir
 docker-compose -f docker/dev/docker-compose.yml up -d
 ```
 
-**Run tests:**
+**Run test script:**
 ```bash
-docker-compose -f docker/dev/docker-compose.yml exec app uv run pytest tests/test_<TOOL_NAME>.py -v -s
+docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/tools/test_<TOOL_NAME>.py"
 ```
 
 This allows you to verify tool calls work correctly without needing to interact with the full system.
