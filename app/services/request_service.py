@@ -139,6 +139,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                     user_id=user.id,
                     role=enums.MessageRole.user,
                     content=message_info.get("extracted_content", ""),
+                    is_present_in_conversation=True,
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)
@@ -162,6 +163,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                     user_id=user.id,
                     role=enums.MessageRole.user,
                     content=message_info.get("extracted_content", ""),
+                    is_present_in_conversation=True,
                 )
             )
             return await state_client.handle_active(user, message_info, user_message)

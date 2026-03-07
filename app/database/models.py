@@ -199,6 +199,11 @@ class Message(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     role: enums.MessageRole = Field(max_length=20)
     content: Optional[str] = Field(default=None)  # None when tool_calls present
+    is_present_in_conversation: bool = Field(
+        default=False,
+        nullable=False,
+        sa_column_kwargs={"server_default": sa.false()},
+    )
 
     # Tool call related fields
     tool_calls: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
