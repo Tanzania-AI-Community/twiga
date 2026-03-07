@@ -8,7 +8,7 @@ from langchain_core.messages import (
 from langchain_core.messages.base import BaseMessage
 from app.database.models import Message, User
 from app.database.enums import MessageRole
-from app.database.db import get_user_message_history
+from app.database.db import create_new_message_by_fields, get_user_message_history
 from app.config import Prompt, settings
 from app.utils.prompt_manager import prompt_manager
 from app.utils.message_processor import MessageProcessor
@@ -44,8 +44,20 @@ class ClientBase(ABC):
 
     async def _tool_call_notification(self, user: User, tool_name: str) -> None:
         """Send a notification to the user when a tool call is made."""
-        await whatsapp_client.send_message(
-            user.wa_id, strings.get_string(StringCategory.TOOLS, tool_name)
+        notification_text = strings.get_string(StringCategory.TOOLS, tool_name)
+        await whatsapp_client.send_message(user.wa_id, notification_text)
+
+        if user.id is None:
+            self.logger.warning(
+                "Skipping tool notification persistence for user without ID."
+            )
+            return
+
+        await create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=notification_text,
+            is_present_in_conversation=True,
         )
 
     async def _preprocess_messages(

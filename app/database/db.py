@@ -108,6 +108,26 @@ async def get_user_message_history(
             raise Exception(f"Failed to retrieve message history: {str(e)}")
 
 
+async def get_latest_user_message_by_role(
+    user_id: int, role: enums.MessageRole
+) -> Optional[Message]:
+    async with get_session() as session:
+        try:
+            statement = (
+                select(Message)
+                .where(and_(Message.user_id == user_id, Message.role == role))
+                .order_by(desc(Message.created_at))
+                .limit(1)
+            )
+            result = await session.execute(statement)
+            return result.scalars().first()
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve latest {role.value} message for user {user_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to retrieve latest message: {str(e)}")
+
+
 async def create_new_messages(messages: List[Message]) -> List[Message]:
     """Optimized bulk message creation"""
     async with get_session() as session:
@@ -154,6 +174,28 @@ async def create_new_message(message: Message) -> Message:
         except Exception as e:
             logger.error(f"Error creating message for user {message.user_id}: {str(e)}")
             raise Exception(f"Failed to create message: {str(e)}")
+
+
+async def create_new_message_by_fields(
+    *,
+    user_id: int,
+    role: enums.MessageRole,
+    content: Optional[str] = None,
+    is_present_in_conversation: bool = False,
+    tool_calls: Optional[List[dict]] = None,
+    tool_call_id: Optional[str] = None,
+    tool_name: Optional[str] = None,
+) -> Message:
+    message = Message(
+        user_id=user_id,
+        role=role,
+        content=content,
+        is_present_in_conversation=is_present_in_conversation,
+        tool_calls=tool_calls,
+        tool_call_id=tool_call_id,
+        tool_name=tool_name,
+    )
+    return await create_new_message(message)
 
 
 async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:

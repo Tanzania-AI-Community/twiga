@@ -1,0 +1,235 @@
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+import app.database.enums as enums
+from app.database.models import Message, User
+from app.services.messaging_service import MessagingService
+
+
+@pytest.mark.asyncio
+async def test_command_settings_persists_visible_message() -> None:
+    service = MessagingService()
+    user = User(id=31, wa_id="255700000222", name="Teacher")
+
+    with (
+        patch(
+            "app.services.messaging_service.strings.get_string",
+            side_effect=["Settings intro", "Personal info", "Classes and subjects"],
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+    ):
+        await service._command_settings(user)
+
+    mock_send_message.assert_awaited_once_with(
+        user.wa_id,
+        "Settings intro",
+        ["Personal info", "Classes and subjects"],
+    )
+    mock_persist_visible.assert_awaited_once_with(user, "Settings intro")
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_marks_final_response_as_present_in_conversation() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=1, wa_id="255700000000", name="Teacher")
+    user_message = Message(
+        user_id=1,
+        role=enums.MessageRole.user,
+        content="What is photosynthesis?",
+    )
+    final_message = Message(
+        user_id=1,
+        role=enums.MessageRole.assistant,
+        content="Photosynthesis is how plants make food.",
+    )
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[final_message]),
+        ),
+        patch(
+            "app.services.messaging_service.db.create_new_messages",
+            AsyncMock(),
+        ) as mock_create_messages,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch("app.services.messaging_service.record_messages_generated"),
+        patch(
+            "app.services.messaging_service.looks_like_latex",
+            return_value=False,
+        ),
+    ):
+        response = await service.handle_chat_message(
+            user=user,
+            user_message=user_message,
+        )
+
+    assert response.status_code == 200
+    assert final_message.is_present_in_conversation is True
+    mock_create_messages.assert_awaited_once_with([final_message])
+    mock_send_message.assert_awaited_once_with(user.wa_id, final_message.content)
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_persists_general_error_when_llm_returns_none() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=3, wa_id="255700000000", name="Teacher")
+    user_message = Message(
+        user_id=3,
+        role=enums.MessageRole.user,
+        content="Hi",
+    )
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.messaging_service.strings.get_string",
+            return_value="Something went wrong.",
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.services.messaging_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message_by_fields,
+        patch("app.services.messaging_service.record_messages_generated"),
+    ):
+        response = await service.handle_chat_message(
+            user=user,
+            user_message=user_message,
+        )
+
+    assert response.status_code == 200
+    mock_send_message.assert_awaited_once_with(user.wa_id, "Something went wrong.")
+    assert mock_create_message_by_fields.await_args.kwargs == {
+        "user_id": user.id,
+        "role": enums.MessageRole.assistant,
+        "content": "Something went wrong.",
+        "is_present_in_conversation": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_persists_tool_leakage_fallback_as_visible() -> None:
+    service = MessagingService()
+    user = User(id=4, wa_id="255700000123", name="Teacher")
+    user_message = Message(
+        user_id=4,
+        role=enums.MessageRole.user,
+        content="Tell me more",
+    )
+    leaked_message = Message(
+        user_id=4,
+        role=enums.MessageRole.assistant,
+        content="I will use search_knowledge now.",
+    )
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[leaked_message]),
+        ),
+        patch(
+            "app.services.messaging_service.strings.get_string",
+            return_value="Tool leakage fallback",
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.services.messaging_service.db.create_new_messages",
+            AsyncMock(),
+        ) as mock_create_new_messages,
+        patch("app.services.messaging_service.record_messages_generated"),
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    mock_send_message.assert_awaited_once_with(user.wa_id, "Tool leakage fallback")
+    persisted_messages = mock_create_new_messages.await_args.args[0]
+    assert len(persisted_messages) == 2
+    assert persisted_messages[1].content == "Tool leakage fallback"
+    assert persisted_messages[1].is_present_in_conversation is True
+
+
+@pytest.mark.asyncio
+async def test_handle_other_message_persists_visible_error() -> None:
+    service = MessagingService()
+    user = User(id=9, wa_id="255700000555", name="Teacher")
+    user_message = Message(
+        user_id=user.id,
+        role=enums.MessageRole.user,
+        content=None,
+    )
+
+    with (
+        patch(
+            "app.services.messaging_service.strings.get_string",
+            return_value="Unsupported message",
+        ),
+        patch(
+            "app.services.messaging_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message_by_fields,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch("app.services.messaging_service.record_messages_generated"),
+    ):
+        response = await service.handle_other_message(user, user_message)
+
+    assert response.status_code == 200
+    assert mock_create_message_by_fields.await_args.kwargs == {
+        "user_id": user.id,
+        "role": enums.MessageRole.assistant,
+        "content": "Unsupported message",
+        "is_present_in_conversation": True,
+    }
+    mock_send_message.assert_awaited_once_with(
+        wa_id=user.wa_id,
+        message="Unsupported message",
+    )
+
+
+@pytest.mark.asyncio
+async def test_persist_visible_assistant_message_skips_when_user_id_is_missing() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=None, wa_id="255700000999", name="Teacher")
+
+    with patch(
+        "app.services.messaging_service.db.create_new_message_by_fields",
+        AsyncMock(),
+    ) as mock_create_message_by_fields:
+        await service._persist_visible_assistant_message(user, "Visible content")
+
+    mock_create_message_by_fields.assert_not_awaited()
