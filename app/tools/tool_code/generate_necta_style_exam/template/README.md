@@ -13,15 +13,20 @@ This folder defines the base JSON templates for exam generation.
 
 ### Part B
 - `short_answer`: Definitions, brief explanations, small calculations, short structured prompts.
+- Use exactly two parts labeled `a` and `b`.
+- At most one part may include `sub_questions`.
+- When `sub_questions` are used, they must be exactly three with labels `i`, `ii`, `iii`.
+- `short_answer.parts[*].sub_questions` item shape: `{"label": "i", "text": "...", "marks": 2}`.
 - Solution format:
   - `example_answer`
-  - `accepted_answers` (alternative valid responses)
+  - `marking_scheme`
   - `marking_points` (key points to award marks)
 
 ### Part C
 - `long_answer`: Extended response and essay-style reasoning.
 - Use `description` for setup/context and `task.prompt` for the actual instruction.
 - Use `task.sub_questions` only when the question has explicit parts `(a), (b), ...`.
+- `long_answer.task.sub_questions` item shape: `{"label": "a", "prompt": "...", "marks": 5}`.
 - Solution format:
   - `example_answer`
   - `marking_scheme`
@@ -149,21 +154,25 @@ Example filled output:
 {
   "id": "B-Q3",
   "marks": 10,
-  "question_description": "Define the following terms:",
-  "context": null,
-  "sub_questions": [
-    {"label": "i", "text": "Electrolysis", "marks": 2},
-    {"label": "ii", "text": "Mole", "marks": 2},
-    {"label": "iii", "text": "Homologous series", "marks": 2},
-    {"label": "iv", "text": "State two differences between ionic and covalent compounds.", "marks": 4}
+  "parts": [
+    {
+      "label": "a",
+      "prompt": "Define the following terms:",
+      "sub_questions": [
+        {"label": "i", "text": "Electrolysis", "marks": 2},
+        {"label": "ii", "text": "Mole", "marks": 2},
+        {"label": "iii", "text": "Homologous series", "marks": 2}
+      ]
+    },
+    {
+      "label": "b",
+      "prompt": "State two differences between ionic and covalent compounds.",
+      "sub_questions": []
+    }
   ],
   "answer": {
     "example_answer": "Electrolysis is decomposition of ionic compounds by electricity. Mole is amount containing 6.02 x 10^23 particles. Homologous series is a family of organic compounds with same functional group and general formula.",
     "marking_scheme": "Award marks per correct definition and valid differences.",
-    "accepted_answers": [
-      "Electrolysis is chemical decomposition caused by electric current.",
-      "A mole contains Avogadro's number of entities."
-    ],
     "marking_points": [
       {"point": "Mentions decomposition by electricity", "marks": 1},
       {"point": "Mentions ionic molten/aqueous medium", "marks": 1},

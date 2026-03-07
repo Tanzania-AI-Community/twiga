@@ -748,13 +748,84 @@ class ExamGenerator:
             )
 
     def _validate_short_answer(self, payload: Dict[str, Any]) -> None:
-        question_description = str(payload.get("question_description", "")).strip()
-        if not question_description:
-            raise ExamGenerationError("short_answer.question_description is required.")
+        parts = payload.get("parts", [])
+        if not isinstance(parts, list) or len(parts) != 2:
+            raise ExamGenerationError(
+                "short_answer.parts must be a list with exactly two items (a and b)."
+            )
 
-        sub_questions = payload.get("sub_questions", [])
-        if not isinstance(sub_questions, list):
-            raise ExamGenerationError("short_answer.sub_questions must be a list.")
+        expected_part_labels = ["a", "b"]
+        num_parts_with_sub_questions = 0
+
+        for part_idx, expected_label in enumerate(expected_part_labels):
+            part = parts[part_idx]
+            if not isinstance(part, dict):
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}] must be an object."
+                )
+
+            part_label = str(part.get("label", "")).strip().lower()
+            if part_label != expected_label:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].label must be '{expected_label}'."
+                )
+
+            part_prompt = str(part.get("prompt", "")).strip()
+            if not part_prompt:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].prompt is required."
+                )
+
+            sub_questions = part.get("sub_questions", [])
+            if not isinstance(sub_questions, list):
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].sub_questions must be a list."
+                )
+
+            if sub_questions:
+                num_parts_with_sub_questions += 1
+
+            for sub_idx, sub_question in enumerate(sub_questions):
+                if not isinstance(sub_question, dict):
+                    raise ExamGenerationError(
+                        f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}] must be an object."
+                    )
+
+                sub_label = str(sub_question.get("label", "")).strip().lower()
+                expected_roman = (
+                    self.ROMAN_LABELS[sub_idx]
+                    if sub_idx < len(self.ROMAN_LABELS)
+                    else None
+                )
+                if expected_roman is None or sub_label != expected_roman:
+                    raise ExamGenerationError(
+                        f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].label must be sequential roman numerals starting at i."
+                    )
+
+                sub_text = str(sub_question.get("text", "")).strip()
+                if not sub_text:
+                    raise ExamGenerationError(
+                        f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].text is required."
+                    )
+
+                if "marks" in sub_question and sub_question.get("marks") is not None:
+                    marks_raw = sub_question.get("marks")
+                    try:
+                        marks = int(marks_raw)
+                    except (TypeError, ValueError) as exc:
+                        raise ExamGenerationError(
+                            f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks must be an integer when provided."
+                        ) from exc
+                    if marks <= 0:
+                        raise ExamGenerationError(
+                            f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks must be > 0 when provided."
+                        )
+                    sub_question["marks"] = marks
+
+        if num_parts_with_sub_questions > 1:
+            raise ExamGenerationError(
+                "short_answer allows sub_questions in at most one part."
+            )
 
         answer = payload.get("answer", {})
         if not isinstance(answer, dict):
@@ -850,7 +921,36 @@ class ExamGenerator:
         if question_type == QuestionType.ITEM_MATCHING:
             return str(payload.get("prompt", "")).strip()
         if question_type == QuestionType.SHORT_ANSWER:
-            return str(payload.get("question_description", "")).strip()
+            parts = payload.get("parts", [])
+            signature_parts: List[str] = []
+            if isinstance(parts, list):
+                for part in parts:
+                    if not isinstance(part, dict):
+                        continue
+                    label = str(part.get("label", "")).strip().lower()
+                    prompt = str(part.get("prompt", "")).strip()
+                    sub_texts: List[str] = []
+                    sub_questions = part.get("sub_questions", [])
+                    if isinstance(sub_questions, list):
+                        for sub_question in sub_questions:
+                            if isinstance(sub_question, dict):
+                                sub_text = str(sub_question.get("text", "")).strip()
+                                if sub_text:
+                                    sub_texts.append(sub_text)
+                    part_signature = " ".join(
+                        token
+                        for token in [f"{label})" if label else "", prompt]
+                        if token
+                    )
+                    if sub_texts:
+                        part_signature = (
+                            f"{part_signature} {' | '.join(sub_texts)}"
+                            if part_signature
+                            else " | ".join(sub_texts)
+                        )
+                    if part_signature:
+                        signature_parts.append(part_signature)
+            return " | ".join(signature_parts)
         if question_type == QuestionType.LONG_ANSWER:
             description = str(payload.get("description", "")).strip()
             task = payload.get("task", {})

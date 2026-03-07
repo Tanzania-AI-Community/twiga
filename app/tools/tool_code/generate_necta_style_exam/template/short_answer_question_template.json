@@ -1,13 +1,21 @@
 {
     "id": null,
     "marks": null,
-    "question_description": null,
-    "context": null,
-    "sub_questions": [],
+    "parts": [
+        {
+            "label": "a",
+            "prompt": null,
+            "sub_questions": []
+        },
+        {
+            "label": "b",
+            "prompt": null,
+            "sub_questions": []
+        }
+    ],
     "answer": {
         "example_answer": null,
         "marking_scheme": null,
-        "accepted_answers": [],
         "marking_points": []
     },
     "metadata": {
