@@ -1,5 +1,8 @@
 import logging
 
+from app.database import db
+from app.database.enums import MessageRole
+from app.database.models import Message
 from app.database.models import User
 from app.database.enums import OnboardingState
 from app.services.flow_service import flow_client
@@ -53,16 +56,33 @@ class OnboardingHandler:
         self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
 
         # Send message that registration is pending approval
+        assert user.id is not None
         pending_message = strings.get_string(
             StringCategory.REGISTRATION, "pending_approval"
         )
         await whatsapp_client.send_message(user.wa_id, pending_message)
+        await db.create_new_message(
+            Message(
+                user_id=user.id,
+                role=MessageRole.assistant,
+                content=pending_message,
+                is_present_in_conversation=True,
+            )
+        )
 
         # User remains in inactive state until admin approval
 
     async def handle_default(self, user: User):
-        await whatsapp_client.send_message(
-            user.wa_id, strings.get_string(StringCategory.ERROR, "general")
+        assert user.id is not None
+        err_message = strings.get_string(StringCategory.ERROR, "general")
+        await whatsapp_client.send_message(user.wa_id, err_message)
+        await db.create_new_message(
+            Message(
+                user_id=user.id,
+                role=MessageRole.assistant,
+                content=err_message,
+                is_present_in_conversation=True,
+            )
         )
 
 

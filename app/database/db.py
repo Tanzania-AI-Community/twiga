@@ -108,6 +108,26 @@ async def get_user_message_history(
             raise Exception(f"Failed to retrieve message history: {str(e)}")
 
 
+async def get_latest_user_message_by_role(
+    user_id: int, role: enums.MessageRole
+) -> Optional[Message]:
+    async with get_session() as session:
+        try:
+            statement = (
+                select(Message)
+                .where(and_(Message.user_id == user_id, Message.role == role))
+                .order_by(desc(Message.created_at))
+                .limit(1)
+            )
+            result = await session.execute(statement)
+            return result.scalars().first()
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve latest {role.value} message for user {user_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to retrieve latest message: {str(e)}")
+
+
 async def create_new_messages(messages: List[Message]) -> List[Message]:
     """Optimized bulk message creation"""
     async with get_session() as session:

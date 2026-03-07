@@ -79,16 +79,19 @@ class MessagingService:
             strings.get_string(StringCategory.SETTINGS, "class_subject_info"),
         ]
         await whatsapp_client.send_message(user.wa_id, response_text, options)
+        await self._persist_visible_assistant_message(user, response_text)
 
     @track_messages("command_help")
     async def _command_help(self, user: models.User) -> None:
         response_text = strings.get_string(StringCategory.INFO, "help")
         await whatsapp_client.send_message(user.wa_id, response_text)
+        await self._persist_visible_assistant_message(user, response_text)
 
     @track_messages("command_unknown")
     async def _command_unknown(self, user: models.User) -> None:
         response_text = strings.get_string(StringCategory.ERROR, "command_not_found")
         await whatsapp_client.send_message(user.wa_id, response_text)
+        await self._persist_visible_assistant_message(user, response_text)
 
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
@@ -145,15 +148,18 @@ class MessagingService:
                 self.logger.warning(
                     "Tool name leakage detected in LLM response; sending fallback message."
                 )
+                tool_leakage_message = strings.get_string(
+                    StringCategory.ERROR, "tool_leakage"
+                )
                 await whatsapp_client.send_message(
-                    user.wa_id, strings.get_string(StringCategory.ERROR, "tool_leakage")
+                    user.wa_id, tool_leakage_message
                 )
                 record_messages_generated("tool_names_mentioned_error")
 
                 error_message = models.Message.from_attributes(
                     user_id=user.id,
                     role=enums.MessageRole.assistant,
-                    content=strings.get_string(StringCategory.ERROR, "tool_leakage"),
+                    content=tool_leakage_message,
                 )
                 error_message.is_present_in_conversation = True
 
@@ -242,6 +248,7 @@ class MessagingService:
             user_id=user.id,
             role=enums.MessageRole.assistant,
             content=err_message,
+            is_present_in_conversation=True,
         )
         await db.create_new_message(message)
         # Send message to the user
@@ -250,6 +257,24 @@ class MessagingService:
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
+        )
+
+    async def _persist_visible_assistant_message(
+        self, user: models.User, content: str
+    ) -> None:
+        if user.id is None:
+            self.logger.warning(
+                "Skipping assistant message persistence for user without ID."
+            )
+            return
+
+        await db.create_new_message(
+            models.Message(
+                user_id=user.id,
+                role=enums.MessageRole.assistant,
+                content=content,
+                is_present_in_conversation=True,
+            )
         )
 
 

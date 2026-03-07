@@ -37,7 +37,7 @@ async def handle_request(request: Request) -> JSONResponse:
             case RequestType.MESSAGE_STATUS_UPDATE:
                 return whatsapp_client.handle_status_update(body)
             case RequestType.FLOW_COMPLETE:
-                return whatsapp_client.handle_flow_message_complete(body)
+                return await whatsapp_client.handle_flow_message_complete(body)
             case RequestType.INVALID_MESSAGE:
                 return whatsapp_client.handle_invalid_message(body)
             case RequestType.OUTDATED:
@@ -98,6 +98,16 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             phone_number, message_info
         )
 
+    assert user.id is not None
+    user_message = await db.create_new_message(
+        models.Message(
+            user_id=user.id,
+            role=enums.MessageRole.user,
+            content=message_info.get("extracted_content", ""),
+            is_present_in_conversation=True,
+        )
+    )
+
     # Handle rate limiting
     rate_limit_response = await state_client._handle_rate_limiting(user, phone_number)
     if rate_limit_response:
@@ -113,15 +123,6 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
 
         case enums.UserState.approved:
             # Users approved by dashboard - send welcome message and transition to onboarding
-            assert user.id is not None
-            await db.create_new_message(
-                models.Message(
-                    user_id=user.id,
-                    role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
-                )
-            )
-
             # Send welcome message and move user to onboarding state
             welcome_response = await state_client.handle_new_approved_user(user)
             return welcome_response
@@ -133,39 +134,13 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
                 return reactivate_response
 
             # Process their message
-            assert user.id is not None
-            user_message = await db.create_new_message(
-                models.Message(
-                    user_id=user.id,
-                    role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
-                    is_present_in_conversation=True,
-                )
-            )
             return await state_client.handle_active(user, message_info, user_message)
 
         case enums.UserState.onboarding:
-            # Create user message record for onboarding users
-            assert user.id is not None
-            user_message = await db.create_new_message(
-                models.Message(
-                    user_id=user.id,
-                    role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
-                )
-            )
+            # Message already persisted above
             return await state_client.handle_onboarding(user)
 
         case enums.UserState.active:
-            assert user.id is not None
-            user_message = await db.create_new_message(
-                models.Message(
-                    user_id=user.id,
-                    role=enums.MessageRole.user,
-                    content=message_info.get("extracted_content", ""),
-                    is_present_in_conversation=True,
-                )
-            )
             return await state_client.handle_active(user, message_info, user_message)
 
         case _:
