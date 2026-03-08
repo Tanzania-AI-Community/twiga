@@ -54,7 +54,11 @@ class OnboardingHandler:
         self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
 
         # Send message that registration is pending approval
-        assert user.id is not None
+        if user.id is None:
+            raise ValueError(
+                "User ID is unexpectedly None during completed onboarding."
+            )
+
         pending_message = strings.get_string(
             StringCategory.REGISTRATION, "pending_approval"
         )
@@ -69,7 +73,9 @@ class OnboardingHandler:
         # User remains in inactive state until admin approval
 
     async def handle_default(self, user: User):
-        assert user.id is not None
+        if user.id is None:
+            raise ValueError("User ID is unexpectedly None during onboarding.")
+
         err_message = strings.get_string(StringCategory.ERROR, "general")
         await whatsapp_client.send_message(user.wa_id, err_message)
         await db.create_new_message_by_fields(

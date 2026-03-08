@@ -145,7 +145,10 @@ class MessagingService:
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
             llm_content = final_message.content
-            assert llm_content is not None
+
+            if llm_content is None:
+                raise ValueError("LLM response content is unexpectedly None.")
+
             if self._are_the_tools_names_mentioned(llm_content):
                 self.logger.warning(
                     "Tool name leakage detected in LLM response; sending fallback message."
@@ -240,7 +243,6 @@ class MessagingService:
     async def handle_other_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
-        assert user.id is not None
         err_message = strings.get_string(StringCategory.ERROR, "unsupported_message")
         await db.create_new_message_by_fields(
             user_id=user.id,
