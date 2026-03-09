@@ -238,9 +238,9 @@ class FlowService:
             )
 
             # Send a welcome message to the user
-            await whatsapp_client.send_message(
-                user.wa_id, strings.get_string(StringCategory.ONBOARDING, "welcome")
-            )
+            welcome_message = strings.get_string(StringCategory.ONBOARDING, "welcome")
+            await whatsapp_client.send_message(user.wa_id, welcome_message)
+            await self._persist_visible_assistant_message(user, welcome_message)
 
             # Create the response payload
             encrypted_flow_token = payload.get("flow_token")
@@ -326,9 +326,9 @@ class FlowService:
             if not is_updating:
                 await self.send_subjects_classes_flow(user)
         except Exception as e:
-            await whatsapp_client.send_message(
-                user.wa_id, strings.get_string(StringCategory.ERROR, "general")
-            )
+            err_message = strings.get_string(StringCategory.ERROR, "general")
+            await whatsapp_client.send_message(user.wa_id, err_message)
+            await self._persist_visible_assistant_message(user, err_message)
             self.logger.error(f"Failed to update onboarding data: {str(e)}")
 
     """ *************** FLOW SENDING METHODS *************** """
@@ -361,6 +361,12 @@ class FlowService:
             },
             flow_cta=flow_strings["personal_settings_cta"],
         )
+        await self._persist_flow_message(
+            user=user,
+            flow_id=settings.onboarding_flow_id,
+            header_text=header_text,
+            body_text=body_text,
+        )
 
     async def send_personal_and_school_info_flow(self, user: User) -> None:
         flow_strings = strings.get_category(StringCategory.FLOWS)
@@ -386,6 +392,12 @@ class FlowService:
                 "data": data,
             },
             flow_cta=flow_strings["start_onboarding_cta"],
+        )
+        await self._persist_flow_message(
+            user=user,
+            flow_id=settings.onboarding_flow_id,
+            header_text=header_text,
+            body_text=body_text,
         )
 
     async def send_subjects_classes_flow(self, user: User) -> None:
@@ -438,9 +450,39 @@ class FlowService:
                 action_payload=response_payload,
                 flow_cta=flow_strings["subjects_classes_flow_cta"],
             )
+            await self._persist_flow_message(
+                user=user,
+                flow_id=settings.subjects_classes_flow_id,
+                header_text=flow_strings["subjects_classes_flow_header"],
+                body_text=flow_strings["subjects_classes_flow_body"],
+            )
         except Exception as e:
             self.logger.error(f"Error sending subjects classes flow: {e}")
             raise
+
+    async def _persist_flow_message(
+        self, user: User, flow_id: str, header_text: str, body_text: str
+    ) -> None:
+        flow_message = (
+            f"[FLOW_SENT] id={flow_id} | header={header_text} | body={body_text}"
+        )
+        await self._persist_visible_assistant_message(user, flow_message)
+
+    async def _persist_visible_assistant_message(
+        self, user: User, content: str
+    ) -> None:
+        if user.id is None:
+            self.logger.warning(
+                "Skipping flow message persistence for user without ID."
+            )
+            return
+
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=enums.MessageRole.assistant,
+            content=content,
+            is_present_in_conversation=True,
+        )
 
 
 flow_client = FlowService()
