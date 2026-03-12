@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import uuid
+import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -425,6 +426,11 @@ class ExamGenerator:
             )
 
             merged = self._merge_with_template(template=template, payload=parsed)
+
+            # the llm generated matching question places the answer options in the listB in the same order as listA, so we shuffle
+            # the answers are stored in a dict mapping, so the order of the lists does not matter
+            if question_type == QuestionType.ITEM_MATCHING:
+                random.shuffle(merged["listB"])
 
             # set the system fields
             merged["id"] = question_id
