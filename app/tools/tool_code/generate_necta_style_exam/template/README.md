@@ -14,8 +14,11 @@ This folder defines the base JSON templates for exam generation.
 ### Part B
 - `short_answer`: Definitions, brief explanations, small calculations, short structured prompts.
 - Use exactly two parts labeled `a` and `b`.
-- At most one part may include `sub_questions`.
-- When `sub_questions` are used, they must be exactly three with labels `i`, `ii`, `iii`.
+- Each part must include a positive integer `marks`.
+- Part marks must sum to question-level `marks`.
+- Each part must include `sub_questions`.
+- Sub-questions should be labeled `i`, `ii`, `iii` where applicable.
+- Within each part, sub-question `marks` must be positive integers and sum to that part's `marks`.
 - `short_answer.parts[*].sub_questions` item shape: `{"label": "i", "text": "...", "marks": 2}`.
 - Solution format:
   - `example_answer`
@@ -26,6 +29,7 @@ This folder defines the base JSON templates for exam generation.
 - `long_answer`: Extended response and essay-style reasoning.
 - Use `description` for setup/context and `task.prompt` for the actual instruction.
 - Use `task.sub_questions` only when the question has explicit parts `(a), (b), ...`.
+- If `task.sub_questions` are used, each sub-question must include positive integer `marks`, and their sum must equal the question-level `marks`.
 - `long_answer.task.sub_questions` item shape: `{"label": "a", "prompt": "...", "marks": 5}`.
 - Solution format:
   - `example_answer`

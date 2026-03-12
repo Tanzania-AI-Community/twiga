@@ -255,7 +255,12 @@ class ExamGenerator:
         section_a["question_list"] = section_a_questions
         section_b["question_list"] = section_b_questions
         section_c["question_list"] = section_c_questions
-        section_a["total_num_questions"] = len(section_a_questions)
+
+        num_section_a_questions = len(section_a_questions)
+        if num_section_a_questions > 0 and section_a_questions[0].get("id") == "A-Q1":
+            num_section_a_questions += len(section_a_questions[0].get("items", [])) - 1
+
+        section_a["total_num_questions"] = num_section_a_questions
         section_b["total_num_questions"] = len(section_b_questions)
         section_c["total_num_questions"] = len(section_c_questions)
 
@@ -369,7 +374,7 @@ class ExamGenerator:
                 context_str=context_str,
             )
 
-            constraints = self._constraints_for(question_type)
+            constraints = self._constraints_for(question_type, num_marks)
             prompt_template = self._template_without_system_fields(template)
             template_json = json.dumps(prompt_template, indent=2, ensure_ascii=False)
             user_prompt_with_template = (
@@ -419,12 +424,14 @@ class ExamGenerator:
                     question_type=question_type,
                     topic=topic,
                     template=template,
+                    expected_total_marks=num_marks,
                 )
 
             logger.debug(
                 f"Parsed LLM response for question generation (question_type={question_type}, topic={topic}): {json.dumps(parsed, indent=2, ensure_ascii=False)}"
             )
 
+            parsed = self._normalize_question_payload(question_type, parsed)
             merged = self._merge_with_template(template=template, payload=parsed)
 
             # the llm generated matching question places the answer options in the listB in the same order as listA, so we shuffle
@@ -469,9 +476,10 @@ class ExamGenerator:
         question_type: QuestionType,
         topic: str,
         template: Dict[str, Any],
+        expected_total_marks: int,
     ) -> Dict[str, Any]:
         system_prompt = prompt_manager.format_prompt("exam_generator_validator_system")
-        constraints = self._constraints_for(question_type)
+        constraints = self._constraints_for(question_type, expected_total_marks)
         prompt_template = self._template_without_system_fields(template)
         template_json = json.dumps(prompt_template, indent=2, ensure_ascii=False)
         candidate_json = json.dumps(question_payload, indent=2, ensure_ascii=False)
@@ -510,15 +518,57 @@ class ExamGenerator:
 
         return self._parse_json_response(response.content if response else "")
 
-    def _constraints_for(self, question_type: QuestionType) -> str:
+    def _constraints_for(
+        self,
+        question_type: QuestionType,
+        expected_total_marks: Optional[int] = None,
+    ) -> str:
         constraints_list = self.question_constraints.get(question_type.value, [])
-        constraints_str = ""
-        if constraints_list:
-            constraints_str += "\n".join(
-                f"- {constraint}" for constraint in constraints_list
-            )
-        constraints_str += "\n- Keep output valid and concise."
-        return constraints_str
+        dynamic_constraints: List[str] = []
+
+        if expected_total_marks is not None:
+            if question_type == QuestionType.SHORT_ANSWER:
+                dynamic_constraints.extend(
+                    [
+                        f"Total marks for this question should be {expected_total_marks}.",
+                        "Set marks for part a and part b as positive integers.",
+                        f"Ensure part a marks + part b marks = {expected_total_marks}.",
+                        "For each part, ensure sub-question marks are positive integers and sum to the part marks.",
+                    ]
+                )
+            elif question_type == QuestionType.LONG_ANSWER:
+                dynamic_constraints.extend(
+                    [
+                        f"Total marks for this question should be {expected_total_marks}.",
+                        f"If task.sub_questions are present, ensure their marks sum to {expected_total_marks}.",
+                    ]
+                )
+
+        all_constraints = (
+            constraints_list + dynamic_constraints + ["Keep output valid and concise."]
+        )
+        return "\n".join(f"- {constraint}" for constraint in all_constraints)
+
+    def _normalize_question_payload(
+        self, question_type: QuestionType, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Flatten occasional LLM wrappers such as {"short_answer": {...}, ...}
+        into the expected top-level question shape.
+        """
+        if not isinstance(payload, dict):
+            return payload
+
+        wrapper = payload.get(question_type.value)
+        if not isinstance(wrapper, dict):
+            return payload
+
+        normalized = dict(payload)
+        normalized.pop(question_type.value, None)
+        for key, value in wrapper.items():
+            if key not in normalized or normalized.get(key) in (None, [], {}):
+                normalized[key] = value
+        return normalized
 
     def _parse_json_response(self, raw_content: Any) -> Dict[str, Any]:
         if isinstance(raw_content, dict):
@@ -754,6 +804,16 @@ class ExamGenerator:
             )
 
     def _validate_short_answer(self, payload: Dict[str, Any]) -> None:
+        try:
+            total_marks = int(payload.get("marks", 0))
+        except (TypeError, ValueError) as exc:
+            raise ExamGenerationError(
+                "short_answer.marks must be a valid integer."
+            ) from exc
+
+        if total_marks <= 0:
+            raise ExamGenerationError("short_answer.marks must be > 0.")
+
         parts = payload.get("parts", [])
         if not isinstance(parts, list) or len(parts) != 2:
             raise ExamGenerationError(
@@ -761,7 +821,7 @@ class ExamGenerator:
             )
 
         expected_part_labels = ["a", "b"]
-        num_parts_with_sub_questions = 0
+        part_marks_sum = 0
 
         for part_idx, expected_label in enumerate(expected_part_labels):
             part = parts[part_idx]
@@ -782,14 +842,39 @@ class ExamGenerator:
                     f"short_answer.parts[{part_idx}].prompt is required."
                 )
 
+            if "marks" not in part:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].marks is required."
+                )
+
+            part_marks_raw = part.get("marks")
+            try:
+                part_marks = int(part_marks_raw)
+            except (TypeError, ValueError) as exc:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].marks must be an integer."
+                ) from exc
+
+            if part_marks <= 0:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].marks must be > 0."
+                )
+
+            part["marks"] = part_marks
+            part_marks_sum += part_marks
+
             sub_questions = part.get("sub_questions", [])
             if not isinstance(sub_questions, list):
                 raise ExamGenerationError(
                     f"short_answer.parts[{part_idx}].sub_questions must be a list."
                 )
 
-            if sub_questions:
-                num_parts_with_sub_questions += 1
+            if not sub_questions:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].sub_questions must be a non-empty list."
+                )
+
+            part_sub_marks_sum = 0
 
             for sub_idx, sub_question in enumerate(sub_questions):
                 if not isinstance(sub_question, dict):
@@ -814,23 +899,33 @@ class ExamGenerator:
                         f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].text is required."
                     )
 
-                if "marks" in sub_question and sub_question.get("marks") is not None:
-                    marks_raw = sub_question.get("marks")
-                    try:
-                        marks = int(marks_raw)
-                    except (TypeError, ValueError) as exc:
-                        raise ExamGenerationError(
-                            f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks must be an integer when provided."
-                        ) from exc
-                    if marks <= 0:
-                        raise ExamGenerationError(
-                            f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks must be > 0 when provided."
-                        )
-                    sub_question["marks"] = marks
+                if "marks" not in sub_question:
+                    raise ExamGenerationError(
+                        f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks is required."
+                    )
 
-        if num_parts_with_sub_questions > 1:
+                marks_raw = sub_question.get("marks")
+                try:
+                    marks = int(marks_raw)
+                except (TypeError, ValueError) as exc:
+                    raise ExamGenerationError(
+                        f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks must be an integer."
+                    ) from exc
+                if marks <= 0:
+                    raise ExamGenerationError(
+                        f"short_answer.parts[{part_idx}].sub_questions[{sub_idx}].marks must be > 0."
+                    )
+                sub_question["marks"] = marks
+                part_sub_marks_sum += marks
+
+            if part_sub_marks_sum != part_marks:
+                raise ExamGenerationError(
+                    f"short_answer.parts[{part_idx}].sub_questions marks ({part_sub_marks_sum}) must equal short_answer.parts[{part_idx}].marks ({part_marks})."
+                )
+
+        if part_marks_sum != total_marks:
             raise ExamGenerationError(
-                "short_answer allows sub_questions in at most one part."
+                f"short_answer.parts marks ({part_marks_sum}) must equal short_answer.marks ({total_marks})."
             )
 
         answer = payload.get("answer", {})
@@ -914,10 +1009,10 @@ class ExamGenerator:
             sub_question["marks"] = marks
             marks_sum += marks
 
-        # if marks_sum != total_marks:
-        #     raise ExamGenerationError(
-        #         f"long_answer.task.sub_questions marks ({marks_sum}) must equal long_answer.marks ({total_marks})."
-        #     )
+        if marks_sum != total_marks:
+            raise ExamGenerationError(
+                f"long_answer.task.sub_questions marks ({marks_sum}) must equal long_answer.marks ({total_marks})."
+            )
 
     def _question_signature(
         self, question_type: QuestionType, payload: Dict[str, Any]

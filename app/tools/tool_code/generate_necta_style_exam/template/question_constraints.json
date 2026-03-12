@@ -12,9 +12,12 @@
     "Keep response concise and syllabus-aligned.",
     "Use exactly two parts labeled a and b.",
     "Each part must have a non-empty prompt.",
-    "At most one part may use sub_questions; the other part should be a direct prompt.",
+    "Each part must include a positive integer marks field.",
+    "The sum of short_answer.parts[*].marks must equal short_answer.marks.",
+    "Each part must include sub_questions.",
     "If sub_questions are used, there must be exactly three labeled i, ii, iii (no more and no less).",
     "If short_answer.parts[*].sub_questions are used, each item must be an object shaped as: {\"label\": \"i\", \"text\": \"...\", \"marks\": 2}.",
+    "For each part, sub-question marks must be positive integers and their sum must equal that part's marks.",
     "Provide a complete example answer.",
     "Provide marking_points and a marking_scheme for grading."
   ],
