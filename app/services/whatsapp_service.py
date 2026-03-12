@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+import json
 from fastapi import Request
 from fastapi.responses import PlainTextResponse, JSONResponse
 import logging
@@ -6,6 +7,8 @@ import logging
 import httpx
 
 from app.config import settings
+import app.database.db as db
+import app.database.enums as enums
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
@@ -335,14 +338,40 @@ class WhatsAppClient:
                 status_code=200,
             )
 
-    def handle_flow_message_complete(self, body: dict) -> JSONResponse:
+    async def handle_flow_message_complete(self, body: dict) -> JSONResponse:
         """
         Handles WhatsApp flow message completion events.
         """
-        self.logger.debug(
-            f"Received a WhatsApp Flow message complete event. Ignoring: {body}"
-        )
+        self.logger.debug(f"Received a WhatsApp Flow message complete event: {body}")
         record_whatsapp_event("handler:flow_message_complete")
+
+        try:
+            value = body["entry"][0]["changes"][0]["value"]
+            wa_id = value["contacts"][0]["wa_id"]
+            response_json = value["messages"][0]["interactive"]["nfm_reply"][
+                "response_json"
+            ]
+
+            if isinstance(response_json, str):
+                response_payload = json.loads(response_json)
+            else:
+                response_payload = response_json
+
+            user = await db.get_user_by_waid(wa_id)
+            if user and user.id is not None:
+                await db.create_new_message_by_fields(
+                    user_id=user.id,
+                    role=enums.MessageRole.user,
+                    content=f"[FLOW_COMPLETED] {json.dumps(response_payload, default=str)}",
+                    is_present_in_conversation=True,
+                )
+            else:
+                self.logger.warning(
+                    "Flow completion received for unknown user with wa_id=%s", wa_id
+                )
+        except Exception as e:
+            self.logger.error(f"Failed to persist flow completion payload: {e}")
+
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     def handle_invalid_message(self, body: dict) -> JSONResponse:

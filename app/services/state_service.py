@@ -25,36 +25,29 @@ class StateHandler:
     async def handle_blocked(self, user: User) -> JSONResponse:
         assert user.id is not None
 
-        # Check if we've already sent a blocked message to this user
-        recent_messages = await db.get_user_message_history(user.id, limit=3)
-        if recent_messages:
-            # Check if the last assistant message was a blocked message
-            assistant_messages = [
-                msg for msg in recent_messages if msg.role == MessageRole.assistant
-            ]
-            if assistant_messages:
-                last_assistant_message = assistant_messages[-1]
-                blocked_text = strings.get_string(StringCategory.ERROR, "blocked")
+        blocked_text = strings.get_string(StringCategory.ERROR, "blocked")
+        last_assistant_message = await db.get_latest_user_message_by_role(
+            user.id, MessageRole.assistant
+        )
 
-                # If the last assistant message was a blocked message, don't send another
-                if last_assistant_message.content == blocked_text:
-                    self.logger.info(
-                        f"Blocked message already sent to user {user.wa_id}, not sending again"
-                    )
-                    return JSONResponse(
-                        content={"status": "ok"},
-                        status_code=200,
-                    )
+        # If the last assistant message was a blocked message, don't send another
+        if last_assistant_message and last_assistant_message.content == blocked_text:
+            self.logger.info(
+                f"Blocked message already sent to user {user.wa_id}, not sending again"
+            )
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
 
         # Send blocked message (first time)
         response_text = strings.get_string(StringCategory.ERROR, "blocked")
         await whatsapp_client.send_message(user.wa_id, response_text)
-        await db.create_new_message(
-            Message(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=response_text,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=response_text,
+            is_present_in_conversation=True,
         )
         self.logger.info(f"Sent blocked message to user {user.wa_id}")
         record_messages_generated("blocked_notice")
@@ -66,38 +59,29 @@ class StateHandler:
     async def handle_rate_limited(self, user: User) -> JSONResponse:
         assert user.id is not None
 
-        # Check if we've already sent a rate limit message to this user
-        recent_messages = await db.get_user_message_history(user.id, limit=10)
-        if recent_messages:
-            # Check if the last assistant message was a rate limit message
-            assistant_messages = [
-                msg for msg in recent_messages if msg.role == MessageRole.assistant
-            ]
-            if assistant_messages:
-                last_assistant_message = assistant_messages[-1]
-                rate_limit_text = strings.get_string(
-                    StringCategory.ERROR, "rate_limited"
-                )
+        rate_limit_text = strings.get_string(StringCategory.ERROR, "rate_limited")
+        last_assistant_message = await db.get_latest_user_message_by_role(
+            user.id, MessageRole.assistant
+        )
 
-                # If the last assistant message was a rate limit message, don't send another
-                if last_assistant_message.content == rate_limit_text:
-                    self.logger.info(
-                        f"Rate limit message already sent to user {user.wa_id}, not sending again"
-                    )
-                    return JSONResponse(
-                        content={"status": "ok"},
-                        status_code=200,
-                    )
+        # If the last assistant message was a rate limit message, don't send another
+        if last_assistant_message and last_assistant_message.content == rate_limit_text:
+            self.logger.info(
+                f"Rate limit message already sent to user {user.wa_id}, not sending again"
+            )
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
 
         # Send rate limit message (first time)
         response_text = strings.get_string(StringCategory.ERROR, "rate_limited")
         await whatsapp_client.send_message(user.wa_id, response_text)
-        await db.create_new_message(
-            Message(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=response_text,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=response_text,
+            is_present_in_conversation=True,
         )
         self.logger.info(f"Sent rate limit message to user {user.wa_id}")
         record_messages_generated("rate_limit_notice")
@@ -201,12 +185,11 @@ class StateHandler:
             await whatsapp_client.send_message(phone_number, response_text)
 
             assert new_user.id is not None
-            await db.create_new_message(
-                Message(
-                    user_id=new_user.id,
-                    role=MessageRole.assistant,
-                    content=response_text,
-                )
+            await db.create_new_message_by_fields(
+                user_id=new_user.id,
+                role=MessageRole.assistant,
+                content=response_text,
+                is_present_in_conversation=True,
             )
 
             self.logger.info(
@@ -227,35 +210,29 @@ class StateHandler:
         """Handle messages from users in review (not yet approved) users"""
         assert user.id is not None
 
-        # Check if we've already sent a pending approval message recently
-        recent_messages = await db.get_user_message_history(user.id, limit=3)
-        if recent_messages:
-            assistant_messages = [
-                msg for msg in recent_messages if msg.role == MessageRole.assistant
-            ]
-            if assistant_messages:
-                last_assistant_message = assistant_messages[-1]
-                pending_text = strings.get_string(
-                    StringCategory.REGISTRATION, "pending_approval"
-                )
+        pending_text = strings.get_string(
+            StringCategory.REGISTRATION, "pending_approval"
+        )
+        last_assistant_message = await db.get_latest_user_message_by_role(
+            user.id, MessageRole.assistant
+        )
 
-                if last_assistant_message.content == pending_text:
-                    self.logger.info(
-                        f"Pending approval message already sent to user {user.wa_id}"
-                    )
-                    return JSONResponse(content={"status": "ok"}, status_code=200)
+        if last_assistant_message and last_assistant_message.content == pending_text:
+            self.logger.info(
+                f"Pending approval message already sent to user {user.wa_id}"
+            )
+            return JSONResponse(content={"status": "ok"}, status_code=200)
 
         # Send pending approval message
         response_text = strings.get_string(
             StringCategory.REGISTRATION, "pending_approval"
         )
         await whatsapp_client.send_message(user.wa_id, response_text)
-        await db.create_new_message(
-            Message(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=response_text,
-            )
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=response_text,
+            is_present_in_conversation=True,
         )
 
         return JSONResponse(content={"status": "ok"}, status_code=200)
@@ -278,24 +255,15 @@ class StateHandler:
                 )
 
                 assert user.id is not None
-                await db.create_new_message(
-                    Message(
-                        user_id=user.id,
-                        role=MessageRole.assistant,
-                        content=f"Welcome template sent: {settings.welcome_template_id}",
-                    )
+                await db.create_new_message_by_fields(
+                    user_id=user.id,
+                    role=MessageRole.assistant,
+                    content=f"Welcome template sent: {settings.welcome_template_id}",
+                    is_present_in_conversation=True,
                 )
 
                 # Send the onboarding flow NOW (after approval)
                 await flow_client.send_personal_and_school_info_flow(user)
-
-                await db.create_new_message(
-                    Message(
-                        user_id=user.id,
-                        role=MessageRole.assistant,
-                        content="Onboarding flow sent after approval",
-                    )
-                )
             else:
                 # In non-production, skip template and flow
                 assert user.id is not None
@@ -358,12 +326,11 @@ class StateHandler:
                 StringCategory.ONBOARDING, "onboarding_override"
             )
             await whatsapp_client.send_message(user.wa_id, response_text)
-            await db.create_new_message(
-                Message(
-                    user_id=user.id,
-                    role=MessageRole.assistant,
-                    content=response_text,
-                )
+            await db.create_new_message_by_fields(
+                user_id=user.id,
+                role=MessageRole.assistant,
+                content=response_text,
+                is_present_in_conversation=True,
             )
             self.logger.warning(f"Dummy user {user.wa_id} created with data: {user}")
             return JSONResponse(
