@@ -11,6 +11,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     HRFlowable,
+    KeepTogether,
     ListFlowable,
     ListItem,
     Paragraph,
@@ -58,6 +59,50 @@ def p_markup(markup_text: str, style: ParagraphStyle) -> Paragraph:
     return Paragraph(markup_text, style)
 
 
+def marks_suffix(marks: Any) -> str:
+    marks_text = safe_text(marks)
+    return f" ({marks_text} marks)" if marks_text else ""
+
+
+def question_heading_markup(question_number: int, marks: Any, prompt: str = "") -> str:
+    """Create a heading with a bold question number and optional marks."""
+    markup = f"<b>{question_number}.</b>"
+    suffix = marks_suffix(marks)
+    if suffix:
+        markup = f"{markup}<b>{escape(suffix)}</b>"
+    prompt_text = safe_text(prompt)
+    if prompt_text:
+        markup = f"{markup} {escape(prompt_text)}"
+    return markup
+
+
+def append_question_block(
+    story: List[Any],
+    block: List[Any],
+    spacer_height: int,
+    *,
+    keep_together: bool = True,
+) -> None:
+    if not block:
+        return
+    if keep_together:
+        story.append(KeepTogether(block))
+    else:
+        story.extend(block)
+    story.append(Spacer(1, spacer_height))
+
+
+def section_a_heading_markup(question_number: int, prompt: str, marks: Any) -> str:
+    markup = f"<b>{question_number}.</b>"
+    prompt_text = safe_text(prompt)
+    if prompt_text:
+        markup = f"{markup} {escape(prompt_text)}"
+    suffix = marks_suffix(marks)
+    if suffix:
+        markup = f"{markup} <b>{escape(suffix)}</b>"
+    return markup
+
+
 def roman_like_label(index: int) -> str:
     labels = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
     if 1 <= index <= len(labels):
@@ -100,7 +145,10 @@ def sort_questions(questions: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def normalize_option_text(label: str, text: str) -> str:
-    label_prefix = re.compile(rf"^{re.escape(label)}[\.\)]\s*", flags=re.IGNORECASE)
+    label_prefix = re.compile(
+        rf"^{re.escape(label)}\s*[\.\):]\s*",
+        flags=re.IGNORECASE,
+    )
     return label_prefix.sub("", safe_text(text))
 
 
@@ -416,22 +464,29 @@ def render_section_a(
         sort_questions(section_a.get("question_list", [])), start=1
     ):
         question_type = detect_section_a_question_type(question)
+        question_block: List[Any] = []
         if question_type == "multiple_choice":
             render_multiple_choice_question(
-                story, question, st, is_solution, fallback_idx
+                question_block, question, st, is_solution, fallback_idx
+            )
+            append_question_block(
+                story, question_block, spacer_height=8, keep_together=False
             )
         elif question_type == "item_matching":
             render_item_matching_question(
-                story, question, st, is_solution, fallback_idx
+                question_block, question, st, is_solution, fallback_idx
             )
+            append_question_block(story, question_block, spacer_height=8)
         else:
             question_number = extract_question_number(question, fallback_idx)
             prompt_text = safe_text(question.get("prompt", "")) or safe_text(
                 question.get("question", "")
             )
-            story.append(p(f"{question_number}. {prompt_text}", st.base))
-            story.append(Spacer(1, 4))
-        story.append(Spacer(1, 4))
+            heading = section_a_heading_markup(
+                question_number, prompt_text, question.get("marks")
+            )
+            question_block.append(p_markup(heading, st.base))
+            append_question_block(story, question_block, spacer_height=8)
 
 
 def render_multiple_choice_question(
@@ -443,15 +498,16 @@ def render_multiple_choice_question(
 ) -> None:
     question_number = extract_question_number(question, fallback_number)
     prompt = safe_text(question.get("prompt", ""))
-    if prompt:
-        story.append(p(f"{question_number}. {prompt}", st.base))
+    heading = section_a_heading_markup(question_number, prompt, question.get("marks"))
+    story.append(p_markup(heading, st.base))
+    story.append(Spacer(1, 2))
 
     items = question.get("items", [])
     for idx, item in enumerate(items, start=1):
+        item_block: List[Any] = []
         label = safe_text(item.get("label")) or roman_like_label(idx)
         item_text = safe_text(item.get("question", ""))
-        story.append(Spacer(1, 1))
-        story.append(p(f"({label}) {item_text}", st.part))
+        item_block.append(p(f"({label}) {item_text}", st.part))
 
         options = normalize_mcq_options(item.get("options", []))
         if options:
@@ -468,24 +524,26 @@ def render_multiple_choice_question(
                     right = p(option_text, st.base)
                 rows.append([left, right])
 
-            option_table = Table(rows, colWidths=[10 * mm, 160 * mm])
+            option_table = Table(rows, colWidths=[12 * mm, 148 * mm])
             option_table.setStyle(
                 TableStyle(
                     [
                         ("FONTNAME", (0, 0), (-1, -1), "Times-Roman"),
                         ("FONTSIZE", (0, 0), (-1, -1), 11),
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
                         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                         ("TOPPADDING", (0, 0), (-1, -1), 1),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
                     ]
                 )
             )
-            story.append(option_table)
+            item_block.append(option_table)
 
         if is_solution and item.get("answer"):
-            story.append(p(f"Answer: {item.get('answer')}", st.answer))
+            item_block.append(p(f"Answer: {item.get('answer')}", st.answer))
+
+        append_question_block(story, item_block, spacer_height=2)
 
 
 def render_item_matching_question(
@@ -497,7 +555,8 @@ def render_item_matching_question(
 ) -> None:
     question_number = extract_question_number(question, fallback_number)
     prompt = safe_text(question.get("prompt", ""))
-    story.append(p(f"{question_number}. {prompt}", st.base))
+    heading = section_a_heading_markup(question_number, prompt, question.get("marks"))
+    story.append(p_markup(heading, st.base))
     story.append(Spacer(1, 3))
 
     list_a = normalize_list_entries(question.get("listA", []), label_style="roman")
@@ -569,8 +628,11 @@ def render_section_b(
 
     questions = sort_questions(section_b.get("question_list", []))
     for fallback_idx, question in enumerate(questions, start=1):
-        render_short_answer_question(story, question, st, is_solution, fallback_idx)
-        story.append(Spacer(1, 5))
+        question_block: List[Any] = []
+        render_short_answer_question(
+            question_block, question, st, is_solution, fallback_idx
+        )
+        append_question_block(story, question_block, spacer_height=9)
 
 
 def render_short_answer_question(
@@ -590,15 +652,20 @@ def render_short_answer_question(
     for part in question.get("parts", []):
         part_label = safe_text(part.get("label", ""))
         part_prompt = safe_text(part.get("prompt", ""))
+        sub_questions = part.get("sub_questions", [])
+        has_sub_questions = isinstance(sub_questions, list) and bool(sub_questions)
+        part_suffix = "" if has_sub_questions else marks_suffix(part.get("marks"))
         if part_prompt:
-            story.append(p(f"({part_label}) {part_prompt}", st.part))
+            story.append(p(f"({part_label}) {part_prompt}{part_suffix}", st.part))
         else:
-            story.append(p(f"({part_label})", st.part))
+            story.append(p(f"({part_label}){part_suffix}", st.part))
 
-        for sub in part.get("sub_questions", []):
+        for sub in sub_questions if isinstance(sub_questions, list) else []:
             sub_label = safe_text(sub.get("label", ""))
             sub_text = safe_text(sub.get("text", ""))
-            story.append(p(f"({sub_label}) {sub_text}", st.subpart))
+            sub_suffix = marks_suffix(sub.get("marks"))
+            story.append(p(f"({sub_label}) {sub_text}{sub_suffix}", st.subpart))
+            story.append(Spacer(1, 2))
 
     if is_solution:
         render_solution_block(story, question.get("answer"), st)
@@ -622,8 +689,11 @@ def render_section_c(
 
     questions = sort_questions(section_c.get("question_list", []))
     for fallback_idx, question in enumerate(questions, start=1):
-        render_long_answer_question(story, question, st, is_solution, fallback_idx)
-        story.append(Spacer(1, 6))
+        question_block: List[Any] = []
+        render_long_answer_question(
+            question_block, question, st, is_solution, fallback_idx
+        )
+        append_question_block(story, question_block, spacer_height=9)
 
 
 def render_long_answer_question(
