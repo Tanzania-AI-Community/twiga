@@ -151,3 +151,18 @@ class ChunkType(str, Enum):
     image = "image"
     table = "table"
     other = "other"
+
+
+class FeedbackInviteStatus(str, Enum):
+    pending = "pending"
+    sent = "sent"
+    expired = "expired"
+    responded = "responded"
+    failed = "failed"
+
+
+class FeedbackResponseType(str, Enum):
+    positive = "positive"
+    neutral = "neutral"
+    negative = "negative"
+    opt_out = "opt_out"

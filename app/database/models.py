@@ -80,6 +80,11 @@ class User(SQLModel, table=True):
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
     last_message_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))  # type: ignore
+    feedback_opted_out: bool = Field(default=False, nullable=False)
+    feedback_opted_out_at: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -352,6 +357,75 @@ class Message(SQLModel, table=True):
             "tool_name": None,  # Will be set when processing tool calls
         }
         return cls(**message_data)
+
+
+class FeedbackInvite(SQLModel, table=True):
+    __tablename__ = "feedback_invites"  # type: ignore
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "last_message_at_snapshot",
+            name="unique_feedback_invite_for_idle_window",
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
+    status: enums.FeedbackInviteStatus = Field(
+        default=enums.FeedbackInviteStatus.pending,
+        max_length=20,
+        index=True,
+    )
+    last_message_at_snapshot: datetime = Field(
+        sa_type=DateTime(timezone=True),  # type: ignore
+        nullable=False,
+        index=True,
+    )
+    scheduled_at: datetime = Field(
+        sa_type=DateTime(timezone=True),  # type: ignore
+        nullable=False,
+        index=True,
+    )
+    sent_at: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    responded_at: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    attempts: int = Field(default=0, nullable=False)
+    last_error: Optional[str] = Field(default=None)
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    user_: "User" = Relationship()
+
+
+class FeedbackResponse(SQLModel, table=True):
+    __tablename__ = "feedback_responses"  # type: ignore
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    invite_id: int = Field(
+        foreign_key="feedback_invites.id", index=True, ondelete="CASCADE", unique=True
+    )
+    user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
+    response_type: enums.FeedbackResponseType = Field(max_length=20, index=True)
+    selected_option_id: str = Field(max_length=100)
+    selected_option_title: str = Field(max_length=200)
+    created_at: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+
+    invite_: "FeedbackInvite" = Relationship()
+    user_: "User" = Relationship()
 
 
 class Resource(SQLModel, table=True):

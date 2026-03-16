@@ -51,3 +51,12 @@ flows:
 rate_limit:
   global_message_limit: "🚫 Twiga is currently unavailable. Please come back later."
   user_message_limit: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Come back later!"
+
+feedback:
+  prompt: "How was your last chat with Twiga? Please pick one option."
+  option_positive: "Helpful"
+  option_neutral: "Okay"
+  option_negative: "Not helpful"
+  option_opt_out: "Stop feedback messages"
+  thanks: "Thanks for the feedback. We have recorded your response."
+  opt_out_ack: "Understood. We will stop sending feedback prompts."

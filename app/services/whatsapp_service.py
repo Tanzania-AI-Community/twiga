@@ -40,7 +40,10 @@ class WhatsAppClient:
         self.client = httpx.AsyncClient(base_url=self.url)
 
     async def send_message(
-        self, wa_id: str, message: str, options: Optional[List[str]] = None
+        self,
+        wa_id: str,
+        message: str,
+        options: Optional[List[str | dict[str, str]]] = None,
     ) -> None:
         if settings.mock_whatsapp:
             return

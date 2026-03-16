@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional
-from sqlalchemy import text
+from datetime import datetime
+from sqlalchemy import text, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import and_, select, or_, delete, insert, exists, desc
 import logging
@@ -7,6 +8,8 @@ import logging
 from app.database.models import (
     User,
     Message,
+    FeedbackInvite,
+    FeedbackResponse,
     TeacherClass,
     Class,
     Chunk,
@@ -58,6 +61,17 @@ async def get_user_by_waid(wa_id: str) -> Optional[User]:
         except Exception as e:
             logger.error(f"Failed to query user {wa_id}: {str(e)}")
             raise Exception(f"Failed to query user: {str(e)}")
+
+
+async def get_user_by_id(user_id: int) -> Optional[User]:
+    async with get_session() as session:
+        try:
+            statement = select(User).where(User.id == user_id)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to query user {user_id}: {str(e)}")
+            raise Exception(f"Failed to query user by id: {str(e)}")
 
 
 async def update_user(user: User) -> User:
@@ -154,6 +168,215 @@ async def create_new_message(message: Message) -> Message:
         except Exception as e:
             logger.error(f"Error creating message for user {message.user_id}: {str(e)}")
             raise Exception(f"Failed to create message: {str(e)}")
+
+
+async def get_users_eligible_for_feedback_invite(
+    idle_minutes: int, limit: int = 100
+) -> List[User]:
+    """
+    Return active teachers that have been idle for at least `idle_minutes`
+    and have not already received an invite for the same idle window.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    async with get_session() as session:
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=idle_minutes)
+
+            statement = (
+                select(User)
+                .where(
+                    User.state == enums.UserState.active,
+                    User.role == enums.Role.teacher,
+                    User.feedback_opted_out.is_(False),  # type: ignore
+                    User.last_message_at.is_not(None),  # type: ignore
+                    User.last_message_at <= cutoff,  # type: ignore
+                    ~exists().where(
+                        FeedbackInvite.user_id == User.id,
+                        FeedbackInvite.last_message_at_snapshot == User.last_message_at,
+                    ),
+                )
+                .limit(limit)
+            )
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+        except Exception as e:
+            logger.error(f"Failed to fetch eligible feedback users: {str(e)}")
+            raise Exception(f"Failed to fetch eligible feedback users: {str(e)}")
+
+
+async def create_feedback_invite(
+    user_id: int, last_message_at_snapshot: datetime, scheduled_at: datetime
+) -> FeedbackInvite:
+    async with get_session() as session:
+        try:
+            invite = FeedbackInvite(
+                user_id=user_id,
+                last_message_at_snapshot=last_message_at_snapshot,
+                scheduled_at=scheduled_at,
+            )
+            session.add(invite)
+            await session.commit()
+            await session.refresh(invite)
+            return invite
+        except Exception as e:
+            logger.error(
+                f"Failed to create feedback invite for user {user_id}: {str(e)}"
+            )
+            raise Exception(f"Failed to create feedback invite: {str(e)}")
+
+
+async def get_pending_feedback_invites(limit: int = 100) -> List[FeedbackInvite]:
+    from datetime import datetime, timezone
+
+    async with get_session() as session:
+        try:
+            now = datetime.now(timezone.utc)
+            statement = (
+                select(FeedbackInvite)
+                .where(
+                    FeedbackInvite.status == enums.FeedbackInviteStatus.pending,
+                    FeedbackInvite.scheduled_at <= now,
+                )
+                .order_by(FeedbackInvite.scheduled_at.asc())
+                .limit(limit)
+            )
+            result = await session.execute(statement)
+            return list(result.scalars().all())
+        except Exception as e:
+            logger.error(f"Failed to fetch pending feedback invites: {str(e)}")
+            raise Exception(f"Failed to fetch pending feedback invites: {str(e)}")
+
+
+async def mark_feedback_invite_sent(invite_id: int) -> None:
+    from datetime import datetime, timezone
+
+    async with get_session() as session:
+        try:
+            invite = await session.get(FeedbackInvite, invite_id)
+            if invite is None:
+                return
+            invite.status = enums.FeedbackInviteStatus.sent
+            invite.sent_at = datetime.now(timezone.utc)
+            invite.attempts += 1
+            session.add(invite)
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Failed to mark invite {invite_id} sent: {str(e)}")
+            raise Exception(f"Failed to mark invite sent: {str(e)}")
+
+
+async def mark_feedback_invite_failed(invite_id: int, error: str) -> None:
+    async with get_session() as session:
+        try:
+            invite = await session.get(FeedbackInvite, invite_id)
+            if invite is None:
+                return
+            invite.status = enums.FeedbackInviteStatus.failed
+            invite.attempts += 1
+            invite.last_error = error[:1000]
+            session.add(invite)
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Failed to mark invite {invite_id} failed: {str(e)}")
+            raise Exception(f"Failed to mark invite failed: {str(e)}")
+
+
+async def expire_stale_feedback_invites(expiry_hours: int, limit: int = 500) -> int:
+    from datetime import datetime, timedelta, timezone
+
+    async with get_session() as session:
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=expiry_hours)
+            stale_invites_statement = (
+                select(FeedbackInvite)
+                .where(
+                    FeedbackInvite.status.in_(
+                        [
+                            enums.FeedbackInviteStatus.pending,
+                            enums.FeedbackInviteStatus.sent,
+                        ]
+                    ),
+                    func.coalesce(FeedbackInvite.sent_at, FeedbackInvite.created_at)
+                    <= cutoff,
+                )
+                .order_by(FeedbackInvite.created_at.asc())
+                .limit(limit)
+            )
+            result = await session.execute(stale_invites_statement)
+            stale_invites = list(result.scalars().all())
+
+            if not stale_invites:
+                return 0
+
+            for invite in stale_invites:
+                invite.status = enums.FeedbackInviteStatus.expired
+                invite.last_error = "invite_expired"
+                session.add(invite)
+
+            await session.commit()
+            return len(stale_invites)
+        except Exception as e:
+            logger.error(f"Failed to expire stale feedback invites: {str(e)}")
+            raise Exception(f"Failed to expire stale feedback invites: {str(e)}")
+
+
+async def get_latest_open_feedback_invite(user_id: int) -> Optional[FeedbackInvite]:
+    async with get_session() as session:
+        try:
+            statement = (
+                select(FeedbackInvite)
+                .where(
+                    FeedbackInvite.user_id == user_id,
+                    FeedbackInvite.status.in_(
+                        [
+                            enums.FeedbackInviteStatus.pending,
+                            enums.FeedbackInviteStatus.sent,
+                        ]
+                    ),
+                )
+                .order_by(desc(FeedbackInvite.created_at))
+                .limit(1)
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to fetch open feedback invite: {str(e)}")
+            raise Exception(f"Failed to fetch open feedback invite: {str(e)}")
+
+
+async def record_feedback_response(
+    invite_id: int,
+    user_id: int,
+    response_type: enums.FeedbackResponseType,
+    selected_option_id: str,
+    selected_option_title: str,
+) -> FeedbackResponse:
+    from datetime import datetime, timezone
+
+    async with get_session() as session:
+        try:
+            response = FeedbackResponse(
+                invite_id=invite_id,
+                user_id=user_id,
+                response_type=response_type,
+                selected_option_id=selected_option_id,
+                selected_option_title=selected_option_title,
+            )
+            session.add(response)
+
+            invite = await session.get(FeedbackInvite, invite_id)
+            if invite:
+                invite.status = enums.FeedbackInviteStatus.responded
+                invite.responded_at = datetime.now(timezone.utc)
+                session.add(invite)
+
+            await session.commit()
+            await session.refresh(response)
+            return response
+        except Exception as e:
+            logger.error(f"Failed to record feedback response: {str(e)}")
+            raise Exception(f"Failed to record feedback response: {str(e)}")
 
 
 async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:

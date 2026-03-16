@@ -41,7 +41,11 @@ class MessagingService:
         key = (message.content or "").strip().lower()
         handler = self._settings_handlers.get(key)
         if handler is None:
-            raise Exception(f"Unrecognized user reply: {message.content}")
+            await self._command_unknown(user)
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200,
+            )
         await handler(user)
         return JSONResponse(
             content={"status": "ok"},

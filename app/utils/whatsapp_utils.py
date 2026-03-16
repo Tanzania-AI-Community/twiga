@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum, auto
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict
 import logging
 
 
@@ -42,6 +42,11 @@ class ValidMessageType(Enum):
 
 
 logger = logging.getLogger(__name__)
+
+
+class InteractiveOption(TypedDict):
+    id: str
+    title: str
 
 
 def get_text_payload(recipient: str, text: str) -> dict:
@@ -85,14 +90,26 @@ def generate_payload_for_image(
 
 
 def get_interactive_button_payload(
-    recipient: str, text: str, options: List[str]
+    recipient: str, text: str, options: List[str | InteractiveOption]
 ) -> dict:
+    normalized_options = []
+    for i, opt in enumerate(options):
+        if isinstance(opt, dict):
+            normalized_options.append(
+                {
+                    "id": str(opt.get("id", f"option-{i}")),
+                    "title": str(opt.get("title", f"Option {i + 1}")),
+                }
+            )
+        else:
+            normalized_options.append({"id": f"option-{i}", "title": str(opt)})
+
     buttons = [
         Button(
             type="reply",
-            reply=Reply(id=f"option-{i}", title=opt),
+            reply=Reply(id=opt["id"], title=opt["title"]),
         )
-        for i, opt in enumerate(options)
+        for opt in normalized_options
     ]
 
     interactive_button = InteractiveButton(
@@ -107,9 +124,24 @@ def get_interactive_button_payload(
 
 
 def get_interactive_list_payload(
-    recipient: str, text: str, options: List[str], title: str = "Options"
+    recipient: str,
+    text: str,
+    options: List[str | InteractiveOption],
+    title: str = "Options",
 ) -> dict:
-    rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
+    normalized_options = []
+    for i, opt in enumerate(options):
+        if isinstance(opt, dict):
+            normalized_options.append(
+                {
+                    "id": str(opt.get("id", f"option-{i}")),
+                    "title": str(opt.get("title", f"Option {i + 1}")),
+                }
+            )
+        else:
+            normalized_options.append({"id": f"option-{i}", "title": str(opt)})
+
+    rows = [Row(id=opt["id"], title=opt["title"]) for opt in normalized_options]
 
     section = Section(title=title, rows=rows)
 
@@ -270,7 +302,7 @@ def is_command_message(message_info: dict) -> bool:
 def generate_payload(
     wa_id: str,
     response: str,
-    options: Optional[list] = None,
+    options: Optional[List[str | InteractiveOption]] = None,
     flow: Optional[dict] = None,
     template_name: Optional[str] = None,
 ) -> dict:

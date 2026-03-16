@@ -104,6 +104,11 @@ class Settings(BaseSettings):
     # User inactivity settings
     user_inactivity_threshold_hours: int = 24  # Hours after which user becomes inactive
 
+    # Feedback invite settings
+    feedback_idle_minutes: int = 30
+    feedback_scan_limit: int = 200
+    feedback_invite_expiry_hours: int = 48
+
     @field_validator("debug", mode="before")
     @classmethod
     def parse_business_env(cls, v):

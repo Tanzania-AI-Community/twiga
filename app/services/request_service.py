@@ -13,6 +13,7 @@ from app.utils.whatsapp_utils import (
 )
 from app.services.whatsapp_service import whatsapp_client
 from app.services.state_service import state_client
+from app.services.feedback_service import feedback_client
 import app.database.db as db
 from app.monitoring.metrics import record_whatsapp_event
 
@@ -97,6 +98,13 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
         return await state_client.handle_new_user_registration(
             phone_number, message_info
         )
+
+    # Handle feedback interactive replies before rate limiting/state routing
+    feedback_response = await feedback_client.try_handle_feedback_reply(
+        user=user, message_info=message_info
+    )
+    if feedback_response is not None:
+        return feedback_response
 
     # Handle rate limiting
     rate_limit_response = await state_client._handle_rate_limiting(user, phone_number)
