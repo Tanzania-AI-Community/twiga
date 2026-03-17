@@ -11,7 +11,11 @@ import app.database.db as db
 import app.database.enums as enums
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
-from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
+from app.utils.whatsapp_utils import (
+    generate_payload,
+    generate_payload_for_document,
+    generate_payload_for_image,
+)
 from pathlib import Path
 from enum import Enum
 import os
@@ -23,6 +27,10 @@ class ImageType(str, Enum):
     JPG = "image/jpeg"
 
 
+class DocumentType(str, Enum):
+    PDF = "application/pdf"
+
+
 def _extract_statuses(body: dict) -> list[dict]:
     entry = (body.get("entry") or [{}])[0]
     change = (entry.get("changes") or [{}])[0]
@@ -32,6 +40,7 @@ def _extract_statuses(body: dict) -> list[dict]:
 
 class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+    _MAX_DOCUMENT_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
 
     def __init__(self):
         self.headers = {
@@ -75,7 +84,11 @@ class WhatsAppClient:
         media_id: Optional[str] = None
 
         try:
-            media_id = await self.upload_media(image_path, img_type)
+            media_id = await self.upload_media(
+                image_path,
+                mime_type=img_type.value,
+                max_size_bytes=self._MAX_IMAGE_SIZE_BYTES,
+            )
 
             if not media_id:
                 raise ValueError(
@@ -117,7 +130,77 @@ class WhatsAppClient:
 
         return False
 
-    async def delete_media(self, media_id: str, image_path: str) -> None:
+    async def send_document_message(
+        self,
+        wa_id: str,
+        document_path: str,
+        doc_type: DocumentType = DocumentType.PDF,
+        filename: Optional[str] = None,
+        caption: Optional[str] = None,
+        delete_local_file: bool = False,
+    ) -> bool:
+        if settings.mock_whatsapp:
+            self.logger.info(
+                "Mock send_document_message called for %s with document %s",
+                wa_id,
+                document_path,
+            )
+            return True
+
+        media_id: Optional[str] = None
+
+        try:
+            media_id = await self.upload_media(
+                document_path,
+                mime_type=doc_type.value,
+                max_size_bytes=self._MAX_DOCUMENT_SIZE_BYTES,
+            )
+
+            if not media_id:
+                raise ValueError(
+                    "Failed to retrieve media id for WhatsApp document message."
+                )
+
+            payload = generate_payload_for_document(
+                wa_id=wa_id,
+                media_id=media_id,
+                caption=caption,
+                filename=filename,
+            )
+
+            response = await self.client.post(
+                "/messages", json=payload, headers=self.headers
+            )
+            log_httpx_response(response)
+            response.raise_for_status()
+            return True
+        except httpx.RequestError as e:
+            self.logger.error("Document Message Request Error: %s", e)
+        except Exception as e:
+            self.logger.error("Document Message Unexpected Error: %s", e)
+        finally:
+            if media_id:
+                try:
+                    await self.delete_media(
+                        media_id,
+                        document_path,
+                        delete_local_file=delete_local_file,
+                    )
+                except Exception as exc:
+                    self.logger.warning(
+                        "Document cleanup failed for media %s (%s): %s",
+                        media_id,
+                        document_path,
+                        exc,
+                    )
+            elif delete_local_file:
+                self._delete_local_file(document_path)
+
+        return False
+
+    async def delete_media(
+        self, media_id: str, image_path: str, delete_local_file: bool = True
+    ) -> None:
         """Delete upload media from WhatsApp and locally"""
         if settings.mock_whatsapp:
             return
@@ -137,7 +220,8 @@ class WhatsAppClient:
             self.logger.error("Media Delete Unexpected Error: %s", e)
             raise
         finally:
-            self._delete_local_file(image_path)
+            if delete_local_file:
+                self._delete_local_file(image_path)
 
     def _delete_local_file(self, image_path: str) -> None:
         try:
@@ -146,8 +230,13 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Failed to delete file %s: %s", image_path, e)
 
-    async def upload_media(self, path: str, img_type: ImageType) -> Optional[str]:
-        """Upload an image to WhatsApp and return the media ID."""
+    async def upload_media(
+        self,
+        path: str,
+        mime_type: str,
+        max_size_bytes: int,
+    ) -> Optional[str]:
+        """Upload media to WhatsApp and return the media ID."""
 
         if settings.mock_whatsapp:
             return None
@@ -158,13 +247,13 @@ class WhatsAppClient:
             raise FileNotFoundError(f"Image file not found at {path}")
 
         file_size = file_path.stat().st_size
-        if file_size > self._MAX_IMAGE_SIZE_BYTES:
-            raise ValueError("Image size exceeds limit for WhatsApp media uploads.")
+        if file_size > max_size_bytes:
+            raise ValueError("Media size exceeds limit for WhatsApp uploads.")
 
         try:
             with file_path.open("rb") as file_handle:
                 files = {
-                    "file": (file_path.name, file_handle, img_type.value),
+                    "file": (file_path.name, file_handle, mime_type),
                 }
                 data = {"messaging_product": "whatsapp"}
                 headers = {

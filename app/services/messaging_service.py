@@ -5,11 +5,16 @@ from fastapi.responses import JSONResponse
 import app.database.models as models
 from app.services.flow_service import flow_client
 from app.utils.string_manager import strings, StringCategory
-from app.services.whatsapp_service import whatsapp_client, ImageType
+from app.services.whatsapp_service import whatsapp_client, DocumentType, ImageType
 import app.database.db as db
 from app.services.llm_service import llm_client
 from app.services.agent_client import agent_client
 from app.config import llm_settings
+from app.services.exam_delivery_service import (
+    ExamDeliveryMarker,
+    ExamPDFDeliveryDetails,
+    exam_delivery_client,
+)
 from app.services.latex_image_service import (
     looks_like_latex,
     prepare_latex_body,
@@ -176,6 +181,104 @@ class MessagingService:
 
             self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
 
+            # check for exam delivery marker in the content
+            delivery_marker: ExamDeliveryMarker = (
+                exam_delivery_client.parse_delivery_marker(llm_content)
+            )
+            llm_content = (
+                delivery_marker.cleaned_content
+                if delivery_marker.marker_found
+                else llm_content
+            )
+
+            exam_send_failed = False
+            solution_send_failed = False
+
+            if delivery_marker.marker_found:
+                self.logger.info(
+                    "Exam delivery marker detected. marker_valid=%s exam_id=%s",
+                    delivery_marker.marker_valid,
+                    delivery_marker.exam_id,
+                )
+
+                if delivery_marker.marker_valid:
+                    if delivery_marker.exam_id:
+
+                        # if exams pdf do not exists, this renders them and returns the paths
+                        exam_details: ExamPDFDeliveryDetails = (
+                            await exam_delivery_client.get_exam_delivery_details(
+                                delivery_marker.exam_id
+                            )
+                        )
+
+                        if exam_details.errors:
+                            self.logger.warning(
+                                "Exam artifact preparation issues for exam_id=%s: %s",
+                                delivery_marker.exam_id,
+                                " | ".join(exam_details.errors),
+                            )
+
+                        if exam_details.exam_pdf_ready:
+                            exam_sent = await whatsapp_client.send_document_message(
+                                wa_id=user.wa_id,
+                                document_path=str(exam_details.exam_pdf_path),
+                                doc_type=DocumentType.PDF,
+                                filename=exam_details.exam_pdf_path.name,
+                            )
+                            if exam_sent:
+                                record_messages_generated("exam_pdf_sent")
+                            else:
+                                self.logger.warning(
+                                    "Failed to send exam PDF for exam_id=%s.",
+                                    delivery_marker.exam_id,
+                                )
+                                record_messages_generated("exam_pdf_send_failed")
+                                exam_send_failed = True
+                        else:
+                            self.logger.warning(
+                                "Exam PDF artifact not ready for exam_id=%s.",
+                                delivery_marker.exam_id,
+                            )
+                            exam_send_failed = True
+
+                        if exam_details.solution_pdf_ready:
+                            solution_sent = await whatsapp_client.send_document_message(
+                                wa_id=user.wa_id,
+                                document_path=str(exam_details.solution_pdf_path),
+                                doc_type=DocumentType.PDF,
+                                filename=exam_details.solution_pdf_path.name,
+                            )
+                            if solution_sent:
+                                record_messages_generated("solution_pdf_sent")
+                            else:
+                                self.logger.warning(
+                                    "Failed to send solution PDF for exam_id=%s.",
+                                    delivery_marker.exam_id,
+                                )
+                                record_messages_generated("solution_pdf_send_failed")
+                                solution_send_failed = True
+                        else:
+                            self.logger.warning(
+                                "Solution PDF artifact not ready for exam_id=%s.",
+                                delivery_marker.exam_id,
+                            )
+                            solution_send_failed = True
+                    else:
+                        self.logger.warning(
+                            "Exam delivery marker is valid but exam_id is missing."
+                        )
+                        exam_send_failed = True
+                        solution_send_failed = True
+                else:
+                    self.logger.warning("Ignoring invalid exam delivery marker.")
+
+            if exam_send_failed or solution_send_failed:
+                llm_content += "\n\n Sorry, something went wrong with sending the exam or exam solution PDF"
+
+            self.logger.debug(
+                f"Final message content after processing delivery marker: {llm_content}"
+            )
+
             if looks_like_latex(llm_content):
                 prepared_latex_content = prepare_latex_body(llm_content)
                 latex_document_path = (
@@ -207,7 +310,6 @@ class MessagingService:
                     )
                     await whatsapp_client.send_message(user.wa_id, llm_content)
                     record_messages_generated("chat_response_with_latex_image_fallback")
-
             else:
                 await whatsapp_client.send_message(user.wa_id, llm_content)
                 record_messages_generated("chat_response")

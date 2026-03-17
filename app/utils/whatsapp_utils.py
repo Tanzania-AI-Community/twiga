@@ -84,6 +84,29 @@ def generate_payload_for_image(
     return payload
 
 
+def generate_payload_for_document(
+    wa_id: str,
+    media_id: str,
+    caption: Optional[str] = None,
+    filename: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a WhatsApp Cloud API payload for a document message."""
+    payload: Dict[str, Any] = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": wa_id,
+        "type": "document",
+        "document": {"id": media_id},
+    }
+
+    if caption:
+        payload["document"]["caption"] = caption
+    if filename:
+        payload["document"]["filename"] = filename
+
+    return payload
+
+
 def get_interactive_button_payload(
     recipient: str, text: str, options: List[str]
 ) -> dict:
