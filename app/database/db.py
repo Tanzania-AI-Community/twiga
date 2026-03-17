@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from sqlalchemy import text
 from sqlalchemy.orm import selectinload
@@ -13,6 +14,7 @@ from app.database.models import (
     Subject,
     Resource,
     ClassResource,
+    GeneratedExam,
 )
 import app.database.enums as enums
 from app.database.enums import SubjectClassStatus
@@ -22,6 +24,92 @@ from app.utils import embedder
 logger = logging.getLogger(__name__)
 
 # TODO: Add custom Exceptions for better error handling
+
+
+def _parse_generated_at_utc(exam_json: Dict) -> Optional[datetime]:
+    generation_trace = exam_json.get("generation_trace", {})
+    raw_value = generation_trace.get("generated_at_utc")
+
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return None
+
+    timestamp = raw_value.strip()
+    if timestamp.endswith("Z"):
+        timestamp = f"{timestamp[:-1]}+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        logger.warning(
+            "Invalid generation_trace.generated_at_utc for exam_id=%s: %s",
+            generation_trace.get("exam_id"),
+            raw_value,
+        )
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+async def create_new_exam(exam_json: Dict) -> GeneratedExam:
+    generation_trace = exam_json.get("generation_trace", {})
+    exam_id = generation_trace.get("exam_id")
+
+    if not isinstance(exam_id, str) or not exam_id.strip():
+        raise ValueError(
+            "Missing generation_trace.exam_id in exam JSON; cannot persist generated exam."
+        )
+
+    normalized_exam_id = exam_id.strip()
+    generated_at_utc = _parse_generated_at_utc(exam_json)
+
+    async with get_session() as session:
+        try:
+            statement = select(GeneratedExam).where(
+                GeneratedExam.exam_id == normalized_exam_id
+            )
+            result = await session.execute(statement)
+            existing_exam = result.scalar_one_or_none()
+            if existing_exam is not None:
+                raise ValueError(
+                    f"Exam with exam_id={normalized_exam_id} already exists."
+                )
+
+            generated_exam = GeneratedExam(
+                exam_id=normalized_exam_id,
+                exam_json=exam_json,
+                generated_at_utc=generated_at_utc,
+            )
+
+            session.add(generated_exam)
+            await session.flush()
+            return generated_exam
+        except Exception as e:
+            logger.error(
+                "Failed to create generated exam %s: %s",
+                normalized_exam_id,
+                str(e),
+            )
+            raise Exception(f"Failed to create generated exam: {str(e)}")
+
+
+async def get_exam(exam_id: str) -> Optional[GeneratedExam]:
+    if not isinstance(exam_id, str) or not exam_id.strip():
+        raise ValueError("exam_id must be a non-empty string.")
+
+    normalized_exam_id = exam_id.strip()
+
+    async with get_session() as session:
+        try:
+            statement = select(GeneratedExam).where(
+                GeneratedExam.exam_id == normalized_exam_id
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error("Failed to retrieve exam %s: %s", normalized_exam_id, str(e))
+            raise Exception(f"Failed to retrieve exam: {str(e)}")
 
 
 async def get_user_by_waid(wa_id: str) -> Optional[User]:

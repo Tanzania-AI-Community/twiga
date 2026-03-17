@@ -359,6 +359,20 @@ class Message(SQLModel, table=True):
         return cls(**message_data)
 
 
+class GeneratedExam(SQLModel, table=True):
+    __tablename__ = "generated_exams"  # type: ignore
+    model_config = {"arbitrary_types_allowed": True}  # type: ignore
+
+    """ FIELDS """
+    exam_id: str = Field(primary_key=True, max_length=36)
+    exam_json: Dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    generated_at_utc: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+        index=True,
+    )
+
+
 class Resource(SQLModel, table=True):
     __tablename__ = "resources"  # type: ignore
     model_config = {"arbitrary_types_allowed": True}  # type: ignore
