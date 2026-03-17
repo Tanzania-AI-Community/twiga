@@ -3,7 +3,7 @@
   "version": "7.3",
   "routing_model": {
     "select_subject": ["select_classes"],
-    "select_classes": ["select_subject"]
+    "select_classes": []
   },
   "screens": [
     {
@@ -108,7 +108,7 @@
     {
       "id": "select_classes",
       "title": "Select Classes",
-      "terminal": false,
+      "terminal": true,
       "refresh_on_back": true,
       "data": {
         "selected_subject_id": {
