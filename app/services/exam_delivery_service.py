@@ -7,10 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 import app.database.db as db
-from app.tools.tool_code.generate_necta_style_exam.exam_pdf_generator import (
-    build_exam_pdf,
-    build_solution_pdf,
-)
+from app.services.exam_pdf_generation_service import build_exam_pdf, build_solution_pdf
 
 
 EXAM_DELIVERY_MARKER_RE = re.compile(
