@@ -8,7 +8,7 @@
   "screens": [
     {
       "id": "select_subject",
-      "title": "Select Subject",
+      "title": "Select Subjects",
       "terminal": false,
       "refresh_on_back": true,
       "data": {
@@ -30,13 +30,20 @@
             { "id": "2", "title": "Biology" }
           ]
         },
+        "selected_subject_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["1"]
+        },
         "has_subject_options": {
           "type": "boolean",
           "__example__": true
         },
         "select_subject_text": {
           "type": "string",
-          "__example__": "Select a subject, save its classes, then repeat for other subjects."
+          "__example__": "Choose up to 3 subjects, then continue to classes."
         },
         "configured_subjects_text": {
           "type": "string",
@@ -48,11 +55,15 @@
         },
         "subject_dropdown_label": {
           "type": "string",
-          "__example__": "Subject"
+          "__example__": "Subjects"
+        },
+        "max_selected_subjects": {
+          "type": "number",
+          "__example__": 3
         },
         "complete_button_label": {
           "type": "string",
-          "__example__": "Complete"
+          "__example__": "Continue"
         }
       },
       "layout": {
@@ -71,18 +82,13 @@
             "condition": "${data.has_subject_options}",
             "then": [
               {
-                "type": "Dropdown",
-                "name": "selected_subject_id",
+                "type": "ChipsSelector",
+                "name": "selected_subject_ids",
                 "label": "${data.subject_dropdown_label}",
                 "required": true,
                 "data-source": "${data.subject_options}",
-                "on-select-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "component_action": "load_subject_classes",
-                    "selected_subject_id": "${form.selected_subject_id}"
-                  }
-                }
+                "init-value": "${data.selected_subject_ids}",
+                "max-selected-items": "${data.max_selected_subjects}"
               }
             ],
             "else": [
@@ -98,7 +104,8 @@
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
-                "component_action": "complete_subject_configuration"
+                "component_action": "load_subject_classes",
+                "selected_subject_ids": "${form.selected_subject_ids}"
               }
             }
           }
@@ -111,13 +118,16 @@
       "terminal": true,
       "refresh_on_back": true,
       "data": {
-        "selected_subject_id": {
-          "type": "string",
-          "__example__": "1"
+        "selected_subject_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["1", "2"]
         },
-        "selected_subject_label": {
+        "selected_subjects_label": {
           "type": "string",
-          "__example__": "Mathematics"
+          "__example__": "Mathematics, Biology"
         },
         "has_classes": {
           "type": "boolean",
@@ -137,11 +147,12 @@
             }
           },
           "__example__": [
-            { "id": "101", "title": "Form 1" },
-            { "id": "102", "title": "Form 2" }
+            { "id": "201", "title": "Biology - Form 1" },
+            { "id": "101", "title": "Mathematics - Form 1" },
+            { "id": "102", "title": "Mathematics - Form 2" }
           ]
         },
-        "selected_classes_for_subject": {
+        "selected_class_ids": {
           "type": "array",
           "items": {
             "type": "string"
@@ -152,13 +163,17 @@
           "type": "string",
           "__example__": "Select classes"
         },
+        "max_selected_classes": {
+          "type": "number",
+          "__example__": 10
+        },
         "save_button_label": {
           "type": "string",
-          "__example__": "Save Subject"
+          "__example__": "Complete"
         },
         "no_classes_text": {
           "type": "string",
-          "__example__": "No active classes are available for this subject."
+          "__example__": "No active classes are available for selected subjects."
         }
       },
       "layout": {
@@ -166,19 +181,21 @@
         "children": [
           {
             "type": "TextHeading",
-            "text": "${data.selected_subject_label}"
+            "text": "${data.selected_subjects_label}"
           },
           {
             "type": "If",
             "condition": "${data.has_classes}",
             "then": [
               {
-                "type": "CheckboxGroup",
-                "name": "selected_classes",
+                "type": "ChipsSelector",
+                "name": "selected_class_ids",
                 "label": "${data.classes_label}",
-                "required": false,
+                "required": true,
                 "data-source": "${data.classes_for_subject}",
-                "init-value": "${data.selected_classes_for_subject}"
+                "init-value": "${data.selected_class_ids}",
+                "min-selected-items": 1,
+                "max-selected-items": "${data.max_selected_classes}"
               }
             ],
             "else": [
@@ -194,9 +211,9 @@
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
-                "component_action": "save_subject_classes",
-                "selected_subject_id": "${data.selected_subject_id}",
-                "selected_class_ids": "${form.selected_classes}"
+                "component_action": "complete_subject_configuration",
+                "selected_subject_ids": "${data.selected_subject_ids}",
+                "selected_class_ids": "${form.selected_class_ids}"
               }
             }
           }
