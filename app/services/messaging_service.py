@@ -3,7 +3,7 @@ import logging
 from fastapi.responses import JSONResponse
 
 import app.database.models as models
-from app.services.flow_service import flow_client
+from app.services.flows.flow_service import flow_client
 from app.utils.string_manager import strings, StringCategory
 from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db

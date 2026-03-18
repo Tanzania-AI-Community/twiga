@@ -14,7 +14,7 @@ from app.utils.whatsapp_utils import (
 )
 from app.services.messaging_service import messaging_client
 from app.services.rate_limit_service import rate_limit_service
-from app.services.flow_service import flow_client
+from app.services.flows.flow_service import flow_client
 from app.monitoring.metrics import record_messages_generated
 
 

@@ -6,7 +6,15 @@ from fastapi.responses import PlainTextResponse
 
 import app.database.enums as enums
 from app.database.models import Class, Subject, User
-from app.services.flow_service import FlowService
+from app.services.flows.flow_service import FlowService
+
+
+class _DummyRequest:
+    def __init__(self, body: dict):
+        self._body = body
+
+    async def json(self) -> dict:
+        return self._body
 
 
 @pytest.mark.asyncio
@@ -19,13 +27,15 @@ async def test_send_personal_and_school_info_flow_persists_flow_message() -> Non
     }
 
     with (
-        patch("app.services.flow_service.settings.onboarding_flow_id", "flow-123"),
         patch(
-            "app.services.flow_service.strings.get_category",
+            "app.services.flows.flow_service.settings.onboarding_flow_id", "flow-123"
+        ),
+        patch(
+            "app.services.flows.flow_service.strings.get_category",
             return_value=flow_strings,
         ),
         patch(
-            "app.services.flow_service.futil.send_whatsapp_flow_message",
+            "app.services.flows.flow_service.futil.send_whatsapp_flow_message",
             AsyncMock(),
         ),
         patch.object(
@@ -55,13 +65,15 @@ async def test_send_user_settings_flow_persists_flow_message() -> None:
     }
 
     with (
-        patch("app.services.flow_service.settings.onboarding_flow_id", "flow-999"),
         patch(
-            "app.services.flow_service.strings.get_category",
+            "app.services.flows.flow_service.settings.onboarding_flow_id", "flow-999"
+        ),
+        patch(
+            "app.services.flows.flow_service.strings.get_category",
             return_value=flow_strings,
         ),
         patch(
-            "app.services.flow_service.futil.send_whatsapp_flow_message",
+            "app.services.flows.flow_service.futil.send_whatsapp_flow_message",
             AsyncMock(),
         ),
         patch.object(
@@ -92,15 +104,15 @@ async def test_send_subjects_classes_flow_persists_flow_message() -> None:
 
     with (
         patch(
-            "app.services.flow_service.settings.subjects_classes_flow_id",
+            "app.services.flows.flow_service.settings.subjects_classes_flow_id",
             "flow-subjects-1",
         ),
         patch(
-            "app.services.flow_service.db.get_user_by_waid",
+            "app.services.flows.flow_service.db.get_user_by_waid",
             AsyncMock(return_value=user),
         ),
         patch(
-            "app.services.flow_service.strings.get_category",
+            "app.services.flows.flow_service.strings.get_category",
             return_value=flow_strings,
         ),
         patch.object(
@@ -109,11 +121,11 @@ async def test_send_subjects_classes_flow_persists_flow_message() -> None:
             AsyncMock(return_value={}),
         ),
         patch(
-            "app.services.flow_service.futil.create_flow_response_payload",
+            "app.services.flows.flow_service.futil.create_flow_response_payload",
             return_value={"screen": "select_subject", "data": {}},
         ),
         patch(
-            "app.services.flow_service.futil.send_whatsapp_flow_message",
+            "app.services.flows.flow_service.futil.send_whatsapp_flow_message",
             AsyncMock(),
         ),
         patch.object(
@@ -153,7 +165,7 @@ async def test_subjects_classes_load_action_returns_select_classes_screen() -> N
             AsyncMock(return_value={"any": "data"}),
         ) as mock_build_classes_data,
         patch(
-            "app.services.flow_service.futil.create_flow_response_payload",
+            "app.services.flows.flow_service.futil.create_flow_response_payload",
             return_value=expected_payload,
         ) as mock_create_payload,
         patch.object(
@@ -209,7 +221,7 @@ async def test_subjects_classes_save_action_parses_ids_and_returns_subject_scree
             AsyncMock(return_value={"saved": True}),
         ),
         patch(
-            "app.services.flow_service.futil.create_flow_response_payload",
+            "app.services.flows.flow_service.futil.create_flow_response_payload",
             return_value=expected_payload,
         ),
         patch.object(
@@ -277,6 +289,84 @@ async def test_subjects_classes_complete_action_requires_class_selection() -> No
 
 
 @pytest.mark.asyncio
+async def test_handle_flow_request_dispatches_data_exchange_to_flow_handler() -> None:
+    user = User(id=500, wa_id="255700005000", name="Teacher")
+    service = FlowService()
+    expected_response = PlainTextResponse("encrypted", status_code=200)
+    mock_flow_handler = AsyncMock(return_value=expected_response)
+    service.data_exchange_action_handlers = {"flow-subjects": mock_flow_handler}
+    payload = {"action": "data_exchange", "flow_token": "token", "data": {}}
+
+    with (
+        patch.object(
+            service.futil,
+            "decrypt_flow_request",
+            AsyncMock(return_value=(payload, b"aes-key", "iv")),
+        ),
+        patch.object(
+            service.futil,
+            "decrypt_flow_token",
+            return_value=(user.wa_id, "flow-subjects"),
+        ),
+        patch.object(
+            service.db,
+            "get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+    ):
+        response = await service.handle_flow_request(
+            _DummyRequest(body={"encrypted_flow_data": "payload"}),
+            BackgroundTasks(),
+        )
+
+    assert response is expected_response
+    called_args = mock_flow_handler.await_args.args
+    assert called_args[0] == user
+    assert called_args[1] == payload
+    assert called_args[2] == b"aes-key"
+    assert called_args[3] == "iv"
+    assert isinstance(called_args[4], BackgroundTasks)
+
+
+@pytest.mark.asyncio
+async def test_handle_flow_request_unknown_init_falls_back_to_unknown_flow() -> None:
+    user = User(id=501, wa_id="255700005001", name="Teacher")
+    service = FlowService()
+    expected_response = PlainTextResponse("encrypted", status_code=200)
+    payload = {"action": "INIT", "flow_token": "token", "data": {}}
+
+    with (
+        patch.object(
+            service.futil,
+            "decrypt_flow_request",
+            AsyncMock(return_value=(payload, b"aes-key", "iv")),
+        ),
+        patch.object(
+            service.futil,
+            "decrypt_flow_token",
+            return_value=(user.wa_id, "unknown-flow-id"),
+        ),
+        patch.object(
+            service.db,
+            "get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+        patch.object(
+            service,
+            "handle_unknown_flow",
+            AsyncMock(return_value=expected_response),
+        ) as mock_unknown_flow,
+    ):
+        response = await service.handle_flow_request(
+            _DummyRequest(body={"encrypted_flow_data": "payload"}),
+            BackgroundTasks(),
+        )
+
+    assert response is expected_response
+    mock_unknown_flow.assert_awaited_once_with(user, payload, b"aes-key", "iv")
+
+
+@pytest.mark.asyncio
 async def test_build_subject_option_prefixes_emoji_from_display_format() -> None:
     service = FlowService()
     subject = Subject(id=1, name=enums.SubjectName.geography)
@@ -296,7 +386,7 @@ async def test_build_subject_selection_screen_data_respects_chips_limits() -> No
     ]
 
     with patch(
-        "app.services.flow_service.db.read_subjects",
+        "app.services.flows.flow_service.db.read_subjects",
         AsyncMock(return_value=subjects),
     ):
         data = await service._build_subject_selection_screen_data(user=user)
@@ -354,7 +444,7 @@ async def test_build_subject_classes_screen_data_sorts_subject_level_titles() ->
     )
 
     with patch(
-        "app.services.flow_service.db.read_subjects",
+        "app.services.flows.flow_service.db.read_subjects",
         AsyncMock(return_value=[geography, biology]),
     ):
         data = await service._build_subject_classes_screen_data(
@@ -388,7 +478,7 @@ async def test_persist_visible_assistant_message_persists_visible_flag() -> None
     service = FlowService()
 
     with patch(
-        "app.services.flow_service.db.create_new_message_by_fields",
+        "app.services.flows.flow_service.db.create_new_message_by_fields",
         AsyncMock(),
     ) as mock_create_message_by_fields:
         await service._persist_visible_assistant_message(user, "Flow visible message")
@@ -408,15 +498,15 @@ async def test_update_user_profile_failure_persists_error_message() -> None:
 
     with (
         patch(
-            "app.services.flow_service.db.update_user",
+            "app.services.flows.flow_service.db.update_user",
             AsyncMock(side_effect=Exception("db failed")),
         ),
         patch(
-            "app.services.flow_service.strings.get_string",
+            "app.services.flows.flow_service.strings.get_string",
             return_value="General error",
         ),
         patch(
-            "app.services.flow_service.whatsapp_client.send_message",
+            "app.services.flows.flow_service.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch.object(
