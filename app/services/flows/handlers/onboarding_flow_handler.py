@@ -35,7 +35,6 @@ class OnboardingFlowHandler:
             is_update = data.get("is_updating", False)
             encrypted_flow_token = payload.get("flow_token")
 
-            # Add a background task to update the user profile
             background_tasks.add_task(self.update_user_profile, user, data, is_update)
 
             response_payload = self.service._create_flow_response_payload(
@@ -55,7 +54,6 @@ class OnboardingFlowHandler:
         self, user: User, data: dict, is_updating: bool
     ) -> None:
         try:
-            # Get field values using prefix based on update status
             prefix = "update_" if is_updating else ""
             user.name = data.get(f"{prefix}full_name") or user.name
             user.birthday = (
@@ -67,10 +65,8 @@ class OnboardingFlowHandler:
             user.school_name = data.get(f"{prefix}school_name")
             user.onboarding_state = enums.OnboardingState.personal_info_submitted
 
-            # Update the database
             user = await db.update_user(user)
 
-            # Send the select-subjects flow if onboarding
             if not is_updating:
                 await self.service.send_subjects_classes_flow(user)
         except Exception as exc:
@@ -79,7 +75,6 @@ class OnboardingFlowHandler:
             await self.service._persist_visible_assistant_message(user, err_message)
             self.logger.error(f"Failed to update onboarding data: {str(exc)}")
 
-    # The same flow is sent for both settings and onboarding (onboarding_flow_id)
     async def send_user_settings_flow(self, user: User) -> None:
         flow_strings = strings.get_category(StringCategory.FLOWS)
         header_text = flow_strings["personal_settings_header"]
