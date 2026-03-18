@@ -6,7 +6,12 @@ from dateutil.relativedelta import relativedelta
 from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse, PlainTextResponse
 
+import app.database.db as db
+import app.database.enums as enums
+from app.config import settings
 from app.database.models import User
+from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import StringCategory, strings
 
 
 class OnboardingFlowHandler:
@@ -33,7 +38,7 @@ class OnboardingFlowHandler:
             # Add a background task to update the user profile
             background_tasks.add_task(self.update_user_profile, user, data, is_update)
 
-            response_payload = self.service.futil.create_flow_response_payload(
+            response_payload = self.service._create_flow_response_payload(
                 screen="SUCCESS",
                 data={},
                 encrypted_flow_token=encrypted_flow_token,
@@ -60,29 +65,23 @@ class OnboardingFlowHandler:
             )
             user.region = data.get(f"{prefix}region")
             user.school_name = data.get(f"{prefix}school_name")
-            user.onboarding_state = (
-                self.service.enums.OnboardingState.personal_info_submitted
-            )
+            user.onboarding_state = enums.OnboardingState.personal_info_submitted
 
             # Update the database
-            user = await self.service.db.update_user(user)
+            user = await db.update_user(user)
 
             # Send the select-subjects flow if onboarding
             if not is_updating:
                 await self.service.send_subjects_classes_flow(user)
         except Exception as exc:
-            err_message = self.service.strings.get_string(
-                self.service.StringCategory.ERROR, "general"
-            )
-            await self.service.whatsapp_client.send_message(user.wa_id, err_message)
+            err_message = strings.get_string(StringCategory.ERROR, "general")
+            await whatsapp_client.send_message(user.wa_id, err_message)
             await self.service._persist_visible_assistant_message(user, err_message)
             self.logger.error(f"Failed to update onboarding data: {str(exc)}")
 
     # The same flow is sent for both settings and onboarding (onboarding_flow_id)
     async def send_user_settings_flow(self, user: User) -> None:
-        flow_strings = self.service.strings.get_category(
-            self.service.StringCategory.FLOWS
-        )
+        flow_strings = strings.get_category(StringCategory.FLOWS)
         header_text = flow_strings["personal_settings_header"]
         body_text = flow_strings["personal_settings_body"]
         data = {
@@ -94,15 +93,14 @@ class OnboardingFlowHandler:
             "birthday": user.birthday.strftime("%Y-%m-%d") if user.birthday else None,
             "school_name": user.school_name,
         }
-        # Check if the flow settings are set
-        assert (
-            self.service.settings.onboarding_flow_id
-            and self.service.settings.onboarding_flow_id.strip()
-        )
+        flow_id = settings.onboarding_flow_id
+        if not flow_id or not flow_id.strip():
+            self.logger.error("onboarding_flow_id is not configured.")
+            return
 
-        await self.service.futil.send_whatsapp_flow_message(
+        await whatsapp_client.send_whatsapp_flow_message(
             user=user,
-            flow_id=self.service.settings.onboarding_flow_id,
+            flow_id=flow_id,
             header_text=header_text,
             body_text=body_text,
             action_payload={
@@ -113,15 +111,13 @@ class OnboardingFlowHandler:
         )
         await self.service._persist_flow_message(
             user=user,
-            flow_id=self.service.settings.onboarding_flow_id,
+            flow_id=flow_id,
             header_text=header_text,
             body_text=body_text,
         )
 
     async def send_personal_and_school_info_flow(self, user: User) -> None:
-        flow_strings = self.service.strings.get_category(
-            self.service.StringCategory.FLOWS
-        )
+        flow_strings = strings.get_category(StringCategory.FLOWS)
         header_text = flow_strings["start_onboarding_header"]
         body_text = flow_strings["start_onboarding_body"]
         data = {
@@ -131,15 +127,14 @@ class OnboardingFlowHandler:
             "is_updating": False,
         }
 
-        # Check if the flow settings are set
-        assert (
-            self.service.settings.onboarding_flow_id
-            and self.service.settings.onboarding_flow_id.strip()
-        )
+        flow_id = settings.onboarding_flow_id
+        if not flow_id or not flow_id.strip():
+            self.logger.error("onboarding_flow_id is not configured.")
+            return
 
-        await self.service.futil.send_whatsapp_flow_message(
+        await whatsapp_client.send_whatsapp_flow_message(
             user=user,
-            flow_id=self.service.settings.onboarding_flow_id,
+            flow_id=flow_id,
             header_text=header_text,
             body_text=body_text,
             action_payload={
@@ -150,7 +145,7 @@ class OnboardingFlowHandler:
         )
         await self.service._persist_flow_message(
             user=user,
-            flow_id=self.service.settings.onboarding_flow_id,
+            flow_id=flow_id,
             header_text=header_text,
             body_text=body_text,
         )

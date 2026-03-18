@@ -4,7 +4,7 @@ import logging
 
 from app.database import db
 from app.database.models import User
-import app.utils.flow_utils as futil
+import app.services.flows.utils as flow_utils
 
 logger = logging.getLogger(__name__)
 FLOW_OPTION_TITLE_MAX_LEN = 30
@@ -30,7 +30,7 @@ async def handle_onboarding_init_action(
     user: User,
 ) -> Dict[str, Any] | PlainTextResponse:
     try:
-        response_payload = futil.create_flow_response_payload(
+        response_payload = flow_utils.create_flow_response_payload(
             screen="personal_info",
             data={
                 "full_name": user.name,
@@ -59,7 +59,7 @@ async def handle_subjects_classes_init_action(
             subject_options, key=lambda option: option["title"].lower()
         )[:FLOW_MAX_CHIPS_OPTIONS]
 
-        response_payload = futil.create_flow_response_payload(
+        response_payload = flow_utils.create_flow_response_payload(
             screen="select_subject",
             data={
                 "subject_options": subject_options,

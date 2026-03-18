@@ -1,91 +1,61 @@
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict
 
 from fastapi import BackgroundTasks, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 import app.database.db as db
 import app.database.enums as enums
-import app.database.models as models
-import app.utils.flow_utils as futil
+import app.services.flows.utils as flow_utils
 import scripts.flows.designing_flows as flows_wip
-from app.config import Environment, settings
+from app.config import settings
 from app.database.models import User
 from app.services.flows.handlers.onboarding_flow_handler import OnboardingFlowHandler
 from app.services.flows.handlers.subjects_classes_flow_handler import (
     SubjectsClassesFlowHandler,
 )
-from app.services.whatsapp_service import whatsapp_client
-from app.utils.string_manager import StringCategory, strings
 
 
 class FlowService:
-    # Keep constants here for backward compatibility with tests/callers.
-    _FLOW_SCREEN_SELECT_SUBJECT = SubjectsClassesFlowHandler._FLOW_SCREEN_SELECT_SUBJECT
-    _FLOW_SCREEN_SELECT_CLASSES = SubjectsClassesFlowHandler._FLOW_SCREEN_SELECT_CLASSES
-    _FLOW_SUBJECT_TITLE_MAX_LEN = SubjectsClassesFlowHandler._FLOW_SUBJECT_TITLE_MAX_LEN
-    _FLOW_MAX_CHIPS_OPTIONS = SubjectsClassesFlowHandler._FLOW_MAX_CHIPS_OPTIONS
-    _FLOW_MAX_SELECTED_SUBJECTS = SubjectsClassesFlowHandler._FLOW_MAX_SELECTED_SUBJECTS
-    _FLOW_MAX_SELECTED_CLASSES = SubjectsClassesFlowHandler._FLOW_MAX_SELECTED_CLASSES
-    _FLOW_ACTION_LOAD_SUBJECT_CLASSES = (
-        SubjectsClassesFlowHandler._FLOW_ACTION_LOAD_SUBJECT_CLASSES
-    )
-    _FLOW_ACTION_SAVE_SUBJECT_CLASSES = (
-        SubjectsClassesFlowHandler._FLOW_ACTION_SAVE_SUBJECT_CLASSES
-    )
-    _FLOW_ACTION_COMPLETE = SubjectsClassesFlowHandler._FLOW_ACTION_COMPLETE
-
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-        # Shared dependencies exposed for flow handlers.
-        self.db = db
-        self.enums = enums
-        self.futil = futil
-        self.settings = settings
-        self.strings = strings
-        self.whatsapp_client = whatsapp_client
-        self.StringCategory = StringCategory
-
-        # Flow-specific handlers.
         self._onboarding_flow_handler = OnboardingFlowHandler(service=self)
         self._subjects_classes_flow_handler = SubjectsClassesFlowHandler(service=self)
 
         self.data_exchange_action_handlers: Dict[str, Callable] = {}
         self.init_action_handlers: Dict[str, Callable] = {}
+        self._register_flow_handlers()
 
-        # Register handlers only in app runtime environments.
-        if settings.environment not in (
-            Environment.PRODUCTION,
-            Environment.STAGING,
-            Environment.DEVELOPMENT,
-        ):
-            return
+    def _register_flow_handlers(self) -> None:
+        onboarding_flow_id = (settings.onboarding_flow_id or "").strip()
+        if onboarding_flow_id:
+            self.data_exchange_action_handlers[onboarding_flow_id] = (
+                self.handle_onboarding_data_exchange_action
+            )
+            self.init_action_handlers[onboarding_flow_id] = (
+                flows_wip.handle_onboarding_init_action
+            )
+        else:
+            self.logger.warning("onboarding_flow_id is not configured.")
 
-        # Check if flow IDs are set.
-        assert settings.onboarding_flow_id and settings.onboarding_flow_id.strip()
-        assert (
-            settings.subjects_classes_flow_id
-            and settings.subjects_classes_flow_id.strip()
-        )
-
-        self.data_exchange_action_handlers = {
-            settings.onboarding_flow_id: self.handle_onboarding_data_exchange_action,
-            settings.subjects_classes_flow_id: self.handle_subjects_classes_data_exchange_action,
-        }
-
-        # NOTE: only used when designing flows (work-in-progress).
-        self.init_action_handlers = {
-            settings.onboarding_flow_id: flows_wip.handle_onboarding_init_action,
-            settings.subjects_classes_flow_id: flows_wip.handle_subjects_classes_init_action,
-        }
+        subjects_flow_id = (settings.subjects_classes_flow_id or "").strip()
+        if subjects_flow_id:
+            self.data_exchange_action_handlers[subjects_flow_id] = (
+                self.handle_subjects_classes_data_exchange_action
+            )
+            self.init_action_handlers[subjects_flow_id] = (
+                flows_wip.handle_subjects_classes_init_action
+            )
+        else:
+            self.logger.warning("subjects_classes_flow_id is not configured.")
 
     async def handle_flow_request(
         self, request: Request, bg_tasks: BackgroundTasks
     ) -> PlainTextResponse:
         try:
             body = await request.json()
-            payload, aes_key, initial_vector = await self.futil.decrypt_flow_request(
+            payload, aes_key, initial_vector = await flow_utils.decrypt_flow_request(
                 body
             )
             action = payload.get("action")
@@ -104,8 +74,8 @@ class FlowService:
                 )
 
             # Get the user and flow ID.
-            wa_id, flow_id = self.futil.decrypt_flow_token(flow_token)
-            user = await self.db.get_user_by_waid(wa_id)
+            wa_id, flow_id = flow_utils.decrypt_flow_token(flow_token)
+            user = await db.get_user_by_waid(wa_id)
 
             if not user:
                 self.logger.error(f"User not found for WA ID: {wa_id}")
@@ -136,7 +106,7 @@ class FlowService:
         except ValueError as exc:
             self.logger.error(f"Error decrypting payload: {exc}")
             return PlainTextResponse(content="Decryption failed", status_code=421)
-        except self.futil.FlowTokenError as exc:
+        except flow_utils.FlowTokenError as exc:
             self.logger.error(f"Error decrypting flow token: {exc}")
             return PlainTextResponse(
                 content={"error_msg": "Your request has expired please start again"},
@@ -160,8 +130,10 @@ class FlowService:
             f"Processing response: {response_payload} , AES Key: {aes_key} , IV: {initial_vector}"
         )
         try:
-            encrypted_response = self.futil.encrypt_response(
-                response_payload, aes_key, initial_vector
+            encrypted_response = flow_utils.encrypt_response(
+                response=response_payload,
+                aes_key=aes_key,
+                initial_vector=initial_vector,
             )
             return PlainTextResponse(content=encrypted_response, status_code=200)
         except Exception as exc:
@@ -219,102 +191,6 @@ class FlowService:
             background_tasks=background_tasks,
         )
 
-    # Compatibility wrappers for methods directly tested and/or reused.
-    def _parse_subject_id(self, value: Any) -> int:
-        return self._subjects_classes_flow_handler._parse_subject_id(value)
-
-    def _parse_subject_ids(self, value: Any) -> List[int]:
-        return self._subjects_classes_flow_handler._parse_subject_ids(value)
-
-    def _parse_class_ids(self, value: Any) -> List[int]:
-        return self._subjects_classes_flow_handler._parse_class_ids(value)
-
-    def _get_subject_display_title(self, subject: models.Subject) -> str:
-        return self._subjects_classes_flow_handler._get_subject_display_title(subject)
-
-    def _get_subject_title_with_leading_emoji(self, subject: models.Subject) -> str:
-        return (
-            self._subjects_classes_flow_handler._get_subject_title_with_leading_emoji(
-                subject
-            )
-        )
-
-    def _truncate_flow_option_title(self, title: str) -> str:
-        return self._subjects_classes_flow_handler._truncate_flow_option_title(title)
-
-    def _is_active_class(self, class_: models.Class) -> bool:
-        return self._subjects_classes_flow_handler._is_active_class(class_)
-
-    def _build_subject_option(
-        self, subject: models.Subject
-    ) -> Optional[Dict[str, str]]:
-        return self._subjects_classes_flow_handler._build_subject_option(subject)
-
-    def _build_class_option_title(self, subject_title: str, grade_label: str) -> str:
-        return self._subjects_classes_flow_handler._build_class_option_title(
-            subject_title, grade_label
-        )
-
-    async def _build_subject_selection_screen_data(self, user: User) -> Dict[str, Any]:
-        return await self._subjects_classes_flow_handler._build_subject_selection_screen_data(
-            user
-        )
-
-    async def _build_subject_classes_screen_data(
-        self, user: User, selected_subject_ids: List[int]
-    ) -> Dict[str, Any]:
-        return await self._subjects_classes_flow_handler._build_subject_classes_screen_data(
-            user, selected_subject_ids
-        )
-
-    async def _save_multi_subject_class_selection(
-        self, user: User, selected_subject_ids: List[int], selected_class_ids: List[int]
-    ) -> User:
-        return await self._subjects_classes_flow_handler._save_multi_subject_class_selection(
-            user, selected_subject_ids, selected_class_ids
-        )
-
-    async def _save_subject_selection(
-        self, user: User, subject_id: int, selected_class_ids: List[int]
-    ) -> User:
-        return await self._subjects_classes_flow_handler._save_subject_selection(
-            user, subject_id, selected_class_ids
-        )
-
-    async def _refresh_user_by_wa_id(self, wa_id: str) -> User:
-        return await self._subjects_classes_flow_handler._refresh_user_by_wa_id(wa_id)
-
-    def _build_class_info_from_teacher_classes(
-        self, teacher_classes: List[models.TeacherClass]
-    ) -> Dict[str, List[str]]:
-        return (
-            self._subjects_classes_flow_handler._build_class_info_from_teacher_classes(
-                teacher_classes
-            )
-        )
-
-    async def _sync_user_class_info(self, user: User) -> User:
-        return await self._subjects_classes_flow_handler._sync_user_class_info(user)
-
-    async def _finalize_subject_configuration(self, user: User) -> User:
-        return (
-            await self._subjects_classes_flow_handler._finalize_subject_configuration(
-                user
-            )
-        )
-
-    async def update_user_classes(
-        self, user: User, selected_classes_by_subject: Dict[str, List[int]]
-    ) -> None:
-        await self._subjects_classes_flow_handler.update_user_classes(
-            user, selected_classes_by_subject
-        )
-
-    async def update_user_profile(
-        self, user: User, data: dict, is_updating: bool
-    ) -> None:
-        await self._onboarding_flow_handler.update_user_profile(user, data, is_updating)
-
     async def send_user_settings_flow(self, user: User) -> None:
         await self._onboarding_flow_handler.send_user_settings_flow(user)
 
@@ -341,15 +217,12 @@ class FlowService:
             )
             return
 
-        await self.db.create_new_message_by_fields(
+        await db.create_new_message_by_fields(
             user_id=user.id,
-            role=self.enums.MessageRole.assistant,
+            role=enums.MessageRole.assistant,
             content=content,
             is_present_in_conversation=True,
         )
 
 
 flow_client = FlowService()
-
-# TODO - move this comment to a more appropriate location
-# Note: in development mode call send_whatsapp_flow_message with mode="draft"

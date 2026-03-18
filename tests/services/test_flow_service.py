@@ -4,6 +4,7 @@ import pytest
 from fastapi import BackgroundTasks
 from fastapi.responses import PlainTextResponse
 
+import app.database.db as db
 import app.database.enums as enums
 from app.database.models import Class, Subject, User
 from app.services.flows.flow_service import FlowService
@@ -28,14 +29,15 @@ async def test_send_personal_and_school_info_flow_persists_flow_message() -> Non
 
     with (
         patch(
-            "app.services.flows.flow_service.settings.onboarding_flow_id", "flow-123"
+            "app.services.flows.handlers.onboarding_flow_handler.settings.onboarding_flow_id",
+            "flow-123",
         ),
         patch(
-            "app.services.flows.flow_service.strings.get_category",
+            "app.services.flows.handlers.onboarding_flow_handler.strings.get_category",
             return_value=flow_strings,
         ),
         patch(
-            "app.services.flows.flow_service.futil.send_whatsapp_flow_message",
+            "app.services.flows.handlers.onboarding_flow_handler.whatsapp_client.send_whatsapp_flow_message",
             AsyncMock(),
         ),
         patch.object(
@@ -66,14 +68,15 @@ async def test_send_user_settings_flow_persists_flow_message() -> None:
 
     with (
         patch(
-            "app.services.flows.flow_service.settings.onboarding_flow_id", "flow-999"
+            "app.services.flows.handlers.onboarding_flow_handler.settings.onboarding_flow_id",
+            "flow-999",
         ),
         patch(
-            "app.services.flows.flow_service.strings.get_category",
+            "app.services.flows.handlers.onboarding_flow_handler.strings.get_category",
             return_value=flow_strings,
         ),
         patch(
-            "app.services.flows.flow_service.futil.send_whatsapp_flow_message",
+            "app.services.flows.handlers.onboarding_flow_handler.whatsapp_client.send_whatsapp_flow_message",
             AsyncMock(),
         ),
         patch.object(
@@ -96,6 +99,7 @@ async def test_send_user_settings_flow_persists_flow_message() -> None:
 @pytest.mark.asyncio
 async def test_send_subjects_classes_flow_persists_flow_message() -> None:
     user = User(id=43, wa_id="255700000335", name="Teacher")
+    service = FlowService()
     flow_strings = {
         "subjects_classes_flow_header": "Subjects",
         "subjects_classes_flow_body": "Choose subjects and classes",
@@ -104,28 +108,29 @@ async def test_send_subjects_classes_flow_persists_flow_message() -> None:
 
     with (
         patch(
-            "app.services.flows.flow_service.settings.subjects_classes_flow_id",
+            "app.services.flows.handlers.subjects_classes_flow_handler.settings.subjects_classes_flow_id",
             "flow-subjects-1",
         ),
         patch(
-            "app.services.flows.flow_service.db.get_user_by_waid",
-            AsyncMock(return_value=user),
-        ),
-        patch(
-            "app.services.flows.flow_service.strings.get_category",
+            "app.services.flows.handlers.subjects_classes_flow_handler.strings.get_category",
             return_value=flow_strings,
         ),
         patch.object(
-            FlowService,
+            service._subjects_classes_flow_handler,
             "_build_subject_selection_screen_data",
             AsyncMock(return_value={}),
         ),
+        patch.object(
+            service._subjects_classes_flow_handler,
+            "_refresh_user_by_wa_id",
+            AsyncMock(return_value=user),
+        ),
         patch(
-            "app.services.flows.flow_service.futil.create_flow_response_payload",
+            "app.services.flows.flow_service.flow_utils.create_flow_response_payload",
             return_value={"screen": "select_subject", "data": {}},
         ),
         patch(
-            "app.services.flows.flow_service.futil.send_whatsapp_flow_message",
+            "app.services.flows.handlers.subjects_classes_flow_handler.whatsapp_client.send_whatsapp_flow_message",
             AsyncMock(),
         ),
         patch.object(
@@ -134,7 +139,6 @@ async def test_send_subjects_classes_flow_persists_flow_message() -> None:
             AsyncMock(),
         ) as mock_persist_flow_message,
     ):
-        service = FlowService()
         await service.send_subjects_classes_flow(user)
 
     assert mock_persist_flow_message.await_args.kwargs == {
@@ -160,12 +164,12 @@ async def test_subjects_classes_load_action_returns_select_classes_screen() -> N
 
     with (
         patch.object(
-            service,
+            service._subjects_classes_flow_handler,
             "_build_subject_classes_screen_data",
             AsyncMock(return_value={"any": "data"}),
         ) as mock_build_classes_data,
         patch(
-            "app.services.flows.flow_service.futil.create_flow_response_payload",
+            "app.services.flows.flow_service.flow_utils.create_flow_response_payload",
             return_value=expected_payload,
         ) as mock_create_payload,
         patch.object(
@@ -211,17 +215,17 @@ async def test_subjects_classes_save_action_parses_ids_and_returns_subject_scree
 
     with (
         patch.object(
-            service,
+            service._subjects_classes_flow_handler,
             "_save_subject_selection",
             AsyncMock(return_value=user),
         ) as mock_save_subject_selection,
         patch.object(
-            service,
+            service._subjects_classes_flow_handler,
             "_build_subject_selection_screen_data",
             AsyncMock(return_value={"saved": True}),
         ),
         patch(
-            "app.services.flows.flow_service.futil.create_flow_response_payload",
+            "app.services.flows.flow_service.flow_utils.create_flow_response_payload",
             return_value=expected_payload,
         ),
         patch.object(
@@ -299,17 +303,17 @@ async def test_handle_flow_request_dispatches_data_exchange_to_flow_handler() ->
 
     with (
         patch.object(
-            service.futil,
-            "decrypt_flow_request",
+            service,
+            "_decrypt_flow_request",
             AsyncMock(return_value=(payload, b"aes-key", "iv")),
         ),
         patch.object(
-            service.futil,
-            "decrypt_flow_token",
+            service,
+            "_decrypt_flow_token",
             return_value=(user.wa_id, "flow-subjects"),
         ),
         patch.object(
-            service.db,
+            db,
             "get_user_by_waid",
             AsyncMock(return_value=user),
         ),
@@ -337,17 +341,17 @@ async def test_handle_flow_request_unknown_init_falls_back_to_unknown_flow() -> 
 
     with (
         patch.object(
-            service.futil,
-            "decrypt_flow_request",
+            service,
+            "_decrypt_flow_request",
             AsyncMock(return_value=(payload, b"aes-key", "iv")),
         ),
         patch.object(
-            service.futil,
-            "decrypt_flow_token",
+            service,
+            "_decrypt_flow_token",
             return_value=(user.wa_id, "unknown-flow-id"),
         ),
         patch.object(
-            service.db,
+            db,
             "get_user_by_waid",
             AsyncMock(return_value=user),
         ),
@@ -371,7 +375,7 @@ async def test_build_subject_option_prefixes_emoji_from_display_format() -> None
     service = FlowService()
     subject = Subject(id=1, name=enums.SubjectName.geography)
 
-    option = service._build_subject_option(subject)
+    option = service._subjects_classes_flow_handler._build_subject_option(subject)
 
     assert option == {"id": "1", "title": "🌎 Geography"}
 
@@ -386,10 +390,12 @@ async def test_build_subject_selection_screen_data_respects_chips_limits() -> No
     ]
 
     with patch(
-        "app.services.flows.flow_service.db.read_subjects",
+        "app.services.flows.handlers.subjects_classes_flow_handler.db.read_subjects",
         AsyncMock(return_value=subjects),
     ):
-        data = await service._build_subject_selection_screen_data(user=user)
+        data = await service._subjects_classes_flow_handler._build_subject_selection_screen_data(
+            user=user
+        )
 
     assert len(data["subject_options"]) == 20
     assert all(len(option["title"]) <= 30 for option in data["subject_options"])
@@ -398,7 +404,7 @@ async def test_build_subject_selection_screen_data_respects_chips_limits() -> No
 def test_build_class_option_title_keeps_form_prefix_when_truncating() -> None:
     service = FlowService()
 
-    title = service._build_class_option_title(
+    title = service._subjects_classes_flow_handler._build_class_option_title(
         subject_title="Information And Computer Studies",
         grade_label="Form 1",
     )
@@ -444,10 +450,10 @@ async def test_build_subject_classes_screen_data_sorts_subject_level_titles() ->
     )
 
     with patch(
-        "app.services.flows.flow_service.db.read_subjects",
+        "app.services.flows.handlers.subjects_classes_flow_handler.db.read_subjects",
         AsyncMock(return_value=[geography, biology]),
     ):
-        data = await service._build_subject_classes_screen_data(
+        data = await service._subjects_classes_flow_handler._build_subject_classes_screen_data(
             user=user, selected_subject_ids=[1, 2]
         )
 
@@ -462,14 +468,16 @@ def test_parse_subject_ids_enforces_max_limit() -> None:
     service = FlowService()
 
     with pytest.raises(ValueError, match="up to 3 subjects"):
-        service._parse_subject_ids(["1", "2", "3", "4"])
+        service._subjects_classes_flow_handler._parse_subject_ids(["1", "2", "3", "4"])
 
 
 def test_parse_class_ids_enforces_max_limit() -> None:
     service = FlowService()
 
     with pytest.raises(ValueError, match="up to 10 classes"):
-        service._parse_class_ids([str(i) for i in range(1, 12)])
+        service._subjects_classes_flow_handler._parse_class_ids(
+            [str(i) for i in range(1, 12)]
+        )
 
 
 @pytest.mark.asyncio
@@ -498,15 +506,15 @@ async def test_update_user_profile_failure_persists_error_message() -> None:
 
     with (
         patch(
-            "app.services.flows.flow_service.db.update_user",
+            "app.services.flows.handlers.onboarding_flow_handler.db.update_user",
             AsyncMock(side_effect=Exception("db failed")),
         ),
         patch(
-            "app.services.flows.flow_service.strings.get_string",
+            "app.services.flows.handlers.onboarding_flow_handler.strings.get_string",
             return_value="General error",
         ),
         patch(
-            "app.services.flows.flow_service.whatsapp_client.send_message",
+            "app.services.flows.handlers.onboarding_flow_handler.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch.object(
@@ -515,7 +523,9 @@ async def test_update_user_profile_failure_persists_error_message() -> None:
             AsyncMock(),
         ) as mock_persist_visible,
     ):
-        await service.update_user_profile(user, data={}, is_updating=False)
+        await service._onboarding_flow_handler.update_user_profile(
+            user, data={}, is_updating=False
+        )
 
     mock_send_message.assert_awaited_once_with(user.wa_id, "General error")
     mock_persist_visible.assert_awaited_once_with(user, "General error")

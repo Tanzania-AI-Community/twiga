@@ -9,11 +9,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 import logging
 
-import httpx
 from app.config import settings
 from cryptography.fernet import Fernet
-
-from app.database.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +104,10 @@ async def decrypt_flow_request(body: dict) -> Tuple[dict, bytes, str]:
         )
 
         return decrypted_payload, aes_key, initial_vector
-    except ValueError as e:
-        raise ValueError(f"Invalid webhook payload: {str(e)}")
-    except Exception as e:
-        raise RuntimeError(f"Decryption error: {str(e)}")
+    except ValueError as exc:
+        raise ValueError(f"Invalid webhook payload: {str(exc)}")
+    except Exception as exc:
+        raise RuntimeError(f"Decryption error: {str(exc)}")
 
 
 def get_fernet_key() -> bytes:
@@ -152,11 +149,11 @@ def decrypt_flow_token(encrypted_flow_token: str) -> Tuple[str, str]:
 
         wa_id, flow_id = parts
         return wa_id, flow_id
-    except ValueError as e:
-        logger.error(f"Value error during token decryption: {str(e)}")
+    except ValueError as exc:
+        logger.error(f"Value error during token decryption: {str(exc)}")
         raise FlowTokenError("Invalid token format")
-    except Exception as e:
-        logger.error(f"Token decryption failed: {str(e)}")
+    except Exception as exc:
+        logger.error(f"Token decryption failed: {str(exc)}")
         raise FlowTokenError("Token decryption failed")
 
 
@@ -169,64 +166,6 @@ def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
     data = f"{wa_id}_{flow_id}".encode("utf-8")
     encrypted_data = fernet.encrypt(data)
     return encrypted_data.decode("utf-8")
-
-
-async def send_whatsapp_flow_message(
-    user: User,
-    flow_id: str,
-    header_text: str,
-    body_text: str,
-    action_payload: Dict[str, Any],
-    flow_cta: str,
-    mode="published",
-) -> None:
-    """
-    Common utility to send WhatsApp flow messages
-    """
-    flow_token = encrypt_flow_token(user.wa_id, flow_id)
-
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": user.wa_id,
-        "recipient_type": "individual",
-        "type": "interactive",
-        "interactive": {
-            "type": "flow",
-            "header": {
-                "type": "text",
-                "text": header_text,
-            },
-            "body": {
-                "text": body_text,
-            },
-            "footer": {
-                "text": "Please follow the instructions.",
-            },
-            "action": {
-                "name": "flow",
-                "parameters": {
-                    "flow_message_version": "3",
-                    "flow_action": "navigate",
-                    "flow_token": flow_token,
-                    "flow_id": flow_id,
-                    "flow_cta": flow_cta,
-                    "mode": mode,
-                    "flow_action_payload": action_payload,
-                },
-            },
-        },
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-            },
-            json=payload,
-        )
-        logger.info(f"WhatsApp API response: {response.status_code} - {response.text}")
 
 
 def create_flow_response_payload(
