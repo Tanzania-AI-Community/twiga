@@ -26,8 +26,36 @@
             }
           },
           "__example__": [
-            { "id": "1", "title": "Mathematics" },
-            { "id": "2", "title": "Biology" }
+            { "id": "1", "title": "🌎 Geography" },
+            { "id": "2", "title": "📙 History" },
+            { "id": "3", "title": "🧬 Biology" },
+            { "id": "4", "title": "📘 English" },
+            { "id": "5", "title": "🏛️ Civics" },
+            { "id": "6", "title": "➗ Mathematics" },
+            { "id": "7", "title": "👤 Human Geography" },
+            { "id": "8", "title": "🪨 Physical Geography" },
+            { "id": "9", "title": "🌽 Agriculture" },
+            { "id": "10", "title": "🚜 Agromechanics" },
+            { "id": "11", "title": "🐮 Animal Health And Production" },
+            { "id": "12", "title": "👨‍🎨 Arts And Design" },
+            { "id": "13", "title": "🔧 Auto Body Repair" },
+            { "id": "14", "title": "✝️ Bible Knowledge" },
+            { "id": "15", "title": "📚 Book Keeping" },
+            { "id": "16", "title": "⚛️ Chemistry" },
+            { "id": "17", "title": "💻 Computer Science" },
+            { "id": "18", "title": "📐 Engineering Science" },
+            { "id": "19", "title": "🚀 Physics" },
+            { "id": "20", "title": "🎭 Acting" },
+            { "id": "21", "title": "💼 Business Studies" },
+            { "id": "22", "title": "➕ Additional Mathematics" },
+            { "id": "23", "title": "🚗 Auto Electric" },
+            { "id": "24", "title": "🪚 Carpentry" },
+            { "id": "25", "title": "📏 Civil Draughting" },
+            { "id": "26", "title": "🌱 Horticultural Production" },
+            { "id": "27", "title": "👞 Leather Goods And Footwear" },
+            { "id": "28", "title": "📖 Literature In English" },
+            { "id": "29", "title": "🖥️ Information And Computer Studies" },
+            { "id": "30", "title": "💹 Commerce" }
           ]
         },
         "selected_subject_ids": {
@@ -41,17 +69,9 @@
           "type": "boolean",
           "__example__": true
         },
-        "select_subject_text": {
-          "type": "string",
-          "__example__": "Choose up to 3 subjects, then continue to classes."
-        },
-        "configured_subjects_text": {
-          "type": "string",
-          "__example__": "Configured subjects: 2"
-        },
         "no_subjects_text": {
           "type": "string",
-          "__example__": "Sorry, there are no available subjects."
+          "__example__": "Sorry, currently there are no available subjects."
         },
         "subject_dropdown_label": {
           "type": "string",
@@ -69,14 +89,6 @@
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextBody",
-            "text": "${data.select_subject_text}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "${data.configured_subjects_text}"
-          },
           {
             "type": "If",
             "condition": "${data.has_subject_options}",
@@ -123,11 +135,11 @@
           "items": {
             "type": "string"
           },
-          "__example__": ["1", "2"]
+          "__example__": ["3", "4", "6"]
         },
         "selected_subjects_label": {
           "type": "string",
-          "__example__": "Mathematics, Biology"
+          "__example__": "Biology, English, Mathematics"
         },
         "has_classes": {
           "type": "boolean",
@@ -147,9 +159,24 @@
             }
           },
           "__example__": [
-            { "id": "201", "title": "Biology - Form 1" },
-            { "id": "101", "title": "Mathematics - Form 1" },
-            { "id": "102", "title": "Mathematics - Form 2" }
+            { "id": "301", "title": "Biology - Form 1" },
+            { "id": "302", "title": "Biology - Form 2" },
+            { "id": "303", "title": "Biology - Form 3" },
+            { "id": "304", "title": "Biology - Form 4" },
+            { "id": "305", "title": "Biology - Form 5" },
+            { "id": "306", "title": "Biology - Form 6" },
+            { "id": "401", "title": "English - Form 1" },
+            { "id": "402", "title": "English - Form 2" },
+            { "id": "403", "title": "English - Form 3" },
+            { "id": "404", "title": "English - Form 4" },
+            { "id": "405", "title": "English - Form 5" },
+            { "id": "406", "title": "English - Form 6" },
+            { "id": "601", "title": "Mathematics - Form 1" },
+            { "id": "602", "title": "Mathematics - Form 2" },
+            { "id": "603", "title": "Mathematics - Form 3" },
+            { "id": "604", "title": "Mathematics - Form 4" },
+            { "id": "605", "title": "Mathematics - Form 5" },
+            { "id": "606", "title": "Mathematics - Form 6" }
           ]
         },
         "selected_class_ids": {
@@ -157,7 +184,7 @@
           "items": {
             "type": "string"
           },
-          "__example__": ["101"]
+          "__example__": ["302", "601"]
         },
         "classes_label": {
           "type": "string",
