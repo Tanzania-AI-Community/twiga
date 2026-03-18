@@ -7,6 +7,23 @@ from app.database.models import User
 import app.utils.flow_utils as futil
 
 logger = logging.getLogger(__name__)
+FLOW_OPTION_TITLE_MAX_LEN = 30
+FLOW_MAX_CHIPS_OPTIONS = 20
+
+
+def _get_subject_title_with_leading_emoji(display_value: str) -> str:
+    parts = display_value.rsplit(" ", 1)
+    if len(parts) == 2:
+        name_part, emoji_part = parts
+        if emoji_part:
+            return f"{emoji_part} {name_part}"
+    return display_value
+
+
+def _truncate_option_title(title: str) -> str:
+    if len(title) <= FLOW_OPTION_TITLE_MAX_LEN:
+        return title
+    return f"{title[: FLOW_OPTION_TITLE_MAX_LEN - 3]}..."
 
 
 async def handle_onboarding_init_action(
@@ -33,19 +50,21 @@ async def handle_subjects_classes_init_action(
         for subject in subjects or []:
             if subject.id is None:
                 continue
-            subject_title = subject.name.value.replace("_", " ").title()
+            display_value = subject.name.display_format
+            subject_title = _truncate_option_title(
+                _get_subject_title_with_leading_emoji(display_value)
+            )
             subject_options.append({"id": str(subject.id), "title": subject_title})
+        subject_options = sorted(
+            subject_options, key=lambda option: option["title"].lower()
+        )[:FLOW_MAX_CHIPS_OPTIONS]
 
         response_payload = futil.create_flow_response_payload(
             screen="select_subject",
             data={
                 "subject_options": subject_options,
+                "selected_subject_ids": [],
                 "has_subject_options": len(subject_options) > 0,
-                "select_subject_text": "Select a subject, save its classes, then repeat for other subjects.",
-                "configured_subjects_text": "Configured subjects: 0",
-                "no_subjects_text": "Sorry, there are no available subjects.",
-                "subject_dropdown_label": "Subject",
-                "complete_button_label": "Complete",
             },
         )
 

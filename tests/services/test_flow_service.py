@@ -5,7 +5,7 @@ from fastapi import BackgroundTasks
 from fastapi.responses import PlainTextResponse
 
 import app.database.enums as enums
-from app.database.models import User
+from app.database.models import Class, Subject, User
 from app.services.flow_service import FlowService
 
 
@@ -140,7 +140,7 @@ async def test_subjects_classes_load_action_returns_select_classes_screen() -> N
     payload = {
         "data": {
             "component_action": "load_subject_classes",
-            "selected_subject_id": "4",
+            "selected_subject_ids": ["4"],
         }
     }
     expected_payload = {"screen": "select_classes", "data": {"any": "data"}}
@@ -170,7 +170,9 @@ async def test_subjects_classes_load_action_returns_select_classes_screen() -> N
             background_tasks=BackgroundTasks(),
         )
 
-    mock_build_classes_data.assert_awaited_once_with(user=user, subject_id=4)
+    mock_build_classes_data.assert_awaited_once_with(
+        user=user, selected_subject_ids=[4]
+    )
     mock_create_payload.assert_called_once_with(
         screen=service._FLOW_SCREEN_SELECT_CLASSES,
         data={"any": "data"},
@@ -233,26 +235,151 @@ async def test_subjects_classes_save_action_parses_ids_and_returns_subject_scree
 
 
 @pytest.mark.asyncio
-async def test_subjects_classes_complete_action_requires_at_least_one_class() -> None:
+async def test_subjects_classes_complete_action_requires_subject_selection() -> None:
     user = User(id=303, wa_id="255700007777", name="Teacher")
     service = FlowService()
     payload = {"data": {"component_action": "complete_subject_configuration"}}
 
-    with patch.object(
-        service,
-        "_finalize_subject_configuration",
-        AsyncMock(side_effect=ValueError("No classes selected for any subject")),
-    ):
-        response = await service.handle_subjects_classes_data_exchange_action(
-            user=user,
-            payload=payload,
-            aes_key=b"aes-key",
-            initial_vector="iv",
-            background_tasks=BackgroundTasks(),
-        )
+    response = await service.handle_subjects_classes_data_exchange_action(
+        user=user,
+        payload=payload,
+        aes_key=b"aes-key",
+        initial_vector="iv",
+        background_tasks=BackgroundTasks(),
+    )
 
     assert response.status_code == 422
-    assert b"No classes selected for any subject" in response.body
+    assert b"No subject selected" in response.body
+
+
+@pytest.mark.asyncio
+async def test_subjects_classes_complete_action_requires_class_selection() -> None:
+    user = User(id=304, wa_id="255700007778", name="Teacher")
+    service = FlowService()
+    payload = {
+        "data": {
+            "component_action": "complete_subject_configuration",
+            "selected_subject_ids": ["1"],
+            "selected_class_ids": [],
+        }
+    }
+
+    response = await service.handle_subjects_classes_data_exchange_action(
+        user=user,
+        payload=payload,
+        aes_key=b"aes-key",
+        initial_vector="iv",
+        background_tasks=BackgroundTasks(),
+    )
+
+    assert response.status_code == 422
+    assert b"No classes selected for selected subjects" in response.body
+
+
+@pytest.mark.asyncio
+async def test_build_subject_option_prefixes_emoji_from_display_format() -> None:
+    service = FlowService()
+    subject = Subject(id=1, name=enums.SubjectName.geography)
+
+    option = service._build_subject_option(subject)
+
+    assert option == {"id": "1", "title": "🌎 Geography"}
+
+
+@pytest.mark.asyncio
+async def test_build_subject_selection_screen_data_respects_chips_limits() -> None:
+    service = FlowService()
+    user = User(id=405, wa_id="255700006665", name="Teacher")
+    subjects = [
+        Subject(id=index + 1, name=subject_name)
+        for index, subject_name in enumerate(list(enums.SubjectName)[:25])
+    ]
+
+    with patch(
+        "app.services.flow_service.db.read_subjects",
+        AsyncMock(return_value=subjects),
+    ):
+        data = await service._build_subject_selection_screen_data(user=user)
+
+    assert len(data["subject_options"]) == 20
+    assert all(len(option["title"]) <= 30 for option in data["subject_options"])
+
+
+def test_build_class_option_title_keeps_form_prefix_when_truncating() -> None:
+    service = FlowService()
+
+    title = service._build_class_option_title(
+        subject_title="Information And Computer Studies",
+        grade_label="Form 1",
+    )
+
+    assert len(title) <= 30
+    assert title.startswith("Form 1 - ")
+
+
+@pytest.mark.asyncio
+async def test_build_subject_classes_screen_data_sorts_subject_level_titles() -> None:
+    service = FlowService()
+    user = User(id=404, wa_id="255700006666", name="Teacher")
+
+    geography = Subject(
+        id=1,
+        name=enums.SubjectName.geography,
+        subject_classes=[
+            Class(
+                id=101,
+                subject_id=1,
+                grade_level=enums.GradeLevel.os2,
+                status=enums.SubjectClassStatus.active,
+            ),
+            Class(
+                id=102,
+                subject_id=1,
+                grade_level=enums.GradeLevel.os1,
+                status=enums.SubjectClassStatus.active,
+            ),
+        ],
+    )
+    biology = Subject(
+        id=2,
+        name=enums.SubjectName.biology,
+        subject_classes=[
+            Class(
+                id=201,
+                subject_id=2,
+                grade_level=enums.GradeLevel.os1,
+                status=enums.SubjectClassStatus.active,
+            ),
+        ],
+    )
+
+    with patch(
+        "app.services.flow_service.db.read_subjects",
+        AsyncMock(return_value=[geography, biology]),
+    ):
+        data = await service._build_subject_classes_screen_data(
+            user=user, selected_subject_ids=[1, 2]
+        )
+
+    assert data["classes_for_subject"] == [
+        {"id": "201", "title": "Form 1 - Biology"},
+        {"id": "102", "title": "Form 1 - Geography"},
+        {"id": "101", "title": "Form 2 - Geography"},
+    ]
+
+
+def test_parse_subject_ids_enforces_max_limit() -> None:
+    service = FlowService()
+
+    with pytest.raises(ValueError, match="up to 3 subjects"):
+        service._parse_subject_ids(["1", "2", "3", "4"])
+
+
+def test_parse_class_ids_enforces_max_limit() -> None:
+    service = FlowService()
+
+    with pytest.raises(ValueError, match="up to 10 classes"):
+        service._parse_class_ids([str(i) for i in range(1, 12)])
 
 
 @pytest.mark.asyncio
