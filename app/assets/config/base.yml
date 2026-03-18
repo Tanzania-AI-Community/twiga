@@ -29,9 +29,9 @@ llm:
     request_timeout: 30 # int: Seconds before the Modal request times out
 
   langsmith: # LangSmith tracing settings
-    project: "twiga-whatsapp-chatbot" # str: The LangSmith project name for grouping traces
-    tracing: false # bool: Whether to enable LangSmith tracing
-    endpoint: "https://api.smith.langchain.com" # str: The LangSmith API endpoint
+    project_name: "twiga-whatsapp-chatbot" # str: The LangSmith project name for grouping traces
+    tracing_enabled: false # bool: Whether to enable LangSmith tracing
+    endpoint_url: "https://api.smith.langchain.com" # str: The LangSmith API endpoint
 
   agent: # Agentic mode settings
     agentic_mode: false # bool: Whether to enable agentic mode
@@ -51,12 +51,12 @@ embedding:
   model_name: "intfloat/multilingual-e5-large-instruct" # str: The default embedding model to use
 
   ollama: # Ollama-specific embedding settings
-    model: "mxbai-embed-large" # str: The Ollama model to use for embeddings
+    model_name: "mxbai-embed-large" # str: The Ollama model to use for embeddings
     url: "http://host.docker.internal:11434" # str: Base URL for the Ollama embeddings API
     request_timeout: 30 # int: Seconds before the Ollama embedding request times out
 
   modal: # Modal-specific embedding settings
-    model: "mxbai-embed-large" # str: The Modal model to use for embeddings
+    model_name: "mxbai-embed-large" # str: The Modal model to use for embeddings
     request_timeout: 30 # int: Seconds before the Modal embedding request times out
 
 tools:

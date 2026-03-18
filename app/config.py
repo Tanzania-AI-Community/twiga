@@ -7,6 +7,8 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from enum import Enum
+from app.utils.yaml_config import yaml_config
+
 
 
 class Environment(str, Enum):
@@ -126,47 +128,38 @@ class LLMSettings(BaseSettings):
     # LLM provider api key
     api_key: Optional[SecretStr] = Field(default=None, validation_alias="llm_api_key")
 
-    # Model selection
-    llm_options: dict = {
-        "llama_405b": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
-        "llama_70b": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-        "llama_3_3_70b": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        "llama_4_maverick": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-        "llama_4_scout": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-        "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-        "gpt-4o": "gpt-4o",
-        "gpt-4o_mini": "gpt-4o-mini",
-    }
 
     # LLM-related settings
     provider: LLMProvider = Field(
-        default=LLMProvider.OLLAMA, validation_alias="llm_provider"
+        default=yaml_config["llm"]["provider"], validation_alias="llm_provider"
     )
     llm_name: str = Field(
-        default=llm_options["llama_4_maverick"], validation_alias="llm_model_name"
+        default=yaml_config["llm"]["model_name"], validation_alias="llm_model_name"
     )
 
-    ollama_base_url: str = "http://host.docker.internal:11434/v1"
-    ollama_model_name: Optional[str] = "llama3.2"
+    ollama_base_url: str = yaml_config["llm"]["ollama"]["base_url"]
+    ollama_model_name: Optional[str] = yaml_config["llm"]["ollama"]["model_name"]
     ollama_request_timeout: int = Field(
-        default=30, validation_alias="ollama_llm_request_timeout"
+        default=yaml_config["llm"]["ollama"]["request_timeout"], validation_alias="ollama_llm_request_timeout"
     )
 
     modal_base_url: Optional[SecretStr] = None
-    modal_model_name: Optional[str] = "twiga-qwen"
+    modal_model_name: Optional[str] = yaml_config["llm"]["modal"]["model_name"]
     modal_request_timeout: int = Field(
-        default=30, validation_alias="modal_llm_request_timeout"
+        default=yaml_config["llm"]["modal"]["request_timeout"], validation_alias="modal_llm_request_timeout"
     )
 
     # LangSmith tracing settings
     langsmith_api_key: Optional[SecretStr] = None
-    langsmith_project: Optional[str] = "twiga-whatsapp-chatbot"
-    langsmith_tracing: bool = False
-    langsmith_endpoint: Optional[str] = "https://api.smith.langchain.com"
+    langsmith_project: Optional[str] = yaml_config["llm"]["langsmith"]["project_name"]
+    langsmith_tracing: bool = yaml_config["llm"]["langsmith"]["tracing_enabled"]
+    langsmith_endpoint: Optional[str] = yaml_config["llm"]["langsmith"]["endpoint_url"]
 
     # Agent settings
-    agentic_mode: bool = Field(default=False, validation_alias="agentic_mode_enabled")
-    MAX_AGENT_ITERATIONS: int = 5
+    agentic_mode: bool = Field(
+        default=yaml_config["llm"]["agent"]["agentic_mode"], validation_alias="agentic_mode_enabled"
+    )
+    MAX_AGENT_ITERATIONS: int = yaml_config["llm"]["agent"]["max_agent_iterations"]
 
 
 class EmbeddingSettings(BaseSettings):
@@ -183,40 +176,34 @@ class EmbeddingSettings(BaseSettings):
         default=None, validation_alias="embedding_api_key"
     )
 
-    embedder_options: dict = {
-        "bge-large": "BAAI/bge-large-en-v1.5",  # 1024 dimensions
-        "text-embedding-3-small": "text-embedding-3-small",  # 1536 dimensions
-        "multilingual-large": "intfloat/multilingual-e5-large-instruct",  # 1024 dimensions
-    }
-
     # Embedding-related settings
     provider: EmbeddingProvider = Field(
-        default=EmbeddingProvider.OLLAMA, validation_alias="embedding_provider"
+        default=yaml_config["embedding"]["provider"], validation_alias="embedding_provider"
     )
     embedder_name: str = Field(
-        default=embedder_options["multilingual-large"],
+        default=yaml_config["embedding"]["model_name"],
         validation_alias="embedding_model",
     )
 
     ollama_model: Optional[str] = Field(
-        default="mxbai-embed-large", validation_alias="ollama_embedding_model"
+        default=yaml_config["embedding"]["ollama"]["model_name"], validation_alias="ollama_embedding_model"
     )
     ollama_url: Optional[str] = Field(
-        default="http://host.docker.internal:11434",
+        default=yaml_config["embedding"]["ollama"]["url"],
         validation_alias="ollama_embedding_url",
     )
     ollama_request_timeout: int = Field(
-        default=30, validation_alias="ollama_embedding_request_timeout"
+        default=yaml_config["embedding"]["ollama"]["request_timeout"], validation_alias="ollama_embedding_request_timeout"
     )
 
     modal_model: Optional[str] = Field(
-        default="mxbai-embed-large", validation_alias="modal_embedding_model"
+        default=yaml_config["embedding"]["modal"]["model_name"], validation_alias="modal_embedding_model"
     )
     modal_url: Optional[SecretStr] = Field(
         default=None, validation_alias="modal_embedding_url"
     )
     modal_request_timeout: int = Field(
-        default=30, validation_alias="modal_embedding_request_timeout"
+        default=yaml_config["embedding"]["modal"]["request_timeout"], validation_alias="modal_embedding_request_timeout"
     )
 
 
@@ -246,9 +233,9 @@ class ToolSettings(BaseSettings):
     )
     solve_equation: ToolLLMConfig = Field(
         default=ToolLLMConfig(
-            tool_model_name="Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
-            provider=LLMProvider.TOGETHER,
-            tool_model_params={"temperature": 0.0},
+            tool_model_name=yaml_config["tools"]["solve_equation"]["model_name"],
+            provider=yaml_config["tools"]["solve_equation"]["provider"],
+            tool_model_params={"temperature": yaml_config["tools"]["solve_equation"]["temperature"]},
         )
     )
 
