@@ -8,7 +8,7 @@
   "screens": [
     {
       "id": "select_subject",
-      "title": "Select Subjects",
+      "title": "Subject Selector",
       "terminal": false,
       "refresh_on_back": true,
       "data": {
@@ -68,22 +68,6 @@
         "has_subject_options": {
           "type": "boolean",
           "__example__": true
-        },
-        "no_subjects_text": {
-          "type": "string",
-          "__example__": "Sorry, currently there are no available subjects."
-        },
-        "subject_dropdown_label": {
-          "type": "string",
-          "__example__": "Subjects"
-        },
-        "max_selected_subjects": {
-          "type": "number",
-          "__example__": 3
-        },
-        "complete_button_label": {
-          "type": "string",
-          "__example__": "Continue"
         }
       },
       "layout": {
@@ -96,23 +80,24 @@
               {
                 "type": "ChipsSelector",
                 "name": "selected_subject_ids",
-                "label": "${data.subject_dropdown_label}",
+                "label": "Select your subjects",
                 "required": true,
                 "data-source": "${data.subject_options}",
                 "init-value": "${data.selected_subject_ids}",
-                "max-selected-items": "${data.max_selected_subjects}"
+                "min-selected-items": 1,
+                "max-selected-items": 3
               }
             ],
             "else": [
               {
                 "type": "TextBody",
-                "text": "${data.no_subjects_text}"
+                "text": "Sorry, currently there are no available subjects. Please contact support (dev@ai.or.tz) for assistance."
               }
             ]
           },
           {
             "type": "Footer",
-            "label": "${data.complete_button_label}",
+            "label": "Continue",
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
@@ -126,7 +111,7 @@
     },
     {
       "id": "select_classes",
-      "title": "Select Classes",
+      "title": "Class Selector",
       "terminal": true,
       "refresh_on_back": true,
       "data": {
@@ -136,10 +121,6 @@
             "type": "string"
           },
           "__example__": ["3", "4", "6"]
-        },
-        "selected_subjects_label": {
-          "type": "string",
-          "__example__": "Biology, English, Mathematics"
         },
         "has_classes": {
           "type": "boolean",
@@ -159,24 +140,24 @@
             }
           },
           "__example__": [
-            { "id": "301", "title": "Biology - Form 1" },
-            { "id": "302", "title": "Biology - Form 2" },
-            { "id": "303", "title": "Biology - Form 3" },
-            { "id": "304", "title": "Biology - Form 4" },
-            { "id": "305", "title": "Biology - Form 5" },
-            { "id": "306", "title": "Biology - Form 6" },
-            { "id": "401", "title": "English - Form 1" },
-            { "id": "402", "title": "English - Form 2" },
-            { "id": "403", "title": "English - Form 3" },
-            { "id": "404", "title": "English - Form 4" },
-            { "id": "405", "title": "English - Form 5" },
-            { "id": "406", "title": "English - Form 6" },
-            { "id": "601", "title": "Mathematics - Form 1" },
-            { "id": "602", "title": "Mathematics - Form 2" },
-            { "id": "603", "title": "Mathematics - Form 3" },
-            { "id": "604", "title": "Mathematics - Form 4" },
-            { "id": "605", "title": "Mathematics - Form 5" },
-            { "id": "606", "title": "Mathematics - Form 6" }
+            { "id": "301", "title": "Form 1 - Biology" },
+            { "id": "302", "title": "Form 2 - Biology" },
+            { "id": "303", "title": "Form 3 - Biology" },
+            { "id": "304", "title": "Form 4 - Biology" },
+            { "id": "305", "title": "Form 5 - Biology" },
+            { "id": "306", "title": "Form 6 - Biology" },
+            { "id": "401", "title": "Form 1 - English" },
+            { "id": "402", "title": "Form 2 - English" },
+            { "id": "403", "title": "Form 3 - English" },
+            { "id": "404", "title": "Form 4 - English" },
+            { "id": "405", "title": "Form 5 - English" },
+            { "id": "406", "title": "Form 6 - English" },
+            { "id": "601", "title": "Form 1 - Mathematics" },
+            { "id": "602", "title": "Form 2 - Mathematics" },
+            { "id": "603", "title": "Form 3 - Mathematics" },
+            { "id": "604", "title": "Form 4 - Mathematics" },
+            { "id": "605", "title": "Form 5 - Mathematics" },
+            { "id": "606", "title": "Form 6 - Mathematics" }
           ]
         },
         "selected_class_ids": {
@@ -186,30 +167,14 @@
           },
           "__example__": ["302", "601"]
         },
-        "classes_label": {
-          "type": "string",
-          "__example__": "Select classes"
-        },
-        "max_selected_classes": {
-          "type": "number",
-          "__example__": 10
-        },
-        "save_button_label": {
-          "type": "string",
-          "__example__": "Complete"
-        },
         "no_classes_text": {
           "type": "string",
-          "__example__": "No active classes are available for selected subjects."
+          "__example__": "No active classes are available for selected subjects. Please contact support (dev@ai.or.tz) for assistance."
         }
       },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextHeading",
-            "text": "${data.selected_subjects_label}"
-          },
           {
             "type": "If",
             "condition": "${data.has_classes}",
@@ -217,12 +182,12 @@
               {
                 "type": "ChipsSelector",
                 "name": "selected_class_ids",
-                "label": "${data.classes_label}",
+                "label": "Select your classes",
                 "required": true,
                 "data-source": "${data.classes_for_subject}",
                 "init-value": "${data.selected_class_ids}",
                 "min-selected-items": 1,
-                "max-selected-items": "${data.max_selected_classes}"
+                "max-selected-items": 10
               }
             ],
             "else": [
@@ -234,7 +199,7 @@
           },
           {
             "type": "Footer",
-            "label": "${data.save_button_label}",
+            "label": "Complete",
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
