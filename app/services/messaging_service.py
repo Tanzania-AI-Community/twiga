@@ -176,7 +176,8 @@ class MessagingService:
 
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
-            final_message.is_present_in_conversation = True
+            # NOTE: this changes llm_responses in-place, not very obvious
+            final_message.is_present_in_conversation = False
             await db.create_new_messages(llm_responses)
 
             self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
@@ -279,6 +280,11 @@ class MessagingService:
                 f"Final message content after processing delivery marker: {llm_content}"
             )
 
+            # persist the final message with the cleaned content (no more markers) and mark it as present in conversation
+            await self._persist_visible_assistant_message(
+                user=user, content=llm_content
+            )
+
             if looks_like_latex(llm_content):
                 prepared_latex_content = prepare_latex_body(llm_content)
                 latex_document_path = (
@@ -317,12 +323,7 @@ class MessagingService:
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
             await whatsapp_client.send_message(user.wa_id, err_message)
-            await db.create_new_message_by_fields(
-                user_id=user.id,
-                role=enums.MessageRole.assistant,
-                content=err_message,
-                is_present_in_conversation=True,
-            )
+            await self._persist_visible_assistant_message(user, err_message)
             record_messages_generated("chat_error")
 
         return JSONResponse(
@@ -346,12 +347,8 @@ class MessagingService:
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
         err_message = strings.get_string(StringCategory.ERROR, "unsupported_message")
-        await db.create_new_message_by_fields(
-            user_id=user.id,
-            role=enums.MessageRole.assistant,
-            content=err_message,
-            is_present_in_conversation=True,
-        )
+        await self._persist_visible_assistant_message(user, err_message)
+
         # Send message to the user
         await whatsapp_client.send_message(wa_id=user.wa_id, message=err_message)
         record_messages_generated("unsupported_message")
