@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi.responses import JSONResponse
 
@@ -194,6 +195,9 @@ class MessagingService:
 
             exam_send_failed = False
             solution_send_failed = False
+            deterministic_exam_message: Optional[str] = None
+            exam_subject: Optional[str] = None
+            exam_topics: list[str] = []
 
             if delivery_marker.marker_found:
                 self.logger.info(
@@ -204,13 +208,14 @@ class MessagingService:
 
                 if delivery_marker.marker_valid:
                     if delivery_marker.exam_id:
-
                         # if exams pdf do not exists, this renders them and returns the paths
                         exam_details: ExamPDFDeliveryDetails = (
                             await exam_delivery_client.get_exam_delivery_details(
                                 delivery_marker.exam_id
                             )
                         )
+                        exam_subject = exam_details.subject
+                        exam_topics = exam_details.topics
 
                         if exam_details.errors:
                             self.logger.warning(
@@ -270,11 +275,18 @@ class MessagingService:
                         )
                         exam_send_failed = True
                         solution_send_failed = True
+
+                    deterministic_exam_message = self._build_exam_delivery_message(
+                        subject=exam_subject,
+                        topics=exam_topics,
+                        exam_send_failed=exam_send_failed,
+                        solution_send_failed=solution_send_failed,
+                    )
                 else:
                     self.logger.warning("Ignoring invalid exam delivery marker.")
 
-            if exam_send_failed or solution_send_failed:
-                llm_content += "\n\n Sorry, something went wrong with sending the exam or exam solution PDF"
+            if deterministic_exam_message is not None:
+                llm_content = deterministic_exam_message
 
             self.logger.debug(
                 f"Final message content after processing delivery marker: {llm_content}"
@@ -372,6 +384,27 @@ class MessagingService:
             content=content,
             is_present_in_conversation=True,
         )
+
+    @staticmethod
+    def _build_exam_delivery_message(
+        *,
+        subject: Optional[str],
+        topics: list[str],
+        exam_send_failed: bool,
+        solution_send_failed: bool,
+    ) -> str:
+        if exam_send_failed and solution_send_failed:
+            return "Sorry, something went wrong in creating the exam and exam solution."
+
+        if exam_send_failed:
+            return "Sorry, something went wrong in generating the exam."
+
+        if solution_send_failed:
+            return "Sorry, something went wrong in generating the exam solution."
+
+        subject_text = subject or "the requested subject"
+        topics_text = ", ".join(topics) if topics else "the requested topics"
+        return f"Here is your practice exam in {subject_text} on topics: {topics_text}."
 
 
 messaging_client = MessagingService()

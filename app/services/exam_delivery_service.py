@@ -33,6 +33,8 @@ class ExamPDFDeliveryDetails:
     solution_pdf_path: Optional[Path]
     exam_pdf_ready: bool
     solution_pdf_ready: bool
+    subject: Optional[str] = None
+    topics: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -89,6 +91,8 @@ class ExamDeliveryService:
                 solution_pdf_path=None,
                 exam_pdf_ready=False,
                 solution_pdf_ready=False,
+                subject=None,
+                topics=[],
                 errors=["Invalid exam_id format provided for exam delivery."],
             )
 
@@ -96,6 +100,24 @@ class ExamDeliveryService:
         exam_pdf_ready = exam_pdf_path.exists()
         solution_pdf_ready = solution_pdf_path.exists()
         errors: list[str] = []
+        subject: Optional[str] = None
+        topics: list[str] = []
+        exam_json: Optional[dict] = None
+
+        try:
+            exam_record = await db.get_exam(exam_id)
+        except Exception as exc:
+            self.logger.error(
+                "Failed to load exam record for exam_id=%s: %s",
+                exam_id,
+                exc,
+                exc_info=True,
+            )
+            exam_record = None
+
+        if exam_record is not None and isinstance(exam_record.exam_json, dict):
+            exam_json = exam_record.exam_json
+            subject, topics = self._extract_subject_topics(exam_json)
 
         if exam_pdf_ready and solution_pdf_ready:
             return ExamPDFDeliveryDetails(
@@ -104,11 +126,12 @@ class ExamDeliveryService:
                 solution_pdf_path=solution_pdf_path,
                 exam_pdf_ready=True,
                 solution_pdf_ready=True,
+                subject=subject,
+                topics=topics,
                 errors=[],
             )
 
-        exam_record = await db.get_exam(exam_id)
-        if exam_record is None:
+        if exam_json is None:
             errors.append(f"Exam {exam_id} not found in generated_exams.")
             return ExamPDFDeliveryDetails(
                 exam_id=exam_id,
@@ -116,11 +139,12 @@ class ExamDeliveryService:
                 solution_pdf_path=solution_pdf_path,
                 exam_pdf_ready=exam_pdf_ready,
                 solution_pdf_ready=solution_pdf_ready,
+                subject=subject,
+                topics=topics,
                 errors=errors,
             )
 
         EXAM_PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        exam_json = exam_record.exam_json
 
         if not exam_pdf_ready:
             try:
@@ -160,6 +184,8 @@ class ExamDeliveryService:
             solution_pdf_path=solution_pdf_path,
             exam_pdf_ready=exam_pdf_ready,
             solution_pdf_ready=solution_pdf_ready,
+            subject=subject,
+            topics=topics,
             errors=errors,
         )
 
@@ -191,6 +217,29 @@ class ExamDeliveryService:
             return str(uuid.UUID(raw_exam_id.strip()))
         except (ValueError, AttributeError, TypeError):
             return None
+
+    @staticmethod
+    def _extract_subject_topics(exam_json: dict) -> tuple[Optional[str], list[str]]:
+        meta = exam_json.get("meta", {})
+        generation_trace = exam_json.get("generation_trace", {})
+
+        subject: Optional[str] = None
+        if isinstance(meta, dict):
+            raw_subject = meta.get("subject")
+            if isinstance(raw_subject, str) and raw_subject.strip():
+                subject = raw_subject.strip()
+
+        topics: list[str] = []
+        if isinstance(generation_trace, dict):
+            raw_topics = generation_trace.get("topics")
+            if isinstance(raw_topics, list):
+                topics = [
+                    topic.strip()
+                    for topic in raw_topics
+                    if isinstance(topic, str) and topic.strip()
+                ]
+
+        return subject, topics
 
 
 exam_delivery_client = ExamDeliveryService()
