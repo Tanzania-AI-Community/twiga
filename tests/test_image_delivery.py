@@ -217,6 +217,11 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
             "app.services.messaging_service.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
         patch("app.services.messaging_service.record_messages_generated"),
     ):
         response = await service.handle_chat_message(
@@ -226,6 +231,9 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
     assert response.status_code == 200
     mock_send_image.assert_awaited_once()
     mock_send_message.assert_awaited_once_with(user.wa_id, llm_message.content)
+    mock_persist_visible.assert_awaited_once_with(
+        user=user, content=llm_message.content
+    )
 
 
 def test_extract_latex_document_body() -> None:
