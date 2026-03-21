@@ -99,7 +99,7 @@ def section_a_heading_markup(question_number: int, prompt: str, marks: Any) -> s
         markup = f"{markup} {escape(prompt_text)}"
     suffix = marks_suffix(marks)
     if suffix:
-        markup = f"{markup} <b>{escape(suffix)}</b>"
+        markup = f"{markup}<b>{escape(suffix)}</b>"
     return markup
 
 
