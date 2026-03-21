@@ -53,6 +53,12 @@ class SubjectsClassesFlowHandler:
             self._FLOW_ACTION_COMPLETE: self._handle_complete_subject_configuration_action,
         }
 
+    def _flow_string(self, key: str) -> str:
+        return strings.get_string(StringCategory.FLOWS, key)
+
+    def _flow_template(self, key: str, **kwargs: Any) -> str:
+        return strings.get_template(StringCategory.FLOWS, key, **kwargs)
+
     async def handle_data_exchange_action(
         self,
         user: User,
@@ -84,7 +90,11 @@ class SubjectsClassesFlowHandler:
             action_handler = self._component_action_handlers.get(component_action)
             if action_handler is None:
                 return JSONResponse(
-                    content={"error_msg": "Unknown subjects/classes flow action"},
+                    content={
+                        "error_msg": self._flow_string(
+                            "subjects_classes_unknown_action_error"
+                        )
+                    },
                     status_code=422,
                 )
 
@@ -164,11 +174,17 @@ class SubjectsClassesFlowHandler:
         del background_tasks
         selected_subject_ids = self._parse_subject_ids(data.get("selected_subject_ids"))
         if not selected_subject_ids:
-            raise ValueError("No subject selected")
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
 
         selected_class_ids = self._parse_class_ids(data.get("selected_class_ids"))
         if not selected_class_ids:
-            raise ValueError("No classes selected for selected subjects")
+            raise ValueError(
+                self._flow_string(
+                    "subjects_classes_no_classes_selected_for_subjects_error"
+                )
+            )
 
         await self._save_multi_subject_class_selection(
             user=user,
@@ -226,7 +242,11 @@ class SubjectsClassesFlowHandler:
 
         if not any(class_ids for class_ids in selected_classes_by_subject.values()):
             return JSONResponse(
-                content={"error_msg": "No classes selected for any subject"},
+                content={
+                    "error_msg": self._flow_string(
+                        "subjects_classes_no_classes_selected_for_any_subject_error"
+                    )
+                },
                 status_code=422,
             )
 
@@ -254,15 +274,21 @@ class SubjectsClassesFlowHandler:
                 item for item in value if item is not None and str(item).strip() != ""
             ]
             if not non_empty_values:
-                raise ValueError("No subject selected")
+                raise ValueError(
+                    self._flow_string("subjects_classes_no_subject_selected_error")
+                )
             value = non_empty_values[0]
 
         if value is None or str(value).strip() == "":
-            raise ValueError("No subject selected")
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
         try:
             return int(str(value))
         except ValueError as exc:
-            raise ValueError("Invalid subject selected") from exc
+            raise ValueError(
+                self._flow_string("subjects_classes_invalid_subject_selected_error")
+            ) from exc
 
     def _parse_subject_ids(self, value: Any) -> list[int]:
         if value is None:
@@ -284,7 +310,10 @@ class SubjectsClassesFlowHandler:
 
         if len(parsed_ids) > self._FLOW_MAX_SELECTED_SUBJECTS:
             raise ValueError(
-                f"You can select up to {self._FLOW_MAX_SELECTED_SUBJECTS} subjects."
+                self._flow_template(
+                    "subjects_classes_selection_limit_subjects_error",
+                    max_subjects=self._FLOW_MAX_SELECTED_SUBJECTS,
+                )
             )
 
         return parsed_ids
@@ -309,7 +338,10 @@ class SubjectsClassesFlowHandler:
 
         if len(parsed_ids) > self._FLOW_MAX_SELECTED_CLASSES:
             raise ValueError(
-                f"You can select up to {self._FLOW_MAX_SELECTED_CLASSES} classes."
+                self._flow_template(
+                    "subjects_classes_selection_limit_classes_error",
+                    max_classes=self._FLOW_MAX_SELECTED_CLASSES,
+                )
             )
         return parsed_ids
 
@@ -402,7 +434,9 @@ class SubjectsClassesFlowHandler:
         self, user: User, selected_subject_ids: list[int]
     ) -> dict[str, Any]:
         if not selected_subject_ids:
-            raise ValueError("No subject selected")
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
 
         subjects = await db.read_subjects() or []
         subject_lookup = {
@@ -415,7 +449,9 @@ class SubjectsClassesFlowHandler:
         ]
 
         if not valid_subject_ids:
-            raise ValueError("Selected subject no longer exists")
+            raise ValueError(
+                self._flow_string("subjects_classes_selected_subject_missing_error")
+            )
 
         class_options: list[dict[str, str]] = []
         for subject_id in valid_subject_ids:
@@ -455,7 +491,9 @@ class SubjectsClassesFlowHandler:
             "has_classes": len(class_options) > 0,
             "classes_for_subject": class_options,
             "selected_class_ids": selected_class_ids,
-            "no_classes_text": "No active classes are available for selected subjects.",
+            "no_classes_text": self._flow_string(
+                "subjects_classes_no_active_classes_text"
+            ),
         }
 
     async def _save_multi_subject_class_selection(
@@ -465,7 +503,9 @@ class SubjectsClassesFlowHandler:
         selected_class_ids: list[int],
     ) -> User:
         if not selected_subject_ids:
-            raise ValueError("No subject selected")
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
 
         subjects = await db.read_subjects() or []
         selected_subject_ids_set = set(selected_subject_ids)
@@ -481,7 +521,11 @@ class SubjectsClassesFlowHandler:
             class_id for class_id in selected_class_ids if class_id in valid_class_ids
         ]
         if not filtered_class_ids:
-            raise ValueError("No classes selected for selected subjects")
+            raise ValueError(
+                self._flow_string(
+                    "subjects_classes_no_classes_selected_for_subjects_error"
+                )
+            )
 
         await db.assign_teacher_to_classes(user=user, class_ids=filtered_class_ids)
         refreshed_user = await self._refresh_user_by_wa_id(user.wa_id)
@@ -493,7 +537,9 @@ class SubjectsClassesFlowHandler:
     ) -> User:
         subject = await db.read_subject(subject_id)
         if subject is None:
-            raise ValueError("Selected subject no longer exists")
+            raise ValueError(
+                self._flow_string("subjects_classes_selected_subject_missing_error")
+            )
 
         valid_class_ids = {
             class_.id
@@ -545,7 +591,11 @@ class SubjectsClassesFlowHandler:
     async def _finalize_subject_configuration(self, user: User) -> User:
         refreshed_user = await self._refresh_user_by_wa_id(user.wa_id)
         if not refreshed_user.taught_classes:
-            raise ValueError("No classes selected for any subject")
+            raise ValueError(
+                self._flow_string(
+                    "subjects_classes_no_classes_selected_for_any_subject_error"
+                )
+            )
 
         refreshed_user = await self._sync_user_class_info(refreshed_user)
         if refreshed_user.onboarding_state != enums.OnboardingState.completed:
@@ -574,7 +624,11 @@ class SubjectsClassesFlowHandler:
             ]
 
             if not all_class_ids:
-                raise ValueError("No classes selected for any subject")
+                raise ValueError(
+                    self._flow_string(
+                        "subjects_classes_no_classes_selected_for_any_subject_error"
+                    )
+                )
 
             await db.assign_teacher_to_classes(user, all_class_ids)
 
@@ -585,7 +639,11 @@ class SubjectsClassesFlowHandler:
                 classes = await db.read_classes(class_ids)
 
                 if not subject or not classes or len(classes) == 0:
-                    raise ValueError("Subject or classes not found")
+                    raise ValueError(
+                        self._flow_string(
+                            "subjects_classes_subject_or_classes_not_found_error"
+                        )
+                    )
 
                 updated_subjects[subject.name] = [cls.grade_level for cls in classes]
 

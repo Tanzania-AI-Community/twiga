@@ -12,6 +12,7 @@ import app.database.enums as enums
 import app.services.flows.utils as flow_utils
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
+from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import generate_payload, generate_payload_for_image
 from pathlib import Path
 from enum import Enum
@@ -91,7 +92,9 @@ class WhatsAppClient:
                     "text": body_text,
                 },
                 "footer": {
-                    "text": "Please follow the instructions.",
+                    "text": strings.get_string(
+                        StringCategory.FLOWS, "flow_footer_text"
+                    ),
                 },
                 "action": {
                     "name": "flow",
