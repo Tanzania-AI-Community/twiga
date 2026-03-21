@@ -8,9 +8,6 @@ from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
     ExamGenerator,
 )
 
-# NOTE: temp flag to load exm for tool testing without running the whole generation pipeline
-TESTING_EXAM_GENERATION = True
-
 logger = logging.getLogger(__name__)
 
 
@@ -35,68 +32,60 @@ async def generate_necta_style_exam(
             subject,
             topics,
         )
-        if not TESTING_EXAM_GENERATION:
 
-            resource_ids = await db.get_class_resources(class_id)
-            if not resource_ids:
-                raise ExamGenerationError(f"No resources found for class_id={class_id}")
+        resource_ids = await db.get_class_resources(class_id)
+        if not resource_ids:
+            raise ExamGenerationError(f"No resources found for class_id={class_id}")
 
-            chunks_by_topic = {}
-            for topic in topics:
-                topic_chunks = await db.vector_search(
-                    query=topic,
-                    n_results=10,
-                    where={
-                        "chunk_type": [ChunkType.text],
-                        "resource_id": resource_ids,
-                    },
-                )
-                chunks_by_topic[topic] = topic_chunks
-
-            logger.info(
-                "Retrieved chunks for topics: %s",
-                {topic: len(chunks) for topic, chunks in chunks_by_topic.items()},
-            )
-
-            exam_spec = {
-                "meta": {
-                    "exam_title": "GENERATED PRACTICE EXAM",
-                    "duration": "3:00 Hrs",
+        chunks_by_topic = {}
+        for topic in topics:
+            topic_chunks = await db.vector_search(
+                query=topic,
+                n_results=10,
+                where={
+                    "chunk_type": [ChunkType.text],
+                    "resource_id": resource_ids,
                 },
-                "sections": {
-                    "A": {
-                        "multiple_choice_marks": 10,
-                        "matching_marks": 5,
-                        "num_mcq_items": 10,
-                        "num_matching_questions": 1,
-                    },
-                    "B": {
-                        "marks": 70,
-                        "num_short_answer_questions": 5,
-                    },
-                    "C": {
-                        "marks": 15,
-                        "num_long_answer_questions": 2,
-                    },
-                },
-                "default_difficulty": "medium",
-            }
-
-            logger.info("Exam specification: %s", exam_spec)
-
-            generator = ExamGenerator()
-            exam_json = await generator.generate_exam(
-                subject=subject,
-                chunks_by_topic=chunks_by_topic,
-                exam_spec=exam_spec,
             )
-        else:
-            # load exam json for testing
-            from pathlib import Path
+            chunks_by_topic[topic] = topic_chunks
 
-            output_dir = Path(__file__).parent / "output_tool"
-            exam_json_path = output_dir / "exam_test_13.json"
-            exam_json = json.loads(exam_json_path.read_text(encoding="utf-8"))
+        logger.info(
+            "Retrieved chunks for topics: %s",
+            {topic: len(chunks) for topic, chunks in chunks_by_topic.items()},
+        )
+
+        exam_spec = {
+            "meta": {
+                "exam_title": "GENERATED PRACTICE EXAM",
+                "duration": "3:00 Hrs",
+            },
+            "sections": {
+                "A": {
+                    "multiple_choice_marks": 10,
+                    "matching_marks": 5,
+                    "num_mcq_items": 10,
+                    "num_matching_questions": 1,
+                },
+                "B": {
+                    "marks": 70,
+                    "num_short_answer_questions": 5,
+                },
+                "C": {
+                    "marks": 15,
+                    "num_long_answer_questions": 2,
+                },
+            },
+            "default_difficulty": "medium",
+        }
+
+        logger.info("Exam specification: %s", exam_spec)
+
+        generator = ExamGenerator()
+        exam_json = await generator.generate_exam(
+            subject=subject,
+            chunks_by_topic=chunks_by_topic,
+            exam_spec=exam_spec,
+        )
 
         generation_trace = exam_json.get("generation_trace", {})
         exam_id = generation_trace.get("exam_id")
