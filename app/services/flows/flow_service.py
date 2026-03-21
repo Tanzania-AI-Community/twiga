@@ -139,7 +139,7 @@ class FlowService:
             encrypted_response = flow_utils.encrypt_response(
                 response=response_payload,
                 aes_key=aes_key,
-                initial_vector=initial_vector,
+                iv=initial_vector,
             )
             return PlainTextResponse(content=encrypted_response, status_code=200)
         except Exception as exc:

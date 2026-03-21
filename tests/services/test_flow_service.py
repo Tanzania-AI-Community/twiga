@@ -377,7 +377,7 @@ async def test_build_subject_option_prefixes_emoji_from_display_format() -> None
 
     option = service._subjects_classes_flow_handler._build_subject_option(subject)
 
-    assert option == {"id": "1", "title": "🌎 Geography"}
+    assert option == {"id": "1", "title": "Geography 🌎"}
 
 
 @pytest.mark.asyncio
