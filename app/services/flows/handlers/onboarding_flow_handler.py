@@ -1,6 +1,5 @@
 from datetime import datetime
 import logging
-from typing import Any
 
 from dateutil.relativedelta import relativedelta
 from fastapi import BackgroundTasks
@@ -17,7 +16,7 @@ from app.utils.string_manager import StringCategory, strings
 class OnboardingFlowHandler:
     """Flow-specific logic for the onboarding/personal-info flow."""
 
-    def __init__(self, service: Any):
+    def __init__(self, service: object):
         self.service = service
         self.logger = logging.getLogger(__name__)
 

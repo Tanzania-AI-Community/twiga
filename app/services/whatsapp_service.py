@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 import json
 from fastapi import Request
 from fastapi.responses import PlainTextResponse, JSONResponse
@@ -45,13 +45,13 @@ class WhatsAppClient:
         self.client = httpx.AsyncClient(base_url=self.url)
 
     async def send_message(
-        self, wa_id: str, message: str, options: Optional[List[str]] = None
+        self, wa_id: str, message: str, options: list[str] | None = None
     ) -> None:
         if settings.mock_whatsapp:
             return
 
         try:
-            payload: Dict[str, Any] = generate_payload(wa_id, message, options)
+            payload: dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
             )
@@ -67,7 +67,7 @@ class WhatsAppClient:
         flow_id: str,
         header_text: str,
         body_text: str,
-        action_payload: Dict[str, Any],
+        action_payload: dict[str, Any],
         flow_cta: str,
         mode: str = "published",
     ) -> None:
@@ -123,7 +123,7 @@ class WhatsAppClient:
         wa_id: str,
         image_path: str,
         img_type: ImageType,
-        caption: Optional[str] = None,
+        caption: str | None = None,
     ) -> bool:
         if settings.mock_whatsapp:
             self.logger.info(
@@ -131,7 +131,7 @@ class WhatsAppClient:
             )
             return True
 
-        media_id: Optional[str] = None
+        media_id: str | None = None
 
         try:
             media_id = await self.upload_media(image_path, img_type)
@@ -205,7 +205,7 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error("Failed to delete file %s: %s", image_path, e)
 
-    async def upload_media(self, path: str, img_type: ImageType) -> Optional[str]:
+    async def upload_media(self, path: str, img_type: ImageType) -> str | None:
         """Upload an image to WhatsApp and return the media ID."""
 
         if settings.mock_whatsapp:
@@ -258,7 +258,7 @@ class WhatsAppClient:
 
         try:
             # Create payload with image header for template
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 "messaging_product": "whatsapp",
                 "to": wa_id,
                 "type": "template",

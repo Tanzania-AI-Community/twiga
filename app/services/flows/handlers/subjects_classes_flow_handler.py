@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Dict, List, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -29,6 +30,13 @@ class SubjectsClassesFlowHandler:
     def __init__(self, service: Any):
         self.service = service
         self.logger = logging.getLogger(__name__)
+        self._component_action_handlers: dict[
+            str, Callable[..., Awaitable[PlainTextResponse | JSONResponse]]
+        ] = {
+            self._FLOW_ACTION_LOAD_SUBJECT_CLASSES: self._handle_load_subject_classes_action,
+            self._FLOW_ACTION_SAVE_SUBJECT_CLASSES: self._handle_save_subject_classes_action,
+            self._FLOW_ACTION_COMPLETE: self._handle_complete_subject_configuration_action,
+        }
 
     async def handle_data_exchange_action(
         self,
@@ -58,88 +66,20 @@ class SubjectsClassesFlowHandler:
                 )
 
             component_action = data.get("component_action")
-            if component_action == self._FLOW_ACTION_LOAD_SUBJECT_CLASSES:
-                selected_subject_ids = self._parse_subject_ids(
-                    data.get("selected_subject_ids", data.get("selected_subject_id"))
-                )
-                classes_data = await self._build_subject_classes_screen_data(
-                    user=user, selected_subject_ids=selected_subject_ids
-                )
-                response_payload = self.service._create_flow_response_payload(
-                    screen=self._FLOW_SCREEN_SELECT_CLASSES, data=classes_data
-                )
-                return await self.service.process_response(
-                    response_payload, aes_key, initial_vector
+            action_handler = self._component_action_handlers.get(component_action)
+            if action_handler is None:
+                return JSONResponse(
+                    content={"error_msg": "Unknown subjects/classes flow action"},
+                    status_code=422,
                 )
 
-            if component_action == self._FLOW_ACTION_SAVE_SUBJECT_CLASSES:
-                subject_id = self._parse_subject_id(data.get("selected_subject_id"))
-                selected_class_ids = self._parse_class_ids(
-                    data.get("selected_class_ids")
-                )
-                refreshed_user = await self._save_subject_selection(
-                    user=user,
-                    subject_id=subject_id,
-                    selected_class_ids=selected_class_ids,
-                )
-                subject_selection_data = (
-                    await self._build_subject_selection_screen_data(refreshed_user)
-                )
-                response_payload = self.service._create_flow_response_payload(
-                    screen=self._FLOW_SCREEN_SELECT_SUBJECT, data=subject_selection_data
-                )
-                return await self.service.process_response(
-                    response_payload, aes_key, initial_vector
-                )
-
-            if component_action == self._FLOW_ACTION_COMPLETE:
-                selected_subject_ids = self._parse_subject_ids(
-                    data.get("selected_subject_ids")
-                )
-                if not selected_subject_ids:
-                    raise ValueError("No subject selected")
-
-                selected_class_ids = self._parse_class_ids(
-                    data.get("selected_class_ids")
-                )
-                if not selected_class_ids:
-                    raise ValueError("No classes selected for selected subjects")
-
-                await self._save_multi_subject_class_selection(
-                    user=user,
-                    selected_subject_ids=selected_subject_ids,
-                    selected_class_ids=selected_class_ids,
-                )
-
-                was_onboarding_in_progress = (
-                    user.onboarding_state != enums.OnboardingState.completed
-                )
-                refreshed_user = await self._finalize_subject_configuration(user)
-                encrypted_flow_token = payload.get("flow_token")
-                response_payload = self.service._create_flow_response_payload(
-                    screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
-                )
-
-                if (
-                    was_onboarding_in_progress
-                    and refreshed_user.onboarding_state
-                    == enums.OnboardingState.completed
-                ):
-                    welcome_message = strings.get_string(
-                        StringCategory.ONBOARDING, "welcome"
-                    )
-                    await whatsapp_client.send_message(user.wa_id, welcome_message)
-                    await self.service._persist_visible_assistant_message(
-                        user, welcome_message
-                    )
-
-                return await self.service.process_response(
-                    response_payload, aes_key, initial_vector
-                )
-
-            return JSONResponse(
-                content={"error_msg": "Unknown subjects/classes flow action"},
-                status_code=422,
+            return await action_handler(
+                user=user,
+                payload=payload,
+                data=data,
+                aes_key=aes_key,
+                initial_vector=initial_vector,
+                background_tasks=background_tasks,
             )
 
         except ValueError as exc:
@@ -147,11 +87,106 @@ class SubjectsClassesFlowHandler:
         except Exception as exc:
             return JSONResponse(content={"error_msg": str(exc)}, status_code=500)
 
+    async def _handle_load_subject_classes_action(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del payload, background_tasks
+        selected_subject_ids = self._parse_subject_ids(
+            data.get("selected_subject_ids", data.get("selected_subject_id"))
+        )
+        classes_data = await self._build_subject_classes_screen_data(
+            user=user, selected_subject_ids=selected_subject_ids
+        )
+        response_payload = self.service._create_flow_response_payload(
+            screen=self._FLOW_SCREEN_SELECT_CLASSES, data=classes_data
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    async def _handle_save_subject_classes_action(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del payload, background_tasks
+        subject_id = self._parse_subject_id(data.get("selected_subject_id"))
+        selected_class_ids = self._parse_class_ids(data.get("selected_class_ids"))
+        refreshed_user = await self._save_subject_selection(
+            user=user,
+            subject_id=subject_id,
+            selected_class_ids=selected_class_ids,
+        )
+        subject_selection_data = await self._build_subject_selection_screen_data(
+            refreshed_user
+        )
+        response_payload = self.service._create_flow_response_payload(
+            screen=self._FLOW_SCREEN_SELECT_SUBJECT, data=subject_selection_data
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    async def _handle_complete_subject_configuration_action(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del background_tasks
+        selected_subject_ids = self._parse_subject_ids(data.get("selected_subject_ids"))
+        if not selected_subject_ids:
+            raise ValueError("No subject selected")
+
+        selected_class_ids = self._parse_class_ids(data.get("selected_class_ids"))
+        if not selected_class_ids:
+            raise ValueError("No classes selected for selected subjects")
+
+        await self._save_multi_subject_class_selection(
+            user=user,
+            selected_subject_ids=selected_subject_ids,
+            selected_class_ids=selected_class_ids,
+        )
+
+        was_onboarding_in_progress = (
+            user.onboarding_state != enums.OnboardingState.completed
+        )
+        refreshed_user = await self._finalize_subject_configuration(user)
+        encrypted_flow_token = payload.get("flow_token")
+        response_payload = self.service._create_flow_response_payload(
+            screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
+        )
+
+        if (
+            was_onboarding_in_progress
+            and refreshed_user.onboarding_state == enums.OnboardingState.completed
+        ):
+            welcome_message = strings.get_string(StringCategory.ONBOARDING, "welcome")
+            await whatsapp_client.send_message(user.wa_id, welcome_message)
+            await self.service._persist_visible_assistant_message(user, welcome_message)
+
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
     async def _handle_legacy_subjects_classes_submission(
         self,
         user: User,
         payload: dict,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         aes_key: bytes,
         initial_vector: str,
         background_tasks: BackgroundTasks,
@@ -214,17 +249,17 @@ class SubjectsClassesFlowHandler:
         except ValueError as exc:
             raise ValueError("Invalid subject selected") from exc
 
-    def _parse_subject_ids(self, value: Any) -> List[int]:
+    def _parse_subject_ids(self, value: Any) -> list[int]:
         if value is None:
             return []
 
-        values: List[Any]
+        values: list[Any]
         if isinstance(value, list):
             values = value
         else:
             values = [value]
 
-        parsed_ids: List[int] = []
+        parsed_ids: list[int] = []
         for subject_id in values:
             if subject_id is None or str(subject_id).strip() == "":
                 continue
@@ -239,17 +274,17 @@ class SubjectsClassesFlowHandler:
 
         return parsed_ids
 
-    def _parse_class_ids(self, value: Any) -> List[int]:
+    def _parse_class_ids(self, value: Any) -> list[int]:
         if value is None:
             return []
 
-        values: List[Any]
+        values: list[Any]
         if isinstance(value, list):
             values = value
         else:
             values = [value]
 
-        parsed_ids: List[int] = []
+        parsed_ids: list[int] = []
         for class_id in values:
             if class_id is None or str(class_id).strip() == "":
                 continue
@@ -283,9 +318,7 @@ class SubjectsClassesFlowHandler:
     def _is_active_class(self, class_: models.Class) -> bool:
         return class_.status == enums.SubjectClassStatus.active
 
-    def _build_subject_option(
-        self, subject: models.Subject
-    ) -> Optional[Dict[str, str]]:
+    def _build_subject_option(self, subject: models.Subject) -> dict[str, str] | None:
         if subject.id is None:
             return None
         subject_title = self._truncate_flow_option_title(
@@ -306,7 +339,7 @@ class SubjectsClassesFlowHandler:
         truncated_subject = f"{subject_title[: available_subject_len - 3]}..."
         return f"{prefix}{truncated_subject}"
 
-    async def _build_subject_selection_screen_data(self, user: User) -> Dict[str, Any]:
+    async def _build_subject_selection_screen_data(self, user: User) -> dict[str, Any]:
         subjects = await db.read_subjects() or []
         all_subject_options = [
             option
@@ -362,8 +395,8 @@ class SubjectsClassesFlowHandler:
         }
 
     async def _build_subject_classes_screen_data(
-        self, user: User, selected_subject_ids: List[int]
-    ) -> Dict[str, Any]:
+        self, user: User, selected_subject_ids: list[int]
+    ) -> dict[str, Any]:
         if not selected_subject_ids:
             raise ValueError("No subject selected")
 
@@ -380,7 +413,7 @@ class SubjectsClassesFlowHandler:
         if not valid_subject_ids:
             raise ValueError("Selected subject no longer exists")
 
-        class_options: List[Dict[str, str]] = []
+        class_options: list[dict[str, str]] = []
         for subject_id in valid_subject_ids:
             subject = subject_lookup[subject_id]
             subject_title = self._get_subject_display_title(subject)
@@ -422,7 +455,10 @@ class SubjectsClassesFlowHandler:
         }
 
     async def _save_multi_subject_class_selection(
-        self, user: User, selected_subject_ids: List[int], selected_class_ids: List[int]
+        self,
+        user: User,
+        selected_subject_ids: list[int],
+        selected_class_ids: list[int],
     ) -> User:
         if not selected_subject_ids:
             raise ValueError("No subject selected")
@@ -449,7 +485,7 @@ class SubjectsClassesFlowHandler:
         return refreshed_user
 
     async def _save_subject_selection(
-        self, user: User, subject_id: int, selected_class_ids: List[int]
+        self, user: User, subject_id: int, selected_class_ids: list[int]
     ) -> User:
         subject = await db.read_subject(subject_id)
         if subject is None:
@@ -478,9 +514,9 @@ class SubjectsClassesFlowHandler:
         return refreshed_user
 
     def _build_class_info_from_teacher_classes(
-        self, teacher_classes: List[models.TeacherClass]
-    ) -> Dict[str, List[str]]:
-        class_info: Dict[str, set[str]] = {}
+        self, teacher_classes: list[models.TeacherClass]
+    ) -> dict[str, list[str]]:
+        class_info: dict[str, set[str]] = {}
         for teacher_class in teacher_classes:
             class_obj = teacher_class.class_
             if class_obj is None:
@@ -516,7 +552,7 @@ class SubjectsClassesFlowHandler:
         return refreshed_user
 
     async def update_user_classes(
-        self, user: User, selected_classes_by_subject: Dict[str, List[int]]
+        self, user: User, selected_classes_by_subject: dict[str, list[int]]
     ) -> None:
         try:
             # Ensure class_info is initialized
@@ -541,7 +577,7 @@ class SubjectsClassesFlowHandler:
             updated_subjects = {}
             for subject_key, class_ids in selected_classes_by_subject.items():
                 subject_id = int(subject_key.replace("subject", ""))
-                subject: Optional[models.Subject] = await db.read_subject(subject_id)
+                subject: models.Subject | None = await db.read_subject(subject_id)
                 classes = await db.read_classes(class_ids)
 
                 if not subject or not classes or len(classes) == 0:

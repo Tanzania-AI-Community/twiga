@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Callable, Dict
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from fastapi import BackgroundTasks, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -17,14 +18,21 @@ from app.services.flows.handlers.subjects_classes_flow_handler import (
 
 
 class FlowService:
+    _FLOW_SCREEN_SELECT_SUBJECT = SubjectsClassesFlowHandler._FLOW_SCREEN_SELECT_SUBJECT
+    _FLOW_SCREEN_SELECT_CLASSES = SubjectsClassesFlowHandler._FLOW_SCREEN_SELECT_CLASSES
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
         self._onboarding_flow_handler = OnboardingFlowHandler(service=self)
         self._subjects_classes_flow_handler = SubjectsClassesFlowHandler(service=self)
 
-        self.data_exchange_action_handlers: Dict[str, Callable] = {}
-        self.init_action_handlers: Dict[str, Callable] = {}
+        self.data_exchange_action_handlers: dict[
+            str, Callable[..., Awaitable[PlainTextResponse | JSONResponse]]
+        ] = {}
+        self.init_action_handlers: dict[
+            str, Callable[..., Awaitable[dict[str, Any] | PlainTextResponse]]
+        ] = {}
         self._register_flow_handlers()
 
     def _register_flow_handlers(self) -> None:
@@ -55,13 +63,11 @@ class FlowService:
     ) -> PlainTextResponse:
         try:
             body = await request.json()
-            payload, aes_key, initial_vector = await flow_utils.decrypt_flow_request(
-                body
-            )
-            action = payload.get("action")
+            payload, aes_key, initial_vector = await self._decrypt_flow_request(body)
+            action = self._parse_flow_action(payload.get("action"))
             flow_token = payload.get("flow_token")
 
-            if action == "ping":
+            if action == flow_utils.FlowRequestAction.PING:
                 return await self.handle_health_check(aes_key, initial_vector)
 
             if not flow_token:
@@ -74,20 +80,20 @@ class FlowService:
                 )
 
             # Get the user and flow ID.
-            wa_id, flow_id = flow_utils.decrypt_flow_token(flow_token)
+            wa_id, flow_id = self._decrypt_flow_token(flow_token)
             user = await db.get_user_by_waid(wa_id)
 
             if not user:
                 self.logger.error(f"User not found for WA ID: {wa_id}")
                 raise ValueError("User not found")
 
-            if action == "data_exchange":
+            if action == flow_utils.FlowRequestAction.DATA_EXCHANGE:
                 handler = self.data_exchange_action_handlers.get(
                     flow_id, self.handle_unknown_flow
                 )
                 return await handler(user, payload, aes_key, initial_vector, bg_tasks)
 
-            if action == "INIT":
+            if action == flow_utils.FlowRequestAction.INIT:
                 self.logger.warning(f"WIP Flow is being processed: {flow_id}")
                 handler = self.init_action_handlers.get(flow_id)
                 if handler is None:
@@ -139,6 +145,33 @@ class FlowService:
         except Exception as exc:
             self.logger.error(f"Error encrypting response: {exc}")
             return PlainTextResponse(content="Encryption failed", status_code=500)
+
+    async def _decrypt_flow_request(self, body: dict) -> tuple[dict, bytes, str]:
+        return await flow_utils.decrypt_flow_request(body)
+
+    def _decrypt_flow_token(self, flow_token: str) -> tuple[str, str]:
+        return flow_utils.decrypt_flow_token(flow_token)
+
+    def _create_flow_response_payload(
+        self, screen: str, data: dict[str, Any], encrypted_flow_token: str | None = None
+    ) -> dict[str, Any]:
+        if encrypted_flow_token is None:
+            return flow_utils.create_flow_response_payload(screen=screen, data=data)
+        return flow_utils.create_flow_response_payload(
+            screen=screen,
+            data=data,
+            encrypted_flow_token=encrypted_flow_token,
+        )
+
+    def _parse_flow_action(
+        self, action_value: object
+    ) -> flow_utils.FlowRequestAction | None:
+        if not isinstance(action_value, str):
+            return None
+        try:
+            return flow_utils.FlowRequestAction(action_value)
+        except ValueError:
+            return None
 
     async def handle_unknown_flow(
         self,

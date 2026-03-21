@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 from fastapi.responses import PlainTextResponse
 import logging
 
@@ -28,7 +28,7 @@ def _truncate_option_title(title: str) -> str:
 
 async def handle_onboarding_init_action(
     user: User,
-) -> Dict[str, Any] | PlainTextResponse:
+) -> dict[str, Any] | PlainTextResponse:
     try:
         response_payload = flow_utils.create_flow_response_payload(
             screen="personal_info",
@@ -43,7 +43,7 @@ async def handle_onboarding_init_action(
 
 async def handle_subjects_classes_init_action(
     user: User,
-) -> Dict[str, Any] | PlainTextResponse:
+) -> dict[str, Any] | PlainTextResponse:
     try:
         subjects = await db.read_subjects()
         subject_options = []

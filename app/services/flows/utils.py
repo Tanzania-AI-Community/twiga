@@ -1,6 +1,7 @@
 import base64
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from enum import Enum
+from typing import Any
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -13,6 +14,12 @@ from app.config import settings
 from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
+
+
+class FlowRequestAction(str, Enum):
+    PING = "ping"
+    DATA_EXCHANGE = "data_exchange"
+    INIT = "INIT"
 
 
 def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
@@ -78,7 +85,7 @@ def encrypt_response(response: dict, aes_key: bytes, iv: str) -> str:
     return base64.b64encode(encrypted_data_bytes).decode("utf-8")
 
 
-async def decrypt_flow_request(body: dict) -> Tuple[dict, bytes, str]:
+async def decrypt_flow_request(body: dict) -> tuple[dict, bytes, str]:
     try:
         # Validate required fields exist
         required_fields = {"encrypted_flow_data", "encrypted_aes_key", "initial_vector"}
@@ -127,7 +134,7 @@ class FlowTokenError(Exception):
     pass
 
 
-def decrypt_flow_token(encrypted_flow_token: str) -> Tuple[str, str]:
+def decrypt_flow_token(encrypted_flow_token: str) -> tuple[str, str]:
     """
     Decrypts a flow token and returns token details.
 
@@ -169,8 +176,8 @@ def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
 
 
 def create_flow_response_payload(
-    screen: str, data: Dict[str, Any], encrypted_flow_token: Optional[str] = None
-) -> Dict[str, Any]:
+    screen: str, data: dict[str, Any], encrypted_flow_token: str | None = None
+) -> dict[str, Any]:
     """
     Create standardized flow response payloads
     """
@@ -189,27 +196,4 @@ def create_flow_response_payload(
     return {
         "screen": screen,
         "data": data,
-    }
-
-
-def create_subject_class_payload(
-    subject_title: str, classes: List[dict], is_update: bool, subject_id: str
-) -> Dict[str, Any]:
-    """
-    Create standardized subject/class selection payload
-    """
-    has_items = len(classes) > 0
-    return {
-        "classes": (
-            classes
-            if has_items
-            else [
-                {"id": "0", "title": "No classes available"}
-            ]  # if no classes, show a dummy class it is required for the client
-        ),
-        "has_classes": has_items,
-        "no_classes_text": f"Sorry, currently there are no active classes for {subject_title}.",
-        "select_class_text": f"This helps us find the best answers for your questions in {subject_title}.",
-        "select_class_question_text": f"Select the class you are in for {subject_title}.",
-        "subject_id": str(subject_id),
     }
