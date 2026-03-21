@@ -15,7 +15,22 @@ from app.utils.string_manager import StringCategory, strings
 
 
 class SubjectsClassesFlowHandler:
-    """Flow-specific logic for the subjects/classes selection flow."""
+    """
+    Orchestrates the teacher subject/class configuration flow.
+
+    The user journey is a two-step WhatsApp Flow:
+    1. `select_subject`: teachers pick up to 3 subjects.
+    2. `select_classes`: teachers pick up to 10 class combinations shown as
+       `Form X - Subject`.
+
+    Internal action lifecycle:
+    - `load_subject_classes`: derives and returns class options for selected subjects.
+    - `save_subject_classes`: persists partial selection and refreshes subject screen.
+    - `complete_subject_configuration`: validates final input, persists assignments,
+      syncs `class_info`, and completes onboarding when needed.
+
+    A legacy submission parser is preserved to support older deployed payload shapes.
+    """
 
     _FLOW_SCREEN_SELECT_SUBJECT = "select_subject"
     _FLOW_SCREEN_SELECT_CLASSES = "select_classes"
@@ -301,15 +316,6 @@ class SubjectsClassesFlowHandler:
     def _get_subject_display_title(self, subject: models.Subject) -> str:
         return subject.name.value.replace("_", " ").title()
 
-    def _get_subject_title_with_leading_emoji(self, subject: models.Subject) -> str:
-        display_value = subject.name.display_format
-        parts = display_value.rsplit(" ", 1)
-        if len(parts) == 2:
-            name_part, emoji_part = parts
-            if emoji_part:
-                return f"{emoji_part} {name_part}"
-        return display_value
-
     def _truncate_flow_option_title(self, title: str) -> str:
         if len(title) <= self._FLOW_SUBJECT_TITLE_MAX_LEN:
             return title
@@ -321,9 +327,7 @@ class SubjectsClassesFlowHandler:
     def _build_subject_option(self, subject: models.Subject) -> dict[str, str] | None:
         if subject.id is None:
             return None
-        subject_title = self._truncate_flow_option_title(
-            self._get_subject_title_with_leading_emoji(subject)
-        )
+        subject_title = self._truncate_flow_option_title(subject.name.display_format)
         return {"id": str(subject.id), "title": subject_title}
 
     def _build_class_option_title(self, subject_title: str, grade_label: str) -> str:
