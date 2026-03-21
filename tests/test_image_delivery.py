@@ -11,7 +11,7 @@ from app.services.latex_image_service import (
     prepare_latex_body,
 )
 from app.services.messaging_service import MessagingService
-from app.services.whatsapp_service import ImageType, WhatsAppClient
+from app.services.whatsapp_service import DocumentType, ImageType, WhatsAppClient
 from app.config import settings
 
 
@@ -110,6 +110,75 @@ async def test_send_image_message_returns_false_and_cleans_uploaded_media_on_pos
 
         assert result is False
         mock_delete_media.assert_awaited_once_with("media-id", str(image_path))
+    finally:
+        await client.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_send_document_message_returns_true_on_success_and_keeps_local_file(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(settings, "mock_whatsapp", False)
+
+    client = WhatsAppClient()
+    document_path = tmp_path / "exam.pdf"
+    document_path.write_bytes(b"fake-pdf")
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status.return_value = None
+
+    try:
+        with (
+            patch.object(client, "upload_media", AsyncMock(return_value="media-id")),
+            patch.object(client, "delete_media", AsyncMock()) as mock_delete_media,
+            patch.object(client.client, "post", AsyncMock(return_value=mock_response)),
+            patch("app.services.whatsapp_service.log_httpx_response"),
+        ):
+            result = await client.send_document_message(
+                wa_id="255700000000",
+                document_path=str(document_path),
+                doc_type=DocumentType.PDF,
+                filename="exam.pdf",
+            )
+
+        assert result is True
+        mock_delete_media.assert_awaited_once_with(
+            "media-id",
+            str(document_path),
+            delete_local_file=False,
+        )
+        assert document_path.exists()
+    finally:
+        await client.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_send_document_message_upload_failure_keeps_local_file(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(settings, "mock_whatsapp", False)
+
+    client = WhatsAppClient()
+    document_path = tmp_path / "exam.pdf"
+    document_path.write_bytes(b"fake-pdf")
+
+    try:
+        with (
+            patch.object(
+                client,
+                "upload_media",
+                AsyncMock(side_effect=ValueError("Media size exceeds limit")),
+            ),
+            patch("app.services.whatsapp_service.log_httpx_response"),
+        ):
+            result = await client.send_document_message(
+                wa_id="255700000000",
+                document_path=str(document_path),
+                doc_type=DocumentType.PDF,
+            )
+
+        assert result is False
+        assert document_path.exists()
     finally:
         await client.client.aclose()
 
