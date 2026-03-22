@@ -181,112 +181,10 @@ class MessagingService:
             final_message.is_present_in_conversation = False
             await db.create_new_messages(llm_responses)
 
-            self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
-
-            # check for exam delivery marker in the content
-            delivery_marker: ExamDeliveryMarker = (
-                exam_delivery_service.parse_delivery_marker(llm_content)
+            llm_content = await self._check_and_handle_exam_delivery(
+                user=user,
+                llm_content=llm_content,
             )
-            llm_content = (
-                delivery_marker.cleaned_content
-                if delivery_marker.marker_found
-                else llm_content
-            )
-
-            exam_send_failed = False
-            solution_send_failed = False
-            deterministic_exam_message: Optional[str] = None
-            exam_subject: Optional[str] = None
-            exam_topics: list[str] = []
-
-            if delivery_marker.marker_found:
-                self.logger.info(
-                    "Exam delivery marker detected. marker_valid=%s exam_id=%s",
-                    delivery_marker.marker_valid,
-                    delivery_marker.exam_id,
-                )
-
-                if delivery_marker.marker_valid:
-                    if delivery_marker.exam_id:
-                        # if exams pdf do not exists, this renders them and returns the paths
-                        exam_details: ExamPDFDeliveryDetails = (
-                            await exam_delivery_service.get_exam_delivery_details(
-                                delivery_marker.exam_id
-                            )
-                        )
-                        exam_subject = exam_details.subject
-                        exam_topics = exam_details.topics
-
-                        if exam_details.errors:
-                            self.logger.warning(
-                                "Exam artifact preparation issues for exam_id=%s: %s",
-                                delivery_marker.exam_id,
-                                " | ".join(exam_details.errors),
-                            )
-
-                        if exam_details.exam_pdf_ready:
-                            exam_sent = await whatsapp_client.send_document_message(
-                                wa_id=user.wa_id,
-                                document_path=str(exam_details.exam_pdf_path),
-                                doc_type=DocumentType.PDF,
-                                filename=exam_details.exam_pdf_path.name,
-                            )
-                            if exam_sent:
-                                record_messages_generated("exam_pdf_sent")
-                            else:
-                                self.logger.warning(
-                                    "Failed to send exam PDF for exam_id=%s.",
-                                    delivery_marker.exam_id,
-                                )
-                                record_messages_generated("exam_pdf_send_failed")
-                                exam_send_failed = True
-                        else:
-                            self.logger.warning(
-                                "Exam PDF artifact not ready for exam_id=%s.",
-                                delivery_marker.exam_id,
-                            )
-                            exam_send_failed = True
-
-                        if exam_details.solution_pdf_ready:
-                            solution_sent = await whatsapp_client.send_document_message(
-                                wa_id=user.wa_id,
-                                document_path=str(exam_details.solution_pdf_path),
-                                doc_type=DocumentType.PDF,
-                                filename=exam_details.solution_pdf_path.name,
-                            )
-                            if solution_sent:
-                                record_messages_generated("solution_pdf_sent")
-                            else:
-                                self.logger.warning(
-                                    "Failed to send solution PDF for exam_id=%s.",
-                                    delivery_marker.exam_id,
-                                )
-                                record_messages_generated("solution_pdf_send_failed")
-                                solution_send_failed = True
-                        else:
-                            self.logger.warning(
-                                "Solution PDF artifact not ready for exam_id=%s.",
-                                delivery_marker.exam_id,
-                            )
-                            solution_send_failed = True
-                    else:
-                        self.logger.warning(
-                            "Exam delivery marker is valid but exam_id is missing."
-                        )
-                        exam_send_failed = True
-                        solution_send_failed = True
-
-                    deterministic_exam_message = self._build_exam_delivery_message(
-                        subject=exam_subject,
-                        topics=exam_topics,
-                        exam_send_failed=exam_send_failed,
-                        solution_send_failed=solution_send_failed,
-                    )
-                else:
-                    self.logger.warning("Ignoring invalid exam delivery marker.")
-
-            if deterministic_exam_message is not None:
-                llm_content = deterministic_exam_message
 
             self.logger.debug(
                 f"Final message content after processing delivery marker: {llm_content}"
@@ -296,6 +194,8 @@ class MessagingService:
             await self._persist_visible_assistant_message(
                 user=user, content=llm_content
             )
+
+            self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
 
             if looks_like_latex(llm_content):
                 prepared_latex_content = prepare_latex_body(llm_content)
@@ -383,6 +283,104 @@ class MessagingService:
             role=enums.MessageRole.assistant,
             content=content,
             is_present_in_conversation=True,
+        )
+
+    async def _check_and_handle_exam_delivery(
+        self, user: models.User, llm_content: str
+    ) -> str:
+        delivery_marker: ExamDeliveryMarker = (
+            exam_delivery_service.parse_delivery_marker(llm_content)
+        )
+        llm_content = (
+            delivery_marker.cleaned_content
+            if delivery_marker.marker_found
+            else llm_content
+        )
+
+        if not delivery_marker.marker_found:
+            return llm_content
+
+        self.logger.info(
+            f"Exam delivery marker detected. marker_valid={delivery_marker.marker_valid} "
+            f"exam_id={delivery_marker.exam_id}"
+        )
+
+        if not delivery_marker.marker_valid:
+            self.logger.warning("Ignoring invalid exam delivery marker.")
+            return llm_content
+
+        exam_send_failed = False
+        solution_send_failed = False
+        exam_subject: Optional[str] = None
+        exam_topics: list[str] = []
+
+        if delivery_marker.exam_id:
+            # If exam PDFs do not exist, this renders them and returns the paths.
+            exam_details: ExamPDFDeliveryDetails = (
+                await exam_delivery_service.get_exam_delivery_details(
+                    delivery_marker.exam_id
+                )
+            )
+            exam_subject = exam_details.subject
+            exam_topics = exam_details.topics
+
+            if exam_details.errors:
+                self.logger.warning(
+                    f"Exam artifact preparation issues for exam_id={delivery_marker.exam_id}: "
+                    f"{' | '.join(exam_details.errors)}"
+                )
+
+            if exam_details.exam_pdf_ready:
+                exam_sent = await whatsapp_client.send_document_message(
+                    wa_id=user.wa_id,
+                    document_path=str(exam_details.exam_pdf_path),
+                    doc_type=DocumentType.PDF,
+                    filename=exam_details.exam_pdf_path.name,
+                )
+                if exam_sent:
+                    record_messages_generated("exam_pdf_sent")
+                else:
+                    self.logger.warning(
+                        f"Failed to send exam PDF for exam_id={delivery_marker.exam_id}."
+                    )
+                    record_messages_generated("exam_pdf_send_failed")
+                    exam_send_failed = True
+            else:
+                self.logger.warning(
+                    f"Exam PDF artifact not ready for exam_id={delivery_marker.exam_id}."
+                )
+                exam_send_failed = True
+
+            if exam_details.solution_pdf_ready:
+                solution_sent = await whatsapp_client.send_document_message(
+                    wa_id=user.wa_id,
+                    document_path=str(exam_details.solution_pdf_path),
+                    doc_type=DocumentType.PDF,
+                    filename=exam_details.solution_pdf_path.name,
+                )
+                if solution_sent:
+                    record_messages_generated("solution_pdf_sent")
+                else:
+                    self.logger.warning(
+                        f"Failed to send solution PDF for exam_id={delivery_marker.exam_id}."
+                    )
+                    record_messages_generated("solution_pdf_send_failed")
+                    solution_send_failed = True
+            else:
+                self.logger.warning(
+                    f"Solution PDF artifact not ready for exam_id={delivery_marker.exam_id}."
+                )
+                solution_send_failed = True
+        else:
+            self.logger.warning("Exam delivery marker is valid but exam_id is missing.")
+            exam_send_failed = True
+            solution_send_failed = True
+
+        return self._build_exam_delivery_message(
+            subject=exam_subject,
+            topics=exam_topics,
+            exam_send_failed=exam_send_failed,
+            solution_send_failed=solution_send_failed,
         )
 
     @staticmethod
