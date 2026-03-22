@@ -8,13 +8,12 @@ from typing import Optional
 
 import app.database.db as db
 from app.services.exam_pdf_generation_service import build_exam_pdf, build_solution_pdf
+from app.utils.paths import paths
 
 EXAM_DELIVERY_MARKER_RE = re.compile(
     r"\{\{?TWIGA_EXAM_DELIVERY:\s*(\{.*?\})\}\}?",
     re.DOTALL,
 )
-REPO_ROOT = Path(__file__).resolve().parents[2]
-EXAM_PDF_OUTPUT_DIR = REPO_ROOT / "outputs" / "exam_pdfs"
 
 
 @dataclass
@@ -40,6 +39,7 @@ class ExamPDFDeliveryDetails:
 class ExamDeliveryService:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
+        paths.EXAM_PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     def parse_delivery_marker(self, content: str | None) -> ExamDeliveryMarker:
         if content is None:
@@ -150,8 +150,6 @@ class ExamDeliveryService:
                 errors=errors,
             )
 
-        EXAM_PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
         if not exam_pdf_ready:
             try:
                 build_exam_pdf(exam_json, exam_pdf_path)
@@ -194,8 +192,8 @@ class ExamDeliveryService:
     @staticmethod
     def _resolve_exam_pdf_paths(exam_id: str) -> tuple[Path, Path]:
         return (
-            EXAM_PDF_OUTPUT_DIR / f"exam_{exam_id}.pdf",
-            EXAM_PDF_OUTPUT_DIR / f"exam_{exam_id}_solution.pdf",
+            paths.EXAM_PDF_OUTPUT_DIR / f"exam_{exam_id}.pdf",
+            paths.EXAM_PDF_OUTPUT_DIR / f"exam_{exam_id}_solution.pdf",
         )
 
     @staticmethod
