@@ -9,6 +9,7 @@ from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
     ExamGenerator,
 )
 
+NUM_CHUNKS_PER_TOPIC = 10
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +40,7 @@ async def generate_necta_style_exam(
         for topic in topics:
             topic_chunks = await db.vector_search(
                 query=topic,
-                n_results=10,
+                n_results=NUM_CHUNKS_PER_TOPIC,
                 where={
                     "chunk_type": [ChunkType.text],
                     "resource_id": resource_ids,
