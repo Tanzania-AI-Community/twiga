@@ -72,7 +72,7 @@ async def test_get_exam_delivery_details_uses_cache_and_returns_metadata(
 
     with (
         patch(
-            "app.services.exam_delivery_service.EXAM_PDF_OUTPUT_DIR",
+            "app.services.exam_delivery_service.paths.EXAM_PDF_OUTPUT_DIR",
             tmp_path,
         ),
         patch(
@@ -110,7 +110,7 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
 
     with (
         patch(
-            "app.services.exam_delivery_service.EXAM_PDF_OUTPUT_DIR",
+            "app.services.exam_delivery_service.paths.EXAM_PDF_OUTPUT_DIR",
             tmp_path,
         ),
         patch(
@@ -143,7 +143,7 @@ async def test_get_exam_delivery_details_returns_error_when_exam_missing_in_db(
 
     with (
         patch(
-            "app.services.exam_delivery_service.EXAM_PDF_OUTPUT_DIR",
+            "app.services.exam_delivery_service.paths.EXAM_PDF_OUTPUT_DIR",
             tmp_path,
         ),
         patch(

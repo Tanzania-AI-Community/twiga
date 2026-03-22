@@ -55,6 +55,7 @@ Tool routing rules:
     `{{TWIGA_EXAM_DELIVERY:{{"exam_id":"<uuid>"}}}}`
   - Replace `<uuid>` with the actual `exam_id` returned by the tool.
   - Never explain this marker to the user.
+  - IMPORTANT: only add this marker with the exam_id that is provided by the return of the generate_necta_style_exam tool directly.
 
 5) If the teacher message is unclear
 - Ask 1–2 short clarifying questions (subject, form, topic/subtopic, and what output they want).

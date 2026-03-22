@@ -9,7 +9,7 @@ from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
     exam_generator,
 )
 
-NUM_CHUNKS_PER_TOPIC = 10
+NUM_CHUNKS_PER_TOPIC = 25
 logger = logging.getLogger(__name__)
 
 
