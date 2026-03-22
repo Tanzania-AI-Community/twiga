@@ -2,11 +2,11 @@ import logging
 from typing import List, Optional
 
 from app.database import db
+from app.database.db import vector_search
+from app.database.enums import ChunkType
+from app.database.models import Chunk, Resource
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
-from app.database.db import vector_search
-from app.database.models import Chunk, Resource
-from app.database.enums import ChunkType
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ async def generate_exercise(
         )
 
         # Convert to LangChain BaseMessage objects
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from langchain_core.messages import HumanMessage, SystemMessage
 
         messages = [
             SystemMessage(content=system_prompt),

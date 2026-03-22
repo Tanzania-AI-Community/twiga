@@ -60,10 +60,14 @@ dev-dependencies = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
 markers = [
     "unittest: marks tests as unit tests",
     "integration: marks tests for integration tests"
 ]
+
+[tool.ruff.lint]
+extend-select = ["I"]
 
 [project.scripts]
 all-contributors = "scripts.ci.all_contributors:main"

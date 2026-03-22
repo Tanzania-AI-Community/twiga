@@ -1,9 +1,9 @@
+import os
 from functools import lru_cache
 from pathlib import Path
-import os
-import requests
 from typing import Iterator, Sequence, TypeVar
 
+import requests
 
 TOGETHER_BASE_URL = "https://api.together.xyz/v1"
 

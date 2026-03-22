@@ -7,6 +7,7 @@ This package contains all the tool calls available to Twiga. Each tool is isolat
 - **search_knowledge** - Retrieves relevant information from the knowledge base (TIE textbooks)
 - **generate_exercise** - Generates practice questions based on course literature
 - **solve_equation** - Solves mathematical equations with step-by-step solutions
+- **generate_necta_style_exam** - Generates exams based on course literature using the NECTA style
 
 ## Adding a New Tool
 
@@ -34,6 +35,29 @@ a) Add tool name to `ToolName` enum
 b) Add function to `TOOL_FUNCTION_MAP` dictionary
 
 c) Add tool metadata to `TOOLS_METADATA` list
+
+d) (Optional) Add hidden internal arguments in `app/tools/internal_args.py`
+
+Use this when a tool needs backend context (for example `user_id`) that the agent should not see or generate.
+
+Example:
+```python
+from app.tools.registry import ToolName
+
+def _build_<tool_name>_internal_args(user):
+    if user.id is None:
+        raise ValueError("Cannot inject internal args: user.id is None.")
+    return {"user_id": user.id}
+
+INTERNAL_TOOL_ARGS_MAPPING = {
+    ToolName.<TOOL_NAME>.value: _build_<tool_name>_internal_args,
+}
+```
+
+Notes:
+- `ToolManager` loads these args via `get_internal_tool_args(...)`, merges them with LLM args, and validates the final signature before invoking the tool.
+- Do not add internal-only args to `TOOLS_METADATA` (so they stay hidden from the agent).
+- Ensure the tool function signature accepts the internal args.
 
 
 ### 3. Update System Prompts
@@ -76,9 +100,9 @@ For testing that requires LLM calls, create a script in the `scripts/tools/` dir
 docker-compose -f docker/dev/docker-compose.yml up -d
 ```
 
-**Run tests:**
+**Run test script:**
 ```bash
-docker-compose -f docker/dev/docker-compose.yml exec app uv run pytest tests/test_<TOOL_NAME>.py -v -s
+docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/tools/test_<TOOL_NAME>.py"
 ```
 
 This allows you to verify tool calls work correctly without needing to interact with the full system.

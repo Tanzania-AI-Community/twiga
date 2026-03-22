@@ -14,7 +14,6 @@ import fitz
 
 from app.config import Environment, settings
 
-
 # Tectonic (https://tectonic-typesetting.github.io/) is a fast
 # LaTeX engine we invoke to turn the LLM output into a PDF. We bootstrap a
 # platform-specific binary at runtime so deployments don't need a heavyweight

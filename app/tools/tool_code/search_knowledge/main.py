@@ -1,9 +1,10 @@
 import logging
 from typing import List, Optional
-from app.database.db import vector_search
-from app.database.models import Chunk, Resource
-from app.database.enums import ChunkType
+
 import app.database.db as db
+from app.database.db import vector_search
+from app.database.enums import ChunkType
+from app.database.models import Chunk, Resource
 
 logger = logging.getLogger(__name__)
 

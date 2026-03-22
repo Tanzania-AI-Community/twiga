@@ -1,10 +1,11 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.llm_service import LLMClient
-from app.database.models import Message, User
+import pytest
+
 from app.database.enums import MessageRole
+from app.database.models import Message, User
+from app.services.llm_service import LLMClient
 from app.utils.prompt_manager import prompt_manager
 
 

@@ -6,22 +6,22 @@ keeping the main cron scripts clean and focused.
 """
 
 import os
-from typing import List
-from contextlib import asynccontextmanager
-from urllib.parse import urlparse
-from datetime import datetime, timedelta
-
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import func, text
-from sqlmodel import select, and_
 
 # Import from app directory
 import sys
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from typing import List
+from urllib.parse import urlparse
+
+from sqlalchemy import func, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlmodel import and_, select
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-from app.database.models import User, Message
 from app.database.enums import UserState
+from app.database.models import Message, User
 
 
 def get_database_url() -> str:
