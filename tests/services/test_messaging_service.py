@@ -288,7 +288,7 @@ async def test_handle_chat_message_exam_marker_sends_documents_and_strips_marker
             AsyncMock(),
         ) as mock_create_messages,
         patch(
-            "app.services.messaging_service.exam_delivery_client.get_exam_delivery_details",
+            "app.services.messaging_service.exam_delivery_service.get_exam_delivery_details",
             AsyncMock(return_value=artifacts),
         ),
         patch(
@@ -349,7 +349,7 @@ async def test_handle_chat_message_invalid_exam_marker_falls_back_to_clean_text(
             AsyncMock(),
         ),
         patch(
-            "app.services.messaging_service.exam_delivery_client.get_exam_delivery_details",
+            "app.services.messaging_service.exam_delivery_service.get_exam_delivery_details",
             AsyncMock(),
         ) as mock_ensure_artifacts,
         patch(
@@ -417,7 +417,7 @@ async def test_handle_chat_message_exam_marker_partial_failure_appends_notice() 
             AsyncMock(),
         ),
         patch(
-            "app.services.messaging_service.exam_delivery_client.get_exam_delivery_details",
+            "app.services.messaging_service.exam_delivery_service.get_exam_delivery_details",
             AsyncMock(return_value=artifacts),
         ),
         patch(
@@ -483,7 +483,7 @@ async def test_handle_chat_message_marker_only_skips_text_send_after_documents()
             AsyncMock(),
         ),
         patch(
-            "app.services.messaging_service.exam_delivery_client.get_exam_delivery_details",
+            "app.services.messaging_service.exam_delivery_service.get_exam_delivery_details",
             AsyncMock(return_value=artifacts),
         ),
         patch(
