@@ -94,7 +94,12 @@ async def generate_necta_style_exam(
                 "Missing generation_trace.exam_id in exam JSON; cannot persist exam."
             )
 
-        persisted_exam_record = await create_new_exam(exam_json)
+        persisted_exam_record = await create_new_exam(
+            exam_json=exam_json,
+            class_id=class_id,
+            subject=subject,
+            topics=topics,
+        )
         logger.info(
             "Persisted generated exam with exam_id=%s", persisted_exam_record.id
         )

@@ -51,16 +51,31 @@ def _parse_generated_at_utc(exam_json: dict) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-async def create_new_exam(exam_json: dict) -> GeneratedExam:
+async def create_new_exam(
+    exam_json: dict, class_id: int, subject: str, topics: list[str]
+) -> GeneratedExam:
     generation_trace = exam_json.get("generation_trace", {})
     exam_id = generation_trace.get("exam_id")
 
-    if not isinstance(exam_id, str) or not exam_id.strip():
+    normalized_exam_id = exam_id.strip() if isinstance(exam_id, str) else None
+    if not normalized_exam_id:
         raise ValueError(
             "Missing generation_trace.exam_id in exam JSON; cannot persist generated exam."
         )
 
-    normalized_exam_id = exam_id.strip()
+    if not isinstance(class_id, int):
+        raise ValueError("class_id must be an integer.")
+
+    normalized_subject = subject.strip() if isinstance(subject, str) else None
+    if not normalized_subject:
+        raise ValueError("subject must be a non-empty string.")
+
+    normalized_topics = [
+        topic.strip() for topic in topics if isinstance(topic, str) and topic.strip()
+    ]
+    if not normalized_topics:
+        raise ValueError("topics must contain at least one non-empty string.")
+
     generated_at_utc = _parse_generated_at_utc(exam_json)
 
     async with get_session() as session:
@@ -78,6 +93,9 @@ async def create_new_exam(exam_json: dict) -> GeneratedExam:
             generated_exam = GeneratedExam(
                 id=normalized_exam_id,
                 json=exam_json,
+                class_id=class_id,
+                subject=normalized_subject,
+                topics=normalized_topics,
                 generated_at_utc=generated_at_utc,
             )
 

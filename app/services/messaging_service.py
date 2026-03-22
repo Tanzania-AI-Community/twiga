@@ -14,7 +14,7 @@ from app.config import llm_settings
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
     ExamPDFDeliveryDetails,
-    exam_delivery_client,
+    exam_delivery_service,
 )
 from app.services.latex_image_service import (
     looks_like_latex,
@@ -185,7 +185,7 @@ class MessagingService:
 
             # check for exam delivery marker in the content
             delivery_marker: ExamDeliveryMarker = (
-                exam_delivery_client.parse_delivery_marker(llm_content)
+                exam_delivery_service.parse_delivery_marker(llm_content)
             )
             llm_content = (
                 delivery_marker.cleaned_content
@@ -210,7 +210,7 @@ class MessagingService:
                     if delivery_marker.exam_id:
                         # if exams pdf do not exists, this renders them and returns the paths
                         exam_details: ExamPDFDeliveryDetails = (
-                            await exam_delivery_client.get_exam_delivery_details(
+                            await exam_delivery_service.get_exam_delivery_details(
                                 delivery_marker.exam_id
                             )
                         )

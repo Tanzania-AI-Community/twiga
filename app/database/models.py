@@ -366,6 +366,9 @@ class GeneratedExam(SQLModel, table=True):
     """ FIELDS """
     id: str = Field(primary_key=True, max_length=36)
     json: Dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    class_id: int = Field(nullable=False, index=True)
+    subject: str = Field(max_length=100, nullable=False)
+    topics: List[str] = Field(sa_column=Column(JSON, nullable=False))
     generated_at_utc: Optional[datetime] = Field(
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore

@@ -24,8 +24,17 @@ def upgrade() -> None:
         "generated_exams",
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("json", sa.JSON(), nullable=False),
+        sa.Column("class_id", sa.Integer(), nullable=False),
+        sa.Column("subject", sa.String(length=100), nullable=False),
+        sa.Column("topics", sa.JSON(), nullable=False),
         sa.Column("generated_at_utc", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_generated_exams_class_id"),
+        "generated_exams",
+        ["class_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_generated_exams_generated_at_utc"),
@@ -36,6 +45,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_generated_exams_class_id"), table_name="generated_exams")
     op.drop_index(
         op.f("ix_generated_exams_generated_at_utc"), table_name="generated_exams"
     )

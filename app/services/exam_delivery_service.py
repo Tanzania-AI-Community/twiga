@@ -115,9 +115,10 @@ class ExamDeliveryService:
             )
             exam_record = None
 
-        if exam_record is not None and isinstance(exam_record.json, dict):
+        if exam_record is not None:
             exam_json = exam_record.json
-            subject, topics = self._extract_subject_topics(exam_json)
+            subject = exam_record.subject
+            topics = exam_record.topics
 
         if exam_pdf_ready and solution_pdf_ready:
             return ExamPDFDeliveryDetails(
@@ -218,28 +219,5 @@ class ExamDeliveryService:
         except (ValueError, AttributeError, TypeError):
             return None
 
-    @staticmethod
-    def _extract_subject_topics(exam_json: dict) -> tuple[Optional[str], list[str]]:
-        meta = exam_json.get("meta", {})
-        generation_trace = exam_json.get("generation_trace", {})
 
-        subject: Optional[str] = None
-        if isinstance(meta, dict):
-            raw_subject = meta.get("subject")
-            if isinstance(raw_subject, str) and raw_subject.strip():
-                subject = raw_subject.strip()
-
-        topics: list[str] = []
-        if isinstance(generation_trace, dict):
-            raw_topics = generation_trace.get("topics")
-            if isinstance(raw_topics, list):
-                topics = [
-                    topic.strip()
-                    for topic in raw_topics
-                    if isinstance(topic, str) and topic.strip()
-                ]
-
-        return subject, topics
-
-
-exam_delivery_client = ExamDeliveryService()
+exam_delivery_service = ExamDeliveryService()
