@@ -116,7 +116,15 @@
           "type": "boolean",
           "__example__": true
         },
-        "classes_for_subject": {
+        "subject1_title": {
+          "type": "string",
+          "__example__": "Biology"
+        },
+        "subject1_has_classes": {
+          "type": "boolean",
+          "__example__": true
+        },
+        "subject1_class_options": {
           "type": "array",
           "items": {
             "type": "object",
@@ -130,32 +138,94 @@
             }
           },
           "__example__": [
-            { "id": "301", "title": "Form 1 - Biology" },
-            { "id": "302", "title": "Form 2 - Biology" },
-            { "id": "303", "title": "Form 3 - Biology" },
-            { "id": "304", "title": "Form 4 - Biology" },
-            { "id": "305", "title": "Form 5 - Biology" },
-            { "id": "306", "title": "Form 6 - Biology" },
-            { "id": "401", "title": "Form 1 - English" },
-            { "id": "402", "title": "Form 2 - English" },
-            { "id": "403", "title": "Form 3 - English" },
-            { "id": "404", "title": "Form 4 - English" },
-            { "id": "405", "title": "Form 5 - English" },
-            { "id": "406", "title": "Form 6 - English" },
-            { "id": "601", "title": "Form 1 - Mathematics" },
-            { "id": "602", "title": "Form 2 - Mathematics" },
-            { "id": "603", "title": "Form 3 - Mathematics" },
-            { "id": "604", "title": "Form 4 - Mathematics" },
-            { "id": "605", "title": "Form 5 - Mathematics" },
-            { "id": "606", "title": "Form 6 - Mathematics" }
+            { "id": "301", "title": "Form 1" },
+            { "id": "302", "title": "Form 2" },
+            { "id": "303", "title": "Form 3" },
+            { "id": "304", "title": "Form 4" },
+            { "id": "305", "title": "Form 5" },
+            { "id": "306", "title": "Form 6" }
           ]
         },
-        "selected_class_ids": {
+        "subject1_selected_class_ids": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "__example__": ["302", "601"]
+          "__example__": ["302"]
+        },
+        "subject2_title": {
+          "type": "string",
+          "__example__": "English"
+        },
+        "subject2_has_classes": {
+          "type": "boolean",
+          "__example__": true
+        },
+        "subject2_class_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            { "id": "401", "title": "Form 1" },
+            { "id": "402", "title": "Form 2" },
+            { "id": "403", "title": "Form 3" },
+            { "id": "404", "title": "Form 4" },
+            { "id": "405", "title": "Form 5" },
+            { "id": "406", "title": "Form 6" }
+          ]
+        },
+        "subject2_selected_class_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["401"]
+        },
+        "subject3_title": {
+          "type": "string",
+          "__example__": "Mathematics"
+        },
+        "subject3_has_classes": {
+          "type": "boolean",
+          "__example__": true
+        },
+        "subject3_class_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            { "id": "601", "title": "Form 1" },
+            { "id": "602", "title": "Form 2" },
+            { "id": "603", "title": "Form 3" },
+            { "id": "604", "title": "Form 4" },
+            { "id": "605", "title": "Form 5" },
+            { "id": "606", "title": "Form 6" }
+          ]
+        },
+        "subject3_selected_class_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": ["601"]
         },
         "no_classes_text": {
           "type": "string",
@@ -170,14 +240,46 @@
             "condition": "${data.has_classes}",
             "then": [
               {
-                "type": "ChipsSelector",
-                "name": "selected_class_ids",
-                "label": "Select your classes",
-                "required": true,
-                "data-source": "${data.classes_for_subject}",
-                "init-value": "${data.selected_class_ids}",
-                "min-selected-items": 1,
-                "max-selected-items": 10
+                "type": "TextSubheading",
+                "text": "${data.subject1_title}",
+                "visible": "${data.subject1_has_classes}"
+              },
+              {
+                "type": "CheckboxGroup",
+                "name": "subject1_selected_class_ids",
+                "label": "Select classes",
+                "required": false,
+                "data-source": "${data.subject1_class_options}",
+                "init-value": "${data.subject1_selected_class_ids}",
+                "visible": "${data.subject1_has_classes}"
+              },
+              {
+                "type": "TextSubheading",
+                "text": "${data.subject2_title}",
+                "visible": "${data.subject2_has_classes}"
+              },
+              {
+                "type": "CheckboxGroup",
+                "name": "subject2_selected_class_ids",
+                "label": "Select classes",
+                "required": false,
+                "data-source": "${data.subject2_class_options}",
+                "init-value": "${data.subject2_selected_class_ids}",
+                "visible": "${data.subject2_has_classes}"
+              },
+              {
+                "type": "TextSubheading",
+                "text": "${data.subject3_title}",
+                "visible": "${data.subject3_has_classes}"
+              },
+              {
+                "type": "CheckboxGroup",
+                "name": "subject3_selected_class_ids",
+                "label": "Select classes",
+                "required": false,
+                "data-source": "${data.subject3_class_options}",
+                "init-value": "${data.subject3_selected_class_ids}",
+                "visible": "${data.subject3_has_classes}"
               }
             ],
             "else": [
@@ -195,7 +297,9 @@
               "payload": {
                 "component_action": "complete_subject_configuration",
                 "selected_subject_ids": "${data.selected_subject_ids}",
-                "selected_class_ids": "${form.selected_class_ids}"
+                "subject1_selected_class_ids": "${form.subject1_selected_class_ids}",
+                "subject2_selected_class_ids": "${form.subject2_selected_class_ids}",
+                "subject3_selected_class_ids": "${form.subject3_selected_class_ids}"
               }
             }
           }

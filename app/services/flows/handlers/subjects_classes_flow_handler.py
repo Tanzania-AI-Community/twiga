@@ -20,8 +20,8 @@ class SubjectsClassesFlowHandler:
 
     The user journey is a two-step WhatsApp Flow:
     1. `select_subject`: teachers pick up to 3 subjects.
-    2. `select_classes`: teachers pick up to 10 class combinations shown as
-       `Form X - Subject`.
+    2. `select_classes`: selected subjects are shown as grouped sections, each with
+       a checkbox list of forms.
 
     Internal action lifecycle:
     - `load_subject_classes`: derives and returns class options for selected subjects.
@@ -179,6 +179,17 @@ class SubjectsClassesFlowHandler:
             )
 
         selected_class_ids = self._parse_class_ids(data.get("selected_class_ids"))
+        if not selected_class_ids:
+            selected_class_ids = self._parse_grouped_class_ids(data)
+
+        if len(selected_class_ids) > self._FLOW_MAX_SELECTED_CLASSES:
+            raise ValueError(
+                self._flow_template(
+                    "subjects_classes_selection_limit_classes_error",
+                    max_classes=self._FLOW_MAX_SELECTED_CLASSES,
+                )
+            )
+
         if not selected_class_ids:
             raise ValueError(
                 self._flow_string(
@@ -345,8 +356,14 @@ class SubjectsClassesFlowHandler:
             )
         return parsed_ids
 
-    def _get_subject_display_title(self, subject: models.Subject) -> str:
-        return subject.name.value.replace("_", " ").title()
+    def _parse_grouped_class_ids(self, data: dict[str, Any]) -> list[int]:
+        collected_ids: list[int] = []
+        for subject_index in range(1, self._FLOW_MAX_SELECTED_SUBJECTS + 1):
+            field_name = f"subject{subject_index}_selected_class_ids"
+            for class_id in self._parse_class_ids(data.get(field_name)):
+                if class_id not in collected_ids:
+                    collected_ids.append(class_id)
+        return collected_ids
 
     def _truncate_flow_option_title(self, title: str) -> str:
         if len(title) <= self._FLOW_SUBJECT_TITLE_MAX_LEN:
@@ -453,48 +470,88 @@ class SubjectsClassesFlowHandler:
                 self._flow_string("subjects_classes_selected_subject_missing_error")
             )
 
-        class_options: list[dict[str, str]] = []
+        subject_groups: list[dict[str, Any]] = []
+        compatibility_class_options: list[dict[str, str]] = []
         for subject_id in valid_subject_ids:
             subject = subject_lookup[subject_id]
-            subject_title = self._get_subject_display_title(subject)
-            for class_ in subject.subject_classes or []:
-                if class_.id is None or not self._is_active_class(class_):
-                    continue
-                class_options.append(
+            subject_title = subject.name.display_format
+            class_options = [
+                {"id": str(class_.id), "title": class_.grade_level.display_format}
+                for class_ in (subject.subject_classes or [])
+                if class_.id is not None and self._is_active_class(class_)
+            ]
+            class_options.sort(key=lambda option: option["title"].lower())
+            compatibility_class_options.extend(
+                [
                     {
-                        "id": str(class_.id),
+                        "id": option["id"],
                         "title": self._build_class_option_title(
                             subject_title=subject_title,
-                            grade_label=class_.grade_level.display_format,
+                            grade_label=option["title"],
                         ),
                     }
-                )
+                    for option in class_options
+                ]
+            )
+            visible_class_ids = {option["id"] for option in class_options}
+            selected_class_ids_for_subject = sorted(
+                {
+                    str(taught_class.class_id)
+                    for taught_class in (user.taught_classes or [])
+                    if taught_class.class_ is not None
+                    and taught_class.class_.subject_id == subject_id
+                    and str(taught_class.class_id) in visible_class_ids
+                }
+            )
 
-        class_options.sort(key=lambda option: option["title"].lower())
-        class_options = class_options[: self._FLOW_MAX_CHIPS_OPTIONS]
-        selected_subject_ids_set = set(valid_subject_ids)
-        visible_class_ids = {option["id"] for option in class_options}
-        selected_class_ids = sorted(
+            subject_groups.append(
+                {
+                    "title": subject_title,
+                    "has_classes": len(class_options) > 0,
+                    "class_options": class_options,
+                    "selected_class_ids": selected_class_ids_for_subject,
+                }
+            )
+
+        subject_groups.sort(key=lambda group: group["title"].lower())
+        compatibility_class_options.sort(key=lambda option: option["title"].lower())
+        has_any_classes = any(group["has_classes"] for group in subject_groups)
+        compatibility_selected_class_ids = sorted(
             {
-                str(taught_class.class_id)
-                for taught_class in (user.taught_classes or [])
-                if taught_class.class_ is not None
-                and taught_class.class_.subject_id in selected_subject_ids_set
-                and str(taught_class.class_id) in visible_class_ids
+                class_id
+                for group in subject_groups
+                for class_id in group["selected_class_ids"]
             }
         )
 
-        return {
+        response_data: dict[str, Any] = {
             "selected_subject_ids": [
                 str(subject_id) for subject_id in valid_subject_ids
             ],
-            "has_classes": len(class_options) > 0,
-            "classes_for_subject": class_options,
-            "selected_class_ids": selected_class_ids,
+            "has_classes": has_any_classes,
+            "classes_for_subject": compatibility_class_options,
+            "selected_class_ids": compatibility_selected_class_ids,
             "no_classes_text": self._flow_string(
                 "subjects_classes_no_active_classes_text"
             ),
         }
+        for group_index in range(1, self._FLOW_MAX_SELECTED_SUBJECTS + 1):
+            field_prefix = f"subject{group_index}"
+            if group_index <= len(subject_groups):
+                group = subject_groups[group_index - 1]
+                response_data[f"{field_prefix}_title"] = group["title"]
+                response_data[f"{field_prefix}_has_classes"] = group["has_classes"]
+                response_data[f"{field_prefix}_class_options"] = group["class_options"]
+                response_data[f"{field_prefix}_selected_class_ids"] = group[
+                    "selected_class_ids"
+                ]
+            else:
+                response_data[f"{field_prefix}_title"] = ""
+                response_data[f"{field_prefix}_has_classes"] = False
+                response_data[f"{field_prefix}_class_options"] = []
+                response_data[f"{field_prefix}_selected_class_ids"] = []
+
+        return response_data
 
     async def _save_multi_subject_class_selection(
         self,

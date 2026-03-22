@@ -54,7 +54,7 @@ flows:
   subjects_classes_no_classes_selected_for_subjects_error: "No classes selected for selected subjects"
   subjects_classes_no_classes_selected_for_any_subject_error: "No classes selected for any subject"
   subjects_classes_selected_subject_missing_error: "Selected subject no longer exists"
-  subjects_classes_no_active_classes_text: "No active classes are available for selected subjects."
+  subjects_classes_no_active_classes_text: "No active classes are available for selected subjects. Please contact support (dev@ai.or.tz) for assistance."
   subjects_classes_selection_limit_subjects_error: "You can select up to {max_subjects} subjects."
   subjects_classes_selection_limit_classes_error: "You can select up to {max_classes} classes."
   subjects_classes_subject_or_classes_not_found_error: "Subject or classes not found"
