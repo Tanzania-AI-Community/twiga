@@ -62,7 +62,7 @@ async def test_get_exam_delivery_details_uses_cache_and_returns_metadata(
     exam_pdf_path.write_bytes(b"pdf")
     solution_pdf_path.write_bytes(b"pdf")
     exam_record = SimpleNamespace(
-        exam_json={
+        json={
             "meta": {"subject": "Geography"},
             "generation_trace": {"topics": ["Climate", "Weather"]},
         }
@@ -94,7 +94,7 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
 ) -> None:
     service = ExamDeliveryService()
     exam_id = "b1740ac9-bfea-415f-8b3a-c7f06ee8c353"
-    exam_record = SimpleNamespace(exam_json={"meta": {"exam_title": "Exam"}})
+    exam_record = SimpleNamespace(json={"meta": {"exam_title": "Exam"}})
 
     def _create_exam_pdf(_: dict, output_path: Path) -> None:
         output_path.write_bytes(b"pdf")

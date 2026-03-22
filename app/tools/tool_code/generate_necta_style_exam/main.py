@@ -96,7 +96,7 @@ async def generate_necta_style_exam(
 
         persisted_exam_record = await create_new_exam(exam_json)
         logger.info(
-            "Persisted generated exam with exam_id=%s", persisted_exam_record.exam_id
+            "Persisted generated exam with exam_id=%s", persisted_exam_record.id
         )
 
         return json.dumps(

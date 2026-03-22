@@ -22,10 +22,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         "generated_exams",
-        sa.Column("exam_id", sa.String(length=36), nullable=False),
-        sa.Column("exam_json", sa.JSON(), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("json", sa.JSON(), nullable=False),
         sa.Column("generated_at_utc", sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint("exam_id"),
+        sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
         op.f("ix_generated_exams_generated_at_utc"),

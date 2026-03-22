@@ -66,7 +66,7 @@ async def create_new_exam(exam_json: dict) -> GeneratedExam:
     async with get_session() as session:
         try:
             statement = select(GeneratedExam).where(
-                GeneratedExam.exam_id == normalized_exam_id
+                GeneratedExam.id == normalized_exam_id
             )
             result = await session.execute(statement)
             existing_exam = result.scalar_one_or_none()
@@ -76,8 +76,8 @@ async def create_new_exam(exam_json: dict) -> GeneratedExam:
                 )
 
             generated_exam = GeneratedExam(
-                exam_id=normalized_exam_id,
-                exam_json=exam_json,
+                id=normalized_exam_id,
+                json=exam_json,
                 generated_at_utc=generated_at_utc,
             )
 
@@ -102,7 +102,7 @@ async def get_exam(exam_id: str) -> GeneratedExam | None:
     async with get_session() as session:
         try:
             statement = select(GeneratedExam).where(
-                GeneratedExam.exam_id == normalized_exam_id
+                GeneratedExam.id == normalized_exam_id
             )
             result = await session.execute(statement)
             return result.scalar_one_or_none()

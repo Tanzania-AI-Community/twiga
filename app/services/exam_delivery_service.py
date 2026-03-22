@@ -115,8 +115,8 @@ class ExamDeliveryService:
             )
             exam_record = None
 
-        if exam_record is not None and isinstance(exam_record.exam_json, dict):
-            exam_json = exam_record.exam_json
+        if exam_record is not None and isinstance(exam_record.json, dict):
+            exam_json = exam_record.json
             subject, topics = self._extract_subject_topics(exam_json)
 
         if exam_pdf_ready and solution_pdf_ready:
