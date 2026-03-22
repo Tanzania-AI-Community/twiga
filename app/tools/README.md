@@ -36,6 +36,29 @@ b) Add function to `TOOL_FUNCTION_MAP` dictionary
 
 c) Add tool metadata to `TOOLS_METADATA` list
 
+d) (Optional) Add hidden internal arguments in `app/tools/internal_args.py`
+
+Use this when a tool needs backend context (for example `user_id`) that the agent should not see or generate.
+
+Example:
+```python
+from app.tools.registry import ToolName
+
+def _build_<tool_name>_internal_args(user):
+    if user.id is None:
+        raise ValueError("Cannot inject internal args: user.id is None.")
+    return {"user_id": user.id}
+
+INTERNAL_TOOL_ARGS_MAPPING = {
+    ToolName.<TOOL_NAME>.value: _build_<tool_name>_internal_args,
+}
+```
+
+Notes:
+- `ToolManager` loads these args via `get_internal_tool_args(...)`, merges them with LLM args, and validates the final signature before invoking the tool.
+- Do not add internal-only args to `TOOLS_METADATA` (so they stay hidden from the agent).
+- Ensure the tool function signature accepts the internal args.
+
 
 ### 3. Update System Prompts
 

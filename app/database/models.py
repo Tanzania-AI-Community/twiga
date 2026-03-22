@@ -365,7 +365,8 @@ class GeneratedExam(SQLModel, table=True):
 
     """ FIELDS """
     id: str = Field(primary_key=True, max_length=36)
-    json: Dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    exam_json: Dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     class_id: int = Field(nullable=False, index=True)
     subject: str = Field(max_length=100, nullable=False)
     topics: List[str] = Field(sa_column=Column(JSON, nullable=False))

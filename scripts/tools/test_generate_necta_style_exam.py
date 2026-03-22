@@ -17,11 +17,12 @@ async def main():
     print("Starting generation test...")
 
     class_id = 1
+    user_id = 1
     subject = "Chemistry"
     topics = ["Atomic Structure", "Periodic Table", "Chemical Bonding"]
 
     result = await generate_necta_style_exam(
-        class_id=class_id, subject=subject, topics=topics
+        class_id=class_id, subject=subject, topics=topics, user_id=user_id
     )
 
     print(f"Result: {result}")

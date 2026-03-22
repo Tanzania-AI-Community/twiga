@@ -116,7 +116,7 @@ class ExamDeliveryService:
             exam_record = None
 
         if exam_record is not None:
-            exam_json = exam_record.json
+            exam_json = exam_record.exam_json
             subject = exam_record.subject
             topics = exam_record.topics
 

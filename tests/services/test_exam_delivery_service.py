@@ -64,7 +64,7 @@ async def test_get_exam_delivery_details_uses_cache_and_returns_metadata(
     exam_record = SimpleNamespace(
         subject="Geography",
         topics=["Climate", "Weather"],
-        json={
+        exam_json={
             "meta": {"subject": "Geography"},
             "generation_trace": {"topics": ["Climate", "Weather"]},
         },
@@ -99,7 +99,7 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
     exam_record = SimpleNamespace(
         subject="Chemistry",
         topics=["Atomic Structure"],
-        json={"meta": {"exam_title": "Exam"}},
+        exam_json={"meta": {"exam_title": "Exam"}},
     )
 
     def _create_exam_pdf(_: dict, output_path: Path) -> None:

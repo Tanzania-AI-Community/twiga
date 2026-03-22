@@ -52,7 +52,11 @@ def _parse_generated_at_utc(exam_json: dict) -> datetime | None:
 
 
 async def create_new_exam(
-    exam_json: dict, class_id: int, subject: str, topics: list[str]
+    exam_json: dict,
+    class_id: int,
+    subject: str,
+    topics: list[str],
+    user_id: int,
 ) -> GeneratedExam:
     generation_trace = exam_json.get("generation_trace", {})
     exam_id = generation_trace.get("exam_id")
@@ -76,6 +80,9 @@ async def create_new_exam(
     if not normalized_topics:
         raise ValueError("topics must contain at least one non-empty string.")
 
+    if not isinstance(user_id, int):
+        raise ValueError("user_id must be an integer.")
+
     generated_at_utc = _parse_generated_at_utc(exam_json)
 
     async with get_session() as session:
@@ -92,7 +99,8 @@ async def create_new_exam(
 
             generated_exam = GeneratedExam(
                 id=normalized_exam_id,
-                json=exam_json,
+                exam_json=exam_json,
+                user_id=user_id,
                 class_id=class_id,
                 subject=normalized_subject,
                 topics=normalized_topics,

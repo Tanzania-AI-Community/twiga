@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 async def generate_necta_style_exam(
-    class_id: int, subject: str, topics: list[str]
+    class_id: int, subject: str, topics: list[str], user_id: int
 ) -> str:
     """
     Generate a NECTA-style exam JSON.
@@ -27,10 +27,7 @@ async def generate_necta_style_exam(
     """
     try:
         logger.info(
-            "Generating NECTA-style exam for class_id=%s, subject=%s, topics=%s",
-            class_id,
-            subject,
-            topics,
+            f"Generating NECTA-style exam for user_id={user_id}, class_id={class_id}, subject={subject}, topics={topics}"
         )
 
         resource_ids = await db.get_class_resources(class_id)
@@ -99,6 +96,7 @@ async def generate_necta_style_exam(
             class_id=class_id,
             subject=subject,
             topics=topics,
+            user_id=user_id,
         )
         logger.info(
             "Persisted generated exam with exam_id=%s", persisted_exam_record.id
