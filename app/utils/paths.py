@@ -27,6 +27,17 @@ class ProjectPaths:
         return self.REPO_ROOT / "outputs" / "exam_pdfs"
 
     @cached_property
+    def EXAM_GENERATOR_TEMPLATE_DIR(self) -> Path:
+        """Directory containing exam generator JSON templates."""
+        return (
+            self.APP_ROOT
+            / "tools"
+            / "tool_code"
+            / "generate_necta_style_exam"
+            / "template"
+        )
+
+    @cached_property
     def PROMPTS(self) -> Path:
         """Directory containing prompt templates"""
         return self.ASSETS / "prompts"

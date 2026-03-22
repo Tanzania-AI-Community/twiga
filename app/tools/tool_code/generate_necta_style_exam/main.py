@@ -6,7 +6,7 @@ from app.database.db import create_new_exam
 from app.database.enums import ChunkType
 from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
     ExamGenerationError,
-    ExamGenerator,
+    exam_generator,
 )
 
 NUM_CHUNKS_PER_TOPIC = 10
@@ -21,7 +21,7 @@ async def generate_necta_style_exam(
 
     Flow:
     1. Retrieve topic chunks outside the exam generator.
-    2. Call ExamGenerator with `chunks_by_topic` + `exam_spec`.
+    2. Call exam_generator with `chunks_by_topic` + `exam_spec`.
     3. Save `exam.json` and return metadata.
 
     Returns:
@@ -78,8 +78,7 @@ async def generate_necta_style_exam(
 
         logger.info(f"Exam specification: {exam_spec}")
 
-        generator = ExamGenerator()
-        exam_json = await generator.generate_exam(
+        exam_json = await exam_generator.generate_exam(
             subject=subject,
             chunks_by_topic=chunks_by_topic,
             exam_spec=exam_spec,

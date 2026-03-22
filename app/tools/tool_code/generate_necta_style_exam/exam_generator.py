@@ -7,12 +7,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.utils.llm_utils import async_llm_request
+from app.utils.paths import paths
 from app.utils.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
@@ -111,8 +111,8 @@ class ExamGenerator:
     ROMAN_LABELS = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
     MCQ_OPTION_LABELS = ["A", "B", "C", "D", "E"]
 
-    def __init__(self, template_dir: Optional[Path] = None) -> None:
-        self.template_dir = template_dir or (Path(__file__).parent / "template")
+    def __init__(self) -> None:
+        self.template_dir = paths.EXAM_GENERATOR_TEMPLATE_DIR
         self.exam_template = self._load_template_json("exam_template.json")
         self.mcq_template = self._load_template_json(
             "multiple_choice_question_template.json"
@@ -1153,3 +1153,6 @@ class ExamGenerator:
                 for topic, chunk_list in chunks_by_topic.items()
             },
         }
+
+
+exam_generator = ExamGenerator()
