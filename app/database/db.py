@@ -1,23 +1,24 @@
+import logging
 from datetime import datetime, timezone
+
 from sqlalchemy import text
 from sqlalchemy.orm import selectinload
-from sqlmodel import and_, select, or_, delete, insert, exists, desc
-import logging
+from sqlmodel import and_, delete, desc, exists, insert, or_, select
 
+import app.database.enums as enums
+from app.database.engine import get_session
+from app.database.enums import SubjectClassStatus
 from app.database.models import (
-    User,
-    Message,
-    TeacherClass,
-    Class,
     Chunk,
-    Subject,
-    Resource,
+    Class,
     ClassResource,
     GeneratedExam,
+    Message,
+    Resource,
+    Subject,
+    TeacherClass,
+    User,
 )
-import app.database.enums as enums
-from app.database.enums import SubjectClassStatus
-from app.database.engine import get_session
 from app.utils import embedder
 
 logger = logging.getLogger(__name__)
@@ -660,7 +661,7 @@ async def get_users_to_mark_inactive(hours_threshold: int) -> list[User]:
     Returns:
         list[User]: List of active users who should be marked as inactive
     """
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     async with get_session() as session:
         try:

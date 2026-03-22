@@ -1,8 +1,10 @@
-import httpx
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+import pytest
+
 import app.database.enums as enums
+from app.config import settings
 from app.database.models import Message, User
 from app.services.latex_image_service import (
     _escape_text_mode_special_chars,
@@ -12,7 +14,6 @@ from app.services.latex_image_service import (
 )
 from app.services.messaging_service import MessagingService
 from app.services.whatsapp_service import DocumentType, ImageType, WhatsAppClient
-from app.config import settings
 
 
 @pytest.mark.asyncio

@@ -1,19 +1,20 @@
-import re
-import uuid
+import inspect
 import json
 import logging
-import inspect
-from langchain_core.messages import AIMessage
-from app.database.models import Message
-from app.database.enums import MessageRole
-from typing import Optional, Any
+import re
+import uuid
 from dataclasses import dataclass
-from app.database.models import User
-from app.tools.registry import (
-    get_tools_metadata,
-    TOOL_FUNCTION_MAP,
-)
+from typing import Any, Optional
+
+from langchain_core.messages import AIMessage
+
+from app.database.enums import MessageRole
+from app.database.models import Message, User
 from app.tools.internal_args import get_internal_tool_args
+from app.tools.registry import (
+    TOOL_FUNCTION_MAP,
+    get_tools_metadata,
+)
 
 
 # Simple Types replacements for OpenAI types

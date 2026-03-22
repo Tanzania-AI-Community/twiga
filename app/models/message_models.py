@@ -1,6 +1,6 @@
-from pydantic import BaseModel
-from typing import List, Dict, Literal, Optional, Union, Any
-from pydantic import model_validator
+from typing import Any, Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, model_validator
 
 
 class TextObject(BaseModel):

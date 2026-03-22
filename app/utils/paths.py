@@ -1,7 +1,7 @@
 # app/core/paths.py
 
-from pathlib import Path
 from functools import cached_property
+from pathlib import Path
 
 
 class ProjectPaths:

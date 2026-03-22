@@ -10,6 +10,7 @@ Usage:
 """
 
 import asyncio
+
 from app.tools.tool_code.generate_necta_style_exam.main import generate_necta_style_exam
 
 

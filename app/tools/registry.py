@@ -1,7 +1,8 @@
 import copy
-from enum import Enum
 import json
 import logging
+from enum import Enum
+
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.generate_necta_style_exam.main import generate_necta_style_exam
 from app.tools.tool_code.search_knowledge.main import search_knowledge

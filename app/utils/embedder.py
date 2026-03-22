@@ -1,10 +1,12 @@
 import logging
 from typing import List
+
 import requests
 from langchain_openai import OpenAIEmbeddings
 from langchain_together.embeddings import TogetherEmbeddings
 from pydantic import SecretStr
-from app.config import embedding_settings, EmbeddingProvider
+
+from app.config import EmbeddingProvider, embedding_settings
 
 logger = logging.getLogger(__name__)
 

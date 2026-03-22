@@ -1,10 +1,11 @@
-from typing import Any, Dict
-from fastapi.responses import PlainTextResponse
 import logging
+from typing import Any, Dict
 
+from fastapi.responses import PlainTextResponse
+
+import app.utils.flow_utils as futil
 from app.database import db
 from app.database.models import User
-import app.utils.flow_utils as futil
 
 logger = logging.getLogger(__name__)
 

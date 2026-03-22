@@ -1,7 +1,8 @@
 # app/core/prompts.py
 
-from typing import Dict
 import logging
+from typing import Dict
+
 from app.utils.paths import paths
 
 logger = logging.getLogger(__name__)

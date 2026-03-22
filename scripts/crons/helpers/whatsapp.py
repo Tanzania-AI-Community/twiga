@@ -5,8 +5,8 @@ This module provides a standalone WhatsApp client for sending
 template messages without depending on the main application.
 """
 
-import os
 import logging
+import os
 from typing import Optional
 
 import httpx

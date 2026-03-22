@@ -1,21 +1,22 @@
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-from datetime import datetime, timezone, date
+from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 from pydantic import BaseModel, ConfigDict
 from sqlmodel import (
-    Index,
-    Field,
-    SQLModel,
-    UniqueConstraint,
-    Column,
-    DateTime,
-    String,
     ARRAY,
     JSON,
-    Relationship,
+    Column,
     Date,
+    DateTime,
+    Field,
+    Index,
+    Relationship,
+    SQLModel,
+    String,
+    UniqueConstraint,
 )
-from pgvector.sqlalchemy import Vector
-import sqlalchemy as sa
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -244,9 +245,9 @@ class Message(SQLModel, table=True):
     def to_langchain_message(self) -> "BaseMessage":
         """Convert message to LangChain BaseMessage format"""
         from langchain_core.messages import (
-            SystemMessage,
-            HumanMessage,
             AIMessage,
+            HumanMessage,
+            SystemMessage,
             ToolMessage,
         )
 
@@ -304,9 +305,9 @@ class Message(SQLModel, table=True):
     def from_langchain_message(cls, message: "BaseMessage", user_id: int) -> "Message":
         """Create message from LangChain BaseMessage format"""
         from langchain_core.messages import (
-            SystemMessage,
-            HumanMessage,
             AIMessage,
+            HumanMessage,
+            SystemMessage,
             ToolMessage,
         )
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import os
-import argparse
+from typing import Any, Dict, List
+
 import requests
-from typing import List, Dict, Any
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"

@@ -10,8 +10,9 @@ Usage:
 """
 
 import asyncio
-import sys
 import logging
+import sys
+
 from app.tools.tool_code.solve_equation.main import solve_equation
 
 logging.basicConfig(
