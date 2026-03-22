@@ -1,5 +1,6 @@
-import logging
 import json
+import logging
+
 import app.database.db as db
 from app.database.db import create_new_exam
 from app.database.enums import ChunkType
@@ -47,8 +48,7 @@ async def generate_necta_style_exam(
             chunks_by_topic[topic] = topic_chunks
 
         logger.info(
-            "Retrieved chunks for topics: %s",
-            {topic: len(chunks) for topic, chunks in chunks_by_topic.items()},
+            f"Retrieved chunks for topics: { {topic: len(chunks) for topic, chunks in chunks_by_topic.items()} }"
         )
 
         exam_spec = {
@@ -75,7 +75,7 @@ async def generate_necta_style_exam(
             "default_difficulty": "medium",
         }
 
-        logger.info("Exam specification: %s", exam_spec)
+        logger.info(f"Exam specification: {exam_spec}")
 
         generator = ExamGenerator()
         exam_json = await generator.generate_exam(
@@ -98,9 +98,7 @@ async def generate_necta_style_exam(
             topics=topics,
             user_id=user_id,
         )
-        logger.info(
-            "Persisted generated exam with exam_id=%s", persisted_exam_record.id
-        )
+        logger.info(f"Persisted generated exam with exam_id={persisted_exam_record.id}")
 
         return json.dumps(
             {
@@ -113,8 +111,8 @@ async def generate_necta_style_exam(
             ensure_ascii=False,
         )
     except ExamGenerationError as e:
-        logger.error("Exam generation pipeline failed: %s", e, exc_info=True)
+        logger.error(f"Exam generation pipeline failed: {e}", exc_info=True)
         raise Exception(f"Failed to generate Necta-style exam. Error: {str(e)}")
     except Exception as e:
-        logger.error("Error in generate_necta_style_exam: %s", e, exc_info=True)
+        logger.error(f"Error in generate_necta_style_exam: {e}", exc_info=True)
         raise Exception(f"Failed to generate Necta-style exam. Error: {str(e)}")

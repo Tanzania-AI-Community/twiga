@@ -2,7 +2,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Iterable, Optional, Tuple
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -77,8 +77,8 @@ def question_heading_markup(question_number: int, marks: Any, prompt: str = "") 
 
 
 def append_question_block(
-    story: List[Any],
-    block: List[Any],
+    story: list[Any],
+    block: list[Any],
     spacer_height: int,
     *,
     keep_together: bool = True,
@@ -110,7 +110,7 @@ def roman_like_label(index: int) -> str:
     return str(index)
 
 
-def extract_question_number(question: Dict[str, Any], fallback: int) -> int:
+def extract_question_number(question: dict[str, Any], fallback: int) -> int:
     question_id = safe_text(question.get("id"))
     match = re.search(r"Q(\d+)", question_id)
     if match:
@@ -118,7 +118,7 @@ def extract_question_number(question: Dict[str, Any], fallback: int) -> int:
     return fallback
 
 
-def detect_section_a_question_type(question: Dict[str, Any]) -> str:
+def detect_section_a_question_type(question: dict[str, Any]) -> str:
     """Infer Section A question type when `type` is missing in JSON."""
     explicit_type = safe_text(question.get("type", "")).lower()
     if explicit_type:
@@ -136,7 +136,7 @@ def detect_section_a_question_type(question: Dict[str, Any]) -> str:
     return ""
 
 
-def sort_questions(questions: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def sort_questions(questions: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     indexed = list(enumerate(list(questions)))
     indexed.sort(
         key=lambda pair: (extract_question_number(pair[1], pair[0] + 1), pair[0])
@@ -152,9 +152,9 @@ def normalize_option_text(label: str, text: str) -> str:
     return label_prefix.sub("", safe_text(text))
 
 
-def normalize_mcq_options(raw_options: Any) -> List[Tuple[str, str]]:
+def normalize_mcq_options(raw_options: Any) -> list[Tuple[str, str]]:
     if isinstance(raw_options, dict):
-        options: List[Tuple[str, str]] = []
+        options: list[Tuple[str, str]] = []
         for label in ["A", "B", "C", "D", "E"]:
             if label in raw_options:
                 options.append(
@@ -177,11 +177,11 @@ def normalize_mcq_options(raw_options: Any) -> List[Tuple[str, str]]:
     return options
 
 
-def normalize_list_entries(raw_items: Any, label_style: str) -> List[Tuple[str, str]]:
+def normalize_list_entries(raw_items: Any, label_style: str) -> list[Tuple[str, str]]:
     if not isinstance(raw_items, list):
         return []
 
-    normalized: List[Tuple[str, str]] = []
+    normalized: list[Tuple[str, str]] = []
     for idx, item in enumerate(raw_items, start=1):
         if isinstance(item, dict):
             label = safe_text(item.get("label"))
@@ -199,11 +199,11 @@ def normalize_list_entries(raw_items: Any, label_style: str) -> List[Tuple[str, 
     return normalized
 
 
-def format_answer_lines(value: Any, prefix: str = "") -> List[str]:
+def format_answer_lines(value: Any, prefix: str = "") -> list[str]:
     if value is None:
         return []
     if isinstance(value, dict):
-        lines: List[str] = []
+        lines: list[str] = []
         for key, sub_value in value.items():
             key_text = safe_text(key)
             next_prefix = f"{prefix}{key_text}: " if prefix else f"{key_text}: "
@@ -326,7 +326,7 @@ def build_styles() -> Styles:
 
 
 def render_header(
-    story: List[Any], exam: Dict[str, Any], st: Styles, is_solution: bool
+    story: list[Any], exam: dict[str, Any], st: Styles, is_solution: bool
 ) -> None:
     meta = exam.get("meta", {})
 
@@ -377,7 +377,7 @@ def render_header(
     story.append(Spacer(1, 6))
 
 
-def render_instructions(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_instructions(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     instructions = exam.get("instructions", [])
     if not instructions:
         return
@@ -388,12 +388,12 @@ def render_instructions(story: List[Any], exam: Dict[str, Any], st: Styles) -> N
     story.append(Spacer(1, 6))
 
 
-def render_constants(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_constants(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     constants = exam.get("constants", {})
     if not isinstance(constants, dict) or not constants:
         return
 
-    lines: List[str] = []
+    lines: list[str] = []
     atomic_masses = constants.get("atomic_masses", {})
     if isinstance(atomic_masses, dict) and atomic_masses:
         pairs = [f"{key} = {atomic_masses[key]}" for key in atomic_masses.keys()]
@@ -426,7 +426,7 @@ def render_constants(story: List[Any], exam: Dict[str, Any], st: Styles) -> None
 
 
 def render_section_header(
-    story: List[Any],
+    story: list[Any],
     st: Styles,
     section_letter: str,
     marks: Any,
@@ -446,7 +446,7 @@ def render_section_header(
 
 
 def render_section_a(
-    story: List[Any], exam: Dict[str, Any], st: Styles, is_solution: bool
+    story: list[Any], exam: dict[str, Any], st: Styles, is_solution: bool
 ) -> None:
     section_a = exam.get("section_A", {})
     if not isinstance(section_a, dict) or not section_a:
@@ -464,7 +464,7 @@ def render_section_a(
         sort_questions(section_a.get("question_list", [])), start=1
     ):
         question_type = detect_section_a_question_type(question)
-        question_block: List[Any] = []
+        question_block: list[Any] = []
         if question_type == "multiple_choice":
             render_multiple_choice_question(
                 question_block, question, st, is_solution, fallback_idx
@@ -490,8 +490,8 @@ def render_section_a(
 
 
 def render_multiple_choice_question(
-    story: List[Any],
-    question: Dict[str, Any],
+    story: list[Any],
+    question: dict[str, Any],
     st: Styles,
     is_solution: bool,
     fallback_number: int,
@@ -504,7 +504,7 @@ def render_multiple_choice_question(
 
     items = question.get("items", [])
     for idx, item in enumerate(items, start=1):
-        item_block: List[Any] = []
+        item_block: list[Any] = []
         label = safe_text(item.get("label")) or roman_like_label(idx)
         item_text = safe_text(item.get("question", ""))
         item_block.append(p(f"({label}) {item_text}", st.part))
@@ -547,8 +547,8 @@ def render_multiple_choice_question(
 
 
 def render_item_matching_question(
-    story: List[Any],
-    question: Dict[str, Any],
+    story: list[Any],
+    question: dict[str, Any],
     st: Styles,
     is_solution: bool,
     fallback_number: int,
@@ -563,7 +563,7 @@ def render_item_matching_question(
     list_b = normalize_list_entries(question.get("listB", []), label_style="alpha")
     row_count = max(1, len(list_a), len(list_b))
 
-    rows: List[List[Any]] = [[p("List A", st.bold), p("List B", st.bold)]]
+    rows: list[list[Any]] = [[p("List A", st.bold), p("List B", st.bold)]]
     for index in range(row_count):
         left = ""
         right = ""
@@ -593,7 +593,7 @@ def render_item_matching_question(
         if isinstance(answers_pairs, dict) and answers_pairs:
             story.append(Spacer(1, 4))
             story.append(p("Suggested matching answers:", st.answer_heading))
-            answer_rows: List[List[Any]] = [
+            answer_rows: list[list[Any]] = [
                 [p("List A Item", st.answer), p("Matching List B Item", st.answer)]
             ]
             for key, value in answers_pairs.items():
@@ -611,7 +611,7 @@ def render_item_matching_question(
 
 
 def render_section_b(
-    story: List[Any], exam: Dict[str, Any], st: Styles, is_solution: bool
+    story: list[Any], exam: dict[str, Any], st: Styles, is_solution: bool
 ) -> None:
     section_b = exam.get("section_B", {})
     if not isinstance(section_b, dict) or not section_b:
@@ -628,7 +628,7 @@ def render_section_b(
 
     questions = sort_questions(section_b.get("question_list", []))
     for fallback_idx, question in enumerate(questions, start=1):
-        question_block: List[Any] = []
+        question_block: list[Any] = []
         render_short_answer_question(
             question_block, question, st, is_solution, fallback_idx
         )
@@ -636,8 +636,8 @@ def render_section_b(
 
 
 def render_short_answer_question(
-    story: List[Any],
-    question: Dict[str, Any],
+    story: list[Any],
+    question: dict[str, Any],
     st: Styles,
     is_solution: bool,
     fallback_number: int,
@@ -672,7 +672,7 @@ def render_short_answer_question(
 
 
 def render_section_c(
-    story: List[Any], exam: Dict[str, Any], st: Styles, is_solution: bool
+    story: list[Any], exam: dict[str, Any], st: Styles, is_solution: bool
 ) -> None:
     section_c = exam.get("section_C", {})
     if not isinstance(section_c, dict) or not section_c:
@@ -689,7 +689,7 @@ def render_section_c(
 
     questions = sort_questions(section_c.get("question_list", []))
     for fallback_idx, question in enumerate(questions, start=1):
-        question_block: List[Any] = []
+        question_block: list[Any] = []
         render_long_answer_question(
             question_block, question, st, is_solution, fallback_idx
         )
@@ -697,8 +697,8 @@ def render_section_c(
 
 
 def render_long_answer_question(
-    story: List[Any],
-    question: Dict[str, Any],
+    story: list[Any],
+    question: dict[str, Any],
     st: Styles,
     is_solution: bool,
     fallback_number: int,
@@ -731,7 +731,7 @@ def render_long_answer_question(
         render_solution_block(story, question.get("answer"), st)
 
 
-def render_solution_block(story: List[Any], answer_payload: Any, st: Styles) -> None:
+def render_solution_block(story: list[Any], answer_payload: Any, st: Styles) -> None:
     if not answer_payload:
         return
 
@@ -768,8 +768,8 @@ def page_number_footer(canvas: Any, doc: Any) -> None:
     canvas.restoreState()
 
 
-def build_story(exam: Dict[str, Any], st: Styles, is_solution: bool) -> List[Any]:
-    story: List[Any] = []
+def build_story(exam: dict[str, Any], st: Styles, is_solution: bool) -> list[Any]:
+    story: list[Any] = []
     render_header(story, exam, st, is_solution)
     render_instructions(story, exam, st)
     render_constants(story, exam, st)
@@ -780,7 +780,7 @@ def build_story(exam: Dict[str, Any], st: Styles, is_solution: bool) -> List[Any
 
 
 def build_pdf(
-    exam: Dict[str, Any], out_path: str | Path, is_solution: bool = False
+    exam: dict[str, Any], out_path: str | Path, is_solution: bool = False
 ) -> None:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -800,15 +800,15 @@ def build_pdf(
     doc.build(story, onFirstPage=page_number_footer, onLaterPages=page_number_footer)
 
 
-def build_exam_pdf(exam: Dict[str, Any], out_path: str | Path) -> None:
+def build_exam_pdf(exam: dict[str, Any], out_path: str | Path) -> None:
     build_pdf(exam, out_path, is_solution=False)
 
 
-def build_solution_pdf(exam: Dict[str, Any], out_path: str | Path) -> None:
+def build_solution_pdf(exam: dict[str, Any], out_path: str | Path) -> None:
     build_pdf(exam, out_path, is_solution=True)
 
 
-def load_exam_json(json_path: str | Path) -> Dict[str, Any]:
+def load_exam_json(json_path: str | Path) -> dict[str, Any]:
     return json.loads(Path(json_path).read_text(encoding="utf-8"))
 
 

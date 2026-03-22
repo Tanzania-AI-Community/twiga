@@ -9,7 +9,6 @@ from typing import Optional
 import app.database.db as db
 from app.services.exam_pdf_generation_service import build_exam_pdf, build_solution_pdf
 
-
 EXAM_DELIVERY_MARKER_RE = re.compile(
     r"\{\{?TWIGA_EXAM_DELIVERY:\s*(\{.*?\})\}\}?",
     re.DOTALL,
@@ -44,6 +43,9 @@ class ExamDeliveryService:
 
     def parse_delivery_marker(self, content: str | None) -> ExamDeliveryMarker:
         if content is None:
+            self.logger.warning(
+                "Skipping exam delivery marker parsing because content is None."
+            )
             return ExamDeliveryMarker(
                 marker_found=False,
                 marker_valid=False,
@@ -53,6 +55,9 @@ class ExamDeliveryService:
 
         matches = list(EXAM_DELIVERY_MARKER_RE.finditer(content))
         if not matches:
+            self.logger.warning(
+                "No exam delivery marker found in assistant content. Returning original content."
+            )
             return ExamDeliveryMarker(
                 marker_found=False,
                 marker_valid=False,
@@ -93,7 +98,9 @@ class ExamDeliveryService:
                 solution_pdf_ready=False,
                 subject=None,
                 topics=[],
-                errors=["Invalid exam_id format provided for exam delivery."],
+                errors=[
+                    f"Invalid exam_id format provided for exam delivery with exam_id: {exam_id}"
+                ],
             )
 
         exam_pdf_path, solution_pdf_path = self._resolve_exam_pdf_paths(exam_id)
@@ -108,9 +115,7 @@ class ExamDeliveryService:
             exam_record = await db.get_exam(exam_id)
         except Exception as exc:
             self.logger.error(
-                "Failed to load exam record for exam_id=%s: %s",
-                exam_id,
-                exc,
+                f"Failed to load exam record for exam_id={exam_id}: {exc}",
                 exc_info=True,
             )
             exam_record = None
@@ -155,9 +160,7 @@ class ExamDeliveryService:
                     errors.append(f"Exam PDF was not created for exam_id={exam_id}.")
             except Exception as exc:
                 self.logger.error(
-                    "Failed to build exam PDF for exam_id=%s: %s",
-                    exam_id,
-                    exc,
+                    f"Failed to build exam PDF for exam_id={exam_id}: {exc}",
                     exc_info=True,
                 )
                 errors.append(f"Failed to render exam PDF for exam_id={exam_id}.")
@@ -172,9 +175,7 @@ class ExamDeliveryService:
                     )
             except Exception as exc:
                 self.logger.error(
-                    "Failed to build solution PDF for exam_id=%s: %s",
-                    exam_id,
-                    exc,
+                    f"Failed to build solution PDF for exam_id={exam_id}: {exc}",
                     exc_info=True,
                 )
                 errors.append(f"Failed to render solution PDF for exam_id={exam_id}.")

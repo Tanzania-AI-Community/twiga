@@ -1,18 +1,19 @@
 import copy
 import json
 import logging
+import random
 import re
 import uuid
-import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple
+
 from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
-
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class ExamSpecification:
     default_difficulty: str = "medium"
 
     @classmethod
-    def from_dict(cls, payload: Optional[Dict[str, Any]]) -> "ExamSpecification":
+    def from_dict(cls, payload: Optional[dict[str, Any]]) -> "ExamSpecification":
         if payload is None:
             return cls()
 
@@ -132,9 +133,9 @@ class ExamGenerator:
     async def generate_exam(
         self,
         subject: str,
-        chunks_by_topic: Dict[str, List[Any]],
-        exam_spec: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        chunks_by_topic: dict[str, list[Any]],
+        exam_spec: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         subject = subject.strip()
         if not subject:
             raise ExamGenerationError("subject is required to generate the exam.")
@@ -167,12 +168,12 @@ class ExamGenerator:
         section_b["marks"] = spec.section_b_marks
         section_c["marks"] = spec.section_c_marks
 
-        section_a_questions: List[Dict[str, Any]] = []
-        section_b_questions: List[Dict[str, Any]] = []
-        section_c_questions: List[Dict[str, Any]] = []
+        section_a_questions: list[dict[str, Any]] = []
+        section_b_questions: list[dict[str, Any]] = []
+        section_c_questions: list[dict[str, Any]] = []
 
         # track already generated questions, modified in place during question generation
-        previous_questions: List[str] = []
+        previous_questions: list[str] = []
 
         if spec.num_section_a_mcq_items > 0:
             mcq_block = await self._build_mcq_block(
@@ -269,7 +270,7 @@ class ExamGenerator:
         self._set_generation_trace(exam_json, chunks_by_topic)
         return exam_json
 
-    def _load_template_json(self, filename: str) -> Dict[str, Any]:
+    def _load_template_json(self, filename: str) -> dict[str, Any]:
         path = self.template_dir / filename
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -280,7 +281,7 @@ class ExamGenerator:
 
     def _fill_exam_metadata(
         self,
-        exam_json: Dict[str, Any],
+        exam_json: dict[str, Any],
         spec: ExamSpecification,
         subject: str,
     ) -> None:
@@ -297,15 +298,15 @@ class ExamGenerator:
         self,
         subject: str,
         topics: Sequence[str],
-        chunks_by_topic: Dict[str, List[Any]],
+        chunks_by_topic: dict[str, list[Any]],
         num_items: int,
-        previous_questions: List[str],
+        previous_questions: list[str],
         difficulty: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Builds a block of multiple choice questions for Section A.
         """
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
 
         for question_num in range(num_items):
             topic = topics[question_num % len(topics)]
@@ -353,12 +354,12 @@ class ExamGenerator:
         subject: str,
         topic: str,
         chunk_list: Sequence[Any],
-        previous_questions: List[str],
-        template: Dict[str, Any],
+        previous_questions: list[str],
+        template: dict[str, Any],
         question_id: str,
         num_marks: int,
         difficulty: str,
-    ) -> Tuple[bool, Dict[str, Any]]:
+    ) -> Tuple[bool, dict[str, Any]]:
         try:
             context_str = self._format_context(chunk_list)
             previous_questions_str = (
@@ -472,12 +473,12 @@ class ExamGenerator:
 
     async def _apply_llm_validation_for_answer_leakage_and_format(
         self,
-        question_payload: Dict[str, Any],
+        question_payload: dict[str, Any],
         question_type: QuestionType,
         topic: str,
-        template: Dict[str, Any],
+        template: dict[str, Any],
         expected_total_marks: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         system_prompt = prompt_manager.format_prompt("exam_generator_validator_system")
         constraints = self._constraints_for(question_type, expected_total_marks)
         prompt_template = self._template_without_system_fields(template)
@@ -524,7 +525,7 @@ class ExamGenerator:
         expected_total_marks: Optional[int] = None,
     ) -> str:
         constraints_list = self.question_constraints.get(question_type.value, [])
-        dynamic_constraints: List[str] = []
+        dynamic_constraints: list[str] = []
 
         if expected_total_marks is not None:
             if question_type == QuestionType.SHORT_ANSWER:
@@ -550,8 +551,8 @@ class ExamGenerator:
         return "\n".join(f"- {constraint}" for constraint in all_constraints)
 
     def _normalize_question_payload(
-        self, question_type: QuestionType, payload: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, question_type: QuestionType, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Flatten occasional LLM wrappers such as {"short_answer": {...}, ...}
         into the expected top-level question shape.
@@ -570,7 +571,7 @@ class ExamGenerator:
                 normalized[key] = value
         return normalized
 
-    def _parse_json_response(self, raw_content: Any) -> Dict[str, Any]:
+    def _parse_json_response(self, raw_content: Any) -> dict[str, Any]:
         if isinstance(raw_content, dict):
             return raw_content
 
@@ -621,7 +622,7 @@ class ExamGenerator:
     def _merge_with_template(self, template: Any, payload: Any) -> Any:
         if isinstance(template, dict):
             payload_dict = payload if isinstance(payload, dict) else {}
-            merged: Dict[str, Any] = {}
+            merged: dict[str, Any] = {}
             for key, template_val in template.items():
                 merged[key] = self._merge_with_template(
                     template_val,
@@ -643,8 +644,8 @@ class ExamGenerator:
         return copy.deepcopy(template) if payload is None else payload
 
     def _template_without_system_fields(
-        self, template: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, template: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Remove system-owned fields from the template shown to the LLM.
         We set these fields in code after parsing.
@@ -689,7 +690,7 @@ class ExamGenerator:
 
         return None
 
-    def _normalize_mcq_options(self, options: Any) -> List[Dict[str, str]]:
+    def _normalize_mcq_options(self, options: Any) -> list[dict[str, str]]:
         if isinstance(options, dict):
             return [
                 {"label": label, "text": str(options.get(label, ""))}
@@ -700,7 +701,7 @@ class ExamGenerator:
         if not isinstance(options, list):
             return []
 
-        normalized: List[Dict[str, str]] = []
+        normalized: list[dict[str, str]] = []
         for idx, option in enumerate(options):
             if isinstance(option, dict):
                 label = str(
@@ -714,7 +715,7 @@ class ExamGenerator:
             normalized.append({"label": label, "text": text})
         return normalized
 
-    def _normalize_mcq_answer(self, payload: Dict[str, Any]) -> Optional[str]:
+    def _normalize_mcq_answer(self, payload: dict[str, Any]) -> Optional[str]:
         answer = payload.get("answer")
         if isinstance(answer, str) and answer.strip():
             return answer.strip().upper()
@@ -730,7 +731,7 @@ class ExamGenerator:
     def _validate_question_format(
         self,
         question_type: QuestionType,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
     ) -> bool:
         try:
             if question_type == QuestionType.MULTIPLE_CHOICE:
@@ -755,7 +756,7 @@ class ExamGenerator:
             )
             return False
 
-    def _validate_multiple_choice(self, payload: Dict[str, Any]) -> None:
+    def _validate_multiple_choice(self, payload: dict[str, Any]) -> None:
         question = str(payload.get("question", "")).strip()
         if not question:
             raise ExamGenerationError("multiple_choice.question is required.")
@@ -785,7 +786,7 @@ class ExamGenerator:
         if not has_answer and self._normalize_mcq_answer(payload) is None:
             raise ExamGenerationError("multiple_choice.answer is required.")
 
-    def _validate_item_matching(self, payload: Dict[str, Any]) -> None:
+    def _validate_item_matching(self, payload: dict[str, Any]) -> None:
         prompt = str(payload.get("prompt", "")).strip()
         if not prompt:
             raise ExamGenerationError("item_matching.prompt is required.")
@@ -803,7 +804,7 @@ class ExamGenerator:
                 "item_matching.answers_pairs must be a non-empty object."
             )
 
-    def _validate_short_answer(self, payload: Dict[str, Any]) -> None:
+    def _validate_short_answer(self, payload: dict[str, Any]) -> None:
         try:
             total_marks = int(payload.get("marks", 0))
         except (TypeError, ValueError) as exc:
@@ -939,7 +940,7 @@ class ExamGenerator:
                 "short_answer.answer must include example_answer or marking_points."
             )
 
-    def _validate_long_answer(self, payload: Dict[str, Any]) -> None:
+    def _validate_long_answer(self, payload: dict[str, Any]) -> None:
         description = str(payload.get("description", "")).strip()
         if not description:
             raise ExamGenerationError(
@@ -1015,7 +1016,7 @@ class ExamGenerator:
             )
 
     def _question_signature(
-        self, question_type: QuestionType, payload: Dict[str, Any]
+        self, question_type: QuestionType, payload: dict[str, Any]
     ) -> str:
         if question_type == QuestionType.MULTIPLE_CHOICE:
             return str(payload.get("question", "")).strip()
@@ -1023,14 +1024,14 @@ class ExamGenerator:
             return str(payload.get("prompt", "")).strip()
         if question_type == QuestionType.SHORT_ANSWER:
             parts = payload.get("parts", [])
-            signature_parts: List[str] = []
+            signature_parts: list[str] = []
             if isinstance(parts, list):
                 for part in parts:
                     if not isinstance(part, dict):
                         continue
                     label = str(part.get("label", "")).strip().lower()
                     prompt = str(part.get("prompt", "")).strip()
-                    sub_texts: List[str] = []
+                    sub_texts: list[str] = []
                     sub_questions = part.get("sub_questions", [])
                     if isinstance(sub_questions, list):
                         for sub_question in sub_questions:
@@ -1058,7 +1059,7 @@ class ExamGenerator:
             prompt = (
                 str(task.get("prompt", "")).strip() if isinstance(task, dict) else ""
             )
-            sub_prompts: List[str] = []
+            sub_prompts: list[str] = []
             if isinstance(task, dict):
                 for sub_question in task.get("sub_questions", []):
                     if isinstance(sub_question, dict):
@@ -1073,7 +1074,7 @@ class ExamGenerator:
         if not chunks:
             return "No context was provided for this topic."
 
-        lines: List[str] = []
+        lines: list[str] = []
         seen_ids = set()
         for chunk in chunks:
             chunk_id = self._get_chunk_attr(chunk, "id", "unknown")
@@ -1094,7 +1095,7 @@ class ExamGenerator:
             lines.append(str(content))
         return "\n".join(lines)
 
-    def _extract_chunk_ids(self, chunks: Sequence[Any]) -> List[Any]:
+    def _extract_chunk_ids(self, chunks: Sequence[Any]) -> list[Any]:
         return [self._get_chunk_attr(chunk, "id", None) for chunk in chunks]
 
     def _get_chunk_attr(self, chunk: Any, attr: str, default: Any) -> Any:
@@ -1102,7 +1103,7 @@ class ExamGenerator:
             return chunk.get(attr, default)
         return getattr(chunk, attr, default)
 
-    def _apply_total_question_instruction(self, exam_json: Dict[str, Any]) -> None:
+    def _apply_total_question_instruction(self, exam_json: dict[str, Any]) -> None:
         section_a_count = int(
             exam_json.get("section_A", {}).get("total_num_questions", 0)
         )
@@ -1120,7 +1121,7 @@ class ExamGenerator:
             for line in instructions
         ]
 
-    def _fill_required_fallbacks(self, exam_json: Dict[str, Any], subject: str) -> None:
+    def _fill_required_fallbacks(self, exam_json: dict[str, Any], subject: str) -> None:
         meta = exam_json.setdefault("meta", {})
         meta.setdefault("country", "THE UNITED REPUBLIC OF TANZANIA")
         meta.setdefault(
@@ -1140,8 +1141,8 @@ class ExamGenerator:
 
     def _set_generation_trace(
         self,
-        exam_json: Dict[str, Any],
-        chunks_by_topic: Dict[str, List[Any]],
+        exam_json: dict[str, Any],
+        chunks_by_topic: dict[str, list[Any]],
     ) -> None:
         exam_json["generation_trace"] = {
             "exam_id": str(uuid.uuid4()),

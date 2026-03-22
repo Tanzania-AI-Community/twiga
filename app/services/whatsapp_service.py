@@ -1,14 +1,17 @@
-from typing import Any, Dict, List, Optional
 import json
-from fastapi import Request
-from fastapi.responses import PlainTextResponse, JSONResponse
 import logging
+import os
+from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
 
 import httpx
+from fastapi import Request
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-from app.config import settings
 import app.database.db as db
 import app.database.enums as enums
+from app.config import settings
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
 from app.utils.whatsapp_utils import (
@@ -16,9 +19,6 @@ from app.utils.whatsapp_utils import (
     generate_payload_for_document,
     generate_payload_for_image,
 )
-from pathlib import Path
-from enum import Enum
-import os
 
 
 class ImageType(str, Enum):
@@ -52,21 +52,21 @@ class WhatsAppClient:
         self.client = httpx.AsyncClient(base_url=self.url)
 
     async def send_message(
-        self, wa_id: str, message: str, options: Optional[List[str]] = None
+        self, wa_id: str, message: str, options: Optional[list[str]] = None
     ) -> None:
         if settings.mock_whatsapp:
             return
 
         try:
-            payload: Dict[str, Any] = generate_payload(wa_id, message, options)
+            payload: dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
             )
             log_httpx_response(response)
         except httpx.RequestError as e:
-            self.logger.error("Request Error: %s", e)
+            self.logger.error(f"Request Error: {e}")
         except Exception as e:
-            self.logger.error("Unexpected Error: %s", e)
+            self.logger.error(f"Unexpected Error: {e}")
 
     async def send_image_message(
         self,
@@ -77,7 +77,7 @@ class WhatsAppClient:
     ) -> bool:
         if settings.mock_whatsapp:
             self.logger.info(
-                "Mock send_image_message called for %s with image %s", wa_id, image_path
+                f"Mock send_image_message called for {wa_id} with image {image_path}"
             )
             return True
 
@@ -107,10 +107,10 @@ class WhatsAppClient:
             return True
 
         except httpx.RequestError as e:
-            self.logger.error("Image Message Request Error: %s", e)
+            self.logger.error(f"Image Message Request Error: {e}")
 
         except Exception as e:
-            self.logger.error("Image Message Unexpected Error: %s", e)
+            self.logger.error(f"Image Message Unexpected Error: {e}")
 
         finally:
             if media_id:
@@ -120,10 +120,7 @@ class WhatsAppClient:
                     )  # Clean up uploaded media and local file
                 except Exception as exc:
                     self.logger.warning(
-                        "Image cleanup failed for media %s (%s): %s",
-                        media_id,
-                        image_path,
-                        exc,
+                        f"Image cleanup failed for media {media_id} ({image_path}): {exc}"
                     )
             else:
                 self._delete_local_file(image_path)
@@ -141,9 +138,7 @@ class WhatsAppClient:
     ) -> bool:
         if settings.mock_whatsapp:
             self.logger.info(
-                "Mock send_document_message called for %s with document %s",
-                wa_id,
-                document_path,
+                f"Mock send_document_message called for {wa_id} with document {document_path}"
             )
             return True
 
@@ -175,9 +170,9 @@ class WhatsAppClient:
             response.raise_for_status()
             return True
         except httpx.RequestError as e:
-            self.logger.error("Document Message Request Error: %s", e)
+            self.logger.error(f"Document Message Request Error: {e}")
         except Exception as e:
-            self.logger.error("Document Message Unexpected Error: %s", e)
+            self.logger.error(f"Document Message Unexpected Error: {e}")
         finally:
             if media_id:
                 try:
@@ -188,10 +183,7 @@ class WhatsAppClient:
                     )
                 except Exception as exc:
                     self.logger.warning(
-                        "Document cleanup failed for media %s (%s): %s",
-                        media_id,
-                        document_path,
-                        exc,
+                        f"Document cleanup failed for media {media_id} ({document_path}): {exc}"
                     )
             elif delete_local_file:
                 self._delete_local_file(document_path)
@@ -214,10 +206,10 @@ class WhatsAppClient:
             log_httpx_response(response)
             response.raise_for_status()
         except httpx.RequestError as e:
-            self.logger.error("Media Delete Request Error: %s", e)
+            self.logger.error(f"Media Delete Request Error: {e}")
             raise
         except Exception as e:
-            self.logger.error("Media Delete Unexpected Error: %s", e)
+            self.logger.error(f"Media Delete Unexpected Error: {e}")
             raise
         finally:
             if delete_local_file:
@@ -228,7 +220,7 @@ class WhatsAppClient:
             if os.path.exists(image_path):
                 os.remove(image_path)
         except Exception as e:
-            self.logger.error("Failed to delete file %s: %s", image_path, e)
+            self.logger.error(f"Failed to delete file {image_path}: {e}")
 
     async def upload_media(
         self,
@@ -271,10 +263,10 @@ class WhatsAppClient:
                 )
             return media_id
         except httpx.RequestError as e:
-            self.logger.error("Media Upload Request Error: %s", e)
+            self.logger.error(f"Media Upload Request Error: {e}")
             raise
         except Exception as e:
-            self.logger.error("Media Upload Unexpected Error: %s", e)
+            self.logger.error(f"Media Upload Unexpected Error: {e}")
             raise
 
     async def send_template_message(
@@ -288,7 +280,7 @@ class WhatsAppClient:
 
         try:
             # Create payload with image header for template
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 "messaging_product": "whatsapp",
                 "to": wa_id,
                 "type": "template",
@@ -316,9 +308,9 @@ class WhatsAppClient:
             )
             log_httpx_response(response)
         except httpx.RequestError as e:
-            self.logger.error("Template Message Request Error: %s", e)
+            self.logger.error(f"Template Message Request Error: {e}")
         except Exception as e:
-            self.logger.error("Template Message Unexpected Error: %s", e)
+            self.logger.error(f"Template Message Unexpected Error: {e}")
 
     def verify(self, request: Request) -> JSONResponse | PlainTextResponse:
         """
@@ -456,7 +448,7 @@ class WhatsAppClient:
                 )
             else:
                 self.logger.warning(
-                    "Flow completion received for unknown user with wa_id=%s", wa_id
+                    f"Flow completion received for unknown user with wa_id={wa_id}"
                 )
         except Exception as e:
             self.logger.error(f"Failed to persist flow completion payload: {e}")

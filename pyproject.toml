@@ -66,5 +66,8 @@ markers = [
     "integration: marks tests for integration tests"
 ]
 
+[tool.ruff.lint]
+extend-select = ["I"]
+
 [project.scripts]
 all-contributors = "scripts.ci.all_contributors:main"
