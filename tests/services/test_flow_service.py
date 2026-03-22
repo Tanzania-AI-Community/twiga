@@ -293,6 +293,86 @@ async def test_subjects_classes_complete_action_requires_class_selection() -> No
 
 
 @pytest.mark.asyncio
+async def test_subjects_classes_complete_action_uses_grouped_class_fields() -> None:
+    user = User(
+        id=305,
+        wa_id="255700007779",
+        name="Teacher",
+        onboarding_state=enums.OnboardingState.completed,
+    )
+    service = FlowService()
+    payload = {
+        "flow_token": "flow-token",
+        "data": {
+            "component_action": "complete_subject_configuration",
+            "selected_subject_ids": ["1", "2"],
+            "selected_class_ids": [],
+            "subject1_selected_class_ids": ["101", "102"],
+            "subject2_selected_class_ids": ["201"],
+            "subject3_selected_class_ids": [],
+        },
+    }
+    encrypted_response = PlainTextResponse("encrypted", status_code=200)
+
+    with (
+        patch.object(
+            service._subjects_classes_flow_handler,
+            "_save_multi_subject_class_selection",
+            AsyncMock(),
+        ) as mock_save_selection,
+        patch.object(
+            service._subjects_classes_flow_handler,
+            "_finalize_subject_configuration",
+            AsyncMock(return_value=user),
+        ),
+        patch.object(
+            service,
+            "_create_flow_response_payload",
+            return_value={"screen": "SUCCESS", "data": {}, "flow_token": "flow-token"},
+        ) as mock_create_payload,
+        patch.object(
+            service,
+            "process_response",
+            AsyncMock(return_value=encrypted_response),
+        ) as mock_process_response,
+    ):
+        response = await service.handle_subjects_classes_data_exchange_action(
+            user=user,
+            payload=payload,
+            aes_key=b"aes-key",
+            initial_vector="iv",
+            background_tasks=BackgroundTasks(),
+        )
+
+    mock_save_selection.assert_awaited_once_with(
+        user=user,
+        selected_subject_ids=[1, 2],
+        selected_class_ids=[101, 102, 201],
+    )
+    mock_create_payload.assert_called_once_with(
+        screen="SUCCESS",
+        data={},
+        encrypted_flow_token="flow-token",
+    )
+    mock_process_response.assert_awaited_once()
+    assert response is encrypted_response
+
+
+def test_parse_grouped_class_ids_collects_unique_ids_in_subject_order() -> None:
+    service = FlowService()
+
+    grouped_ids = service._subjects_classes_flow_handler._parse_grouped_class_ids(
+        {
+            "subject1_selected_class_ids": ["11", "12", "12"],
+            "subject2_selected_class_ids": ["21"],
+            "subject3_selected_class_ids": ["12", "31"],
+        }
+    )
+
+    assert grouped_ids == [11, 12, 21, 31]
+
+
+@pytest.mark.asyncio
 async def test_handle_flow_request_dispatches_data_exchange_to_flow_handler() -> None:
     user = User(id=500, wa_id="255700005000", name="Teacher")
     service = FlowService()
@@ -458,10 +538,19 @@ async def test_build_subject_classes_screen_data_sorts_subject_level_titles() ->
         )
 
     assert data["classes_for_subject"] == [
-        {"id": "201", "title": "Form 1 - Biology"},
-        {"id": "102", "title": "Form 1 - Geography"},
-        {"id": "101", "title": "Form 2 - Geography"},
+        {"id": "201", "title": "Form 1 - Biology 🧬"},
+        {"id": "102", "title": "Form 1 - Geography 🌎"},
+        {"id": "101", "title": "Form 2 - Geography 🌎"},
     ]
+    assert data["subject1_title"] == "Biology 🧬"
+    assert data["subject1_class_options"] == [{"id": "201", "title": "Form 1"}]
+    assert data["subject2_title"] == "Geography 🌎"
+    assert data["subject2_class_options"] == [
+        {"id": "102", "title": "Form 1"},
+        {"id": "101", "title": "Form 2"},
+    ]
+    assert data["subject3_title"] == ""
+    assert data["subject3_class_options"] == []
 
 
 def test_parse_subject_ids_enforces_max_limit() -> None:
