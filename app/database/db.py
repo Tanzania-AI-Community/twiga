@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 
 def _parse_generated_at_utc(exam_json: dict) -> datetime | None:
     generation_trace = exam_json.get("generation_trace", {})
-    raw_value = generation_trace.get("generated_at_utc")
+    generated_at_raw = generation_trace.get("generated_at_utc")
 
-    if not isinstance(raw_value, str) or not raw_value.strip():
+    if not isinstance(generated_at_raw, str) or not generated_at_raw.strip():
         return None
 
-    timestamp = raw_value.strip()
+    timestamp = generated_at_raw.strip()
     if timestamp.endswith("Z"):
         timestamp = f"{timestamp[:-1]}+00:00"
 
@@ -42,7 +42,7 @@ def _parse_generated_at_utc(exam_json: dict) -> datetime | None:
         logger.warning(
             "Invalid generation_trace.generated_at_utc for exam_id=%s: %s",
             generation_trace.get("exam_id"),
-            raw_value,
+            generated_at_raw,
         )
         return None
 
