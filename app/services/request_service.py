@@ -97,7 +97,11 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
             phone_number, message_info
         )
 
-    assert user.id is not None
+    if user.id is None:
+        raise ValueError(
+            "User ID is unexpectedly None after fetching user from database."
+        )
+
     user_message = await db.create_new_message_by_fields(
         user_id=user.id,
         role=enums.MessageRole.user,
