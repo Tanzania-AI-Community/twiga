@@ -1,8 +1,9 @@
 import logging
 
+from app.database import db
 from app.database.models import User
-from app.database.enums import OnboardingState
-from app.services.flow_service import flow_client
+from app.database.enums import OnboardingState, MessageRole
+from app.services.flows.flow_service import flow_client
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
 
@@ -53,16 +54,35 @@ class OnboardingHandler:
         self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
 
         # Send message that registration is pending approval
+        if user.id is None:
+            raise ValueError(
+                "User ID is unexpectedly None during completed onboarding."
+            )
+
         pending_message = strings.get_string(
             StringCategory.REGISTRATION, "pending_approval"
         )
         await whatsapp_client.send_message(user.wa_id, pending_message)
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=pending_message,
+            is_present_in_conversation=True,
+        )
 
         # User remains in inactive state until admin approval
 
     async def handle_default(self, user: User):
-        await whatsapp_client.send_message(
-            user.wa_id, strings.get_string(StringCategory.ERROR, "general")
+        if user.id is None:
+            raise ValueError("User ID is unexpectedly None during onboarding.")
+
+        err_message = strings.get_string(StringCategory.ERROR, "general")
+        await whatsapp_client.send_message(user.wa_id, err_message)
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.assistant,
+            content=err_message,
+            is_present_in_conversation=True,
         )
 
 

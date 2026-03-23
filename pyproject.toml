@@ -1,6 +1,6 @@
 [project]
 name = "twiga"
-version = "0.1.6"
+version = "0.1.7"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = [
@@ -60,6 +60,7 @@ dev-dependencies = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
 markers = [
     "unittest: marks tests as unit tests",
     "integration: marks tests for integration tests"
