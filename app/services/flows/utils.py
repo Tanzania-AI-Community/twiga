@@ -20,6 +20,7 @@ class FlowRequestAction(str, Enum):
     PING = "ping"
     DATA_EXCHANGE = "data_exchange"
     INIT = "INIT"
+    BACK = "BACK"
 
 
 class FlowConfigError(RuntimeError):

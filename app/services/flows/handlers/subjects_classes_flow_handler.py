@@ -112,6 +112,24 @@ class SubjectsClassesFlowHandler:
         except Exception as exc:
             return JSONResponse(content={"error_msg": str(exc)}, status_code=500)
 
+    async def handle_back_action(
+        self,
+        user: User,
+        payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del payload, background_tasks
+        subject_selection_data = await self._build_subject_selection_screen_data(user)
+        response_payload = self.service._create_flow_response_payload(
+            screen=self._FLOW_SCREEN_SELECT_SUBJECT,
+            data=subject_selection_data,
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
     async def _handle_load_subject_classes_action(
         self,
         user: User,

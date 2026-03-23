@@ -18,9 +18,6 @@ from app.services.flows.handlers.subjects_classes_flow_handler import (
 
 
 class FlowService:
-    _FLOW_SCREEN_SELECT_SUBJECT = SubjectsClassesFlowHandler._FLOW_SCREEN_SELECT_SUBJECT
-    _FLOW_SCREEN_SELECT_CLASSES = SubjectsClassesFlowHandler._FLOW_SCREEN_SELECT_CLASSES
-
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
@@ -28,6 +25,9 @@ class FlowService:
         self._subjects_classes_flow_handler = SubjectsClassesFlowHandler(service=self)
 
         self.data_exchange_action_handlers: dict[
+            str, Callable[..., Awaitable[PlainTextResponse | JSONResponse]]
+        ] = {}
+        self.back_action_handlers: dict[
             str, Callable[..., Awaitable[PlainTextResponse | JSONResponse]]
         ] = {}
         self.init_action_handlers: dict[
@@ -51,6 +51,9 @@ class FlowService:
         if subjects_flow_id:
             self.data_exchange_action_handlers[subjects_flow_id] = (
                 self.handle_subjects_classes_data_exchange_action
+            )
+            self.back_action_handlers[subjects_flow_id] = (
+                self.handle_subjects_classes_back_action
             )
             self.init_action_handlers[subjects_flow_id] = (
                 flows_wip.handle_subjects_classes_init_action
@@ -89,6 +92,12 @@ class FlowService:
 
             if action == flow_utils.FlowRequestAction.DATA_EXCHANGE:
                 handler = self.data_exchange_action_handlers.get(
+                    flow_id, self.handle_unknown_flow
+                )
+                return await handler(user, payload, aes_key, initial_vector, bg_tasks)
+
+            if action == flow_utils.FlowRequestAction.BACK:
+                handler = self.back_action_handlers.get(
                     flow_id, self.handle_unknown_flow
                 )
                 return await handler(user, payload, aes_key, initial_vector, bg_tasks)
@@ -168,10 +177,21 @@ class FlowService:
     ) -> flow_utils.FlowRequestAction | None:
         if not isinstance(action_value, str):
             return None
-        try:
-            return flow_utils.FlowRequestAction(action_value)
-        except ValueError:
+
+        normalized_action = action_value.strip()
+        if not normalized_action:
             return None
+
+        try:
+            return flow_utils.FlowRequestAction(normalized_action)
+        except ValueError:
+            action_aliases: dict[str, flow_utils.FlowRequestAction] = {
+                flow_utils.FlowRequestAction.PING.value.lower(): flow_utils.FlowRequestAction.PING,
+                flow_utils.FlowRequestAction.DATA_EXCHANGE.value.lower(): flow_utils.FlowRequestAction.DATA_EXCHANGE,
+                flow_utils.FlowRequestAction.INIT.value.lower(): flow_utils.FlowRequestAction.INIT,
+                flow_utils.FlowRequestAction.BACK.value.lower(): flow_utils.FlowRequestAction.BACK,
+            }
+            return action_aliases.get(normalized_action.lower())
 
     async def handle_unknown_flow(
         self,
@@ -217,6 +237,22 @@ class FlowService:
         background_tasks: BackgroundTasks,
     ) -> PlainTextResponse | JSONResponse:
         return await self._subjects_classes_flow_handler.handle_data_exchange_action(
+            user=user,
+            payload=payload,
+            aes_key=aes_key,
+            initial_vector=initial_vector,
+            background_tasks=background_tasks,
+        )
+
+    async def handle_subjects_classes_back_action(
+        self,
+        user: User,
+        payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse | JSONResponse:
+        return await self._subjects_classes_flow_handler.handle_back_action(
             user=user,
             payload=payload,
             aes_key=aes_key,

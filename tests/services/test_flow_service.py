@@ -190,8 +190,49 @@ async def test_subjects_classes_load_action_returns_select_classes_screen() -> N
         user=user, selected_subject_ids=[4]
     )
     mock_create_payload.assert_called_once_with(
-        screen=service._FLOW_SCREEN_SELECT_CLASSES,
+        screen=service._subjects_classes_flow_handler._FLOW_SCREEN_SELECT_CLASSES,
         data={"any": "data"},
+    )
+    mock_process_response.assert_awaited_once_with(expected_payload, b"aes-key", "iv")
+    assert response == encrypted_response
+
+
+@pytest.mark.asyncio
+async def test_subjects_classes_back_action_returns_select_subject_screen() -> None:
+    user = User(id=102, wa_id="255700009998", name="Teacher")
+    service = FlowService()
+    payload = {"action": "back", "data": {}}
+    expected_payload = {"screen": "select_subject", "data": {"subject_options": []}}
+    encrypted_response = PlainTextResponse("encrypted", status_code=200)
+
+    with (
+        patch.object(
+            service._subjects_classes_flow_handler,
+            "_build_subject_selection_screen_data",
+            AsyncMock(return_value={"subject_options": []}),
+        ) as mock_build_subject_data,
+        patch(
+            "app.services.flows.flow_service.flow_utils.create_flow_response_payload",
+            return_value=expected_payload,
+        ) as mock_create_payload,
+        patch.object(
+            service,
+            "process_response",
+            AsyncMock(return_value=encrypted_response),
+        ) as mock_process_response,
+    ):
+        response = await service.handle_subjects_classes_back_action(
+            user=user,
+            payload=payload,
+            aes_key=b"aes-key",
+            initial_vector="iv",
+            background_tasks=BackgroundTasks(),
+        )
+
+    mock_build_subject_data.assert_awaited_once_with(user)
+    mock_create_payload.assert_called_once_with(
+        screen=service._subjects_classes_flow_handler._FLOW_SCREEN_SELECT_SUBJECT,
+        data={"subject_options": []},
     )
     mock_process_response.assert_awaited_once_with(expected_payload, b"aes-key", "iv")
     assert response == encrypted_response
@@ -448,6 +489,86 @@ async def test_handle_flow_request_unknown_init_falls_back_to_unknown_flow() -> 
 
     assert response is expected_response
     mock_unknown_flow.assert_awaited_once_with(user, payload, b"aes-key", "iv")
+
+
+@pytest.mark.asyncio
+async def test_handle_flow_request_dispatches_back_to_flow_handler() -> None:
+    user = User(id=502, wa_id="255700005002", name="Teacher")
+    service = FlowService()
+    expected_response = PlainTextResponse("encrypted", status_code=200)
+    mock_back_handler = AsyncMock(return_value=expected_response)
+    service.back_action_handlers = {"flow-subjects": mock_back_handler}
+    payload = {"action": "BACK", "flow_token": "token", "data": {}}
+
+    with (
+        patch.object(
+            service,
+            "_decrypt_flow_request",
+            AsyncMock(return_value=(payload, b"aes-key", "iv")),
+        ),
+        patch.object(
+            service,
+            "_decrypt_flow_token",
+            return_value=(user.wa_id, "flow-subjects"),
+        ),
+        patch.object(
+            db,
+            "get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+    ):
+        response = await service.handle_flow_request(
+            _DummyRequest(body={"encrypted_flow_data": "payload"}),
+            BackgroundTasks(),
+        )
+
+    assert response is expected_response
+    called_args = mock_back_handler.await_args.args
+    assert called_args[0] == user
+    assert called_args[1] == payload
+    assert called_args[2] == b"aes-key"
+    assert called_args[3] == "iv"
+    assert isinstance(called_args[4], BackgroundTasks)
+
+
+@pytest.mark.asyncio
+async def test_handle_flow_request_dispatches_lowercase_back_to_flow_handler() -> None:
+    user = User(id=503, wa_id="255700005003", name="Teacher")
+    service = FlowService()
+    expected_response = PlainTextResponse("encrypted", status_code=200)
+    mock_back_handler = AsyncMock(return_value=expected_response)
+    service.back_action_handlers = {"flow-subjects": mock_back_handler}
+    payload = {"action": "back", "flow_token": "token", "data": {}}
+
+    with (
+        patch.object(
+            service,
+            "_decrypt_flow_request",
+            AsyncMock(return_value=(payload, b"aes-key", "iv")),
+        ),
+        patch.object(
+            service,
+            "_decrypt_flow_token",
+            return_value=(user.wa_id, "flow-subjects"),
+        ),
+        patch.object(
+            db,
+            "get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+    ):
+        response = await service.handle_flow_request(
+            _DummyRequest(body={"encrypted_flow_data": "payload"}),
+            BackgroundTasks(),
+        )
+
+    assert response is expected_response
+    called_args = mock_back_handler.await_args.args
+    assert called_args[0] == user
+    assert called_args[1] == payload
+    assert called_args[2] == b"aes-key"
+    assert called_args[3] == "iv"
+    assert isinstance(called_args[4], BackgroundTasks)
 
 
 @pytest.mark.asyncio
