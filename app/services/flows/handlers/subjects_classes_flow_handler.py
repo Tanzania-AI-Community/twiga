@@ -412,9 +412,19 @@ class SubjectsClassesFlowHandler:
 
     async def _build_subject_selection_screen_data(self, user: User) -> dict[str, Any]:
         subjects = await db.read_subjects() or []
+        selectable_subjects = [
+            subject
+            for subject in subjects
+            if any(
+                self._is_active_class(class_)
+                for class_ in (subject.subject_classes or [])
+            )
+        ]
         all_subject_options = [
             option
-            for option in (self._build_subject_option(subject) for subject in subjects)
+            for option in (
+                self._build_subject_option(subject) for subject in selectable_subjects
+            )
             if option is not None
         ]
 

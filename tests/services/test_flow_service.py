@@ -586,7 +586,18 @@ async def test_build_subject_selection_screen_data_respects_chips_limits() -> No
     service = FlowService()
     user = User(id=405, wa_id="255700006665", name="Teacher")
     subjects = [
-        Subject(id=index + 1, name=subject_name)
+        Subject(
+            id=index + 1,
+            name=subject_name,
+            subject_classes=[
+                Class(
+                    id=1000 + index,
+                    subject_id=index + 1,
+                    grade_level=enums.GradeLevel.os1,
+                    status=enums.SubjectClassStatus.active,
+                )
+            ],
+        )
         for index, subject_name in enumerate(list(enums.SubjectName)[:25])
     ]
 
@@ -600,6 +611,57 @@ async def test_build_subject_selection_screen_data_respects_chips_limits() -> No
 
     assert len(data["subject_options"]) == 20
     assert all(len(option["title"]) <= 30 for option in data["subject_options"])
+
+
+@pytest.mark.asyncio
+async def test_build_subject_selection_screen_data_excludes_subjects_without_active_classes() -> (
+    None
+):
+    service = FlowService()
+    user = User(id=406, wa_id="255700006664", name="Teacher")
+    subjects = [
+        Subject(
+            id=1,
+            name=enums.SubjectName.geography,
+            subject_classes=[
+                Class(
+                    id=101,
+                    subject_id=1,
+                    grade_level=enums.GradeLevel.os1,
+                    status=enums.SubjectClassStatus.inactive,
+                )
+            ],
+        ),
+        Subject(
+            id=2,
+            name=enums.SubjectName.biology,
+            subject_classes=[
+                Class(
+                    id=201,
+                    subject_id=2,
+                    grade_level=enums.GradeLevel.os1,
+                    status=enums.SubjectClassStatus.active,
+                )
+            ],
+        ),
+        Subject(
+            id=3,
+            name=enums.SubjectName.history,
+            subject_classes=[],
+        ),
+    ]
+
+    with patch(
+        "app.services.flows.handlers.subjects_classes_flow_handler.db.read_subjects",
+        AsyncMock(return_value=subjects),
+    ):
+        data = await service._subjects_classes_flow_handler._build_subject_selection_screen_data(
+            user=user
+        )
+
+    assert data["subject_options"] == [{"id": "2", "title": "Biology 🧬"}]
+    assert data["selected_subject_ids"] == []
+    assert data["has_subject_options"] is True
 
 
 def test_build_class_option_title_keeps_form_prefix_when_truncating() -> None:
