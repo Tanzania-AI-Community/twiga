@@ -1,19 +1,36 @@
-from typing import Any, Dict
+from typing import Any
 from fastapi.responses import PlainTextResponse
 import logging
 
 from app.database import db
 from app.database.models import User
-import app.utils.flow_utils as futil
+import app.services.flows.utils as flow_utils
 
 logger = logging.getLogger(__name__)
+FLOW_OPTION_TITLE_MAX_LEN = 30
+FLOW_MAX_CHIPS_OPTIONS = 20
+
+
+def _get_subject_title_with_leading_emoji(display_value: str) -> str:
+    parts = display_value.rsplit(" ", 1)
+    if len(parts) == 2:
+        name_part, emoji_part = parts
+        if emoji_part:
+            return f"{emoji_part} {name_part}"
+    return display_value
+
+
+def _truncate_option_title(title: str) -> str:
+    if len(title) <= FLOW_OPTION_TITLE_MAX_LEN:
+        return title
+    return f"{title[: FLOW_OPTION_TITLE_MAX_LEN - 3]}..."
 
 
 async def handle_onboarding_init_action(
     user: User,
-) -> Dict[str, Any] | PlainTextResponse:
+) -> dict[str, Any] | PlainTextResponse:
     try:
-        response_payload = futil.create_flow_response_payload(
+        response_payload = flow_utils.create_flow_response_payload(
             screen="personal_info",
             data={
                 "full_name": user.name,
@@ -26,38 +43,28 @@ async def handle_onboarding_init_action(
 
 async def handle_subjects_classes_init_action(
     user: User,
-) -> Dict[str, Any] | PlainTextResponse:
+) -> dict[str, Any] | PlainTextResponse:
     try:
-        # Fetch available subjects with their classes from the database
         subjects = await db.read_subjects()
-        logger.debug(f"Available subjects with classes: {subjects}")
+        subject_options = []
+        for subject in subjects or []:
+            if subject.id is None:
+                continue
+            display_value = subject.name.display_format
+            subject_title = _truncate_option_title(
+                _get_subject_title_with_leading_emoji(display_value)
+            )
+            subject_options.append({"id": str(subject.id), "title": subject_title})
+        subject_options = sorted(
+            subject_options, key=lambda option: option["title"].lower()
+        )[:FLOW_MAX_CHIPS_OPTIONS]
 
-        subjects_data = {}
-        if subjects is None:
-            subjects = []
-        for i, subject in enumerate(subjects, start=1):
-            subject_id = subject.id
-            subject_title = subject.name
-            classes = await db.read_subjects()
-            subjects_data[f"subject{i}"] = {
-                "subject_id": str(subject_id),
-                "subject_title": subject_title,
-                "classes": [
-                    {"id": str(cls.id), "title": cls.name} for cls in classes or []
-                ],
-                "available": len(classes or []) > 0,
-                "label": f"Classes for {subject_title}",
-            }
-            subjects_data[f"subject{i}_available"] = len(classes or []) > 0
-            subjects_data[f"subject{i}_label"] = f"Classes for {subject_title}"
-
-        # Prepare the response payload
-        response_payload = futil.create_flow_response_payload(
-            screen="select_subjects_and_classes",
+        response_payload = flow_utils.create_flow_response_payload(
+            screen="select_subject",
             data={
-                **subjects_data,
-                "select_subject_text": "Please select the subjects and the classes you teach.",
-                "no_subjects_text": "Sorry, there are no available subjects.",
+                "subject_options": subject_options,
+                "selected_subject_ids": [],
+                "has_subject_options": len(subject_options) > 0,
             },
         )
 

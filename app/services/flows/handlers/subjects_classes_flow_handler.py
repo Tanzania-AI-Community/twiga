@@ -1,0 +1,772 @@
+import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from fastapi import BackgroundTasks
+from fastapi.responses import JSONResponse, PlainTextResponse
+
+import app.database.db as db
+import app.database.enums as enums
+import app.database.models as models
+from app.config import settings
+from app.database.models import ClassInfo, User
+from app.services.whatsapp_service import whatsapp_client
+from app.utils.string_manager import StringCategory, strings
+
+
+class SubjectsClassesFlowHandler:
+    """
+    Orchestrates the teacher subject/class configuration flow.
+
+    The user journey is a two-step WhatsApp Flow:
+    1. `select_subject`: teachers pick up to 3 subjects.
+    2. `select_classes`: selected subjects are shown as grouped sections, each with
+       a checkbox list of forms.
+
+    Internal action lifecycle:
+    - `load_subject_classes`: derives and returns class options for selected subjects.
+    - `save_subject_classes`: persists partial selection and refreshes subject screen.
+    - `complete_subject_configuration`: validates final input, persists assignments,
+      syncs `class_info`, and completes onboarding when needed.
+
+    A legacy submission parser is preserved to support older deployed payload shapes.
+    """
+
+    _FLOW_SCREEN_SELECT_SUBJECT = "select_subject"
+    _FLOW_SCREEN_SELECT_CLASSES = "select_classes"
+    _FLOW_SUBJECT_TITLE_MAX_LEN = 30
+    _FLOW_MAX_CHIPS_OPTIONS = 20
+    _FLOW_MAX_SELECTED_SUBJECTS = 3
+    _FLOW_MAX_SELECTED_CLASSES = 10
+    _FLOW_ACTION_LOAD_SUBJECT_CLASSES = "load_subject_classes"
+    _FLOW_ACTION_SAVE_SUBJECT_CLASSES = "save_subject_classes"
+    _FLOW_ACTION_COMPLETE = "complete_subject_configuration"
+
+    def __init__(self, service: Any):
+        self.service = service
+        self.logger = logging.getLogger(__name__)
+        self._component_action_handlers: dict[
+            str, Callable[..., Awaitable[PlainTextResponse | JSONResponse]]
+        ] = {
+            self._FLOW_ACTION_LOAD_SUBJECT_CLASSES: self._handle_load_subject_classes_action,
+            self._FLOW_ACTION_SAVE_SUBJECT_CLASSES: self._handle_save_subject_classes_action,
+            self._FLOW_ACTION_COMPLETE: self._handle_complete_subject_configuration_action,
+        }
+
+    def _flow_string(self, key: str) -> str:
+        return strings.get_string(StringCategory.FLOWS, key)
+
+    def _flow_template(self, key: str, **kwargs: Any) -> str:
+        return strings.get_template(StringCategory.FLOWS, key, **kwargs)
+
+    async def handle_data_exchange_action(
+        self,
+        user: User,
+        payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse | JSONResponse:
+        try:
+            self.logger.info(
+                "Handling subjects/classes data exchange payload: %s", payload
+            )
+            data = payload.get("data", {})
+
+            # Backward compatibility with the current deployed flow shape.
+            if any(
+                key.startswith("selected_classes_for_subject") for key in data.keys()
+            ):
+                return await self._handle_legacy_subjects_classes_submission(
+                    user=user,
+                    payload=payload,
+                    data=data,
+                    aes_key=aes_key,
+                    initial_vector=initial_vector,
+                    background_tasks=background_tasks,
+                )
+
+            component_action = data.get("component_action")
+            action_handler = self._component_action_handlers.get(component_action)
+            if action_handler is None:
+                return JSONResponse(
+                    content={
+                        "error_msg": self._flow_string(
+                            "subjects_classes_unknown_action_error"
+                        )
+                    },
+                    status_code=422,
+                )
+
+            return await action_handler(
+                user=user,
+                payload=payload,
+                data=data,
+                aes_key=aes_key,
+                initial_vector=initial_vector,
+                background_tasks=background_tasks,
+            )
+
+        except ValueError as exc:
+            return JSONResponse(content={"error_msg": str(exc)}, status_code=422)
+        except Exception as exc:
+            return JSONResponse(content={"error_msg": str(exc)}, status_code=500)
+
+    async def handle_back_action(
+        self,
+        user: User,
+        payload: dict,
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del payload, background_tasks
+        subject_selection_data = await self._build_subject_selection_screen_data(user)
+        response_payload = self.service._create_flow_response_payload(
+            screen=self._FLOW_SCREEN_SELECT_SUBJECT,
+            data=subject_selection_data,
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    async def _handle_load_subject_classes_action(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del payload, background_tasks
+        selected_subject_ids = self._parse_subject_ids(
+            data.get("selected_subject_ids", data.get("selected_subject_id"))
+        )
+        classes_data = await self._build_subject_classes_screen_data(
+            user=user, selected_subject_ids=selected_subject_ids
+        )
+        response_payload = self.service._create_flow_response_payload(
+            screen=self._FLOW_SCREEN_SELECT_CLASSES, data=classes_data
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    async def _handle_save_subject_classes_action(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del payload, background_tasks
+        subject_id = self._parse_subject_id(data.get("selected_subject_id"))
+        selected_class_ids = self._parse_class_ids(data.get("selected_class_ids"))
+        refreshed_user = await self._save_subject_selection(
+            user=user,
+            subject_id=subject_id,
+            selected_class_ids=selected_class_ids,
+        )
+        subject_selection_data = await self._build_subject_selection_screen_data(
+            refreshed_user
+        )
+        response_payload = self.service._create_flow_response_payload(
+            screen=self._FLOW_SCREEN_SELECT_SUBJECT, data=subject_selection_data
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    async def _handle_complete_subject_configuration_action(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse:
+        del background_tasks
+        selected_subject_ids = self._parse_subject_ids(data.get("selected_subject_ids"))
+        if not selected_subject_ids:
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
+
+        selected_class_ids = self._parse_class_ids(data.get("selected_class_ids"))
+        if not selected_class_ids:
+            selected_class_ids = self._parse_grouped_class_ids(data)
+
+        if len(selected_class_ids) > self._FLOW_MAX_SELECTED_CLASSES:
+            raise ValueError(
+                self._flow_template(
+                    "subjects_classes_selection_limit_classes_error",
+                    max_classes=self._FLOW_MAX_SELECTED_CLASSES,
+                )
+            )
+
+        if not selected_class_ids:
+            raise ValueError(
+                self._flow_string(
+                    "subjects_classes_no_classes_selected_for_subjects_error"
+                )
+            )
+
+        await self._save_multi_subject_class_selection(
+            user=user,
+            selected_subject_ids=selected_subject_ids,
+            selected_class_ids=selected_class_ids,
+        )
+
+        was_onboarding_in_progress = (
+            user.onboarding_state != enums.OnboardingState.completed
+        )
+        refreshed_user = await self._finalize_subject_configuration(user)
+        encrypted_flow_token = payload.get("flow_token")
+        response_payload = self.service._create_flow_response_payload(
+            screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
+        )
+
+        if (
+            was_onboarding_in_progress
+            and refreshed_user.onboarding_state == enums.OnboardingState.completed
+        ):
+            welcome_message = strings.get_string(StringCategory.ONBOARDING, "welcome")
+            await whatsapp_client.send_message(user.wa_id, welcome_message)
+            await self.service._persist_visible_assistant_message(user, welcome_message)
+
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    async def _handle_legacy_subjects_classes_submission(
+        self,
+        user: User,
+        payload: dict,
+        data: dict[str, Any],
+        aes_key: bytes,
+        initial_vector: str,
+        background_tasks: BackgroundTasks,
+    ) -> PlainTextResponse | JSONResponse:
+        subjects_with_classes = await db.read_subjects()
+
+        subject_key_to_id = {
+            f"subject{i+1}": subject.id
+            for i, subject in enumerate(subjects_with_classes or [])
+            if subject.id is not None
+        }
+
+        selected_classes_by_subject = {
+            str(subject_key_to_id[key.replace("selected_classes_for_", "")]): [
+                int(class_id) for class_id in value
+            ]
+            for key, value in data.items()
+            if key.startswith("selected_classes_for_")
+            and subject_key_to_id.get(key.replace("selected_classes_for_", ""))
+            is not None
+        }
+
+        if not any(class_ids for class_ids in selected_classes_by_subject.values()):
+            return JSONResponse(
+                content={
+                    "error_msg": self._flow_string(
+                        "subjects_classes_no_classes_selected_for_any_subject_error"
+                    )
+                },
+                status_code=422,
+            )
+
+        background_tasks.add_task(
+            self.update_user_classes,
+            user,
+            selected_classes_by_subject,
+        )
+
+        welcome_message = strings.get_string(StringCategory.ONBOARDING, "welcome")
+        await whatsapp_client.send_message(user.wa_id, welcome_message)
+        await self.service._persist_visible_assistant_message(user, welcome_message)
+
+        encrypted_flow_token = payload.get("flow_token")
+        response_payload = self.service._create_flow_response_payload(
+            screen="SUCCESS", data={}, encrypted_flow_token=encrypted_flow_token
+        )
+        return await self.service.process_response(
+            response_payload, aes_key, initial_vector
+        )
+
+    def _parse_subject_id(self, value: Any) -> int:
+        if isinstance(value, list):
+            non_empty_values = [
+                item for item in value if item is not None and str(item).strip() != ""
+            ]
+            if not non_empty_values:
+                raise ValueError(
+                    self._flow_string("subjects_classes_no_subject_selected_error")
+                )
+            value = non_empty_values[0]
+
+        if value is None or str(value).strip() == "":
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
+        try:
+            return int(str(value))
+        except ValueError as exc:
+            raise ValueError(
+                self._flow_string("subjects_classes_invalid_subject_selected_error")
+            ) from exc
+
+    def _parse_subject_ids(self, value: Any) -> list[int]:
+        if value is None:
+            return []
+
+        values: list[Any]
+        if isinstance(value, list):
+            values = value
+        else:
+            values = [value]
+
+        parsed_ids: list[int] = []
+        for subject_id in values:
+            if subject_id is None or str(subject_id).strip() == "":
+                continue
+            parsed_value = int(str(subject_id))
+            if parsed_value not in parsed_ids:
+                parsed_ids.append(parsed_value)
+
+        if len(parsed_ids) > self._FLOW_MAX_SELECTED_SUBJECTS:
+            raise ValueError(
+                self._flow_template(
+                    "subjects_classes_selection_limit_subjects_error",
+                    max_subjects=self._FLOW_MAX_SELECTED_SUBJECTS,
+                )
+            )
+
+        return parsed_ids
+
+    def _parse_class_ids(self, value: Any) -> list[int]:
+        if value is None:
+            return []
+
+        values: list[Any]
+        if isinstance(value, list):
+            values = value
+        else:
+            values = [value]
+
+        parsed_ids: list[int] = []
+        for class_id in values:
+            if class_id is None or str(class_id).strip() == "":
+                continue
+            parsed_value = int(str(class_id))
+            if parsed_value not in parsed_ids:
+                parsed_ids.append(parsed_value)
+
+        if len(parsed_ids) > self._FLOW_MAX_SELECTED_CLASSES:
+            raise ValueError(
+                self._flow_template(
+                    "subjects_classes_selection_limit_classes_error",
+                    max_classes=self._FLOW_MAX_SELECTED_CLASSES,
+                )
+            )
+        return parsed_ids
+
+    def _parse_grouped_class_ids(self, data: dict[str, Any]) -> list[int]:
+        collected_ids: list[int] = []
+        for subject_index in range(1, self._FLOW_MAX_SELECTED_SUBJECTS + 1):
+            field_name = f"subject{subject_index}_selected_class_ids"
+            for class_id in self._parse_class_ids(data.get(field_name)):
+                if class_id not in collected_ids:
+                    collected_ids.append(class_id)
+        return collected_ids
+
+    def _truncate_flow_option_title(self, title: str) -> str:
+        if len(title) <= self._FLOW_SUBJECT_TITLE_MAX_LEN:
+            return title
+        return f"{title[: self._FLOW_SUBJECT_TITLE_MAX_LEN - 3]}..."
+
+    def _is_active_class(self, class_: models.Class) -> bool:
+        return class_.status == enums.SubjectClassStatus.active
+
+    def _build_subject_option(self, subject: models.Subject) -> dict[str, str] | None:
+        if subject.id is None:
+            return None
+        subject_title = self._truncate_flow_option_title(subject.name.display_format)
+        return {"id": str(subject.id), "title": subject_title}
+
+    def _build_class_option_title(self, subject_title: str, grade_label: str) -> str:
+        full_title = f"{grade_label} - {subject_title}"
+        if len(full_title) <= self._FLOW_SUBJECT_TITLE_MAX_LEN:
+            return full_title
+
+        prefix = f"{grade_label} - "
+        available_subject_len = self._FLOW_SUBJECT_TITLE_MAX_LEN - len(prefix)
+        if available_subject_len <= 3:
+            return self._truncate_flow_option_title(full_title)
+
+        truncated_subject = f"{subject_title[: available_subject_len - 3]}..."
+        return f"{prefix}{truncated_subject}"
+
+    async def _build_subject_selection_screen_data(self, user: User) -> dict[str, Any]:
+        subjects = await db.read_subjects() or []
+        all_subject_options = [
+            option
+            for option in (self._build_subject_option(subject) for subject in subjects)
+            if option is not None
+        ]
+
+        configured_subject_ids = {
+            taught_class.class_.subject_id
+            for taught_class in (user.taught_classes or [])
+            if taught_class.class_ is not None
+        }
+        configured_subject_ids = {
+            subject_id
+            for subject_id in configured_subject_ids
+            if subject_id is not None
+        }
+        configured_subject_id_strings = {
+            str(subject_id) for subject_id in configured_subject_ids
+        }
+
+        configured_options = sorted(
+            [
+                option
+                for option in all_subject_options
+                if option["id"] in configured_subject_id_strings
+            ],
+            key=lambda option: option["title"].lower(),
+        )
+        configured_option_ids = {option["id"] for option in configured_options}
+        remaining_options = sorted(
+            [
+                option
+                for option in all_subject_options
+                if option["id"] not in configured_option_ids
+            ],
+            key=lambda option: option["title"].lower(),
+        )
+        subject_options = (configured_options + remaining_options)[
+            : self._FLOW_MAX_CHIPS_OPTIONS
+        ]
+        visible_subject_option_ids = {option["id"] for option in subject_options}
+        selected_subject_ids = [
+            str(subject_id)
+            for subject_id in sorted(configured_subject_ids)
+            if str(subject_id) in visible_subject_option_ids
+        ][: self._FLOW_MAX_SELECTED_SUBJECTS]
+
+        return {
+            "subject_options": subject_options,
+            "selected_subject_ids": selected_subject_ids,
+            "has_subject_options": len(subject_options) > 0,
+        }
+
+    async def _build_subject_classes_screen_data(
+        self, user: User, selected_subject_ids: list[int]
+    ) -> dict[str, Any]:
+        if not selected_subject_ids:
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
+
+        subjects = await db.read_subjects() or []
+        subject_lookup = {
+            subject.id: subject for subject in subjects if subject.id is not None
+        }
+        valid_subject_ids = [
+            subject_id
+            for subject_id in selected_subject_ids
+            if subject_id in subject_lookup
+        ]
+
+        if not valid_subject_ids:
+            raise ValueError(
+                self._flow_string("subjects_classes_selected_subject_missing_error")
+            )
+
+        subject_groups: list[dict[str, Any]] = []
+        compatibility_class_options: list[dict[str, str]] = []
+        for subject_id in valid_subject_ids:
+            subject = subject_lookup[subject_id]
+            subject_title = subject.name.display_format
+            class_options = [
+                {"id": str(class_.id), "title": class_.grade_level.display_format}
+                for class_ in (subject.subject_classes or [])
+                if class_.id is not None and self._is_active_class(class_)
+            ]
+            class_options.sort(key=lambda option: option["title"].lower())
+            compatibility_class_options.extend(
+                [
+                    {
+                        "id": option["id"],
+                        "title": self._build_class_option_title(
+                            subject_title=subject_title,
+                            grade_label=option["title"],
+                        ),
+                    }
+                    for option in class_options
+                ]
+            )
+            visible_class_ids = {option["id"] for option in class_options}
+            selected_class_ids_for_subject = sorted(
+                {
+                    str(taught_class.class_id)
+                    for taught_class in (user.taught_classes or [])
+                    if taught_class.class_ is not None
+                    and taught_class.class_.subject_id == subject_id
+                    and str(taught_class.class_id) in visible_class_ids
+                }
+            )
+
+            subject_groups.append(
+                {
+                    "title": subject_title,
+                    "has_classes": len(class_options) > 0,
+                    "class_options": class_options,
+                    "selected_class_ids": selected_class_ids_for_subject,
+                }
+            )
+
+        subject_groups.sort(key=lambda group: group["title"].lower())
+        compatibility_class_options.sort(key=lambda option: option["title"].lower())
+        has_any_classes = any(group["has_classes"] for group in subject_groups)
+        compatibility_selected_class_ids = sorted(
+            {
+                class_id
+                for group in subject_groups
+                for class_id in group["selected_class_ids"]
+            }
+        )
+
+        response_data: dict[str, Any] = {
+            "selected_subject_ids": [
+                str(subject_id) for subject_id in valid_subject_ids
+            ],
+            "has_classes": has_any_classes,
+            "classes_for_subject": compatibility_class_options,
+            "selected_class_ids": compatibility_selected_class_ids,
+            "no_classes_text": self._flow_string(
+                "subjects_classes_no_active_classes_text"
+            ),
+        }
+        for group_index in range(1, self._FLOW_MAX_SELECTED_SUBJECTS + 1):
+            field_prefix = f"subject{group_index}"
+            if group_index <= len(subject_groups):
+                group = subject_groups[group_index - 1]
+                response_data[f"{field_prefix}_title"] = group["title"]
+                response_data[f"{field_prefix}_has_classes"] = group["has_classes"]
+                response_data[f"{field_prefix}_class_options"] = group["class_options"]
+                response_data[f"{field_prefix}_selected_class_ids"] = group[
+                    "selected_class_ids"
+                ]
+            else:
+                response_data[f"{field_prefix}_title"] = ""
+                response_data[f"{field_prefix}_has_classes"] = False
+                response_data[f"{field_prefix}_class_options"] = []
+                response_data[f"{field_prefix}_selected_class_ids"] = []
+
+        return response_data
+
+    async def _save_multi_subject_class_selection(
+        self,
+        user: User,
+        selected_subject_ids: list[int],
+        selected_class_ids: list[int],
+    ) -> User:
+        if not selected_subject_ids:
+            raise ValueError(
+                self._flow_string("subjects_classes_no_subject_selected_error")
+            )
+
+        subjects = await db.read_subjects() or []
+        selected_subject_ids_set = set(selected_subject_ids)
+        valid_class_ids = {
+            class_.id
+            for subject in subjects
+            if subject.id in selected_subject_ids_set
+            for class_ in (subject.subject_classes or [])
+            if class_.id is not None and self._is_active_class(class_)
+        }
+
+        filtered_class_ids = [
+            class_id for class_id in selected_class_ids if class_id in valid_class_ids
+        ]
+        if not filtered_class_ids:
+            raise ValueError(
+                self._flow_string(
+                    "subjects_classes_no_classes_selected_for_subjects_error"
+                )
+            )
+
+        await db.assign_teacher_to_classes(user=user, class_ids=filtered_class_ids)
+        refreshed_user = await self._refresh_user_by_wa_id(user.wa_id)
+        await self._sync_user_class_info(refreshed_user)
+        return refreshed_user
+
+    async def _save_subject_selection(
+        self, user: User, subject_id: int, selected_class_ids: list[int]
+    ) -> User:
+        subject = await db.read_subject(subject_id)
+        if subject is None:
+            raise ValueError(
+                self._flow_string("subjects_classes_selected_subject_missing_error")
+            )
+
+        valid_class_ids = {
+            class_.id
+            for class_ in (subject.subject_classes or [])
+            if class_.id is not None and self._is_active_class(class_)
+        }
+        filtered_class_ids = [
+            class_id for class_id in selected_class_ids if class_id in valid_class_ids
+        ]
+
+        await db.assign_teacher_to_classes(
+            user=user, class_ids=filtered_class_ids, subject_id=subject_id
+        )
+        refreshed_user = await self._refresh_user_by_wa_id(user.wa_id)
+        await self._sync_user_class_info(refreshed_user)
+        return refreshed_user
+
+    async def _refresh_user_by_wa_id(self, wa_id: str) -> User:
+        refreshed_user = await db.get_user_by_waid(wa_id)
+        if not refreshed_user:
+            raise ValueError("User not found")
+        return refreshed_user
+
+    def _build_class_info_from_teacher_classes(
+        self, teacher_classes: list[models.TeacherClass]
+    ) -> dict[str, list[str]]:
+        class_info: dict[str, set[str]] = {}
+        for teacher_class in teacher_classes:
+            class_obj = teacher_class.class_
+            if class_obj is None:
+                continue
+
+            subject_key = class_obj.subject_.name.value
+            grade_key = class_obj.grade_level.value
+            class_info.setdefault(subject_key, set()).add(grade_key)
+
+        return {
+            subject: sorted(list(grade_levels))
+            for subject, grade_levels in class_info.items()
+        }
+
+    async def _sync_user_class_info(self, user: User) -> User:
+        class_info = self._build_class_info_from_teacher_classes(
+            user.taught_classes or []
+        )
+        user.class_info = ClassInfo(classes=class_info).model_dump()
+        return await db.update_user(user)
+
+    async def _finalize_subject_configuration(self, user: User) -> User:
+        refreshed_user = await self._refresh_user_by_wa_id(user.wa_id)
+        if not refreshed_user.taught_classes:
+            raise ValueError(
+                self._flow_string(
+                    "subjects_classes_no_classes_selected_for_any_subject_error"
+                )
+            )
+
+        refreshed_user = await self._sync_user_class_info(refreshed_user)
+        if refreshed_user.onboarding_state != enums.OnboardingState.completed:
+            refreshed_user.state = enums.UserState.active
+            refreshed_user.onboarding_state = enums.OnboardingState.completed
+            refreshed_user = await db.update_user(refreshed_user)
+
+        return refreshed_user
+
+    async def update_user_classes(
+        self, user: User, selected_classes_by_subject: dict[str, list[int]]
+    ) -> None:
+        try:
+            # Ensure class_info is initialized
+            if not user.class_info:
+                user.class_info = ClassInfo(classes={}).model_dump()
+
+            self.logger.debug(
+                f"Updating user classes for subjects: {selected_classes_by_subject}"
+            )
+
+            all_class_ids = [
+                class_id
+                for class_ids in selected_classes_by_subject.values()
+                for class_id in class_ids
+            ]
+
+            if not all_class_ids:
+                raise ValueError(
+                    self._flow_string(
+                        "subjects_classes_no_classes_selected_for_any_subject_error"
+                    )
+                )
+
+            await db.assign_teacher_to_classes(user, all_class_ids)
+
+            updated_subjects = {}
+            for subject_key, class_ids in selected_classes_by_subject.items():
+                subject_id = int(subject_key.replace("subject", ""))
+                subject: models.Subject | None = await db.read_subject(subject_id)
+                classes = await db.read_classes(class_ids)
+
+                if not subject or not classes or len(classes) == 0:
+                    raise ValueError(
+                        self._flow_string(
+                            "subjects_classes_subject_or_classes_not_found_error"
+                        )
+                    )
+
+                updated_subjects[subject.name] = [cls.grade_level for cls in classes]
+
+            # Update the user's class_info
+            user.class_info = ClassInfo(classes=updated_subjects).model_dump()
+
+            self.logger.debug(f"Updated user classes for subjects: {updated_subjects}")
+
+            # Update the user state and onboarding state
+            user.state = enums.UserState.active
+            user.onboarding_state = enums.OnboardingState.completed
+            await db.update_user(user)
+        except Exception as exc:
+            self.logger.error(f"Failed to update user classes for subjects: {str(exc)}")
+            raise
+
+    async def send_subjects_classes_flow(self, user: User) -> None:
+        try:
+            refreshed_user = await self._refresh_user_by_wa_id(user.wa_id)
+            subject_selection_data = await self._build_subject_selection_screen_data(
+                refreshed_user
+            )
+            response_payload = self.service._create_flow_response_payload(
+                screen=self._FLOW_SCREEN_SELECT_SUBJECT,
+                data=subject_selection_data,
+            )
+
+            flow_strings = strings.get_category(StringCategory.FLOWS)
+            flow_id = settings.subjects_classes_flow_id
+            if not flow_id or not flow_id.strip():
+                self.logger.error("subjects_classes_flow_id is not configured.")
+                return
+
+            # Send the flow
+            await whatsapp_client.send_whatsapp_flow_message(
+                user=user,
+                flow_id=flow_id,
+                header_text=flow_strings["subjects_classes_flow_header"],
+                body_text=flow_strings["subjects_classes_flow_body"],
+                action_payload=response_payload,
+                flow_cta=flow_strings["subjects_classes_flow_cta"],
+            )
+            await self.service._persist_flow_message(
+                user=user,
+                flow_id=flow_id,
+                header_text=flow_strings["subjects_classes_flow_header"],
+                body_text=flow_strings["subjects_classes_flow_body"],
+            )
+        except Exception as exc:
+            self.logger.error(f"Error sending subjects classes flow: {exc}")
+            raise

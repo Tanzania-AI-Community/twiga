@@ -3,7 +3,7 @@ import logging
 from app.database import db
 from app.database.models import User
 from app.database.enums import OnboardingState, MessageRole
-from app.services.flow_service import flow_client
+from app.services.flows.flow_service import flow_client
 from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import strings, StringCategory
 

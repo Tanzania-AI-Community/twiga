@@ -1,34 +1,56 @@
 import base64
+from enum import Enum
 import json
-from typing import Any, Dict, List, Optional, Tuple
+import logging
+from typing import Any
+
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-import logging
-
-import httpx
 from app.config import settings
-from cryptography.fernet import Fernet
-
-from app.database.models import User
 
 logger = logging.getLogger(__name__)
 
 
+class FlowRequestAction(str, Enum):
+    PING = "ping"
+    DATA_EXCHANGE = "data_exchange"
+    INIT = "INIT"
+    BACK = "BACK"
+
+
+class FlowConfigError(RuntimeError):
+    """Raised when required flow encryption settings are missing or invalid."""
+
+
+def _read_required_secret(setting_name: str, secret_setting: Any) -> str:
+    if secret_setting is None:
+        raise FlowConfigError(f"Missing required setting: '{setting_name}'")
+
+    if not hasattr(secret_setting, "get_secret_value"):
+        raise FlowConfigError(
+            f"Invalid setting type for '{setting_name}': expected secret value"
+        )
+
+    secret_value = secret_setting.get_secret_value()
+    if not isinstance(secret_value, str) or not secret_value.strip():
+        raise FlowConfigError(f"Setting '{setting_name}' must be a non-empty secret")
+
+    return secret_value
+
+
 def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
-    assert (
-        settings.whatsapp_business_private_key
-        and settings.whatsapp_business_private_key_password
+    private_key_pem = _read_required_secret(
+        "whatsapp_business_private_key", settings.whatsapp_business_private_key
     )
-    assert (
-        settings.whatsapp_business_private_key.get_secret_value().strip()
-        and settings.whatsapp_business_private_key_password.get_secret_value().strip()
+    password = _read_required_secret(
+        "whatsapp_business_private_key_password",
+        settings.whatsapp_business_private_key_password,
     )
-    private_key_pem = settings.whatsapp_business_private_key.get_secret_value()
-    password = settings.whatsapp_business_private_key_password.get_secret_value()
 
     private_key = serialization.load_pem_private_key(
         private_key_pem.encode(),
@@ -81,7 +103,7 @@ def encrypt_response(response: dict, aes_key: bytes, iv: str) -> str:
     return base64.b64encode(encrypted_data_bytes).decode("utf-8")
 
 
-async def decrypt_flow_request(body: dict) -> Tuple[dict, bytes, str]:
+async def decrypt_flow_request(body: dict) -> tuple[dict, bytes, str]:
     try:
         # Validate required fields exist
         required_fields = {"encrypted_flow_data", "encrypted_aes_key", "initial_vector"}
@@ -107,21 +129,17 @@ async def decrypt_flow_request(body: dict) -> Tuple[dict, bytes, str]:
         )
 
         return decrypted_payload, aes_key, initial_vector
-    except ValueError as e:
-        raise ValueError(f"Invalid webhook payload: {str(e)}")
-    except Exception as e:
-        raise RuntimeError(f"Decryption error: {str(e)}")
+    except ValueError as exc:
+        raise ValueError(f"Invalid webhook payload: {str(exc)}")
+    except Exception as exc:
+        raise RuntimeError(f"Decryption error: {str(exc)}")
 
 
 def get_fernet_key() -> bytes:
-    assert (
-        settings.flow_token_encryption_key
-        and settings.flow_token_encryption_key.get_secret_value().strip()
+    key = _read_required_secret(
+        "flow_token_encryption_key", settings.flow_token_encryption_key
     )
-    key = settings.flow_token_encryption_key.get_secret_value()
-    if isinstance(key, str):
-        key = key.encode("utf-8")
-    return key
+    return key.encode("utf-8")
 
 
 class FlowTokenError(Exception):
@@ -130,7 +148,7 @@ class FlowTokenError(Exception):
     pass
 
 
-def decrypt_flow_token(encrypted_flow_token: str) -> Tuple[str, str]:
+def decrypt_flow_token(encrypted_flow_token: str) -> tuple[str, str]:
     """
     Decrypts a flow token and returns token details.
 
@@ -152,11 +170,11 @@ def decrypt_flow_token(encrypted_flow_token: str) -> Tuple[str, str]:
 
         wa_id, flow_id = parts
         return wa_id, flow_id
-    except ValueError as e:
-        logger.error(f"Value error during token decryption: {str(e)}")
+    except ValueError as exc:
+        logger.error(f"Value error during token decryption: {str(exc)}")
         raise FlowTokenError("Invalid token format")
-    except Exception as e:
-        logger.error(f"Token decryption failed: {str(e)}")
+    except Exception as exc:
+        logger.error(f"Token decryption failed: {str(exc)}")
         raise FlowTokenError("Token decryption failed")
 
 
@@ -171,67 +189,9 @@ def encrypt_flow_token(wa_id: str, flow_id: str) -> str:
     return encrypted_data.decode("utf-8")
 
 
-async def send_whatsapp_flow_message(
-    user: User,
-    flow_id: str,
-    header_text: str,
-    body_text: str,
-    action_payload: Dict[str, Any],
-    flow_cta: str,
-    mode="published",
-) -> None:
-    """
-    Common utility to send WhatsApp flow messages
-    """
-    flow_token = encrypt_flow_token(user.wa_id, flow_id)
-
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": user.wa_id,
-        "recipient_type": "individual",
-        "type": "interactive",
-        "interactive": {
-            "type": "flow",
-            "header": {
-                "type": "text",
-                "text": header_text,
-            },
-            "body": {
-                "text": body_text,
-            },
-            "footer": {
-                "text": "Please follow the instructions.",
-            },
-            "action": {
-                "name": "flow",
-                "parameters": {
-                    "flow_message_version": "3",
-                    "flow_action": "navigate",
-                    "flow_token": flow_token,
-                    "flow_id": flow_id,
-                    "flow_cta": flow_cta,
-                    "mode": mode,
-                    "flow_action_payload": action_payload,
-                },
-            },
-        },
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}/messages",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
-            },
-            json=payload,
-        )
-        logger.info(f"WhatsApp API response: {response.status_code} - {response.text}")
-
-
 def create_flow_response_payload(
-    screen: str, data: Dict[str, Any], encrypted_flow_token: Optional[str] = None
-) -> Dict[str, Any]:
+    screen: str, data: dict[str, Any], encrypted_flow_token: str | None = None
+) -> dict[str, Any]:
     """
     Create standardized flow response payloads
     """
@@ -250,27 +210,4 @@ def create_flow_response_payload(
     return {
         "screen": screen,
         "data": data,
-    }
-
-
-def create_subject_class_payload(
-    subject_title: str, classes: List[dict], is_update: bool, subject_id: str
-) -> Dict[str, Any]:
-    """
-    Create standardized subject/class selection payload
-    """
-    has_items = len(classes) > 0
-    return {
-        "classes": (
-            classes
-            if has_items
-            else [
-                {"id": "0", "title": "No classes available"}
-            ]  # if no classes, show a dummy class it is required for the client
-        ),
-        "has_classes": has_items,
-        "no_classes_text": f"Sorry, currently there are no active classes for {subject_title}.",
-        "select_class_text": f"This helps us find the best answers for your questions in {subject_title}.",
-        "select_class_question_text": f"Select the class you are in for {subject_title}.",
-        "subject_id": str(subject_id),
     }

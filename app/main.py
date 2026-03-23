@@ -10,7 +10,7 @@ from app.database.engine import db_engine, init_db
 from app.monitoring import metrics  # noqa: F401 - registers metrics on import
 from app.redis.engine import disconnect_redis, init_redis
 from app.security import flows_signature_required, signature_required
-from app.services.flow_service import flow_client
+from app.services.flows.flow_service import flow_client
 from app.services.request_service import handle_request
 from app.services.whatsapp_service import whatsapp_client
 
