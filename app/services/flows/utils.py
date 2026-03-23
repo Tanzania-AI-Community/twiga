@@ -22,17 +22,34 @@ class FlowRequestAction(str, Enum):
     INIT = "INIT"
 
 
+class FlowConfigError(RuntimeError):
+    """Raised when required flow encryption settings are missing or invalid."""
+
+
+def _read_required_secret(setting_name: str, secret_setting: Any) -> str:
+    if secret_setting is None:
+        raise FlowConfigError(f"Missing required setting: '{setting_name}'")
+
+    if not hasattr(secret_setting, "get_secret_value"):
+        raise FlowConfigError(
+            f"Invalid setting type for '{setting_name}': expected secret value"
+        )
+
+    secret_value = secret_setting.get_secret_value()
+    if not isinstance(secret_value, str) or not secret_value.strip():
+        raise FlowConfigError(f"Setting '{setting_name}' must be a non-empty secret")
+
+    return secret_value
+
+
 def decrypt_aes_key(encrypted_aes_key: str) -> bytes:
-    assert (
-        settings.whatsapp_business_private_key
-        and settings.whatsapp_business_private_key_password
+    private_key_pem = _read_required_secret(
+        "whatsapp_business_private_key", settings.whatsapp_business_private_key
     )
-    assert (
-        settings.whatsapp_business_private_key.get_secret_value().strip()
-        and settings.whatsapp_business_private_key_password.get_secret_value().strip()
+    password = _read_required_secret(
+        "whatsapp_business_private_key_password",
+        settings.whatsapp_business_private_key_password,
     )
-    private_key_pem = settings.whatsapp_business_private_key.get_secret_value()
-    password = settings.whatsapp_business_private_key_password.get_secret_value()
 
     private_key = serialization.load_pem_private_key(
         private_key_pem.encode(),
@@ -118,14 +135,10 @@ async def decrypt_flow_request(body: dict) -> tuple[dict, bytes, str]:
 
 
 def get_fernet_key() -> bytes:
-    assert (
-        settings.flow_token_encryption_key
-        and settings.flow_token_encryption_key.get_secret_value().strip()
+    key = _read_required_secret(
+        "flow_token_encryption_key", settings.flow_token_encryption_key
     )
-    key = settings.flow_token_encryption_key.get_secret_value()
-    if isinstance(key, str):
-        key = key.encode("utf-8")
-    return key
+    return key.encode("utf-8")
 
 
 class FlowTokenError(Exception):

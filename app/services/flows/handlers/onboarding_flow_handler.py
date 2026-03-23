@@ -14,7 +14,14 @@ from app.utils.string_manager import StringCategory, strings
 
 
 class OnboardingFlowHandler:
-    """Flow-specific logic for the onboarding/personal-info flow."""
+    """
+    Orchestrates the teacher onboarding profile flow.
+
+    The flow captures personal and school information, then triggers the
+    subjects/classes flow for first-time onboarding. In update mode, the same
+    screen is reused to edit existing profile fields without restarting onboarding.
+    Submissions are acknowledged immediately and persisted asynchronously.
+    """
 
     def __init__(self, service: object):
         self.service = service
