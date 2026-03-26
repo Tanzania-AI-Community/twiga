@@ -1,36 +1,28 @@
 
 # LLM configs
 llm:
-  provider: ollama # str: The LLM provider to use (together, openai, ollama, modal, google)
-  
-  available_models:
-    together:
-      - "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"
-      - "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"
-      - "meta-llama/Llama-3.3-70B-Instruct-Turbo"
-      - "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
-      - "meta-llama/Llama-4-Scout-17B-16E-Instruct"
-      - "mistralai/Mixtral-8x7B-Instruct-v0.1"
-    openai:
-      - "gpt-4o"
-      - "gpt-4o-mini"
-    ollama:
-      - "llama3.2"
-
   model_name: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" # str: The default model to use for chat completions
+  timeout: null          # optional float: seconds before the request times out
+  max_tokens: null       # optional int: maximum number of tokens in the response
+  temperature: null      # optional float: sampling temperature, 0.0 = deterministic
+  reasoning_effort: null # optional str: reasoning effort for supported models ("low", "medium", "high")
+  base_url: null         # optional str: override the API base URL (e.g. for proxies or Together/OpenAI)
 
   ollama: # Ollama-specific settings
-    base_url: "http://host.docker.internal:11434/v1" # str: Base URL for the Ollama API
     model_name: llama3.2 # str: The Ollama model to use, overrides model_name when provider is ollama
     request_timeout: 30 # int: Seconds before the Ollama request times out
+
 
   modal: # Modal-specific settings
     model_name: "twiga-qwen" # str: The Modal model to use, overrides model_name when provider is modal
     request_timeout: 30 # int: Seconds before the Modal request times out
 
+  together: # Together-specific settings
+
+
   langsmith: # LangSmith tracing settings
     project_name: "twiga-whatsapp-chatbot" # str: The LangSmith project name for grouping traces
-    tracing_enabled: false # bool: Whether to enable LangSmith tracing
+    tracing_enabled: false # bool: Whether to enable LangSmith tracing remove 
     endpoint_url: "https://api.smith.langchain.com" # str: The LangSmith API endpoint
 
   agent: # Agentic mode settings
@@ -38,15 +30,6 @@ llm:
     max_agent_iterations: 5 # int: Maximum number of steps the agent can take per request
 
 embedding:
-  provider: ollama # str: The embedding provider to use (together, openai, ollama, modal)
-  available_models: # List of available embedding models for each provider
-    ollama:
-      - "mxbai-embed-large"
-    together:
-      - "BAAI/bge-large-en-v1.5"
-      - "intfloat/multilingual-e5-large-instruct"
-    openai:
-      - "text-embedding-3-small"
 
   model_name: "intfloat/multilingual-e5-large-instruct" # str: The default embedding model to use
 

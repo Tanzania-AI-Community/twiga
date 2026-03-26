@@ -131,13 +131,13 @@ class LLMSettings(BaseSettings):
 
     # LLM-related settings
     provider: LLMProvider = Field(
-        default=yaml_config["llm"]["provider"], validation_alias="llm_provider"
+        default=LLMProvider.OLLAMA, validation_alias="llm_provider"
     )
     llm_name: str = Field(
         default=yaml_config["llm"]["model_name"], validation_alias="llm_model_name"
     )
 
-    ollama_base_url: str = yaml_config["llm"]["ollama"]["base_url"]
+    ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = yaml_config["llm"]["ollama"]["model_name"]
     ollama_request_timeout: int = Field(
         default=yaml_config["llm"]["ollama"]["request_timeout"], validation_alias="ollama_llm_request_timeout"
@@ -154,6 +154,13 @@ class LLMSettings(BaseSettings):
     langsmith_project: Optional[str] = yaml_config["llm"]["langsmith"]["project_name"]
     langsmith_tracing: bool = yaml_config["llm"]["langsmith"]["tracing_enabled"]
     langsmith_endpoint: Optional[str] = yaml_config["llm"]["langsmith"]["endpoint_url"]
+
+    # General LLM parameters
+    timeout: Optional[float] = yaml_config["llm"].get("timeout")
+    max_tokens: Optional[int] = yaml_config["llm"].get("max_tokens")
+    temperature: Optional[float] = yaml_config["llm"].get("temperature")
+    reasoning_effort: Optional[str] = yaml_config["llm"].get("reasoning_effort")
+    base_url: Optional[str] = yaml_config["llm"].get("base_url")
 
     # Agent settings
     agentic_mode: bool = Field(
@@ -178,7 +185,7 @@ class EmbeddingSettings(BaseSettings):
 
     # Embedding-related settings
     provider: EmbeddingProvider = Field(
-        default=yaml_config["embedding"]["provider"], validation_alias="embedding_provider"
+        default=EmbeddingProvider.OLLAMA, validation_alias="embedding_provider"
     )
     embedder_name: str = Field(
         default=yaml_config["embedding"]["model_name"],
