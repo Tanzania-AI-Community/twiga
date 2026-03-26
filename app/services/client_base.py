@@ -44,7 +44,19 @@ class ClientBase(ABC):
 
     async def _tool_call_notification(self, user: User, tool_name: str) -> None:
         """Send a notification to the user when a tool call is made."""
-        notification_text = strings.get_string(StringCategory.TOOLS, tool_name)
+        tool_strings = strings.get_category(StringCategory.TOOLS)
+
+        if tool_name not in tool_strings:
+            self.logger.warning(
+                f"No notification string defined for tool '{tool_name}'. "
+            )
+            return
+
+        notification_text = tool_strings[tool_name]
+        # Empty string = intentionally suppressed, skip silently
+        if not notification_text:
+            return
+
         await whatsapp_client.send_message(user.wa_id, notification_text)
 
         if user.id is None:
