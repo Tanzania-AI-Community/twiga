@@ -136,6 +136,8 @@ class LLMSettings(BaseSettings):
         "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
         "gpt-4o": "gpt-4o",
         "gpt-4o_mini": "gpt-4o-mini",
+        "kimi-k2.5": "moonshotai/Kimi-K2.5",
+        "qwen3_235b": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
     }
 
     # LLM-related settings
@@ -143,7 +145,7 @@ class LLMSettings(BaseSettings):
         default=LLMProvider.OLLAMA, validation_alias="llm_provider"
     )
     llm_name: str = Field(
-        default=llm_options["llama_4_maverick"], validation_alias="llm_model_name"
+        default=llm_options["qwen3_235b"], validation_alias="llm_model_name"
     )
 
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
