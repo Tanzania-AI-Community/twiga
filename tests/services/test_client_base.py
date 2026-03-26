@@ -77,13 +77,12 @@ async def test_tool_call_notification_silent_for_search_knowledge() -> None:
     client = DummyClient()
     user = User(id=11, wa_id="255700000000", name="Teacher")
 
-    # Simulate the real english.yml: search_knowledge is present but empty
     with (
         patch(
             "app.services.client_base.strings.get_category",
             return_value={
                 "generate_exercise": "Generating exercises...",
-                "search_knowledge": "",  # intentionally suppressed
+                "search_knowledge": "",  
                 "solve_equation": "Solving the equation...",
             },
         ),

@@ -53,7 +53,7 @@ class ClientBase(ABC):
             return
 
         notification_text = tool_strings[tool_name]
-        # Empty string = intentionally suppressed, skip silently
+        
         if not notification_text:
             return
 
