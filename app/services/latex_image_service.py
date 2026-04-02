@@ -8,7 +8,9 @@ import subprocess
 import tarfile
 import tempfile
 import uuid
+from pathlib import Path
 from urllib import request
+from venv import logger
 
 import fitz
 
@@ -59,6 +61,15 @@ __CONTENT__
 
 
 def _strip_markdown_code_fences(content: str) -> str:
+    """Remove outer triple-backtick fences from markdown content.
+
+    Args:
+        content: Input text that may be wrapped in a fenced code block.
+
+    Returns:
+        The inner fenced content when fences are present; otherwise the stripped
+        input unchanged.
+    """
     stripped = content.strip()
     if stripped.startswith("```") and stripped.endswith("```"):
         lines = stripped.splitlines()
@@ -68,6 +79,14 @@ def _strip_markdown_code_fences(content: str) -> str:
 
 
 def _extract_latex_document_body(content: str) -> str:
+    """Extract content inside ``\\begin{document}`` and ``\\end{document}``.
+
+    Args:
+        content: LaTeX text that may contain a full document wrapper.
+
+    Returns:
+        Document body content if delimiters are found; otherwise stripped input.
+    """
     match = LATEX_DOCUMENT_BODY_RE.search(content)
     if match:
         return match.group(1).strip()
@@ -75,7 +94,17 @@ def _extract_latex_document_body(content: str) -> str:
 
 
 def _normalize_markdown_headings(content: str) -> str:
+    """Convert markdown heading syntax to LaTeX heading commands.
+
+    Args:
+        content: Text that may include markdown headings (``#``, ``##``, etc.).
+
+    Returns:
+        Text with headings converted to LaTeX section/subsection formatting.
+    """
+
     def to_latex_heading(level: int, text: str) -> str:
+        """Map a markdown heading level to a LaTeX heading command."""
         if level == 1:
             return rf"\section*{{{text}}}"
         if level in (2, 3):
@@ -98,17 +127,34 @@ def _normalize_markdown_headings(content: str) -> str:
 
 
 def _convert_markdown_emphasis_in_text(content: str) -> str:
+    """Convert markdown bold/italic emphasis to LaTeX equivalents in plain text.
+
+    Args:
+        content: Plain text segment that is not in math mode.
+
+    Returns:
+        Text with markdown emphasis converted to ``\\textbf{}`` and ``\\emph{}``.
+    """
     content = MARKDOWN_BOLD_RE.sub(r"\\textbf{\1}", content)
     return MARKDOWN_ITALIC_RE.sub(r"\\emph{\1}", content)
 
 
 def _convert_markdown_emphasis(content: str) -> str:
+    """Convert markdown emphasis to LaTeX while preserving math-mode content.
+
+    Args:
+        content: Input text that may mix markdown emphasis and LaTeX/math syntax.
+
+    Returns:
+        Text with markdown emphasis converted outside math regions only.
+    """
     converted_parts: list[str] = []
     text_buffer: list[str] = []
     in_inline_math = False
     in_display_math = False
 
     def flush_text_buffer() -> None:
+        """Flush pending plain-text characters through emphasis conversion."""
         if text_buffer:
             converted_parts.append(
                 _convert_markdown_emphasis_in_text("".join(text_buffer))
@@ -165,6 +211,15 @@ def _convert_markdown_emphasis(content: str) -> str:
 
 
 def _escape_text_mode_special_chars(content: str) -> str:
+    """Escape special characters outside LaTeX math mode.
+
+    Args:
+        content: Mixed text that may include inline/display math sections.
+
+    Returns:
+        Content with text-mode special characters escaped while leaving math-mode
+        content untouched.
+    """
     escaped_chars: list[str] = []
     in_inline_math = False
     in_display_math = False
@@ -243,6 +298,20 @@ def _escape_text_mode_special_chars(content: str) -> str:
 
 
 def prepare_latex_body(content: str) -> str | None:
+    """Normalize and sanitize user/content text into LaTeX body content.
+
+    Processing pipeline:
+    1) Remove outer markdown fences.
+    2) Extract document body if full LaTeX document delimiters exist.
+    3) Convert markdown headings and emphasis.
+    4) Escape text-mode LaTeX special characters.
+
+    Args:
+        content: Raw source text potentially containing markdown and/or LaTeX.
+
+    Returns:
+        Cleaned LaTeX body string, or ``None`` when no renderable content remains.
+    """
     normalized = _extract_latex_document_body(_strip_markdown_code_fences(content))
     if not normalized:
         return None
@@ -255,6 +324,16 @@ def prepare_latex_body(content: str) -> str | None:
 
 
 def _extract_tectonic_error_context(latex_document: str, stderr: str) -> str:
+    """Build a concise compile-error context string from Tectonic stderr.
+
+    Args:
+        latex_document: Full LaTeX document text submitted to Tectonic.
+        stderr: Raw stderr output from the Tectonic process.
+
+    Returns:
+        A formatted message containing line number, error summary, and nearby
+        source context when available; otherwise an empty string.
+    """
     match = TECTONIC_ERROR_LINE_RE.search(stderr)
     if not match:
         return ""
@@ -280,6 +359,11 @@ def _extract_tectonic_error_context(latex_document: str, stderr: str) -> str:
 
 
 def _should_persist_latex_image_locally() -> bool:
+    """Determine whether rendered debug images should persist on local disk.
+
+    Returns:
+        True in local/development or mock-whatsapp environments; otherwise False.
+    """
     return settings.mock_whatsapp or settings.environment in (
         Environment.LOCAL,
         Environment.DEVELOPMENT,
@@ -297,6 +381,12 @@ def looks_like_latex(text: str | None) -> bool:
 
 
 def _tectonic_artifact_name() -> str | None:
+    """Resolve the platform-specific Tectonic artifact identifier.
+
+    Returns:
+        The artifact name used in release downloads for the current OS/arch, or
+        ``None`` if the platform is unsupported.
+    """
     system = platform.system().lower()
     machine = platform.machine().lower()
 
@@ -314,6 +404,16 @@ def _tectonic_artifact_name() -> str | None:
 
 
 def _ensure_tectonic_binary() -> str | None:
+    """Ensure a usable Tectonic binary exists and return its path.
+
+    Resolution strategy:
+    1) Use ``tectonic`` found on PATH when available.
+    2) Otherwise download and cache a matching release artifact for this host.
+
+    Returns:
+        Absolute path to an executable Tectonic binary, or ``None`` if not
+        available/downloadable.
+    """
     existing_path = shutil.which("tectonic")
     if existing_path:
         return existing_path
@@ -366,7 +466,7 @@ def _ensure_tectonic_binary() -> str | None:
 
 
 def compile_latex_to_pdf(latex_body: str, temp_dir: str) -> str:
-    """Compile a LaTeX string into a PDF stored in temp_dir using Tectonic."""
+    """Compile a LaTeX body string into a PDF stored in temp_dir using Tectonic."""
     logger = logging.getLogger(__name__)
     tectonic_path = _ensure_tectonic_binary()
     if tectonic_path is None:
@@ -462,3 +562,53 @@ def text_to_img(content: str) -> str | None:
             except OSError:
                 pass
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def build_latex_document_pdf_at_path(latex_document: str, out_path: str | Path) -> None:
+    """Compile a full LaTeX document string to PDF and copy it to a target path.
+
+    Args:
+        latex_document: Full LaTeX document content (including preamble and
+            ``\\begin{document}``).
+        out_path: Destination file path where the rendered PDF should be written.
+    """
+    with tempfile.TemporaryDirectory(prefix="twiga-exam-pdf-") as temp_dir:
+        try:
+            tectonic_path = _ensure_tectonic_binary()
+            if tectonic_path is None:
+                raise RuntimeError(
+                    "Tectonic binary is not available on this host and automatic download failed."
+                )
+
+            filename = f"llm_output_{uuid.uuid4().hex[:8]}"
+            tex_filename = filename + ".tex"
+            tex_path = os.path.join(temp_dir, tex_filename)
+            rendered_pdf_path = os.path.join(temp_dir, filename + ".pdf")
+
+            with open(tex_path, "w", encoding="utf-8") as tex_file:
+                tex_file.write(latex_document)
+
+            cmd = [tectonic_path, "--outdir", temp_dir, tex_filename]
+            result = subprocess.run(
+                cmd,
+                cwd=temp_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            if result.returncode != 0 or not os.path.exists(rendered_pdf_path):
+                error_context = _extract_tectonic_error_context(
+                    latex_document, result.stderr
+                )
+                if error_context:
+                    logger.error("LaTeX compile context: %s", error_context)
+                raise RuntimeError(
+                    "Tectonic failed with code "
+                    f"{result.returncode}: {result.stderr.strip()} "
+                    f"{error_context}".strip()
+                )
+
+            shutil.copyfile(rendered_pdf_path, out_path)
+        except Exception as e:
+            logger.error(f"Error compiling LaTeX to PDF: {e}")
+            raise e
