@@ -440,9 +440,18 @@ class ExamGenerator:
             if question_type == QuestionType.ITEM_MATCHING:
                 random.shuffle(merged["listB"])
 
-            # set the system fields
-            merged["id"] = question_id
-            merged["marks"] = num_marks
+            # set and order system fields for readability in persisted JSON
+            rest_fields = {
+                key: value
+                for key, value in merged.items()
+                if key not in {"id", "type", "marks"}
+            }
+            merged = {
+                "id": question_id,
+                "type": question_type.value,
+                "marks": num_marks,
+                **rest_fields,
+            }
             metadata = merged.setdefault("metadata", {})
             metadata["topic"] = metadata.get("topic") or topic
             metadata["difficulty"] = metadata.get("difficulty") or difficulty
