@@ -1,49 +1,48 @@
 
-# LLM configs
 llm:
-  model_name: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" # str: The default model to use for chat completions
-  timeout: null          # optional float: seconds before the request times out
-  max_tokens: null       # optional int: maximum number of tokens in the response
-  temperature: null      # optional float: sampling temperature, 0.0 = deterministic
-  reasoning_effort: null # optional str: reasoning effort for supported models ("low", "medium", "high")
-  base_url: null         # optional str: override the API base URL (e.g. for proxies or Together/OpenAI)
+  model_name: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" 
+  timeout: 10          
+  max_tokens: null       
+  temperature: null      
+  reasoning_effort: null # optional; only configure if using OpenAI o-series models
+  base_url: null        
 
-  ollama: # Ollama-specific settings
-    model_name: llama3.2 # str: The Ollama model to use, overrides model_name when provider is ollama
-    request_timeout: 30 # int: Seconds before the Ollama request times out
-
-
-  modal: # Modal-specific settings
-    model_name: "twiga-qwen" # str: The Modal model to use, overrides model_name when provider is modal
-    request_timeout: 30 # int: Seconds before the Modal request times out
-
-  together: # Together-specific settings
+  ollama: 
+    model_name: llama3.2 
+    request_timeout: 30 
 
 
-  langsmith: # LangSmith tracing settings
-    project_name: "twiga-whatsapp-chatbot" # str: The LangSmith project name for grouping traces
-    tracing_enabled: false # bool: Whether to enable LangSmith tracing remove 
-    endpoint_url: "https://api.smith.langchain.com" # str: The LangSmith API endpoint
+  modal: 
+    model_name: "twiga-qwen" 
+    request_timeout: 30 
 
-  agent: # Agentic mode settings
-    agentic_mode: false # bool: Whether to enable agentic mode
-    max_agent_iterations: 5 # int: Maximum number of steps the agent can take per request
+  together:
+
+
+  langsmith: 
+    project_name: "twiga-whatsapp-chatbot"
+    tracing_enabled: false 
+    endpoint_url: "https://api.smith.langchain.com" 
+
+  agent: 
+    agentic_mode: false 
+    max_agent_iterations: 5 
 
 embedding:
 
-  model_name: "intfloat/multilingual-e5-large-instruct" # str: The default embedding model to use
+  model_name: "intfloat/multilingual-e5-large-instruct" 
 
-  ollama: # Ollama-specific embedding settings
-    model_name: "mxbai-embed-large" # str: The Ollama model to use for embeddings
-    url: "http://host.docker.internal:11434" # str: Base URL for the Ollama embeddings API
-    request_timeout: 30 # int: Seconds before the Ollama embedding request times out
+  ollama: 
+    model_name: "mxbai-embed-large" 
+    url: "http://host.docker.internal:11434" 
+    request_timeout: 30 
 
-  modal: # Modal-specific embedding settings
-    model_name: "mxbai-embed-large" # str: The Modal model to use for embeddings
-    request_timeout: 30 # int: Seconds before the Modal embedding request times out
+  modal: 
+    model_name: "mxbai-embed-large" 
+    request_timeout: 30 
 
 tools:
-  solve_equation: # LLM config for the equation solver tool
-    model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" # str: The model to use for solving equations
-    provider: together # str: The provider to use for the equation solver
-    temperature: 0.0 # float: Sampling temperature, 0.0 = deterministic output
+  solve_equation: 
+    model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" 
+    provider: together 
+    temperature: 0.7 
