@@ -111,7 +111,7 @@ def build_matching_solution_string(
 
     block_lines = [
         r"\begin{solutionblock}",
-        r"  \solutionheading{Suggested matching answers:}",  # NOTE: soluction heading might not be needed
+        r"  \solutionheading{Suggested matching answers:}",
         "",
         r"  \begin{tabularx}{\linewidth}{|p{0.42\linewidth}|p{0.52\linewidth}|}",
         r"    \hline",

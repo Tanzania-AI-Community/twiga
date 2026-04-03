@@ -55,7 +55,27 @@ COMMON_INLINE_MATH_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\\times\b"), r"$\\times$"),
     (re.compile(r"\\div\b"), r"$\\div$"),
     (re.compile(r"\\pm\b"), r"$\\pm$"),
+    # Treat tokens with superscripts/subscripts as math, e.g. cm^2, x_1, a_i^2.
+    (
+        re.compile(
+            r"(?<!\$)([A-Za-z0-9\\]+(?:\^\{?[A-Za-z0-9+\-*/.]+\}?|_\{?[A-Za-z0-9+\-*/.]+\}?)+)(?!\$)"
+        ),
+        r"$\1$",
+    ),
 ]
+
+UNICODE_INLINE_MATH_REPLACEMENTS: dict[str, str] = {
+    "π": r" \pi ",
+    "θ": r" \theta ",
+    "α": r" \alpha ",
+    "β": r" \beta ",
+    "γ": r" \gamma ",
+    "λ": r" \lambda ",
+    "μ": r" \mu ",
+    "σ": r" \sigma ",
+    "φ": r" \phi ",
+    "ω": r" \omega ",
+}
 
 
 def latex_escape(value: Any) -> str:
@@ -110,6 +130,8 @@ def preserve_common_inline_math_symbols(text: str) -> str:
         Text where common symbols like `\\pi` are converted to `$\\pi$`.
     """
     updated = text
+    for symbol, latex_cmd in UNICODE_INLINE_MATH_REPLACEMENTS.items():
+        updated = updated.replace(symbol, latex_cmd)
     for pattern, replacement in COMMON_INLINE_MATH_PATTERNS:
         updated = pattern.sub(replacement, updated)
     return updated
