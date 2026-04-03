@@ -9,6 +9,8 @@ from app.services.latex_image_service import build_latex_document_pdf_at_path
 
 logger = logging.getLogger(__name__)
 
+# color solution text in red in the solution pdf
+SOLUTION_COLOR_RGB = (170, 0, 0)
 
 ### Functions for normalizing and escaping text for LaTeX output ###
 LATEX_ESCAPE_MAP = {
@@ -199,7 +201,10 @@ def normalize_multiple_choice_option_text(option: Any) -> str:
 
 ### Functions to build each part of the LaTeX document from JSON data ###
 def build_document_start() -> str:
-    """Build the static LaTeX preamble and document start.
+    """Build the static LaTeX preamble and document start. This includes packages and custom commands
+    for the exam and exam solution pdf for easier modification. Unused packages and commands in the latex
+    document have no effect on the generated pdf, so for simplicity we use a common preamble for both exam
+    and solution documents.
 
     Returns:
         The full preamble string ending at `\\begin{document}`.
@@ -215,6 +220,7 @@ def build_document_start() -> str:
         r"\usepackage{fancyhdr}",
         r"\usepackage{tabularx}",
         r"\usepackage{needspace}",
+        r"\usepackage{xcolor}",
         " ",
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
@@ -239,6 +245,20 @@ def build_document_start() -> str:
         r"    \par\Needspace{#1\baselineskip}",
         r"}{",
         r"    \par",
+        r"}",
+        " ",
+        r"% defining the solution text color and layout commands",
+        rf"\definecolor{{solutionred}}{{RGB}}{{{SOLUTION_COLOR_RGB[0]},{SOLUTION_COLOR_RGB[1]},{SOLUTION_COLOR_RGB[2]}}}",
+        r"\newcommand{\solutionheading}[1]{",
+        r"    \par{\color{solutionred}\textbf{#1}}\par",
+        r"}",
+        r"\newcommand{\solutionline}[1]{",
+        r"    \par{\color{solutionred}#1}\par",
+        r"}",
+        r"\newenvironment{solutionblock}{",
+        r"    \par\begingroup\color{solutionred}",
+        r"}{",
+        r"    \par\endgroup",
         r"}",
         " ",
         r"\begin{document}",
@@ -379,7 +399,7 @@ def apply_indentation(line: str, level: int) -> str:
 
 def build_multiple_choice_block(
     question: dict[str, Any], multiple_choice_marks: int
-) -> str:
+) -> list[str]:
     """Build LaTeX for a full multiple-choice question block in Section A.
 
     Args:
@@ -387,7 +407,7 @@ def build_multiple_choice_block(
         multiple_choice_marks: Section-level marks.
 
     Returns:
-        LaTeX for the numbered question, roman sub-items, and A-E options.
+        A list of LaTeX lines for the numbered question, roman sub-items, and A-E options.
     """
     base_indent_level = 1
     prompt = normalize_inline_text(question.get("prompt", ""))
@@ -452,10 +472,10 @@ def build_multiple_choice_block(
 
     lines.append(apply_indentation(line=r"\end{enumerate}", level=base_indent_level))
 
-    return "\n".join(lines)
+    return lines
 
 
-def build_matching_block(question: dict[str, Any], matching_marks: int) -> str:
+def build_matching_block(question: dict[str, Any], matching_marks: int) -> list[str]:
     """Build LaTeX for a full matching question block in Section A.
 
     Args:
@@ -463,7 +483,7 @@ def build_matching_block(question: dict[str, Any], matching_marks: int) -> str:
         matching_marks: Section-level marks value to display in heading.
 
     Returns:
-        LaTeX for the matching question with two tabularx columns (List A/B).
+        A list of LaTeX lines for the matching question with two tabularx columns (List A/B).
     """
     base_indent_level = 1
     prompt = normalize_inline_text(question.get("prompt", ""))
@@ -547,10 +567,10 @@ def build_matching_block(question: dict[str, Any], matching_marks: int) -> str:
     lines.append(
         apply_indentation(line=r"\end{questionblock}", level=base_indent_level)
     )
-    return "\n".join(lines)
+    return lines
 
 
-def build_section_a(section_a: dict[str, Any]) -> str:
+def build_section_a(section_a: dict[str, Any]) -> tuple[str, list[str]]:
     """Build the complete Section A block from JSON data.
 
     Args:
@@ -558,11 +578,13 @@ def build_section_a(section_a: dict[str, Any]) -> str:
             and `question_list`.
 
     Returns:
-        LaTeX for Section A, or an empty string when no Section A questions exist.
+        A tuple of `(section_text, lines)`, where `section_text` is the rendered
+        LaTeX for Section A and `lines` is the list used to build it. Returns
+        `("", [])` when no Section A questions exist.
     """
     question_list = section_a.get("question_list")
     if not isinstance(question_list, list) or not question_list:
-        return ""
+        return "", []
 
     section_title = normalize_inline_text(section_a.get("section_title", "SECTION A"))
     section_instructions = normalize_inline_text(
@@ -588,7 +610,7 @@ def build_section_a(section_a: dict[str, Any]) -> str:
         if not isinstance(question, dict):
             continue
         if is_multiple_choice(question):
-            lines.append(build_multiple_choice_block(question, multiple_choice_marks))
+            lines.extend(build_multiple_choice_block(question, multiple_choice_marks))
             lines.append("")
 
     for question in question_list:
@@ -596,23 +618,23 @@ def build_section_a(section_a: dict[str, Any]) -> str:
             continue
 
         if is_matching(question):
-            lines.append(build_matching_block(question, matching_marks))
+            lines.extend(build_matching_block(question, matching_marks))
             lines.append("")
 
     lines.append(r"\end{enumerate}")
-    return "\n".join(lines)
+    return "\n".join(lines), lines
 
 
 def build_section_b_sub_question_block(
     sub_question: dict[str, Any], indent_level: int
-) -> str:
+) -> list[str]:
     """Build LaTeX for a single sub-question within a Section B part.
 
     Args:
         sub_question: A sub-question dictionary containing `text` and `marks`.
         indent_level: The indentation level to apply for this sub-question.
     Returns:
-        LaTeX for the sub-question as a roman-labeled item.
+        A list of LaTeX lines for the sub-question as a roman-labeled item.
     """
     part_label = normalize_inline_text(sub_question.get("label", ""))
     part_prompt = normalize_inline_text(sub_question.get("prompt", ""))
@@ -621,7 +643,7 @@ def build_section_b_sub_question_block(
 
     part_heading = f"({part_label}) {part_prompt} ({part_marks})"
 
-    lines = []
+    lines: list[str] = []
     lines.append(apply_indentation(line=part_heading, level=indent_level))
 
     # (might have sub-questions)
@@ -646,28 +668,28 @@ def build_section_b_sub_question_block(
 
         lines.append(apply_indentation(line=r"\end{enumerate}", level=indent_level))
 
-    return "\n".join(lines)
+    return lines
 
 
-def build_section_b_block(question: dict[str, Any]) -> str:
+def build_section_b_block(question: dict[str, Any]) -> list[str]:
     """Build LaTeX for one Section B question block.
 
     Args:
         question: A question dictionary from Section B.
 
     Returns:
-        LaTeX for one top-level Section B item including optional parts and
-        optional sub-questions.
+        A list of LaTeX lines for one top-level Section B item including
+        optional parts and optional sub-questions.
     """
     if not isinstance(question, dict):
-        return ""
+        return []
 
     base_indent_level = 1
     question_marks = int(question.get("marks") or 0)
     parts = question.get("parts", [])
 
     if len(parts) == 0:
-        return ""  # No content to render for this question
+        return []  # No content to render for this question
 
     lines: list[str] = []
     lines.append(
@@ -685,9 +707,10 @@ def build_section_b_block(question: dict[str, Any]) -> str:
         if not isinstance(part, dict):
             continue
 
-        lines.append(
+        lines.extend(
             build_section_b_sub_question_block(
-                sub_question=part, indent_level=base_indent_level + 1
+                sub_question=part,
+                indent_level=base_indent_level + 1,
             )
         )
         lines.append("")
@@ -699,21 +722,23 @@ def build_section_b_block(question: dict[str, Any]) -> str:
         apply_indentation(line=r"\end{questionblock}", level=base_indent_level)
     )
 
-    return "\n".join(lines)
+    return lines
 
 
-def build_section_b(section_b: dict[str, Any]) -> str:
+def build_section_b(section_b: dict[str, Any]) -> tuple[str, list[str]]:
     """Build the complete Section B block from JSON data.
 
     Args:
         section_b: Section B dictionary from JSON.
 
     Returns:
-        LaTeX for Section B, or an empty string when no Section B questions exist.
+        A tuple of `(section_text, lines)`, where `section_text` is the rendered
+        LaTeX for Section B and `lines` is the list used to build it. Returns
+        `("", [])` when no Section B questions exist.
     """
     question_list = section_b.get("question_list")
     if not isinstance(question_list, list) or not question_list:
-        return ""
+        return "", []
 
     section_title = normalize_inline_text(section_b.get("section_title", "SECTION B"))
     section_instructions = normalize_inline_text(
@@ -738,25 +763,25 @@ def build_section_b(section_b: dict[str, Any]) -> str:
         if not isinstance(question, dict):
             continue
 
-        lines.append(build_section_b_block(question))
+        lines.extend(build_section_b_block(question))
         lines.append("")
 
     lines.append(r"\end{enumerate}")
-    return "\n".join(lines)
+    return "\n".join(lines), lines
 
 
-def build_section_c_block(question: dict[str, Any]) -> str:
+def build_section_c_block(question: dict[str, Any]) -> list[str]:
     """Build LaTeX for one Section C question block.
 
     Args:
         question: A question dictionary from Section C.
 
     Returns:
-        LaTeX for one top-level Section C item with optional task prompt and
-        optional task sub-questions.
+        A list of LaTeX lines for one top-level Section C item with optional
+        task prompt and optional task sub-questions.
     """
     if not isinstance(question, dict):
-        return ""
+        return []
 
     base_indent_level = 1
     question_marks = int(question.get("marks") or 0)
@@ -804,21 +829,23 @@ def build_section_c_block(question: dict[str, Any]) -> str:
         apply_indentation(line=r"\end{questionblock}", level=base_indent_level)
     )
 
-    return "\n".join(lines)
+    return lines
 
 
-def build_section_c(section_c: dict[str, Any]) -> str:
+def build_section_c(section_c: dict[str, Any]) -> tuple[str, list[str]]:
     """Build the complete Section C block from JSON data.
 
     Args:
         section_c: Section C dictionary from JSON.
 
     Returns:
-        LaTeX for Section C, or an empty string when no Section C questions exist.
+        A tuple of `(section_text, lines)`, where `section_text` is the rendered
+        LaTeX for Section C and `lines` is the list used to build it. Returns
+        `("", [])` when no Section C questions exist.
     """
     question_list = section_c.get("question_list")
     if not isinstance(question_list, list) or not question_list:
-        return ""
+        return "", []
 
     section_title = normalize_inline_text(section_c.get("section_title", "SECTION C"))
     section_instructions = normalize_inline_text(
@@ -844,11 +871,11 @@ def build_section_c(section_c: dict[str, Any]) -> str:
         if not isinstance(question, dict):
             continue
 
-        lines.append(build_section_c_block(question))
+        lines.extend(build_section_c_block(question))
         lines.append("")
 
     lines.append(r"\end{enumerate}")
-    return "\n".join(lines)
+    return "\n".join(lines), lines
 
 
 def build_document_end() -> str:
@@ -869,13 +896,17 @@ def build_exam_document(data: dict[str, Any]) -> str:
     Returns:
         A complete LaTeX document string ready to write to disk.
     """
+    section_a_text, _ = build_section_a(data.get("section_A", {}))
+    section_b_text, _ = build_section_b(data.get("section_B", {}))
+    section_c_text, _ = build_section_c(data.get("section_C", {}))
+
     parts = [
         build_document_start(),
         build_header(data.get("meta", {})),
         build_instructions(data.get("instructions", [])),
-        build_section_a(data.get("section_A", {})),
-        build_section_b(data.get("section_B", {})),
-        build_section_c(data.get("section_C", {})),
+        section_a_text,
+        section_b_text,
+        section_c_text,
         build_document_end(),
     ]
     return "\n\n".join(part for part in parts if part.strip()) + "\n"

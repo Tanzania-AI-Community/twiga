@@ -8,6 +8,7 @@
 \usepackage{fancyhdr}
 \usepackage{tabularx}
 \usepackage{needspace}
+\usepackage{xcolor}
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -32,6 +33,20 @@
     \par\Needspace{#1\baselineskip}
 }{
     \par
+}
+
+% defining the solution text color and layout commands
+\definecolor{solutionred}{RGB}{170,0,0}
+\newcommand{\solutionheading}[1]{
+    \par{\color{solutionred}\textbf{#1}}\par
+}
+\newcommand{\solutionline}[1]{
+    \par{\color{solutionred}#1}\par
+}
+\newenvironment{solutionblock}{
+    \par\begingroup\color{solutionred}
+}{
+    \par\endgroup
 }
 
 \begin{document}

@@ -20,6 +20,7 @@ def main() -> None:
     """
     data = json.loads(INPUT_PATH.read_text(encoding="utf-8"))
     tex = build_exam_document(data)
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(tex, encoding="utf-8")
     print(f"Generated: {OUTPUT_PATH}")
 
