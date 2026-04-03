@@ -1,8 +1,19 @@
+from pathlib import Path
+from unittest.mock import patch
+
 from reportlab.platypus import KeepTogether, Paragraph, Spacer, Table
 
-from app.services.exam_pdf_generation_service import (
-    build_styles,
+from app.services.exam_pdf_generation_service import render_exam_pdf
+from app.services.exam_rendering.latex_exam_pdf_rendering import (
+    build_exam_document,
+)
+from app.services.exam_rendering.rendering_utils import (
+    normalize_mcq_options,
     normalize_option_text,
+)
+from app.services.exam_rendering.reportlab_rendering import (
+    build_pdf,
+    build_styles,
     question_heading_markup,
     render_multiple_choice_question,
     render_section_b,
@@ -122,6 +133,35 @@ def test_normalize_option_text_strips_colon_prefix() -> None:
     assert normalize_option_text("C", "C) Example option text") == "Example option text"
 
 
+def test_normalize_mcq_options_uses_option_values_for_placeholder_options() -> None:
+    raw_options = [
+        {"label": "A", "text": "A"},
+        {"label": "B", "text": "B"},
+        {"label": "C", "text": "C"},
+    ]
+    raw_option_values = [r"\frac{5}{22}", r"\frac{7}{22}", r"\frac{1}{2}"]
+
+    normalized = normalize_mcq_options(raw_options, raw_option_values)
+
+    assert normalized == [
+        ("A", r"\frac{5}{22}"),
+        ("B", r"\frac{7}{22}"),
+        ("C", r"\frac{1}{2}"),
+    ]
+
+
+def test_normalize_mcq_options_keeps_non_placeholder_text() -> None:
+    raw_options = [
+        {"label": "A", "text": "A: 2 cm"},
+        {"label": "B", "text": "B: 3 cm"},
+    ]
+    raw_option_values = [r"\frac{1}{2}", r"\frac{1}{3}"]
+
+    normalized = normalize_mcq_options(raw_options, raw_option_values)
+
+    assert normalized == [("A", "2 cm"), ("B", "3 cm")]
+
+
 def test_render_section_b_wraps_each_question_in_keep_together() -> None:
     st = build_styles()
     story = []
@@ -166,3 +206,108 @@ def test_render_section_b_wraps_each_question_in_keep_together() -> None:
 
     keep_blocks = [flowable for flowable in story if isinstance(flowable, KeepTogether)]
     assert len(keep_blocks) == 2
+
+
+def test_build_exam_document_keeps_math_not_escaped() -> None:
+    exam = {
+        "meta": {
+            "country": "Country",
+            "exam_title": "Exam",
+            "subject": "Math",
+            "duration": "3:00 Hrs",
+            "year": 2026,
+        },
+        "section_A": {
+            "multiple_choice_marks": 1,
+            "matching_marks": 0,
+            "question_list": [
+                {
+                    "id": "A-Q1",
+                    "type": "multiple_choice",
+                    "marks": 1,
+                    "prompt": "Select the correct value for $x$.",
+                    "items": [
+                        {
+                            "label": "i",
+                            "question": "Compute $\\frac{1}{2} + \\frac{1}{2}$.",
+                            "options": [
+                                {"label": "A", "text": "A"},
+                                {"label": "B", "text": "B"},
+                            ],
+                            "options_values": [r"\frac{1}{2}", "1"],
+                            "answer": "B",
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+
+    latex_body = build_exam_document(exam)
+
+    assert r"$\frac{1}{2} + \frac{1}{2}$" in latex_body
+    assert r"\$\\frac" not in latex_body
+    assert r"\item A" in latex_body
+
+
+def test_build_pdf_writes_reportlab_pdf(tmp_path: Path) -> None:
+    exam = {
+        "meta": {"subject": "Math"},
+        "section_A": {
+            "multiple_choice_marks": 1,
+            "matching_marks": 0,
+            "question_list": [
+                {
+                    "id": "A-Q1",
+                    "type": "multiple_choice",
+                    "prompt": "Solve $x+1=2$",
+                    "items": [],
+                }
+            ],
+        },
+    }
+    output_path = tmp_path / "exam.pdf"
+
+    build_pdf(exam, output_path, is_solution=False)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_render_exam_pdf_falls_back_to_reportlab_when_latex_backend_fails(
+    tmp_path: Path,
+) -> None:
+    exam = {
+        "meta": {"subject": "Math"},
+        "section_A": {
+            "multiple_choice_marks": 1,
+            "matching_marks": 0,
+            "question_list": [
+                {
+                    "id": "A-Q1",
+                    "type": "multiple_choice",
+                    "prompt": "Solve $x+1=2$",
+                    "items": [],
+                }
+            ],
+        },
+    }
+    output_path = tmp_path / "exam.pdf"
+
+    def _fake_reportlab_backend(_: dict[str, object], path: Path) -> None:
+        path.write_bytes(b"reportlab-pdf")
+
+    with (
+        patch(
+            "app.services.exam_pdf_generation_service.build_latex_exam_pdf",
+            side_effect=RuntimeError("latex failed"),
+        ),
+        patch(
+            "app.services.exam_pdf_generation_service.build_reportlab_exam_pdf",
+            side_effect=_fake_reportlab_backend,
+        ) as mock_reportlab_backend,
+    ):
+        render_exam_pdf(exam, output_path, subject="Math")
+
+    assert output_path.read_bytes() == b"reportlab-pdf"
+    mock_reportlab_backend.assert_called_once()

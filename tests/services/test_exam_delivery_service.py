@@ -102,10 +102,22 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
         exam_json={"meta": {"exam_title": "Exam"}},
     )
 
-    def _create_exam_pdf(_: dict, output_path: Path) -> None:
+    def _render_exam(
+        exam_json: dict,
+        output_path: Path,
+        subject: str | None,
+    ) -> None:
+        assert exam_json == {"meta": {"exam_title": "Exam"}}
+        assert subject == "Chemistry"
         output_path.write_bytes(b"pdf")
 
-    def _create_solution_pdf(_: dict, output_path: Path) -> None:
+    def _render_solution(
+        exam_json: dict,
+        output_path: Path,
+        subject: str | None,
+    ) -> None:
+        assert exam_json == {"meta": {"exam_title": "Exam"}}
+        assert subject == "Chemistry"
         output_path.write_bytes(b"pdf")
 
     with (
@@ -118,13 +130,13 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
             AsyncMock(return_value=exam_record),
         ) as mock_get_exam,
         patch(
-            "app.services.exam_delivery_service.build_exam_pdf",
-            side_effect=_create_exam_pdf,
-        ),
+            "app.services.exam_delivery_service.render_exam_pdf",
+            side_effect=_render_exam,
+        ) as mock_render_exam,
         patch(
-            "app.services.exam_delivery_service.build_solution_pdf",
-            side_effect=_create_solution_pdf,
-        ),
+            "app.services.exam_delivery_service.render_exam_solution_pdf",
+            side_effect=_render_solution,
+        ) as mock_render_solution,
     ):
         result = await service.get_exam_delivery_details(exam_id)
 
@@ -132,6 +144,8 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
     assert result.solution_pdf_ready is True
     assert result.errors == []
     mock_get_exam.assert_awaited_once_with(exam_id)
+    mock_render_exam.assert_called_once()
+    mock_render_solution.assert_called_once()
 
 
 @pytest.mark.asyncio
