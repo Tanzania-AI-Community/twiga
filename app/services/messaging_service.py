@@ -14,7 +14,7 @@ from app.services.exam_delivery_service import (
     ExamPDFDeliveryDetails,
     exam_delivery_service,
 )
-from app.services.flow_service import flow_client
+from app.services.flows.flow_service import flow_client
 from app.services.latex_image_service import (
     looks_like_latex,
     prepare_latex_body,

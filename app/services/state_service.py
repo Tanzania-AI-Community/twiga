@@ -6,7 +6,7 @@ from app.database import db
 from app.database.enums import MessageRole, OnboardingState, Role, UserState
 from app.database.models import Message, User
 from app.monitoring.metrics import record_messages_generated
-from app.services.flow_service import flow_client
+from app.services.flows.flow_service import flow_client
 from app.services.messaging_service import messaging_client
 from app.services.onboarding_service import onboarding_client
 from app.services.rate_limit_service import rate_limit_service

@@ -11,9 +11,12 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 import app.database.db as db
 import app.database.enums as enums
+import app.services.flows.utils as flow_utils
 from app.config import settings
+from app.database.models import User
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.logging_utils import log_httpx_response
+from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     generate_payload,
     generate_payload_for_document,
@@ -52,12 +55,13 @@ class WhatsAppClient:
         self.client = httpx.AsyncClient(base_url=self.url)
 
     async def send_message(
-        self, wa_id: str, message: str, options: Optional[list[str]] = None
+        self, wa_id: str, message: str, options: list[str] | None = None
     ) -> None:
         if settings.mock_whatsapp:
             return
 
         try:
+            payload: dict[str, Any] = generate_payload(wa_id, message, options)
             payload: dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
@@ -68,12 +72,71 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error(f"Unexpected Error: {e}")
 
+    async def send_whatsapp_flow_message(
+        self,
+        user: User,
+        flow_id: str,
+        header_text: str,
+        body_text: str,
+        action_payload: dict[str, Any],
+        flow_cta: str,
+        mode: str = "published",
+    ) -> None:
+        if settings.mock_whatsapp:
+            return
+
+        flow_token = flow_utils.encrypt_flow_token(user.wa_id, flow_id)
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": user.wa_id,
+            "recipient_type": "individual",
+            "type": "interactive",
+            "interactive": {
+                "type": "flow",
+                "header": {
+                    "type": "text",
+                    "text": header_text,
+                },
+                "body": {
+                    "text": body_text,
+                },
+                "footer": {
+                    "text": strings.get_string(
+                        StringCategory.FLOWS, "flow_footer_text"
+                    ),
+                },
+                "action": {
+                    "name": "flow",
+                    "parameters": {
+                        "flow_message_version": "3",
+                        "flow_action": "navigate",
+                        "flow_token": flow_token,
+                        "flow_id": flow_id,
+                        "flow_cta": flow_cta,
+                        "mode": mode,
+                        "flow_action_payload": action_payload,
+                    },
+                },
+            },
+        }
+
+        try:
+            response = await self.client.post(
+                "/messages", json=payload, headers=self.headers
+            )
+            log_httpx_response(response)
+        except httpx.RequestError as e:
+            self.logger.error(f"Flow Message Request Error: {e}")
+        except Exception as e:
+            self.logger.error(f"Flow Message Unexpected Error: {e}")
+
     async def send_image_message(
         self,
         wa_id: str,
         image_path: str,
         img_type: ImageType,
-        caption: Optional[str] = None,
+        caption: str | None = None,
     ) -> bool:
         if settings.mock_whatsapp:
             self.logger.info(
@@ -81,7 +144,7 @@ class WhatsAppClient:
             )
             return True
 
-        media_id: Optional[str] = None
+        media_id: str | None = None
 
         try:
             media_id = await self.upload_media(

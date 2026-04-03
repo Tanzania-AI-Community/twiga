@@ -9,7 +9,7 @@ import subprocess
 
 import typer
 
-from app.utils.flow_utils import decrypt_flow_token, encrypt_flow_token
+from app.services.flows.utils import decrypt_flow_token, encrypt_flow_token
 
 logger = logging.getLogger(__name__)
 cli = typer.Typer()
