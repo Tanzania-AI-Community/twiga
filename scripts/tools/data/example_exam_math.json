@@ -1,0 +1,1206 @@
+{
+  "meta": {
+    "country": "THE UNITED REPUBLIC OF TANZANIA",
+    "office": "PRESIDENT’S OFFICE\nREGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
+    "exam_title": "GENERATED PRACTICE EXAM",
+    "subject": "MATHEMATICS",
+    "duration": "3:00 Hrs",
+    "year": 2026
+  },
+  "instructions": [
+    "This paper consists of three sections A, B and C with a total of 14 questions.",
+    "Answer all questions in section A and B and one (1) question from section C.",
+    "Calculators and cellular phones are not allowed in the examination room.",
+    "Write your Examination number on every page of your answer sheets/booklet(s)."
+  ],
+  "constants": {},
+  "section_A": {
+    "section_title": "SECTION A",
+    "section_instructions": "Answer all questions in this section.",
+    "multiple_choice_marks": 10,
+    "matching_marks": 5,
+    "total_num_questions": 8,
+    "question_types": [
+      "multiple_choice",
+      "item_matching"
+    ],
+    "question_list": [
+      {
+        "id": "A-Q1",
+        "type": "multiple_choice",
+        "marks": 7,
+        "prompt": "For each of the following items, choose the correct answer among the given alternatives and write its letter beside the item number provided.",
+        "items": [
+          {
+            "id": "A-Q1-1",
+            "marks": 1,
+            "question": "The area of a trapezium is given by the formula $A = \\frac{1}{2}(a + b)h$, where $a$ and $b$ are the lengths of the parallel sides and $h$ is the height. If the area of a trapezium is $24 \\text{ cm}^2$, $a = 5 \\text{ cm}$, and $b = 7 \\text{ cm}$, what is the height of the trapezium?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A: 2 cm"
+              },
+              {
+                "label": "B",
+                "text": "B: 3 cm"
+              },
+              {
+                "label": "C",
+                "text": "C: 4 cm"
+              },
+              {
+                "label": "D",
+                "text": "D: 6 cm"
+              },
+              {
+                "label": "E",
+                "text": "E: 8 cm"
+              }
+            ],
+            "answer": "C",
+            "metadata": {
+              "topic": "areas and perimeters",
+              "difficulty": "medium"
+            },
+            "source_chunk_ids": [
+              29554,
+              29461,
+              29520,
+              29649,
+              29624,
+              29566,
+              29472,
+              29854,
+              29726,
+              29555,
+              29628,
+              29570,
+              29607,
+              29557,
+              29856,
+              29878,
+              29568,
+              29709,
+              29652,
+              29621,
+              29542,
+              29583,
+              29637,
+              29593,
+              29638
+            ],
+            "label": "i"
+          },
+          {
+            "id": "A-Q1-2",
+            "marks": 1,
+            "question": "What is the total number of faces of a hexagonal prism?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. 6"
+              },
+              {
+                "label": "B",
+                "text": "B. 7"
+              },
+              {
+                "label": "C",
+                "text": "C. 8"
+              },
+              {
+                "label": "D",
+                "text": "D. 10"
+              },
+              {
+                "label": "E",
+                "text": "E. 12"
+              }
+            ],
+            "answer": "C",
+            "metadata": {
+              "topic": "Three-dimensional figures",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              29649,
+              29652,
+              29520,
+              29461,
+              29732,
+              29653,
+              29664,
+              29660,
+              29472,
+              29654,
+              29666,
+              29656,
+              29669,
+              29667,
+              29650,
+              29668,
+              29661,
+              29757,
+              29854,
+              29709,
+              29760,
+              29678,
+              29665,
+              29866,
+              29734
+            ],
+            "label": "ii"
+          },
+          {
+            "id": "A-Q1-3",
+            "marks": 1,
+            "question": "A bag contains 10 red balls, 5 blue balls, and 7 green balls. If one ball is picked at random from the bag, what is the probability that it is a blue ball?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A"
+              },
+              {
+                "label": "B",
+                "text": "B"
+              },
+              {
+                "label": "C",
+                "text": "C"
+              },
+              {
+                "label": "D",
+                "text": "D"
+              },
+              {
+                "label": "E",
+                "text": "E"
+              }
+            ],
+            "answer": "A",
+            "metadata": {
+              "topic": "probability",
+              "difficulty": "easy"
+            },
+            "options_values": [
+              "\\frac{5}{22}",
+              "\\frac{7}{22}",
+              "\\frac{1}{2}",
+              "\\frac{10}{22}",
+              "\\frac{3}{11}"
+            ],
+            "source_chunk_ids": [
+              29774,
+              29842,
+              29844,
+              29801,
+              29838,
+              29841,
+              29789,
+              29843,
+              29461,
+              29829,
+              29778,
+              29839,
+              29849,
+              29847,
+              29805,
+              29804,
+              29780,
+              29813,
+              29777,
+              29809,
+              29810,
+              29846,
+              29649,
+              29822,
+              29830
+            ],
+            "label": "iii"
+          },
+          {
+            "id": "A-Q1-4",
+            "marks": 1,
+            "question": "If $\\sin \\theta = -\\frac{1}{2}$ and $0^{\\circ} \\leq \\theta \\leq 360^{\\circ}$, what are the possible values of $\\theta$?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A: $210^{\\circ}$ and $330^{\\circ}$"
+              },
+              {
+                "label": "B",
+                "text": "B: $120^{\\circ}$ and $240^{\\circ}$"
+              },
+              {
+                "label": "C",
+                "text": "C: $30^{\\circ}$ and $150^{\\circ}$"
+              },
+              {
+                "label": "D",
+                "text": "D: $210^{\\circ}$ and $240^{\\circ}$"
+              },
+              {
+                "label": "E",
+                "text": "E: $240^{\\circ}$ and $300^{\\circ}$"
+              }
+            ],
+            "answer": "A",
+            "metadata": {
+              "topic": "trigonometry",
+              "difficulty": "medium"
+            },
+            "source_chunk_ids": [
+              29854,
+              29461,
+              29878,
+              29520,
+              29856,
+              29649,
+              29855,
+              29866,
+              29910,
+              29893,
+              29868,
+              29909,
+              29876,
+              29865,
+              29885,
+              29472,
+              29886,
+              29901,
+              29600,
+              29882,
+              29870,
+              29890,
+              29512,
+              29873,
+              29877
+            ],
+            "label": "iv"
+          },
+          {
+            "id": "A-Q1-6",
+            "marks": 1,
+            "question": "The perimeter of a regular hexagon is 36 cm. What is the length of one side?",
+            "options": [
+              {
+                "label": "A",
+                "text": "4 cm"
+              },
+              {
+                "label": "B",
+                "text": "5 cm"
+              },
+              {
+                "label": "C",
+                "text": "6 cm"
+              },
+              {
+                "label": "D",
+                "text": "7 cm"
+              },
+              {
+                "label": "E",
+                "text": "8 cm"
+              }
+            ],
+            "answer": "C",
+            "metadata": {
+              "topic": "areas and perimeters",
+              "difficulty": "easy"
+            },
+            "source_chunk_ids": [
+              29554,
+              29461,
+              29520,
+              29649,
+              29624,
+              29566,
+              29472,
+              29854,
+              29726,
+              29555,
+              29628,
+              29570,
+              29607,
+              29557,
+              29856,
+              29878,
+              29568,
+              29709,
+              29652,
+              29621,
+              29542,
+              29583,
+              29637,
+              29593,
+              29638
+            ],
+            "label": "vi"
+          },
+          {
+            "id": "A-Q1-7",
+            "marks": 1,
+            "question": "What is the total number of vertices of a hexagonal prism?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. 6"
+              },
+              {
+                "label": "B",
+                "text": "B. 8"
+              },
+              {
+                "label": "C",
+                "text": "C. 10"
+              },
+              {
+                "label": "D",
+                "text": "D. 12"
+              },
+              {
+                "label": "E",
+                "text": "E. 14"
+              }
+            ],
+            "answer": "D",
+            "metadata": {
+              "topic": "Three dimensional figures",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              29649,
+              29652,
+              29520,
+              29461,
+              29732,
+              29653,
+              29664,
+              29660,
+              29472,
+              29654,
+              29666,
+              29656,
+              29669,
+              29667,
+              29650,
+              29668,
+              29661,
+              29757,
+              29854,
+              29709,
+              29760,
+              29678,
+              29665,
+              29866,
+              29734
+            ],
+            "label": "vii"
+          },
+          {
+            "id": "A-Q1-8",
+            "marks": 1,
+            "question": "A bag contains 10 red balls, 5 blue balls, and 7 green balls. If one ball is picked at random from the bag, what is the probability that it is not a blue ball?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A"
+              },
+              {
+                "label": "B",
+                "text": "B"
+              },
+              {
+                "label": "C",
+                "text": "C"
+              },
+              {
+                "label": "D",
+                "text": "D"
+              },
+              {
+                "label": "E",
+                "text": "E"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "probability",
+              "difficulty": "medium"
+            },
+            "options_values": [
+              "\\frac{15}{22}",
+              "\\frac{17}{22}",
+              "\\frac{5}{22}",
+              "\\frac{7}{22}",
+              "\\frac{10}{22}"
+            ],
+            "source_chunk_ids": [
+              29774,
+              29842,
+              29844,
+              29801,
+              29838,
+              29841,
+              29789,
+              29843,
+              29461,
+              29829,
+              29778,
+              29839,
+              29849,
+              29847,
+              29805,
+              29804,
+              29780,
+              29813,
+              29777,
+              29809,
+              29810,
+              29846,
+              29649,
+              29822,
+              29830
+            ],
+            "label": "viii"
+          }
+        ],
+        "metadata": {
+          "topic": "areas and perimeters, three dimensional figures, probability, trigonometry, matrices",
+          "difficulty": "medium"
+        }
+      },
+      {
+        "id": "A-Q2",
+        "marks": 5,
+        "prompt": "Match the shape with its correct area formula.",
+        "listA": [
+          "Triangle",
+          "Parallelogram",
+          "Trapezium",
+          "Rhombus",
+          "Rectangle"
+        ],
+        "listB": [
+          "$l \\times w$",
+          "$l^2$",
+          "$\\frac{1}{2}(a + b)h$",
+          "$\\frac{1}{2} \\times \\text{base} \\times \\text{height}$",
+          "$\\text{base} \\times \\text{height}$",
+          "$\\frac{1}{2} \\times d_1 \\times d_2$",
+          "$\\pi r^2$"
+        ],
+        "answers_pairs": {
+          "Triangle": "$\\frac{1}{2} \\times \\text{base} \\times \\text{height}$",
+          "Parallelogram": "$\\text{base} \\times \\text{height}$",
+          "Trapezium": "$\\frac{1}{2}(a + b)h$",
+          "Rhombus": "$\\frac{1}{2} \\times d_1 \\times d_2$",
+          "Rectangle": "$l \\times w$"
+        },
+        "allow_reuse_listB": true,
+        "metadata": {
+          "topic": "areas and perimeters",
+          "difficulty": "medium"
+        },
+        "source_chunk_ids": [
+          29554,
+          29461,
+          29520,
+          29649,
+          29624,
+          29566,
+          29472,
+          29854,
+          29726,
+          29555,
+          29628,
+          29570,
+          29607,
+          29557,
+          29856,
+          29878,
+          29568,
+          29709,
+          29652,
+          29621,
+          29542,
+          29583,
+          29637,
+          29593,
+          29638
+        ]
+      }
+    ]
+  },
+  "section_B": {
+    "section_title": "SECTION B",
+    "section_instructions": "Answer all questions in this section.",
+    "marks": 70,
+    "total_num_questions": 4,
+    "question_types": [
+      "short_answer"
+    ],
+    "question_list": [
+      {
+        "id": "B-Q3",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 6,
+            "prompt": "Find the width of a rectangle with an area of $48 \\text{ cm}^2$ and length $8 \\text{ cm}$.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Write down the formula for the area of a rectangle.",
+                "marks": 1
+              },
+              {
+                "label": "ii",
+                "text": "Substitute the given values into the formula.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "Solve for the width.",
+                "marks": 3
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 8,
+            "prompt": "Find the radius of a circle with a circumference of $31.4 \\text{ cm}$.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Write down the formula for the circumference of a circle.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Substitute the given circumference value into the formula.",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "Solve for the radius.",
+                "marks": 3
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": "a) Width = 6 cm, b) Radius = 5 cm",
+          "marking_scheme": "For part a: i) $A = l \\times w$ (1 mark), ii) $48 = 8 \\times w$ (2 marks), iii) $w = 6 \\text{ cm}$ (3 marks). For part b: i) $C = 2\\pi r$ (2 marks), ii) $31.4 = 2 \\times 3.14 \\times r$ (3 marks), iii) $r = 5 \\text{ cm}$ (3 marks)",
+          "marking_points": [
+            "Correct formula",
+            "Correct substitution",
+            "Correct solution"
+          ]
+        },
+        "metadata": {
+          "topic": "areas and perimeters",
+          "difficulty": "medium"
+        },
+        "source_chunk_ids": [
+          29554,
+          29461,
+          29520,
+          29649,
+          29624,
+          29566,
+          29472,
+          29854,
+          29726,
+          29555,
+          29628,
+          29570,
+          29607,
+          29557,
+          29856,
+          29878,
+          29568,
+          29709,
+          29652,
+          29621,
+          29542,
+          29583,
+          29637,
+          29593,
+          29638
+        ]
+      },
+      {
+        "id": "B-Q4",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 6,
+            "prompt": "Calculate the total surface area of a cuboid with dimensions 6 cm, 8 cm, and 10 cm.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "State the formula for the total surface area of a cuboid.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Substitute the given dimensions into the formula.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "Compute the total surface area.",
+                "marks": 2
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 8,
+            "prompt": "Find the total surface area of a right circular cone with a radius of 5 cm and a slant height of 13 cm.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "State the formula for the total surface area of a cone.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Calculate the area of the base of the cone.",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "Calculate the total surface area of the cone.",
+                "marks": 3
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": "a) i) 2(lw + lh + wh), ii) 2(6*8 + 6*10 + 8*10), iii) 376 cm^2, b) i) πr(r + l), ii) 25π cm^2, iii) 90π cm^2",
+          "marking_scheme": "For part a: i) 2 marks for correct formula, ii) 2 marks for correct substitution, iii) 2 marks for correct calculation. For part b: i) 2 marks for correct formula, ii) 3 marks for correct base area calculation, iii) 3 marks for correct total surface area calculation.",
+          "marking_points": [
+            "Correct formula for total surface area of cuboid",
+            "Correct substitution of dimensions",
+            "Correct total surface area of cuboid",
+            "Correct formula for total surface area of cone",
+            "Correct area of base of cone",
+            "Correct total surface area of cone"
+          ]
+        },
+        "metadata": {
+          "topic": "three dimensional figures",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          29649,
+          29652,
+          29520,
+          29461,
+          29732,
+          29653,
+          29664,
+          29660,
+          29472,
+          29654,
+          29666,
+          29656,
+          29669,
+          29667,
+          29650,
+          29668,
+          29661,
+          29757,
+          29854,
+          29709,
+          29760,
+          29678,
+          29665,
+          29866,
+          29734
+        ]
+      },
+      {
+        "id": "B-Q5",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 6,
+            "prompt": "A bag contains 10 red balls, 5 blue balls, and 7 green balls. Find the probability that a randomly picked ball is not green.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Determine the total number of balls in the bag.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Calculate the number of non-green balls.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "Find the probability of picking a non-green ball.",
+                "marks": 2
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 8,
+            "prompt": "Two fair dice are rolled. Find the probability that their sum is 7.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "How many outcomes are possible when rolling two dice?",
+                "marks": 3
+              },
+              {
+                "label": "ii",
+                "text": "Identify outcomes where the sum is 7.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "Calculate the probability of a sum of 7.",
+                "marks": 3
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": "a) i) 22 ii) 15 iii) 15/22, b) i) 36 ii) (1,6), (2,5), (3,4), (4,3), (5,2), (6,1) iii) 1/6",
+          "marking_scheme": "For part a: 2 marks for total balls, 2 marks for non-green count, 2 marks for probability. For part b: 3 marks for outcomes, 2 marks for sum 7 outcomes, 3 marks for probability.",
+          "marking_points": [
+            "Correct total number of balls",
+            "Correct count of non-green balls",
+            "Correct probability for non-green",
+            "Correct number of dice outcomes",
+            "Correct identification of sum 7 outcomes",
+            "Correct probability for sum 7"
+          ]
+        },
+        "metadata": {
+          "topic": "probability",
+          "difficulty": "medium"
+        },
+        "source_chunk_ids": [
+          29774,
+          29842,
+          29844,
+          29801,
+          29838,
+          29841,
+          29789,
+          29843,
+          29461,
+          29829,
+          29778,
+          29839,
+          29849,
+          29847,
+          29805,
+          29804,
+          29780,
+          29813,
+          29777,
+          29809,
+          29810,
+          29846,
+          29649,
+          29822,
+          29830
+        ]
+      },
+      {
+        "id": "B-Q6",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 8,
+            "prompt": "Find the possible values of $\\theta$ if $\\sin \\theta = \\frac{1}{2}$ and $0^{\\circ} \\leq \\theta \\leq 360^{\\circ}$.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Identify the quadrants where $\\sin \\theta$ is positive.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Determine the reference angle for $\\sin \\theta = \\frac{1}{2}$.",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "Find $\\theta$ within the given range.",
+                "marks": 3
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 6,
+            "prompt": "Simplify $\\frac{\\sin 60^{\\circ} \\cos 30^{\\circ}}{\\tan 45^{\\circ}}$ without tables or calculators.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "State the values of $\\sin 60^{\\circ}$, $\\cos 30^{\\circ}$, and $\\tan 45^{\\circ}$. ",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Substitute these values into the expression.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "Simplify the resulting expression.",
+                "marks": 2
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": "a) $\\theta = 30^{\\circ}, 150^{\\circ}$; b) $\\frac{3}{4}$",
+          "marking_scheme": "For part a: 2 marks for correct quadrants, 3 marks for reference angle, 3 marks for $\\theta$ values. For part b: 2 marks for correct values, 2 marks for substitution, 2 marks for simplification.",
+          "marking_points": [
+            "Part a: $\\sin \\theta$ is positive in the first and second quadrants.",
+            "Part a: Reference angle is $30^{\\circ}$.",
+            "Part a: $\\theta = 30^{\\circ}, 150^{\\circ}$.",
+            "Part b: $\\sin 60^{\\circ} = \\frac{\\sqrt{3}}{2}$, $\\cos 30^{\\circ} = \\frac{\\sqrt{3}}{2}$, $\\tan 45^{\\circ} = 1$.",
+            "Part b: Correct substitution into the expression.",
+            "Part b: Simplification yields $\\frac{3}{4}$."
+          ]
+        },
+        "metadata": {
+          "topic": "Trigonometry",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          29854,
+          29461,
+          29878,
+          29520,
+          29856,
+          29649,
+          29855,
+          29866,
+          29910,
+          29893,
+          29868,
+          29909,
+          29876,
+          29865,
+          29885,
+          29472,
+          29886,
+          29901,
+          29600,
+          29882,
+          29870,
+          29890,
+          29512,
+          29873,
+          29877
+        ]
+      }
+    ]
+  },
+  "section_C": {
+    "section_title": "SECTION C",
+    "section_instructions": "Answer only one (1) question in this section.",
+    "marks": 15,
+    "total_num_questions": 2,
+    "question_types": [
+      "long_answer"
+    ],
+    "question_list": [
+      {
+        "id": "C-Q13",
+        "marks": 15,
+        "description": "The figure shows a composite shape consisting of a rectangle and a semi-circle. The rectangle is 10 cm long and 6 cm wide. The semi-circle's diameter equals the rectangle's width.",
+        "task": {
+          "prompt": "Calculate the total area and perimeter of the composite shape using \\pi = 3.14.",
+          "sub_questions": [
+            {
+              "label": "a",
+              "prompt": "Find the area of the composite shape.",
+              "marks": 8
+            },
+            {
+              "label": "b",
+              "prompt": "Calculate the perimeter of the composite shape.",
+              "marks": 7
+            }
+          ]
+        },
+        "answer": {
+          "example_answer": {
+            "a": "Area of rectangle = length \\times width = 10 \\times 6 = 60 cm². Area of semi-circle = \\frac{1}{2} \\times \\pi \\times r² = \\frac{1}{2} \\times 3.14 \\times 3² = 14.13 cm². Total area = 60 + 14.13 = 74.13 cm².",
+            "b": "Perimeter of rectangle = 2(length + width) = 2(10 + 6) = 32 cm. Perimeter of semi-circle = \\frac{1}{2} \\times \\pi \\times d = \\frac{1}{2} \\times 3.14 \\times 6 = 9.42 cm. Total perimeter = 32 + 9.42 - 6 = 35.42 cm."
+          },
+          "marking_scheme": "For part (a): 8 marks - 3 marks for rectangle area, 3 marks for semi-circle area, 2 marks for total area. For part (b): 7 marks - 3 marks for rectangle perimeter, 2 marks for semi-circle perimeter, 2 marks for total perimeter.",
+          "marking_points": [
+            "Correctly calculates rectangle area (3 marks)",
+            "Correctly calculates semi-circle area (3 marks)",
+            "Correctly sums areas (2 marks)",
+            "Correctly calculates rectangle perimeter (3 marks)",
+            "Correctly calculates semi-circle perimeter (2 marks)",
+            "Correctly sums perimeters and adjusts for shared side (2 marks)"
+          ]
+        },
+        "metadata": {
+          "topic": "areas and perimeters",
+          "difficulty": "hard"
+        },
+        "source_chunk_ids": [
+          29554,
+          29461,
+          29520,
+          29649,
+          29624,
+          29566,
+          29472,
+          29854,
+          29726,
+          29555,
+          29628,
+          29570,
+          29607,
+          29557,
+          29856,
+          29878,
+          29568,
+          29709,
+          29652,
+          29621,
+          29542,
+          29583,
+          29637,
+          29593,
+          29638
+        ]
+      },
+      {
+        "id": "C-Q14",
+        "marks": 15,
+        "description": "A rectangular prism has dimensions 6 cm high, 8 cm long, and 10 cm wide. Understanding its surface area and net is crucial in various applications.",
+        "task": {
+          "prompt": "Calculate the total surface area, sketch the net, and explain the importance of understanding nets for this figure.",
+          "sub_questions": [
+            {
+              "label": "a",
+              "prompt": "Calculate the total surface area of the given rectangular prism.",
+              "marks": 5
+            },
+            {
+              "label": "b",
+              "prompt": "Sketch the net of the rectangular prism and label its components.",
+              "marks": 5
+            },
+            {
+              "label": "c",
+              "prompt": "Discuss the role of understanding nets in calculating surface areas.",
+              "marks": 5
+            }
+          ]
+        },
+        "answer": {
+          "example_answer": "a) The total surface area of the rectangular prism is 2(6*8 + 8*10 + 6*10) = 2(48 + 80 + 60) = 2*188 = 376 square cm. b) The net of the rectangular prism consists of 6 rectangles: 2(8*10), 2(6*10), and 2(6*8). c) Understanding nets is crucial as it helps visualize the faces of a three-dimensional figure, making it easier to calculate the total surface area by summing the areas of all the faces.",
+          "marking_scheme": "a) Correct formula and calculation (5 marks), b) Correct net sketch and identification (5 marks), c) Clear explanation of the importance of nets (5 marks)",
+          "marking_points": [
+            "Correctly applying the formula for the total surface area of a rectangular prism.",
+            "Accurately sketching the net of the given rectangular prism.",
+            "Clearly explaining the significance of understanding nets for surface area calculation."
+          ]
+        },
+        "metadata": {
+          "topic": "three dimensional figures",
+          "difficulty": "Advanced"
+        },
+        "source_chunk_ids": [
+          29649,
+          29652,
+          29520,
+          29461,
+          29732,
+          29653,
+          29664,
+          29660,
+          29472,
+          29654,
+          29666,
+          29656,
+          29669,
+          29667,
+          29650,
+          29668,
+          29661,
+          29757,
+          29854,
+          29709,
+          29760,
+          29678,
+          29665,
+          29866,
+          29734
+        ]
+      }
+    ]
+  },
+  "generation_trace": {
+    "exam_id": "b91131b4-30ab-41ed-bd16-d4a4d293cf94",
+    "generated_at_utc": "2026-03-23T10:49:04.691271+00:00",
+    "topics": [
+      "areas and perimeters",
+      "three dimensional figures",
+      "probability",
+      "trigonometry",
+      "matrices"
+    ],
+    "topic_chunk_ids": {
+      "areas and perimeters": [
+        29554,
+        29461,
+        29520,
+        29649,
+        29624,
+        29566,
+        29472,
+        29854,
+        29726,
+        29555,
+        29628,
+        29570,
+        29607,
+        29557,
+        29856,
+        29878,
+        29568,
+        29709,
+        29652,
+        29621,
+        29542,
+        29583,
+        29637,
+        29593,
+        29638
+      ],
+      "three dimensional figures": [
+        29649,
+        29652,
+        29520,
+        29461,
+        29732,
+        29653,
+        29664,
+        29660,
+        29472,
+        29654,
+        29666,
+        29656,
+        29669,
+        29667,
+        29650,
+        29668,
+        29661,
+        29757,
+        29854,
+        29709,
+        29760,
+        29678,
+        29665,
+        29866,
+        29734
+      ],
+      "probability": [
+        29774,
+        29842,
+        29844,
+        29801,
+        29838,
+        29841,
+        29789,
+        29843,
+        29461,
+        29829,
+        29778,
+        29839,
+        29849,
+        29847,
+        29805,
+        29804,
+        29780,
+        29813,
+        29777,
+        29809,
+        29810,
+        29846,
+        29649,
+        29822,
+        29830
+      ],
+      "trigonometry": [
+        29854,
+        29461,
+        29878,
+        29520,
+        29856,
+        29649,
+        29855,
+        29866,
+        29910,
+        29893,
+        29868,
+        29909,
+        29876,
+        29865,
+        29885,
+        29472,
+        29886,
+        29901,
+        29600,
+        29882,
+        29870,
+        29890,
+        29512,
+        29873,
+        29877
+      ],
+      "matrices": [
+        29520,
+        29461,
+        29649,
+        29908,
+        29472,
+        29854,
+        29774,
+        29645,
+        29554,
+        29652,
+        29516,
+        29664,
+        29613,
+        29488,
+        29486,
+        29878,
+        29786,
+        29760,
+        29484,
+        29603,
+        29504,
+        29542,
+        29538,
+        29705,
+        29732
+      ]
+    }
+  }
+}
