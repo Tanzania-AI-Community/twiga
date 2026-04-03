@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import Optional
 
 import app.database.db as db
-from app.services.exam_pdf_generation_service import build_exam_pdf, build_solution_pdf
+from app.services.exam_pdf_generation_service import (
+    render_exam_pdf,
+    render_exam_solution_pdf,
+)
 from app.utils.paths import paths
 
 EXAM_DELIVERY_MARKER_RE = re.compile(
@@ -152,7 +155,12 @@ class ExamDeliveryService:
 
         if not exam_pdf_ready:
             try:
-                build_exam_pdf(exam_json, exam_pdf_path)
+                render_exam_pdf(
+                    exam_json=exam_json,
+                    output_path=exam_pdf_path,
+                    subject=subject,
+                )
+
                 exam_pdf_ready = exam_pdf_path.exists()
                 if not exam_pdf_ready:
                     errors.append(f"Exam PDF was not created for exam_id={exam_id}.")
@@ -165,7 +173,12 @@ class ExamDeliveryService:
 
         if not solution_pdf_ready:
             try:
-                build_solution_pdf(exam_json, solution_pdf_path)
+                render_exam_solution_pdf(
+                    exam_json=exam_json,
+                    output_path=solution_pdf_path,
+                    subject=subject,
+                )
+
                 solution_pdf_ready = solution_pdf_path.exists()
                 if not solution_pdf_ready:
                     errors.append(
