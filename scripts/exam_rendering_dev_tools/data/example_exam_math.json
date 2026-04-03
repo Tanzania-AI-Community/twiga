@@ -473,6 +473,7 @@
       },
       {
         "id": "A-Q2",
+        "type": "item_matching",
         "marks": 5,
         "prompt": "Match the shape with its correct area formula.",
         "listA": [

@@ -489,6 +489,7 @@
       },
       {
         "id": "A-Q2",
+        "type": "item_matching",
         "marks": 5,
         "prompt": "Match the subatomic particles in List A with their corresponding characteristics in List B.",
         "listA": [
