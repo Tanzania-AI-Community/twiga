@@ -5,14 +5,9 @@ This script loads an exam JSON file and renders:
 - Exam PDF
 - Solution PDF
 
-Usage:
-    python scripts/tools/test_exam_pdf_rendering.py
-    python scripts/tools/test_exam_pdf_rendering.py --input scripts/tools/data/example_exam.json
-    python scripts/tools/test_exam_pdf_rendering.py --output-dir scripts/tools/outputs
-
 Docker usage:
-    docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/tools/test_exam_pdf_rendering.py --input scripts/tools/data/example_exam_math.json"
-    docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/tools/test_exam_pdf_rendering.py --input scripts/tools/data/example_exam.json"
+    docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/exam_rendering_dev_tools/test_exam_pdf_rendering.py --input scripts/exam_rendering_dev_tools/data/example_exam_math.json"
+    docker-compose -f docker/dev/docker-compose.yml --env-file .env run --rm app bash -c "PYTHONPATH=/app uv run python scripts/exam_rendering_dev_tools/test_exam_pdf_rendering.py --input scripts/exam_rendering_dev_tools/data/example_exam_chemistry.json"
 """
 
 import argparse
