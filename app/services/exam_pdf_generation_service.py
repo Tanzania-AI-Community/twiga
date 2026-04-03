@@ -6,6 +6,9 @@ from typing import Any
 from app.services.exam_rendering.latex_exam_pdf_rendering import (
     build_latex_exam_pdf,
 )
+from app.services.exam_rendering.latex_exam_solution_pdf_rendering import (
+    build_latex_exam_solution_pdf,
+)
 from app.services.exam_rendering.reportlab_rendering import (
     build_reportlab_exam_pdf,
     build_reportlab_solution_pdf,
@@ -84,17 +87,14 @@ def render_exam_solution_pdf(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if selected_backend == ExamRenderType.LATEX:
-        # try:
-        #     build_latex_solution_pdf(exam_json, output_path)
-        #     return
-        # except Exception as exc:
-        #     logger.warning(
-        #         "LaTeX backend failed; falling back to ReportLab. error=%s",
-        #         str(exc),
-        #     )
-        logger.debug(
-            "LaTeX solution PDF rendering is not implemented; falling back to ReportLab."
-        )
+        try:
+            build_latex_exam_solution_pdf(exam_json, output_path)
+            return
+        except Exception as exc:
+            logger.warning(
+                "LaTeX backend failed; falling back to ReportLab. error=%s",
+                str(exc),
+            )
 
     build_reportlab_solution_pdf(exam_json, output_path)
     return
