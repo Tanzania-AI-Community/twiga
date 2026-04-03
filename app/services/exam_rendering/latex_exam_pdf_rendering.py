@@ -33,6 +33,10 @@ MATH_SEGMENT_PATTERN = re.compile(
 )
 
 COMMON_INLINE_MATH_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # Common structured math commands that should render in math mode even
+    # when source text omitted surrounding $...$ delimiters.
+    (re.compile(r"\\frac\s*\{[^{}]+\}\s*\{[^{}]+\}"), r"$\g<0>$"),
+    (re.compile(r"\\sqrt\s*\{[^{}]+\}"), r"$\g<0>$"),
     # Greek / common symbols that are frequently written without $...$ in source text.
     (re.compile(r"\\pi\b"), r"$\\pi$"),
     (re.compile(r"\\theta\b"), r"$\\theta$"),
@@ -397,6 +401,13 @@ def apply_indentation(line: str, level: int) -> str:
     return indent + line
 
 
+def build_solution_marker(marker_type: str, marker_id: str) -> str:
+    """Build a stable LaTeX comment marker for later solution replacement."""
+    normalized_type = re.sub(r"[^A-Z0-9_]", "_", str(marker_type).upper())
+    normalized_id = re.sub(r"[^A-Za-z0-9_.:\-]", "_", str(marker_id))
+    return f"%<TWIGA_SOLUTION:type={normalized_type};id={normalized_id}>"
+
+
 def build_multiple_choice_block(
     question: dict[str, Any], multiple_choice_marks: int
 ) -> list[str]:
@@ -412,6 +423,11 @@ def build_multiple_choice_block(
     base_indent_level = 1
     prompt = normalize_inline_text(question.get("prompt", ""))
     items = question.get("items", [])
+    question_id = (
+        str(question.get("id")).strip()
+        if isinstance(question.get("id"), str) and question.get("id").strip()
+        else "SECTION_A_MULTIPLE_CHOICE"
+    )
 
     lines: list[str] = []
     lines.append(
@@ -428,12 +444,17 @@ def build_multiple_choice_block(
     )
     lines.append("")
 
-    for item in items:
+    for item_idx, item in enumerate(items, start=1):
         if not isinstance(item, dict):
             continue
 
         item_question = normalize_inline_text(item.get("question", ""))
         options = item.get("options", [])
+        item_id = (
+            str(item.get("id")).strip()
+            if isinstance(item.get("id"), str) and item.get("id").strip()
+            else f"{question_id}-item-{item_idx}"
+        )
 
         lines.append(
             apply_indentation(
@@ -463,6 +484,12 @@ def build_multiple_choice_block(
             apply_indentation(line=r"\end{enumerate}", level=base_indent_level + 2)
         )
         lines.append(
+            apply_indentation(
+                line=build_solution_marker("MULTIPLE_CHOICE", item_id),
+                level=base_indent_level + 2,
+            )
+        )
+        lines.append(
             apply_indentation(line=r"\vspace{0.8em}", level=base_indent_level + 2)
         )
         lines.append(
@@ -488,6 +515,11 @@ def build_matching_block(question: dict[str, Any], matching_marks: int) -> list[
     base_indent_level = 1
     prompt = normalize_inline_text(question.get("prompt", ""))
     list_a, list_b = extract_matching_lists(question)
+    question_id = (
+        str(question.get("id")).strip()
+        if isinstance(question.get("id"), str) and question.get("id").strip()
+        else "SECTION_A_MATCHING"
+    )
 
     lines: list[str] = []
     lines.append(
@@ -564,6 +596,12 @@ def build_matching_block(question: dict[str, Any], matching_marks: int) -> list[
     )
     lines.append(apply_indentation(line=r"\end{minipage}", level=base_indent_level + 1))
     lines.append(apply_indentation(line=r"\end{tabularx}", level=base_indent_level))
+    lines.append(
+        apply_indentation(
+            line=build_solution_marker("MATCHING", question_id),
+            level=base_indent_level,
+        )
+    )
     lines.append(
         apply_indentation(line=r"\end{questionblock}", level=base_indent_level)
     )
@@ -687,6 +725,11 @@ def build_section_b_block(question: dict[str, Any]) -> list[str]:
     base_indent_level = 1
     question_marks = int(question.get("marks") or 0)
     parts = question.get("parts", [])
+    question_id = (
+        str(question.get("id")).strip()
+        if isinstance(question.get("id"), str) and question.get("id").strip()
+        else "SECTION_B_QUESTION"
+    )
 
     if len(parts) == 0:
         return []  # No content to render for this question
@@ -718,6 +761,12 @@ def build_section_b_block(question: dict[str, Any]) -> list[str]:
         if len(parts) > 0:
             lines.pop()  # remove last extra newline if no more parts to add
 
+    lines.append(
+        apply_indentation(
+            line=build_solution_marker("B_QUESTION", question_id),
+            level=base_indent_level + 1,
+        )
+    )
     lines.append(
         apply_indentation(line=r"\end{questionblock}", level=base_indent_level)
     )
@@ -787,6 +836,11 @@ def build_section_c_block(question: dict[str, Any]) -> list[str]:
     question_marks = int(question.get("marks") or 0)
     description = normalize_inline_text(question.get("description", ""))
     task = question.get("task", {})
+    question_id = (
+        str(question.get("id")).strip()
+        if isinstance(question.get("id"), str) and question.get("id").strip()
+        else "SECTION_C_QUESTION"
+    )
 
     if isinstance(task, dict):
         task_prompt = normalize_inline_text(task.get("prompt", ""))
@@ -825,6 +879,12 @@ def build_section_c_block(question: dict[str, Any]) -> list[str]:
             apply_indentation(line=r"\end{enumerate}", level=base_indent_level + 1)
         )
 
+    lines.append(
+        apply_indentation(
+            line=build_solution_marker("C_QUESTION", question_id),
+            level=base_indent_level + 1,
+        )
+    )
     lines.append(
         apply_indentation(line=r"\end{questionblock}", level=base_indent_level)
     )
