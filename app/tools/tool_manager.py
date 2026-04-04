@@ -25,6 +25,12 @@ class Function:
 
 
 @dataclass
+class ToolExecutionResult:
+    content: str
+    source_chunk_ids: Optional[list[int]] = None
+
+
+@dataclass
 class ChatCompletionMessageToolCall:
     id: str
     function: Function
@@ -200,14 +206,18 @@ class ToolManager:
                 )
 
                 result = await tool_function(**tool_function_args)
+                split_result = self._split_tool_results_for_llm_and_system(
+                    result=result, function_name=function_name
+                )
 
                 tool_responses.append(
                     Message(
                         user_id=user.id,
                         role=MessageRole.tool,
-                        content=result,
+                        content=split_result.content,
                         tool_call_id=tool_call.id,
-                        tool_name=tool_call.function.name,
+                        tool_name=function_name,
+                        source_chunk_ids=split_result.source_chunk_ids,
                     )
                 )
 
@@ -263,3 +273,18 @@ class ToolManager:
             raise ValueError(
                 f"Invalid args for tool '{function_name}': {str(e)}"
             ) from e
+
+    def _split_tool_results_for_llm_and_system(
+        self,
+        result: Any,
+        function_name: str,
+    ) -> ToolExecutionResult:
+
+        if function_name == "search_knowledge":
+            return ToolExecutionResult(
+                content=result.get("content", ""),
+                source_chunk_ids=result.get("source_chunk_ids"),
+            )
+
+        # all other tools return string content only
+        return ToolExecutionResult(content=str(result))
