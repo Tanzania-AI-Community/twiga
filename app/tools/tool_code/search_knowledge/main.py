@@ -60,5 +60,8 @@ def _format_context(
             heading = f"-{str(chunk.chunk_type)} from resource {chunk.resource_id}"
         context_parts.append(heading)
         context_parts.append(f"{chunk.content}")
+        context_parts.append(
+            f'Cite as: {{{{TWIGA_CITATION:{{"chunk_id":{chunk.id}}}}}}}'
+        )
 
     return str("\n".join(context_parts))
