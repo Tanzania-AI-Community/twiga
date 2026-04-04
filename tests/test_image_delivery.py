@@ -233,7 +233,7 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
     mock_send_image.assert_awaited_once()
     mock_send_message.assert_awaited_once_with(user.wa_id, llm_message.content)
     mock_persist_visible.assert_awaited_once_with(
-        user=user, content=llm_message.content
+        user=user, content=llm_message.content, source_chunk_ids=None
     )
 
 

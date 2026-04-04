@@ -91,7 +91,7 @@ async def test_handle_chat_message_marks_final_response_as_hidden_and_persists_v
     mock_create_messages.assert_awaited_once_with([final_message])
     mock_send_message.assert_awaited_once_with(user.wa_id, final_message.content)
     mock_persist_visible.assert_awaited_once_with(
-        user=user, content=final_message.content
+        user=user, content=final_message.content, source_chunk_ids=None
     )
 
 
@@ -139,6 +139,7 @@ async def test_handle_chat_message_persists_general_error_when_llm_returns_none(
         "role": enums.MessageRole.assistant,
         "content": "Something went wrong.",
         "is_present_in_conversation": True,
+        "source_chunk_ids": None,
     }
 
 
@@ -222,6 +223,7 @@ async def test_handle_other_message_persists_visible_error() -> None:
         "role": enums.MessageRole.assistant,
         "content": "Unsupported message",
         "is_present_in_conversation": True,
+        "source_chunk_ids": None,
     }
     mock_send_message.assert_awaited_once_with(
         wa_id=user.wa_id,

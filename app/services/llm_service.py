@@ -189,6 +189,9 @@ class LLMClient(ClientBase):
                             final_message = Message.from_langchain_message(
                                 final_response, user.id
                             )
+                            final_message.source_chunk_ids = (
+                                self._get_source_chunk_ids(new_messages) or None
+                            )
                             new_messages.append(final_message)
 
                         # Check for new messages again

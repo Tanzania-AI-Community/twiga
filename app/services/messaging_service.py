@@ -192,7 +192,9 @@ class MessagingService:
 
             # persist the final message with the cleaned content (no more markers) and mark it as present in conversation
             await self._persist_visible_assistant_message(
-                user=user, content=llm_content
+                user=user,
+                content=llm_content,
+                source_chunk_ids=final_message.source_chunk_ids,
             )
 
             self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
@@ -270,7 +272,10 @@ class MessagingService:
         )
 
     async def _persist_visible_assistant_message(
-        self, user: models.User, content: str
+        self,
+        user: models.User,
+        content: str,
+        source_chunk_ids: list[int] | None = None,
     ) -> None:
         if user.id is None:
             self.logger.warning(
@@ -282,6 +287,7 @@ class MessagingService:
             user_id=user.id,
             role=enums.MessageRole.assistant,
             content=content,
+            source_chunk_ids=source_chunk_ids,
             is_present_in_conversation=True,
         )
 
