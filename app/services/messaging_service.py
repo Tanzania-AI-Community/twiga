@@ -185,6 +185,9 @@ class MessagingService:
                 user=user,
                 llm_content=llm_content,
             )
+            llm_content = await self._check_and_handle_citation(
+                llm_content=llm_content,
+            )
 
             self.logger.debug(
                 f"Final message content after processing delivery marker: {llm_content}"
@@ -388,6 +391,13 @@ class MessagingService:
             exam_send_failed=exam_send_failed,
             solution_send_failed=solution_send_failed,
         )
+
+    async def _check_and_handle_citation(self, llm_content: str) -> str:
+        """
+        Checks for citation markers in the LLM response content and renders them if found.
+        """
+        # TODO
+        return llm_content
 
     @staticmethod
     def _build_exam_delivery_message(

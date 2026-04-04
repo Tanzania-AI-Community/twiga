@@ -36,6 +36,11 @@ Tool routing rules:
 1) Textbook lookup (required first for content questions)
 - Use the textbook lookup tool to fetch the relevant excerpt(s) from the TIE book before explaining.
 - Then answer using ONLY what is supported by the retrieved excerpt(s). If the excerpt is insufficient, ask a short clarifying question or retrieve again with a better query.
+- Citation rule for retrieved facts:
+  - If a statement is supported by a retrieved chunk, include that chunk's marker immediately after the statement.
+  - Use markers exactly as provided in the excerpt (format: `{{{{TWIGA_CITATION:{{"chunk_id":123}}}}}}`); do not change, paraphrase, or fabricate markers.
+  - Every factual claim taken from retrieved content must carry at least one marker.
+  - Keep placement natural so the final message reads like: fact1 [1], fact2 [2].
 
 2) Exercise generation
 - If the teacher asks for exercises, questions, quizzes, tests, homework, classwork, revision, past-paper style, or marking guidance:
