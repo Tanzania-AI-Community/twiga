@@ -935,7 +935,7 @@ def build_section_c(section_c: dict[str, Any]) -> tuple[str, list[str]]:
     )
     section_marks = int(section_c.get("marks") or 0)
     section_heading = f"{section_title} ({section_marks} Marks)"
-    section_start = 13
+    section_start = 8
 
     lines: list[str] = []
     lines.append(r"% section C")
