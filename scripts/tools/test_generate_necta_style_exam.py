@@ -14,7 +14,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from app.database.db import get_exam
+from app.database.db import get_exam_by_id
 from app.tools.tool_code.generate_necta_style_exam.main import generate_necta_style_exam
 
 
@@ -36,7 +36,7 @@ async def main():
     if not exam_id:
         raise RuntimeError("No exam_id returned from generate_necta_style_exam.")
 
-    exam_record = await get_exam(exam_id)
+    exam_record = await get_exam_by_id(exam_id)
     if exam_record is None:
         raise RuntimeError(f"Generated exam with exam_id={exam_id} not found in DB.")
 
