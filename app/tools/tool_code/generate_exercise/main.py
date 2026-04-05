@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from app.database import db
 from app.database.db import vector_search
@@ -109,9 +109,9 @@ async def generate_exercise(
 
 
 def _format_context(
-    retrieved_content: List[Chunk],
-    retrieved_exercise: List[Chunk],
-    resources: Optional[List[Resource]] = None,
+    retrieved_content: list[Chunk],
+    retrieved_exercise: list[Chunk],
+    resources: Optional[list[Resource]] = None,
 ):
     # Formatting the context
     context_parts = []

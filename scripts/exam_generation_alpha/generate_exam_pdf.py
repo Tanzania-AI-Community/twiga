@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -121,7 +121,7 @@ def build_styles() -> Styles:
 # ----------------------------
 
 
-def render_header(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_header(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     meta = exam.get("meta", {})
 
     country = safe_text(meta.get("country", ""))
@@ -168,7 +168,7 @@ def render_header(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
     story.append(Spacer(1, 6))
 
 
-def render_instructions(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_instructions(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     instructions = exam.get("instructions", [])
     story.append(p("<b>INSTRUCTIONS</b>", st.center))
     for idx, line in enumerate(instructions, start=1):
@@ -176,13 +176,13 @@ def render_instructions(story: List[Any], exam: Dict[str, Any], st: Styles) -> N
     story.append(Spacer(1, 6))
 
 
-def render_constants(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_constants(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     constants = exam.get("constants", {})
 
     story.append(p("The following constants may be used:", st.bold))
 
     atomic_masses = constants.get("atomic_masses", {})
-    lines: List[str] = []
+    lines: list[str] = []
 
     if isinstance(atomic_masses, dict) and atomic_masses:
         pairs = [f"{k} = {atomic_masses[k]}" for k in atomic_masses.keys()]
@@ -211,7 +211,7 @@ def render_constants(story: List[Any], exam: Dict[str, Any], st: Styles) -> None
 
 
 def render_section_header(
-    story: List[Any],
+    story: list[Any],
     st: Styles,
     section_letter: str,
     marks: Any,
@@ -223,7 +223,7 @@ def render_section_header(
         story.append(Spacer(1, 4))
 
 
-def render_section_a(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_section_a(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     secA = exam.get("sections", {}).get("A", {})
     if not secA:
         return
@@ -237,7 +237,7 @@ def render_section_a(story: List[Any], exam: Dict[str, Any], st: Styles) -> None
     render_matching_q2(story, secA, st)
 
 
-def render_mcq_q1(story: List[Any], secA: Dict[str, Any], st: Styles) -> None:
+def render_mcq_q1(story: list[Any], secA: dict[str, Any], st: Styles) -> None:
     q1 = secA.get("q1_mcq", {})
     if not q1:
         return
@@ -275,7 +275,7 @@ def render_mcq_q1(story: List[Any], secA: Dict[str, Any], st: Styles) -> None:
         story.append(opt_tbl)
 
 
-def render_matching_q2(story: List[Any], secA: Dict[str, Any], st: Styles) -> None:
+def render_matching_q2(story: list[Any], secA: dict[str, Any], st: Styles) -> None:
     q2 = secA.get("q2_matching", {})
     if not q2:
         return
@@ -313,7 +313,7 @@ def render_matching_q2(story: List[Any], secA: Dict[str, Any], st: Styles) -> No
     story.append(match_tbl)
 
 
-def render_section_b(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_section_b(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     secB = exam.get("sections", {}).get("B", {})
     if not secB:
         return
@@ -327,7 +327,7 @@ def render_section_b(story: List[Any], exam: Dict[str, Any], st: Styles) -> None
         render_structured_question(story, q, st)
 
 
-def render_structured_question(story: List[Any], q: Dict[str, Any], st: Styles) -> None:
+def render_structured_question(story: list[Any], q: dict[str, Any], st: Styles) -> None:
     qno = q.get("number", "")
     story.append(p(f"{qno}.", st.bold))
 
@@ -337,7 +337,7 @@ def render_structured_question(story: List[Any], q: Dict[str, Any], st: Styles) 
     story.append(Spacer(1, 2))
 
 
-def render_question_part(story: List[Any], part: Dict[str, Any], st: Styles) -> None:
+def render_question_part(story: list[Any], part: dict[str, Any], st: Styles) -> None:
     plabel = safe_text(part.get("label", ""))
     pprompt = safe_text(part.get("prompt", ""))
     ptype = safe_text(part.get("type", "short_answer"))
@@ -358,10 +358,10 @@ def render_question_part(story: List[Any], part: Dict[str, Any], st: Styles) -> 
     story.append(Spacer(1, 4))
 
 
-def render_embedded_table(story: List[Any], table_spec: Dict[str, Any]) -> None:
+def render_embedded_table(story: list[Any], table_spec: dict[str, Any]) -> None:
     headers = table_spec.get("headers", [])
     rows = table_spec.get("rows", [])
-    data: List[List[str]] = []
+    data: list[list[str]] = []
 
     if headers:
         data.append([safe_text(h) for h in headers])
@@ -387,7 +387,7 @@ def render_embedded_table(story: List[Any], table_spec: Dict[str, Any]) -> None:
     story.append(Spacer(1, 3))
 
 
-def render_section_c(story: List[Any], exam: Dict[str, Any], st: Styles) -> None:
+def render_section_c(story: list[Any], exam: dict[str, Any], st: Styles) -> None:
     secC = exam.get("sections", {}).get("C", {})
     if not secC:
         return
@@ -416,8 +416,8 @@ def page_number_footer(canvas, doc) -> None:
 # ----------------------------
 
 
-def build_story(exam: Dict[str, Any], st: Styles) -> List[Any]:
-    story: List[Any] = []
+def build_story(exam: dict[str, Any], st: Styles) -> list[Any]:
+    story: list[Any] = []
 
     render_header(story, exam, st)
     render_instructions(story, exam, st)
@@ -430,7 +430,7 @@ def build_story(exam: Dict[str, Any], st: Styles) -> List[Any]:
     return story
 
 
-def build_pdf(exam: Dict[str, Any], out_path: str) -> None:
+def build_pdf(exam: dict[str, Any], out_path: str) -> None:
     st = build_styles()
 
     doc = SimpleDocTemplate(
@@ -448,7 +448,7 @@ def build_pdf(exam: Dict[str, Any], out_path: str) -> None:
     doc.build(story, onFirstPage=page_number_footer, onLaterPages=page_number_footer)
 
 
-def load_exam_json(json_path: str) -> Dict[str, Any]:
+def load_exam_json(json_path: str) -> dict[str, Any]:
     return json.loads(Path(json_path).read_text(encoding="utf-8"))
 
 

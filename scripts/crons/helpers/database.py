@@ -11,7 +11,6 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import List
 from urllib.parse import urlparse
 
 from sqlalchemy import func, text
@@ -132,7 +131,7 @@ async def get_session():
         await session.close()
 
 
-async def get_users_by_state(state: UserState) -> List[User]:
+async def get_users_by_state(state: UserState) -> list[User]:
     """
     Get all users with a specific state.
 
@@ -140,7 +139,7 @@ async def get_users_by_state(state: UserState) -> List[User]:
         state: User state to filter by
 
     Returns:
-        List[User]: Users with the specified state
+        list[User]: Users with the specified state
     """
     async with get_session() as session:
         statement = select(User).where(User.state == state)
@@ -148,7 +147,7 @@ async def get_users_by_state(state: UserState) -> List[User]:
         return list(result.scalars().all())
 
 
-async def get_users_to_mark_inactive(hours_threshold: int) -> List[User]:
+async def get_users_to_mark_inactive(hours_threshold: int) -> list[User]:
     """
     Get active users who should be marked as inactive.
 
@@ -159,7 +158,7 @@ async def get_users_to_mark_inactive(hours_threshold: int) -> List[User]:
         hours_threshold: Hours of inactivity before marking inactive
 
     Returns:
-        List[User]: Users to mark as inactive
+        list[User]: Users to mark as inactive
     """
     async with get_session() as session:
         # Calculate the threshold datetime

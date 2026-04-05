@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from app.config import settings
 from app.models.message_models import (
@@ -65,10 +65,10 @@ def generate_payload_for_image(
     wa_id: str,
     media_id: str,
     caption: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate a WhatsApp Cloud API payload for an image message."""
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": wa_id,
@@ -87,9 +87,9 @@ def generate_payload_for_document(
     media_id: str,
     caption: Optional[str] = None,
     filename: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate a WhatsApp Cloud API payload for a document message."""
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": wa_id,
@@ -106,7 +106,7 @@ def generate_payload_for_document(
 
 
 def get_interactive_button_payload(
-    recipient: str, text: str, options: List[str]
+    recipient: str, text: str, options: list[str]
 ) -> dict:
     buttons = [
         Button(
@@ -128,7 +128,7 @@ def get_interactive_button_payload(
 
 
 def get_interactive_list_payload(
-    recipient: str, text: str, options: List[str], title: str = "Options"
+    recipient: str, text: str, options: list[str], title: str = "Options"
 ) -> dict:
     rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
 

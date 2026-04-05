@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
@@ -29,7 +29,7 @@ class ClassInfo(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    classes: Dict[str, List[str]]  # keys=Subject, values=List[GradeLevel]
+    classes: dict[str, list[str]]  # keys=Subject, values=list[GradeLevel]
 
     """ METHODS """
 
@@ -76,7 +76,7 @@ class User(SQLModel, table=True):
         default=enums.OnboardingState.new, max_length=50
     )
     role: enums.Role = Field(default=enums.Role.teacher, max_length=20)
-    class_info: Optional[Dict[str, List[str]]] = Field(default=None, sa_type=JSON)
+    class_info: Optional[dict[str, list[str]]] = Field(default=None, sa_type=JSON)
     school_name: Optional[str] = Field(default=None, max_length=100)
     birthday: Optional[date] = Field(default=None, sa_type=Date)
     region: Optional[str] = Field(default=None, max_length=50)
@@ -98,12 +98,12 @@ class User(SQLModel, table=True):
 
     """ RELATIONSHIPS """
     # A teacher may have entries in the teachers_classes table
-    taught_classes: Optional[List["TeacherClass"]] = Relationship(
+    taught_classes: Optional[list["TeacherClass"]] = Relationship(
         back_populates="teacher_", cascade_delete=True  # Could rename to user_
     )
 
     # A teacher may have entries in the messages table
-    user_messages: Optional[List["Message"]] = Relationship(
+    user_messages: Optional[list["Message"]] = Relationship(
         back_populates="user_", cascade_delete=True
     )
 
@@ -118,7 +118,7 @@ class User(SQLModel, table=True):
         return ClassInfo(classes=self.class_info).format_readable()
 
     @property
-    def class_name_to_id_map(self) -> Dict[str, int]:
+    def class_name_to_id_map(self) -> dict[str, int]:
         """
         Returns a mapping of class names (with subject and form) to their IDs.
         Example: {"Geography Form 2": 123, "Geography Form 3": 456}
@@ -144,7 +144,7 @@ class Subject(SQLModel, table=True):
 
     """ RELATIONSHIPS """
     # A subject may have entries in the classes table
-    subject_classes: Optional[List["Class"]] = Relationship(
+    subject_classes: Optional[list["Class"]] = Relationship(
         back_populates="subject_", cascade_delete=True
     )
 
@@ -164,11 +164,11 @@ class Class(SQLModel, table=True):
 
     """ RELATIONSHIPS """
     # A class may have entries in the teachers_classes table
-    class_teachers: Optional[List["TeacherClass"]] = Relationship(
+    class_teachers: Optional[list["TeacherClass"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
     # A class may have entries in the classes_resources table
-    class_resources: Optional[List["ClassResource"]] = Relationship(
+    class_resources: Optional[list["ClassResource"]] = Relationship(
         back_populates="class_", cascade_delete=True
     )
     # Relationship to the Subject table (since the Subject is a foreign key)
@@ -207,7 +207,7 @@ class Message(SQLModel, table=True):
     )
 
     # Tool call related fields
-    tool_calls: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
+    tool_calls: Optional[list[dict]] = Field(default=None, sa_column=Column(JSON))
     tool_call_id: Optional[str] = Field(default=None)
     tool_name: Optional[str] = Field(default=None, max_length=50)
     created_at: Optional[datetime] = Field(
@@ -227,9 +227,9 @@ class Message(SQLModel, table=True):
 
     """ METHODS """
 
-    def to_api_format(self) -> Dict[str, Any]:
+    def to_api_format(self) -> dict[str, Any]:
         """Convert message to OpenAI API format (kept for backward compatibility)"""
-        message: Dict[str, Any] = {"role": self.role.value}
+        message: dict[str, Any] = {"role": self.role.value}
         if self.tool_calls and len(self.tool_calls) > 0:
             message["tool_calls"] = self.tool_calls
             message["content"] = None
@@ -366,11 +366,11 @@ class GeneratedExam(SQLModel, table=True):
 
     """ FIELDS """
     id: str = Field(primary_key=True, max_length=36)
-    exam_json: Dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    exam_json: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     class_id: int = Field(nullable=False, index=True)
     subject: str = Field(max_length=100, nullable=False)
-    topics: List[str] = Field(sa_column=Column(JSON, nullable=False))
+    topics: list[str] = Field(sa_column=Column(JSON, nullable=False))
     generated_at_utc: Optional[datetime] = Field(
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -386,7 +386,7 @@ class Resource(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
     type: Optional[enums.ResourceType] = Field(max_length=30)
-    authors: Optional[List[str]] = Field(sa_column=Column(ARRAY(String(50))))
+    authors: Optional[list[str]] = Field(sa_column=Column(ARRAY(String(50))))
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -395,13 +395,13 @@ class Resource(SQLModel, table=True):
     )
 
     """ RELATIONSHIPS """
-    resource_classes: Optional[List["ClassResource"]] = Relationship(
+    resource_classes: Optional[list["ClassResource"]] = Relationship(
         back_populates="resource_", cascade_delete=True
     )
-    # resource_sections: Optional[List["Section"]] = Relationship(
+    # resource_sections: Optional[list["Section"]] = Relationship(
     #     back_populates="resource_", cascade_delete=True
     # )
-    resource_chunks: Optional[List["Chunk"]] = Relationship(
+    resource_chunks: Optional[list["Chunk"]] = Relationship(
         back_populates="resource_", cascade_delete=True
     )
 
@@ -475,7 +475,7 @@ class Chunk(SQLModel, table=True):
 #     section_title: Optional[str] = Field(max_length=100, default=None)
 #     section_type: Optional[str] = Field(max_length=15, default=None)
 #     section_order: int
-#     page_range: Optional[List[int]] = Field(sa_column=Column(ARRAY(Integer)))
+#     page_range: Optional[list[int]] = Field(sa_column=Column(ARRAY(Integer)))
 #     summary: Optional[str] = Field(default=None)
 #     created_at: Optional[datetime] = Field(
 #         default_factory=lambda: datetime.now(timezone.utc),
@@ -494,13 +494,13 @@ class Chunk(SQLModel, table=True):
 #     )
 
 #     # Only part I'm not too sure about
-#     children: Optional[List["Section"]] = Relationship(
+#     children: Optional[list["Section"]] = Relationship(
 #         back_populates="parent",
 #         cascade_delete=True,
 #         sa_relationship_kwargs={
 #             "single_parent": True,  # This ensures a child can only have one parent
 #         },
 #     )
-#     section_chunks: Optional[List["Chunk"]] = Relationship(
+#     section_chunks: Optional[list["Chunk"]] = Relationship(
 #         back_populates="section_", cascade_delete=True
 #     )

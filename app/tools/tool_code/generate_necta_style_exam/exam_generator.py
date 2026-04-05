@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -359,7 +359,7 @@ class ExamGenerator:
         question_id: str,
         num_marks: int,
         difficulty: str,
-    ) -> Tuple[bool, dict[str, Any]]:
+    ) -> tuple[bool, dict[str, Any]]:
         try:
             context_str = self._format_context(chunk_list)
             previous_questions_str = (

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 
 import app.database.db as db
 from app.database.db import vector_search
@@ -39,8 +39,8 @@ async def search_knowledge(
 
 
 def _format_context(
-    retrieved_content: List[Chunk],
-    resources: Optional[List[Resource]] = None,
+    retrieved_content: list[Chunk],
+    resources: Optional[list[Resource]] = None,
 ) -> str:
     # Formatting the context
     context_parts = []

@@ -1,7 +1,7 @@
 import copy
 import logging
 import os
-from typing import Dict, List, Optional, Union, cast
+from typing import Optional, Union, cast
 
 import backoff
 import requests
@@ -89,7 +89,7 @@ if langsmith_active:
     )
 
 
-def _convert_tools_for_gemini(tools: List[Dict]) -> List[Dict]:
+def _convert_tools_for_gemini(tools: list[dict]) -> list[dict]:
     """
     Convert tool schemas to be compatible with Gemini.
     Gemini only allows enum on STRING type properties, so we convert
@@ -112,7 +112,7 @@ def _create_llm_client(
     model_name: str,
     api_key: Optional[SecretStr],
     base_url: Optional[str] = None,
-    tools: Optional[List[Dict]] = None,
+    tools: Optional[list[dict]] = None,
     tool_choice: Optional[str] = None,
 ) -> Union[BaseChatModel, Runnable]:
     """
@@ -212,15 +212,15 @@ def _check_correct_overriding(
     max_time=45,
 )
 async def async_llm_request(
-    messages: List[BaseMessage],
-    tools: Optional[List[Dict]] = None,
+    messages: list[BaseMessage],
+    tools: Optional[list[dict]] = None,
     tool_choice: Optional[str] = None,
     model_name: Optional[str] = None,
     provider: Optional[LLMProvider] = None,
     api_key: Optional[SecretStr] = None,
     verbose: bool = False,
     run_name: Optional[str] = None,
-    metadata: Optional[Dict] = None,
+    metadata: Optional[dict] = None,
     **kwargs,
 ) -> AIMessage:
     """
