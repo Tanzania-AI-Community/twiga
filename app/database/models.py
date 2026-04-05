@@ -200,6 +200,7 @@ class Message(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     role: enums.MessageRole = Field(max_length=20)
     content: Optional[str] = Field(default=None)  # None when tool_calls present
+    source_chunk_ids: Optional[List[int]] = Field(default=None, sa_column=Column(JSON))
     is_present_in_conversation: bool = Field(
         default=False,
         nullable=False,
@@ -284,6 +285,7 @@ class Message(SQLModel, table=True):
             "user_id": user_id,
             "role": data["role"],
             "content": data.get("content"),
+            "source_chunk_ids": data.get("source_chunk_ids"),
             "tool_calls": tool_calls,
             "tool_call_id": data.get("tool_call_id"),
             "tool_name": data.get("name"),
@@ -292,12 +294,17 @@ class Message(SQLModel, table=True):
 
     @classmethod
     def from_attributes(
-        cls, user_id: int, role: enums.MessageRole, content: Optional[str]
+        cls,
+        user_id: int,
+        role: enums.MessageRole,
+        content: Optional[str],
+        source_chunk_ids: Optional[List[int]] = None,
     ) -> "Message":
         message_data = {
             "user_id": user_id,
             "role": role,
             "content": content,
+            "source_chunk_ids": source_chunk_ids,
         }
         return cls(**message_data)
 

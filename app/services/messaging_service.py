@@ -9,6 +9,7 @@ import app.database.models as models
 from app.config import llm_settings
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.agent_client import agent_client
+from app.services.citation_service import CitationRenderResult, citation_service
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
     ExamPDFDeliveryDetails,
@@ -185,6 +186,9 @@ class MessagingService:
                 user=user,
                 llm_content=llm_content,
             )
+            llm_content = await self._check_and_handle_citation(
+                llm_content=llm_content,
+            )
 
             self.logger.debug(
                 f"Final message content after processing delivery marker: {llm_content}"
@@ -192,7 +196,9 @@ class MessagingService:
 
             # persist the final message with the cleaned content (no more markers) and mark it as present in conversation
             await self._persist_visible_assistant_message(
-                user=user, content=llm_content
+                user=user,
+                content=llm_content,
+                source_chunk_ids=final_message.source_chunk_ids,
             )
 
             self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
@@ -270,7 +276,10 @@ class MessagingService:
         )
 
     async def _persist_visible_assistant_message(
-        self, user: models.User, content: str
+        self,
+        user: models.User,
+        content: str,
+        source_chunk_ids: list[int] | None = None,
     ) -> None:
         if user.id is None:
             self.logger.warning(
@@ -282,6 +291,7 @@ class MessagingService:
             user_id=user.id,
             role=enums.MessageRole.assistant,
             content=content,
+            source_chunk_ids=source_chunk_ids,
             is_present_in_conversation=True,
         )
 
@@ -382,6 +392,26 @@ class MessagingService:
             exam_send_failed=exam_send_failed,
             solution_send_failed=solution_send_failed,
         )
+
+    async def _check_and_handle_citation(self, llm_content: str) -> str:
+        """
+        Checks for citation markers in the LLM response content and renders them if found.
+        """
+        citation_result: CitationRenderResult = await citation_service.render_citations(
+            llm_content
+        )
+
+        if not citation_result.marker_found:
+            return llm_content
+
+        self.logger.info(
+            f"Citation marker detected. valid_marker_count={citation_result.valid_marker_count} "
+            f"invalid_marker_count={citation_result.invalid_marker_count} "
+            f"total_marker_count={citation_result.valid_marker_count + citation_result.invalid_marker_count} "
+            f"unique_chunk_ids={len(citation_result.ordered_chunk_ids)}"
+        )
+
+        return citation_result.rendered_content
 
     @staticmethod
     def _build_exam_delivery_message(

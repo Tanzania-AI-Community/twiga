@@ -5,6 +5,7 @@ import pytest
 
 import app.database.enums as enums
 from app.database.models import Message, User
+from app.services.citation_service import CitationRenderResult
 from app.services.exam_delivery_service import ExamPDFDeliveryDetails
 from app.services.messaging_service import MessagingService
 
@@ -91,7 +92,7 @@ async def test_handle_chat_message_marks_final_response_as_hidden_and_persists_v
     mock_create_messages.assert_awaited_once_with([final_message])
     mock_send_message.assert_awaited_once_with(user.wa_id, final_message.content)
     mock_persist_visible.assert_awaited_once_with(
-        user=user, content=final_message.content
+        user=user, content=final_message.content, source_chunk_ids=None
     )
 
 
@@ -139,6 +140,7 @@ async def test_handle_chat_message_persists_general_error_when_llm_returns_none(
         "role": enums.MessageRole.assistant,
         "content": "Something went wrong.",
         "is_present_in_conversation": True,
+        "source_chunk_ids": None,
     }
 
 
@@ -222,6 +224,7 @@ async def test_handle_other_message_persists_visible_error() -> None:
         "role": enums.MessageRole.assistant,
         "content": "Unsupported message",
         "is_present_in_conversation": True,
+        "source_chunk_ids": None,
     }
     mock_send_message.assert_awaited_once_with(
         wa_id=user.wa_id,
@@ -345,6 +348,18 @@ async def test_handle_chat_message_invalid_exam_marker_falls_back_to_clean_text(
             AsyncMock(return_value=[final_message]),
         ),
         patch(
+            "app.services.messaging_service.citation_service.render_citations",
+            AsyncMock(
+                return_value=CitationRenderResult(
+                    marker_found=False,
+                    rendered_content="Here you go",
+                    ordered_chunk_ids=[],
+                    valid_marker_count=0,
+                    invalid_marker_count=0,
+                )
+            ),
+        ),
+        patch(
             "app.services.messaging_service.db.create_new_messages",
             AsyncMock(),
         ),
@@ -376,6 +391,85 @@ async def test_handle_chat_message_invalid_exam_marker_falls_back_to_clean_text(
     mock_ensure_artifacts.assert_not_awaited()
     mock_send_document.assert_not_awaited()
     mock_send_message.assert_awaited_once_with(user.wa_id, "Here you go")
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_rewrites_citation_markers_for_user_output() -> None:
+    service = MessagingService()
+    user = User(id=15, wa_id="255700000105", name="Teacher")
+    user_message = Message(
+        user_id=15,
+        role=enums.MessageRole.user,
+        content="Explain photosynthesis",
+    )
+    final_message = Message(
+        user_id=15,
+        role=enums.MessageRole.assistant,
+        content=(
+            "Plants make food using sunlight"
+            '{{TWIGA_CITATION:{"chunk_id":501}}}, and chlorophyll helps capture light'
+            '{{TWIGA_CITATION:{"chunk_id":502}}}.'
+        ),
+    )
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[final_message]),
+        ),
+        patch(
+            "app.services.messaging_service.citation_service.render_citations",
+            AsyncMock(
+                return_value=CitationRenderResult(
+                    marker_found=True,
+                    rendered_content=(
+                        "Plants make food using sunlight [1], and chlorophyll helps capture light [2].\n\n"
+                        "Sources:\n"
+                        "[1] Book, page 1\n"
+                        "[2] Book, page 2"
+                    ),
+                    ordered_chunk_ids=[501, 502],
+                    valid_marker_count=2,
+                    invalid_marker_count=0,
+                )
+            ),
+        ),
+        patch(
+            "app.services.messaging_service.db.create_new_messages",
+            AsyncMock(),
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+        patch("app.services.messaging_service.looks_like_latex", return_value=False),
+        patch("app.services.messaging_service.record_messages_generated"),
+    ):
+        response = await service.handle_chat_message(
+            user=user,
+            user_message=user_message,
+        )
+
+    rendered_content = (
+        "Plants make food using sunlight [1], and chlorophyll helps capture light [2].\n\n"
+        "Sources:\n"
+        "[1] Book, page 1\n"
+        "[2] Book, page 2"
+    )
+
+    assert response.status_code == 200
+    mock_send_message.assert_awaited_once_with(user.wa_id, rendered_content)
+    mock_persist_visible.assert_awaited_once_with(
+        user=user,
+        content=rendered_content,
+        source_chunk_ids=None,
+    )
 
 
 @pytest.mark.asyncio
