@@ -105,19 +105,15 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
     def _render_exam(
         exam_json: dict,
         output_path: Path,
-        subject: str | None,
     ) -> None:
         assert exam_json == {"meta": {"exam_title": "Exam"}}
-        assert subject == "Chemistry"
         output_path.write_bytes(b"pdf")
 
     def _render_solution(
         exam_json: dict,
         output_path: Path,
-        subject: str | None,
     ) -> None:
         assert exam_json == {"meta": {"exam_title": "Exam"}}
-        assert subject == "Chemistry"
         output_path.write_bytes(b"pdf")
 
     with (

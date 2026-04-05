@@ -307,7 +307,7 @@ def test_render_exam_pdf_falls_back_to_reportlab_when_latex_backend_fails(
             side_effect=_fake_reportlab_backend,
         ) as mock_reportlab_backend,
     ):
-        render_exam_pdf(exam, output_path, subject="Math")
+        render_exam_pdf(exam, output_path)
 
     assert output_path.read_bytes() == b"reportlab-pdf"
     mock_reportlab_backend.assert_called_once()
