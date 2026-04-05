@@ -61,7 +61,7 @@ def _format_context(
         context_parts.append(heading)
         context_parts.append(f"{chunk.content}")
         context_parts.append(
-            f'Cite as: {{{{TWIGA_CITATION:{{"chunk_id":{chunk.id}}}}}}}'
+            f'Cite as: {{{{TWIGA_CITATION:{{"chunk_id":{chunk.id}}}}}}}\n'
         )
 
     return str("\n".join(context_parts))

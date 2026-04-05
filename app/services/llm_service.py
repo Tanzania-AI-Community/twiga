@@ -138,8 +138,8 @@ class LLMClient(ClientBase):
 
                     # 5. Process tool calls if present (whether normal or recovered)
                     if initial_message.tool_calls:
-                        self.logger.debug("Processing tool calls 🛠️")
-                        self.logger.debug(f"Tool calls: {initial_message.tool_calls}")
+                        self.logger.info("Processing tool calls 🛠️")
+                        self.logger.info(f"Tool calls: {initial_message.tool_calls}")
 
                         # Send notifications for all unique tools upfront
                         unique_tools = {
