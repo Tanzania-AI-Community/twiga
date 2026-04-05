@@ -3,6 +3,8 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from sqlalchemy.orm import selectinload
+
 import app.database.db as db
 from app.database.models import Chunk
 
@@ -10,6 +12,8 @@ CITATION_MARKER_RE = re.compile(
     r"\{\{?TWIGA_CITATION:\s*(\{.*?\})\}\}?",
     re.DOTALL,
 )
+
+FAILED_SOURCE_TEXT = "Failed to retrieve source information"
 
 
 @dataclass
@@ -110,26 +114,52 @@ class CitationService:
         Given a chunk ID, retrieve the source information.
         """
         async with db.get_session() as session:
-            statement = db.select(Chunk).where(Chunk.id == chunk_id)
+            statement = (
+                db.select(Chunk)
+                .options(selectinload(Chunk.resource_))
+                .where(Chunk.id == chunk_id)
+            )
             result = await session.execute(statement)
             chunk = result.scalar_one_or_none()
 
         if chunk is None:
+            self.logger.warning(f"CitationService: Chunk not found for ID: {chunk_id}")
             return SourceInfo(
                 chunk_id=chunk_id,
                 resource_id=None,
-                citation_text=(
-                    f"Example citation text for chunk {chunk_id} from resource None"
-                ),
+                citation_text=FAILED_SOURCE_TEXT,
                 valid_source=False,
             )
+
+        if chunk.resource_id is None:
+            self.logger.warning(
+                f"CitationService: Chunk found but has no associated resource for ID: {chunk_id}"
+            )
+            return SourceInfo(
+                chunk_id=chunk.id,
+                resource_id=None,
+                citation_text=FAILED_SOURCE_TEXT,
+                valid_source=False,
+            )
+
+        resource_name = chunk.resource_.name if chunk.resource_ else None
+        page_number = chunk.page_number
+        section_title = chunk.top_level_section_title
+
+        if resource_name:
+            if page_number is not None:
+                citation_text = f"{resource_name}, page {page_number}"
+            elif section_title:
+                citation_text = f"{resource_name}, {section_title}"
+            else:
+                citation_text = resource_name
+        else:
+            citation_text = FAILED_SOURCE_TEXT
 
         return SourceInfo(
             chunk_id=chunk.id,
             resource_id=chunk.resource_id,
-            citation_text=(
-                f"Example citation text for chunk {chunk.id} from resource {chunk.resource_id}"
-            ),
+            citation_text=citation_text,
             valid_source=True,
         )
 
