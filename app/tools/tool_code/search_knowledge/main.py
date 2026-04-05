@@ -1,9 +1,10 @@
 import logging
-from typing import List, Optional
-from app.database.db import vector_search
-from app.database.models import Chunk, Resource
-from app.database.enums import ChunkType
+from typing import Optional
+
 import app.database.db as db
+from app.database.db import vector_search
+from app.database.enums import ChunkType
+from app.database.models import Chunk, Resource
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,8 @@ async def search_knowledge(
 
 
 def _format_context(
-    retrieved_content: List[Chunk],
-    resources: Optional[List[Resource]] = None,
+    retrieved_content: list[Chunk],
+    resources: Optional[list[Resource]] = None,
 ) -> str:
     # Formatting the context
     context_parts = []

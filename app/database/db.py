@@ -1,22 +1,24 @@
-from typing import Dict, List, Optional
+import logging
+from datetime import datetime, timezone
+
 from sqlalchemy import text
 from sqlalchemy.orm import selectinload
-from sqlmodel import and_, select, or_, delete, insert, exists, desc
-import logging
+from sqlmodel import and_, delete, desc, exists, insert, or_, select
 
-from app.database.models import (
-    User,
-    Message,
-    TeacherClass,
-    Class,
-    Chunk,
-    Subject,
-    Resource,
-    ClassResource,
-)
 import app.database.enums as enums
-from app.database.enums import SubjectClassStatus
 from app.database.engine import get_session
+from app.database.enums import SubjectClassStatus
+from app.database.models import (
+    Chunk,
+    Class,
+    ClassResource,
+    GeneratedExam,
+    Message,
+    Resource,
+    Subject,
+    TeacherClass,
+    User,
+)
 from app.utils import embedder
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,119 @@ logger = logging.getLogger(__name__)
 # TODO: Add custom Exceptions for better error handling
 
 
-async def get_user_by_waid(wa_id: str) -> Optional[User]:
+def _parse_generated_at_utc(exam_json: dict) -> datetime | None:
+    generation_trace = exam_json.get("generation_trace", {})
+    generated_at_raw = generation_trace.get("generated_at_utc")
+
+    if not isinstance(generated_at_raw, str) or not generated_at_raw.strip():
+        return None
+
+    timestamp = generated_at_raw.strip()
+    if timestamp.endswith("Z"):
+        timestamp = f"{timestamp[:-1]}+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        logger.warning(
+            "Invalid generation_trace.generated_at_utc for exam_id=%s: %s",
+            generation_trace.get("exam_id"),
+            generated_at_raw,
+        )
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+async def create_new_exam(
+    exam_json: dict,
+    class_id: int,
+    subject: str,
+    topics: list[str],
+    user_id: int,
+) -> GeneratedExam:
+    generation_trace = exam_json.get("generation_trace", {})
+    exam_id = generation_trace.get("exam_id")
+
+    normalized_exam_id = exam_id.strip() if isinstance(exam_id, str) else None
+    if not normalized_exam_id:
+        raise ValueError(
+            "Missing generation_trace.exam_id in exam JSON; cannot persist generated exam."
+        )
+
+    if not isinstance(class_id, int):
+        raise ValueError("class_id must be an integer.")
+
+    normalized_subject = subject.strip() if isinstance(subject, str) else None
+    if not normalized_subject:
+        raise ValueError("subject must be a non-empty string.")
+
+    normalized_topics = [
+        topic.strip() for topic in topics if isinstance(topic, str) and topic.strip()
+    ]
+    if not normalized_topics:
+        raise ValueError("topics must contain at least one non-empty string.")
+
+    if not isinstance(user_id, int):
+        raise ValueError("user_id must be an integer.")
+
+    generated_at_utc = _parse_generated_at_utc(exam_json)
+
+    async with get_session() as session:
+        try:
+            statement = select(GeneratedExam).where(
+                GeneratedExam.id == normalized_exam_id
+            )
+            result = await session.execute(statement)
+            existing_exam = result.scalar_one_or_none()
+            if existing_exam is not None:
+                raise ValueError(
+                    f"Exam with exam_id={normalized_exam_id} already exists."
+                )
+
+            generated_exam = GeneratedExam(
+                id=normalized_exam_id,
+                exam_json=exam_json,
+                user_id=user_id,
+                class_id=class_id,
+                subject=normalized_subject,
+                topics=normalized_topics,
+                generated_at_utc=generated_at_utc,
+            )
+
+            session.add(generated_exam)
+            await session.flush()
+            return generated_exam
+        except Exception as e:
+            logger.error(
+                "Failed to create generated exam %s: %s",
+                normalized_exam_id,
+                str(e),
+            )
+            raise Exception(f"Failed to create generated exam: {str(e)}")
+
+
+async def get_exam(exam_id: str) -> GeneratedExam | None:
+    if not isinstance(exam_id, str) or not exam_id.strip():
+        raise ValueError("exam_id must be a non-empty string.")
+
+    normalized_exam_id = exam_id.strip()
+
+    async with get_session() as session:
+        try:
+            statement = select(GeneratedExam).where(
+                GeneratedExam.id == normalized_exam_id
+            )
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error("Failed to retrieve exam %s: %s", normalized_exam_id, str(e))
+            raise Exception(f"Failed to retrieve exam: {str(e)}")
+
+
+async def get_user_by_waid(wa_id: str) -> User | None:
     """
     Get user by WhatsApp ID with FULL class hierarchy loaded.
     Always loads: User -> taught_classes -> class_ -> subject_
@@ -79,7 +193,7 @@ async def update_user(user: User) -> User:
 
 async def get_user_message_history(
     user_id: int, limit: int = 10
-) -> Optional[List[Message]]:
+) -> list[Message] | None:
     async with get_session() as session:
         try:
             # TODO: Make the database order this by default to reduce repeated operations
@@ -110,7 +224,7 @@ async def get_user_message_history(
 
 async def get_latest_user_message_by_role(
     user_id: int, role: enums.MessageRole
-) -> Optional[Message]:
+) -> Message | None:
     async with get_session() as session:
         try:
             statement = (
@@ -128,7 +242,7 @@ async def get_latest_user_message_by_role(
             raise Exception(f"Failed to retrieve latest message: {str(e)}")
 
 
-async def create_new_messages(messages: List[Message]) -> List[Message]:
+async def create_new_messages(messages: list[Message]) -> list[Message]:
     """Optimized bulk message creation"""
     async with get_session() as session:
         try:
@@ -180,11 +294,11 @@ async def create_new_message_by_fields(
     *,
     user_id: int,
     role: enums.MessageRole,
-    content: Optional[str] = None,
+    content: str | None = None,
     is_present_in_conversation: bool = False,
-    tool_calls: Optional[List[dict]] = None,
-    tool_call_id: Optional[str] = None,
-    tool_name: Optional[str] = None,
+    tool_calls: list[dict] | None = None,
+    tool_call_id: str | None = None,
+    tool_name: str | None = None,
 ) -> Message:
     message = Message(
         user_id=user_id,
@@ -198,7 +312,7 @@ async def create_new_message_by_fields(
     return await create_new_message(message)
 
 
-async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
+async def vector_search(query: str, n_results: int, where: dict) -> list[Chunk]:
     try:
         query_vector = embedder.get_embedding(query)
     except Exception as e:
@@ -229,7 +343,7 @@ async def vector_search(query: str, n_results: int, where: dict) -> List[Chunk]:
             raise Exception(f"Failed to search for knowledge: {str(e)}")
 
 
-async def read_subjects() -> Optional[List[Subject]]:
+async def read_subjects() -> list[Subject] | None:
     """
     Read all subject and its classes from the database.
     NOTE: This function uses eager loading so if you only need the subject object without classes loaded it might be better to make a new function
@@ -246,7 +360,7 @@ async def read_subjects() -> Optional[List[Subject]]:
             raise Exception(f"Failed to read subjects: {str(e)}")
 
 
-async def get_class_resources(class_id: int) -> Optional[List[int]]:
+async def get_class_resources(class_id: int) -> list[int] | None:
     """
     Get all resource IDs accessible to a class.
     Uses a single optimized SQL query with proper indexing.
@@ -277,7 +391,7 @@ async def get_class_resources(class_id: int) -> Optional[List[int]]:
             raise Exception(f"Failed to get class resources: {str(e)}")
 
 
-async def get_user_resources(user: User) -> Optional[List[int]]:
+async def get_user_resources(user: User) -> list[int] | None:
     """
     Get all resource IDs accessible to a user through their class assignments.
     Uses a single optimized SQL query with proper indexing.
@@ -286,7 +400,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
         user_id: The ID of the user to find resources for
 
     Returns:
-        List[int]: List of resource IDs the user has access to
+        list[int]: List of resource IDs the user has access to
 
     Raises:
         Exception: If there's an error querying the database
@@ -318,7 +432,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
             raise Exception(f"Failed to get user resources: {str(e)}")
 
 
-# async def read_subject(subject_id: int) -> Optional[Subject]:
+# async def read_subject(subject_id: int) -> Subject | None:
 #     async with get_session() as session:
 #         try:
 #             statement = select(Subject).where(Subject.id == subject_id)
@@ -329,7 +443,7 @@ async def get_user_resources(user: User) -> Optional[List[int]]:
 #             raise Exception(f"Failed to read subject: {str(e)}")
 
 
-async def read_subject(subject_id: int) -> Optional[Subject]:
+async def read_subject(subject_id: int) -> Subject | None:
     """
     Read a subject and its classes from the database.
     NOTE: This function uses eager loading so if you only need the subject object without classes loaded it might be better to make a new function
@@ -349,7 +463,7 @@ async def read_subject(subject_id: int) -> Optional[Subject]:
             raise Exception(f"Failed to read subject: {str(e)}")
 
 
-async def read_subject_by_name(subject_name: str) -> Optional[Subject]:
+async def read_subject_by_name(subject_name: str) -> Subject | None:
     async with get_session() as session:
         try:
             # Use selectinload to eagerly load the subject_classes relationship
@@ -365,7 +479,7 @@ async def read_subject_by_name(subject_name: str) -> Optional[Subject]:
             raise Exception(f"Failed to read subject: {str(e)}")
 
 
-async def read_resource_by_name(resource_name: str) -> Optional[Resource]:
+async def read_resource_by_name(resource_name: str) -> Resource | None:
     async with get_session() as session:
         try:
             # Use selectinload to eagerly load the subject_classes relationship
@@ -381,7 +495,7 @@ async def read_class_by_subject_id_grade_level_and_status(
     subject_id: int,
     grade_level: str,
     status: str,
-) -> Optional[Class]:
+) -> Class | None:
     async with get_session() as session:
         filters = [
             Class.grade_level == enums.GradeLevel(grade_level),
@@ -425,7 +539,7 @@ async def does_class_resource_rel_exist(class_id: int, resource_id: int) -> bool
             raise Exception(f"Failed to read relation: {str(e)}")
 
 
-async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
+async def read_classes(class_ids: list[int]) -> list[Class] | None:
     async with get_session() as session:
         try:
             statement = select(Class).where(Class.id.in_(class_ids))  # type: ignore
@@ -437,8 +551,8 @@ async def read_classes(class_ids: List[int]) -> Optional[List[Class]]:
 
 
 async def get_class_ids_from_class_info(
-    class_info: Dict[str, List[str]],
-) -> Optional[List[int]]:
+    class_info: dict[str, list[str]],
+) -> list[int] | None:
     """
     Get class IDs from a class_info dictionary structure in a single query
 
@@ -471,7 +585,7 @@ async def get_class_ids_from_class_info(
 
 
 async def assign_teacher_to_classes(
-    user: User, class_ids: List[int], subject_id: Optional[int] = None
+    user: User, class_ids: list[int], subject_id: int | None = None
 ):
     """
     Assign a teacher to a list of classes by creating teacher-class relationships.
@@ -516,7 +630,7 @@ async def assign_teacher_to_classes(
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
 
 
-async def get_users_by_state(state: enums.UserState) -> List[User]:
+async def get_users_by_state(state: enums.UserState) -> list[User]:
     """
     Get all users with a specific state.
 
@@ -524,7 +638,7 @@ async def get_users_by_state(state: enums.UserState) -> List[User]:
         state: The UserState to filter by
 
     Returns:
-        List[User]: List of users with the specified state
+        list[User]: List of users with the specified state
     """
     async with get_session() as session:
         try:
@@ -537,7 +651,7 @@ async def get_users_by_state(state: enums.UserState) -> List[User]:
             raise Exception(f"Failed to query users by state: {str(e)}")
 
 
-async def get_users_to_mark_inactive(hours_threshold: int) -> List[User]:
+async def get_users_to_mark_inactive(hours_threshold: int) -> list[User]:
     """
     Get active users who haven't sent or received messages in the specified hours.
 
@@ -545,9 +659,9 @@ async def get_users_to_mark_inactive(hours_threshold: int) -> List[User]:
         hours_threshold: Number of hours after which a user is considered inactive
 
     Returns:
-        List[User]: List of active users who should be marked as inactive
+        list[User]: List of active users who should be marked as inactive
     """
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     async with get_session() as session:
         try:

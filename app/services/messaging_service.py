@@ -1,23 +1,29 @@
 import logging
+from typing import Optional
 
 from fastapi.responses import JSONResponse
 
-import app.database.models as models
-from app.services.flows.flow_service import flow_client
-from app.utils.string_manager import strings, StringCategory
-from app.services.whatsapp_service import whatsapp_client, ImageType
 import app.database.db as db
-from app.services.llm_service import llm_client
-from app.services.agent_client import agent_client
+import app.database.enums as enums
+import app.database.models as models
 from app.config import llm_settings
-from app.services.latex_image_service import (
+from app.latex.latex_artifact_generator import (
     looks_like_latex,
     prepare_latex_body,
     text_to_img,
 )
-import app.database.enums as enums
 from app.monitoring.metrics import record_messages_generated, track_messages
+from app.services.agent_client import agent_client
+from app.services.exam_delivery_service import (
+    ExamDeliveryMarker,
+    ExamPDFDeliveryDetails,
+    exam_delivery_service,
+)
+from app.services.flows.flow_service import flow_client
+from app.services.llm_service import llm_client
+from app.services.whatsapp_service import DocumentType, ImageType, whatsapp_client
 from app.tools.registry import ToolName
+from app.utils.string_manager import StringCategory, strings
 
 
 class MessagingService:
@@ -171,8 +177,23 @@ class MessagingService:
 
                 return JSONResponse(content={"status": "ok"}, status_code=200)
 
-            final_message.is_present_in_conversation = True
+            # NOTE: this changes llm_responses in-place, not very obvious
+            final_message.is_present_in_conversation = False
             await db.create_new_messages(llm_responses)
+
+            llm_content = await self._check_and_handle_exam_delivery(
+                user=user,
+                llm_content=llm_content,
+            )
+
+            self.logger.debug(
+                f"Final message content after processing delivery marker: {llm_content}"
+            )
+
+            # persist the final message with the cleaned content (no more markers) and mark it as present in conversation
+            await self._persist_visible_assistant_message(
+                user=user, content=llm_content
+            )
 
             self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
 
@@ -207,7 +228,6 @@ class MessagingService:
                     )
                     await whatsapp_client.send_message(user.wa_id, llm_content)
                     record_messages_generated("chat_response_with_latex_image_fallback")
-
             else:
                 await whatsapp_client.send_message(user.wa_id, llm_content)
                 record_messages_generated("chat_response")
@@ -215,12 +235,7 @@ class MessagingService:
         else:
             err_message = strings.get_string(StringCategory.ERROR, "general")
             await whatsapp_client.send_message(user.wa_id, err_message)
-            await db.create_new_message_by_fields(
-                user_id=user.id,
-                role=enums.MessageRole.assistant,
-                content=err_message,
-                is_present_in_conversation=True,
-            )
+            await self._persist_visible_assistant_message(user, err_message)
             record_messages_generated("chat_error")
 
         return JSONResponse(
@@ -244,12 +259,8 @@ class MessagingService:
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
         err_message = strings.get_string(StringCategory.ERROR, "unsupported_message")
-        await db.create_new_message_by_fields(
-            user_id=user.id,
-            role=enums.MessageRole.assistant,
-            content=err_message,
-            is_present_in_conversation=True,
-        )
+        await self._persist_visible_assistant_message(user, err_message)
+
         # Send message to the user
         await whatsapp_client.send_message(wa_id=user.wa_id, message=err_message)
         record_messages_generated("unsupported_message")
@@ -273,6 +284,125 @@ class MessagingService:
             content=content,
             is_present_in_conversation=True,
         )
+
+    async def _check_and_handle_exam_delivery(
+        self, user: models.User, llm_content: str
+    ) -> str:
+        delivery_marker: ExamDeliveryMarker = (
+            exam_delivery_service.parse_delivery_marker(llm_content)
+        )
+        llm_content = (
+            delivery_marker.cleaned_content
+            if delivery_marker.marker_found
+            else llm_content
+        )
+
+        if not delivery_marker.marker_found:
+            return llm_content
+
+        self.logger.info(
+            f"Exam delivery marker detected. marker_valid={delivery_marker.marker_valid} "
+            f"exam_id={delivery_marker.exam_id}"
+        )
+
+        if not delivery_marker.marker_valid:
+            self.logger.warning("Ignoring invalid exam delivery marker.")
+            return llm_content
+
+        exam_send_failed = False
+        solution_send_failed = False
+        exam_subject: Optional[str] = None
+        exam_topics: list[str] = []
+
+        if delivery_marker.exam_id:
+            # If exam PDFs do not exist, this renders them and returns the paths.
+            exam_details: ExamPDFDeliveryDetails = (
+                await exam_delivery_service.get_exam_delivery_details(
+                    delivery_marker.exam_id
+                )
+            )
+            exam_subject = exam_details.subject
+            exam_topics = exam_details.topics
+
+            if exam_details.errors:
+                self.logger.warning(
+                    f"Exam artifact preparation issues for exam_id={delivery_marker.exam_id}: "
+                    f"{' | '.join(exam_details.errors)}"
+                )
+
+            if exam_details.exam_pdf_ready:
+                exam_sent = await whatsapp_client.send_document_message(
+                    wa_id=user.wa_id,
+                    document_path=str(exam_details.exam_pdf_path),
+                    doc_type=DocumentType.PDF,
+                    filename=exam_details.exam_pdf_path.name,
+                )
+                if exam_sent:
+                    record_messages_generated("exam_pdf_sent")
+                else:
+                    self.logger.warning(
+                        f"Failed to send exam PDF for exam_id={delivery_marker.exam_id}."
+                    )
+                    record_messages_generated("exam_pdf_send_failed")
+                    exam_send_failed = True
+            else:
+                self.logger.warning(
+                    f"Exam PDF artifact not ready for exam_id={delivery_marker.exam_id}."
+                )
+                exam_send_failed = True
+
+            if exam_details.solution_pdf_ready:
+                solution_sent = await whatsapp_client.send_document_message(
+                    wa_id=user.wa_id,
+                    document_path=str(exam_details.solution_pdf_path),
+                    doc_type=DocumentType.PDF,
+                    filename=exam_details.solution_pdf_path.name,
+                )
+                if solution_sent:
+                    record_messages_generated("solution_pdf_sent")
+                else:
+                    self.logger.warning(
+                        f"Failed to send solution PDF for exam_id={delivery_marker.exam_id}."
+                    )
+                    record_messages_generated("solution_pdf_send_failed")
+                    solution_send_failed = True
+            else:
+                self.logger.warning(
+                    f"Solution PDF artifact not ready for exam_id={delivery_marker.exam_id}."
+                )
+                solution_send_failed = True
+        else:
+            self.logger.warning("Exam delivery marker is valid but exam_id is missing.")
+            exam_send_failed = True
+            solution_send_failed = True
+
+        return self._build_exam_delivery_message(
+            subject=exam_subject,
+            topics=exam_topics,
+            exam_send_failed=exam_send_failed,
+            solution_send_failed=solution_send_failed,
+        )
+
+    @staticmethod
+    def _build_exam_delivery_message(
+        *,
+        subject: Optional[str],
+        topics: list[str],
+        exam_send_failed: bool,
+        solution_send_failed: bool,
+    ) -> str:
+        if exam_send_failed and solution_send_failed:
+            return "Sorry, something went wrong in creating the exam and exam solution."
+
+        if exam_send_failed:
+            return "Sorry, something went wrong in generating the exam."
+
+        if solution_send_failed:
+            return "Sorry, something went wrong in generating the exam solution."
+
+        subject_text = subject or "the requested subject"
+        topics_text = ", ".join(topics) if topics else "the requested topics"
+        return f"Here is your practice exam in {subject_text} on topics: {topics_text}."
 
 
 messaging_client = MessagingService()

@@ -1,20 +1,19 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-import json
-from pathlib import Path
-from sqlmodel import text
-from sqlmodel import SQLModel, select
-import logging
-from typing import List, Dict, Any
-import yaml
 import argparse
 import asyncio
+import json
+import logging
 import sys
+from pathlib import Path
+from typing import Any
+
+import yaml
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlmodel import SQLModel, select, text
 
 # Import all your models
 import app.database.models as models
 from app.database.enums import ChunkType
 from app.database.utils import get_database_url
-
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -56,8 +55,8 @@ async def reset_db():
 
 def run_migrations():
     """Run alembic migrations"""
-    from alembic.config import Config
     from alembic import command
+    from alembic.config import Config
 
     logger.info("Running migrations...")
     alembic_cfg = Config("alembic.ini")
@@ -132,7 +131,7 @@ async def inject_sample_data():
 
 async def process_chunks(
     session: AsyncSession,
-    json_data: List[Dict[str, Any]],
+    json_data: list[dict[str, Any]],
     resource_id: int,
     batch_size: int = 30,
 ):

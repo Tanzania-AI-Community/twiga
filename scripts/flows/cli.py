@@ -4,10 +4,12 @@ from pathlib import Path
 # Add the project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from app.services.flows.utils import encrypt_flow_token, decrypt_flow_token
-import typer
 import logging
 import subprocess
+
+import typer
+
+from app.services.flows.utils import decrypt_flow_token, encrypt_flow_token
 
 logger = logging.getLogger(__name__)
 cli = typer.Typer()

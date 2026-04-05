@@ -1,21 +1,23 @@
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional
+
 from langchain_core.messages import (
-    SystemMessage,
-    HumanMessage,
     AIMessage,
+    HumanMessage,
+    SystemMessage,
 )
 from langchain_core.messages.base import BaseMessage
-from app.database.models import Message, User
-from app.database.enums import MessageRole
-from app.database.db import create_new_message_by_fields, get_user_message_history
+
 from app.config import Prompt, settings
-from app.utils.prompt_manager import prompt_manager
-from app.utils.message_processor import MessageProcessor
+from app.database.db import create_new_message_by_fields, get_user_message_history
+from app.database.enums import MessageRole
+from app.database.models import Message, User
 from app.services.whatsapp_service import whatsapp_client
-from app.utils.string_manager import strings, StringCategory
 from app.tools.tool_manager import ToolManager
-from abc import ABC, abstractmethod
+from app.utils.message_processor import MessageProcessor
+from app.utils.prompt_manager import prompt_manager
+from app.utils.string_manager import StringCategory, strings
 
 
 class ClientBase(ABC):

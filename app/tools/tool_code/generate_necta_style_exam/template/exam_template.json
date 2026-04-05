@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "country": "THE UNITED REPUBLIC OF TANZANIA",
+    "office": "PRESIDENT’S OFFICE\nREGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
+    "exam_title": "GENERATED PRACTICE EXAM",
+    "subject": null,
+    "duration": "3:00 Hrs",
+    "year": null
+  },
+  "instructions": [
+    "This paper consists of three sections A, B and C with a total of NUM_QUESTIONS_PLACEHOLDER questions.",
+    "Answer all questions in section A and B and one (1) question from section C.",
+    "Calculators and cellular phones are not allowed in the examination room.",
+    "Write your Examination number on every page of your answer sheets/booklet(s)."
+  ],
+  "constants": {},
+  "section_A": {
+    "section_title": "SECTION A",
+    "section_instructions": "Answer all questions in this section.",
+    "multiple_choice_marks": null,
+    "matching_marks": null,
+    "total_num_questions": null,
+    "question_types": [
+      "multiple_choice",
+      "item_matching"
+    ],
+    "question_list": []
+  },
+  "section_B": {
+    "section_title": "SECTION B",
+    "section_instructions": "Answer all questions in this section.",
+    "marks": null,
+    "total_num_questions": null,
+    "question_types": [
+      "short_answer"
+    ],
+    "question_list": []
+  },
+  "section_C": {
+    "section_title": "SECTION C",
+    "section_instructions": "Answer only one (1) question in this section.",
+    "marks": null,
+    "total_num_questions": 2,
+    "question_types": [
+      "long_answer"
+    ],
+    "question_list": []
+  }
+}
