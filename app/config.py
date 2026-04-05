@@ -268,33 +268,40 @@ def initialize_settings():
     tool_settings = ToolSettings()
 
     # Validate required Meta settings
-    assert (
+    if not (
         settings.meta_api_version and settings.meta_api_version.strip()
-    ), "META_API_VERSION is required"
-    assert (
+    ):
+        raise ValueError("META_API_VERSION is required")
+    if not (
         settings.meta_app_id and settings.meta_app_id.strip()
-    ), "META_APP_ID is required"
-    assert (
+    ):
+        raise ValueError("META_APP_ID is required")
+    if not (
         settings.meta_app_secret and settings.meta_app_secret.get_secret_value().strip()
-    ), "META_APP_SECRET is required"
+    ):
+        raise ValueError("META_APP_SECRET is required")
 
     # Validate required WhatsApp settings
-    assert (
+    if not (
         settings.whatsapp_cloud_number_id and settings.whatsapp_cloud_number_id.strip()
-    ), "WHATSAPP_CLOUD_NUMBER_ID is required"
-    assert (
+    ):
+        raise ValueError("WHATSAPP_CLOUD_NUMBER_ID is required")
+    if not (
         settings.whatsapp_verify_token
         and settings.whatsapp_verify_token.get_secret_value().strip()
-    ), "WHATSAPP_VERIFY_TOKEN is required"
-    assert (
+    ):
+        raise ValueError("WHATSAPP_VERIFY_TOKEN is required")
+    if not (
         settings.whatsapp_api_token
         and settings.whatsapp_api_token.get_secret_value().strip()
-    ), "WHATSAPP_API_TOKEN is required"
+    ):
+        raise ValueError("WHATSAPP_API_TOKEN is required")
 
     # Validate other required settings
-    assert (
+    if not (
         settings.database_url and settings.database_url.get_secret_value().strip()
-    ), "DATABASE_URL is required"
+    ):
+        raise ValueError("DATABASE_URL is required")
 
     return settings, llm_settings, embedding_settings, tool_settings
 

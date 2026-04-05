@@ -15,7 +15,8 @@ async def search_knowledge(
     try:
         # Retrieve the resources for the class
         resource_ids = await db.get_class_resources(class_id)
-        assert resource_ids
+        if not resource_ids:
+            raise ValueError(f"No resources found for class {class_id}.")
 
         # Retrieve the relevant content
         retrieved_content = await vector_search(

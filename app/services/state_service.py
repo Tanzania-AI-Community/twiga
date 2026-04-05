@@ -23,7 +23,8 @@ class StateHandler:
         self.logger = logging.getLogger(__name__)
 
     async def handle_blocked(self, user: User) -> JSONResponse:
-        assert user.id is not None
+        if user.id is None:
+            raise ValueError("User ID is unexpectedly None for blocked state handling.")
 
         blocked_text = strings.get_string(StringCategory.ERROR, "blocked")
         last_assistant_message = await db.get_latest_user_message_by_role(
@@ -57,7 +58,10 @@ class StateHandler:
         )
 
     async def handle_rate_limited(self, user: User) -> JSONResponse:
-        assert user.id is not None
+        if user.id is None:
+            raise ValueError(
+                "User ID is unexpectedly None for rate-limited state handling."
+            )
 
         rate_limit_text = strings.get_string(StringCategory.ERROR, "rate_limited")
         last_assistant_message = await db.get_latest_user_message_by_role(
@@ -184,7 +188,10 @@ class StateHandler:
             )
             await whatsapp_client.send_message(phone_number, response_text)
 
-            assert new_user.id is not None
+            if new_user.id is None:
+                raise ValueError(
+                    "New user ID is unexpectedly None after registration."
+                )
             await db.create_new_message_by_fields(
                 user_id=new_user.id,
                 role=MessageRole.assistant,
@@ -208,7 +215,8 @@ class StateHandler:
 
     async def handle_in_review_user(self, user: User) -> JSONResponse:
         """Handle messages from users in review (not yet approved) users"""
-        assert user.id is not None
+        if user.id is None:
+            raise ValueError("User ID is unexpectedly None for in-review handling.")
 
         pending_text = strings.get_string(
             StringCategory.REGISTRATION, "pending_approval"
@@ -254,7 +262,10 @@ class StateHandler:
                     language_code="en_US",
                 )
 
-                assert user.id is not None
+                if user.id is None:
+                    raise ValueError(
+                        "User ID is unexpectedly None after approval template send."
+                    )
                 await db.create_new_message_by_fields(
                     user_id=user.id,
                     role=MessageRole.assistant,
@@ -266,7 +277,10 @@ class StateHandler:
                 await flow_client.send_personal_and_school_info_flow(user)
             else:
                 # In non-production, skip template and flow
-                assert user.id is not None
+                if user.id is None:
+                    raise ValueError(
+                        "User ID is unexpectedly None in non-production approval flow."
+                    )
                 self.logger.info(
                     f"Skipping template and flow for user {user.wa_id} in {settings.environment} environment"
                 )
@@ -314,11 +328,13 @@ class StateHandler:
             # Read the class IDs from the class info
             class_ids = await db.get_class_ids_from_class_info(user.class_info)
 
-            assert class_ids is not None
+            if class_ids is None:
+                raise ValueError("Derived class IDs are unexpectedly None.")
 
             # Update user and create teachers_classes entries
             user = await db.update_user(user)
-            assert user.id is not None
+            if user.id is None:
+                raise ValueError("Dummy user ID is unexpectedly None after update.")
             await db.assign_teacher_to_classes(user, class_ids)
 
             # Send a welcome message to the user
