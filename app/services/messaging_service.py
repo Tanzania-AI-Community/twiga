@@ -9,6 +9,7 @@ import app.database.models as models
 from app.config import llm_settings
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.agent_client import agent_client
+from app.services.citation_service import CitationRenderResult, citation_service
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
     ExamPDFDeliveryDetails,
@@ -396,8 +397,21 @@ class MessagingService:
         """
         Checks for citation markers in the LLM response content and renders them if found.
         """
-        # TODO
-        return llm_content
+        citation_result: CitationRenderResult = await citation_service.render_citations(
+            llm_content
+        )
+
+        if not citation_result.marker_found:
+            return llm_content
+
+        self.logger.info(
+            f"Citation marker detected. valid_marker_count={citation_result.valid_marker_count} "
+            f"invalid_marker_count={citation_result.invalid_marker_count} "
+            f"total_marker_count={citation_result.valid_marker_count + citation_result.invalid_marker_count} "
+            f"unique_chunk_ids={len(citation_result.ordered_chunk_ids)}"
+        )
+
+        return citation_result.rendered_content
 
     @staticmethod
     def _build_exam_delivery_message(
