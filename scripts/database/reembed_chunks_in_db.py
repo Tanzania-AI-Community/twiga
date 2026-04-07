@@ -1,22 +1,22 @@
 import argparse
 import asyncio
 import logging
+import math
+import re
 from dataclasses import dataclass
 from functools import lru_cache
-import math
 from pathlib import Path
-import re
 from urllib.parse import parse_qsl, urlencode, urlparse
 
+import tiktoken
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-import tiktoken
+
 from scripts.database.reembedding_utils import (
     TogetherEmbeddingClient,
     project_root,
     read_env_value,
 )
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

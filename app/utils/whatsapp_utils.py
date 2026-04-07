@@ -1,28 +1,26 @@
+import logging
+import re
 from datetime import datetime
 from enum import Enum, auto
-import re
-from typing import Any, Dict, List, Optional
-import logging
-
-
-from app.models.message_models import (
-    Row,
-    TextMessage,
-    TemplateMessage,
-    Template,
-    TemplateLanguage,
-    InteractiveMessage,
-    InteractiveButton,
-    InteractiveList,
-    TextObject,
-    Button,
-    Reply,
-    ButtonsAction,
-    Section,
-    ListAction,
-)
+from typing import Any, Optional
 
 from app.config import settings
+from app.models.message_models import (
+    Button,
+    ButtonsAction,
+    InteractiveButton,
+    InteractiveList,
+    InteractiveMessage,
+    ListAction,
+    Reply,
+    Row,
+    Section,
+    Template,
+    TemplateLanguage,
+    TemplateMessage,
+    TextMessage,
+    TextObject,
+)
 
 
 class RequestType(Enum):
@@ -67,10 +65,10 @@ def generate_payload_for_image(
     wa_id: str,
     media_id: str,
     caption: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate a WhatsApp Cloud API payload for an image message."""
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": wa_id,
@@ -84,8 +82,31 @@ def generate_payload_for_image(
     return payload
 
 
+def generate_payload_for_document(
+    wa_id: str,
+    media_id: str,
+    caption: Optional[str] = None,
+    filename: Optional[str] = None,
+) -> dict[str, Any]:
+    """Generate a WhatsApp Cloud API payload for a document message."""
+    payload: dict[str, Any] = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": wa_id,
+        "type": "document",
+        "document": {"id": media_id},
+    }
+
+    if caption:
+        payload["document"]["caption"] = caption
+    if filename:
+        payload["document"]["filename"] = filename
+
+    return payload
+
+
 def get_interactive_button_payload(
-    recipient: str, text: str, options: List[str]
+    recipient: str, text: str, options: list[str]
 ) -> dict:
     buttons = [
         Button(
@@ -107,7 +128,7 @@ def get_interactive_button_payload(
 
 
 def get_interactive_list_payload(
-    recipient: str, text: str, options: List[str], title: str = "Options"
+    recipient: str, text: str, options: list[str], title: str = "Options"
 ) -> dict:
     rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
 

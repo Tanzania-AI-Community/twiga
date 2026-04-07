@@ -1,8 +1,10 @@
 import copy
-from enum import Enum
 import json
 import logging
+from enum import Enum
+
 from app.tools.tool_code.generate_exercise.main import generate_exercise
+from app.tools.tool_code.generate_necta_style_exam.main import generate_necta_style_exam
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.tools.tool_code.solve_equation.main import solve_equation
 
@@ -13,12 +15,14 @@ class ToolName(str, Enum):
     search_knowledge = "search_knowledge"
     generate_exercise = "generate_exercise"
     solve_equation = "solve_equation"
+    generate_necta_style_exam = "generate_necta_style_exam"
 
 
 TOOL_FUNCTION_MAP = {
     ToolName.search_knowledge.value: search_knowledge,
     ToolName.generate_exercise.value: generate_exercise,
     ToolName.solve_equation.value: solve_equation,
+    ToolName.generate_necta_style_exam.value: generate_necta_style_exam,
 }
 
 
@@ -87,6 +91,32 @@ TOOLS_METADATA = [
                     },
                 },
                 "required": ["equation"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": ToolName.generate_necta_style_exam.value,
+            "description": "Generate a full NECTA-style exam paper and marking scheme for selected topics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "class_id": {
+                        "type": "integer",
+                        "description": "The class id of the course the exam should be based on. Available class IDs: {available_class_ids}",
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "The subject name for the exam.",
+                    },
+                    "topics": {
+                        "type": "array",
+                        "description": "List of all topics to cover in the generated exam. (e.g. ['climate', 'weather'])",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["class_id", "subject", "topics"],
             },
         },
     },

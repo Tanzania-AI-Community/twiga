@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Request, BackgroundTasks
-from fastapi.responses import PlainTextResponse, JSONResponse
-from fastapi.testclient import TestClient
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.config import settings, Environment
+import pytest
+from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.testclient import TestClient
+
+from app.config import Environment, settings
 from app.main import app, lifespan
 from app.security import flows_signature_required, signature_required
 

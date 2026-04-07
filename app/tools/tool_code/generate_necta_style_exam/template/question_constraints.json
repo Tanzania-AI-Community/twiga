@@ -1,0 +1,33 @@
+{
+  "multiple_choice": [
+    "Exactly 5 options.",
+    "Exactly one correct answer. This should be the label of the correct option, e.g. 'A', 'B', 'C', 'D', or 'E'.",
+    "Keep distractors plausible."
+  ],
+  "item_matching": [
+    "Use 5 items in listA and 7 items in listB to allow for distractors.",
+    "Fill answers_pairs fully."
+  ],
+  "short_answer": [
+    "Keep response concise and syllabus-aligned.",
+    "Use exactly two parts labeled a and b.",
+    "Each part must have a non-empty prompt.",
+    "Each part must include a positive integer marks field.",
+    "The sum of short_answer.parts[*].marks must equal short_answer.marks.",
+    "Each part must include sub_questions.",
+    "If sub_questions are used, there must be exactly three labeled i, ii, iii (no more and no less).",
+    "If short_answer.parts[*].sub_questions are used, each item must be an object shaped as: {\"label\": \"i\", \"text\": \"...\", \"marks\": 2}.",
+    "For each part, sub-question marks must be positive integers and their sum must equal that part's marks.",
+    "Provide a complete example answer.",
+    "Provide marking_points and a marking_scheme for grading."
+  ],
+  "long_answer": [
+    "Provide a complete example answer.",
+    "Include concepts and marking_points.",
+    "IMPORTANT: The description must never include the answer or solution content.",
+    "Set description as setup/context only and task.prompt as the instruction only.",
+    "Do not repeat the same wording between description and task.prompt.",
+    "If task.sub_questions is not empty, labels must be sequential (a, b, c, ...) and marks must sum to the total question marks.",
+    "If long_answer.task.sub_questions are used, each item must be an object shaped as: {\"label\": \"a\", \"prompt\": \"...\", \"marks\": 5}."
+  ]
+}

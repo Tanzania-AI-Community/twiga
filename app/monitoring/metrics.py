@@ -1,10 +1,8 @@
 import time
-from typing import Literal, Optional
+from functools import wraps
+from typing import Callable, Literal, Optional
 
 from prometheus_client import Counter, Histogram
-from functools import wraps
-from typing import Callable
-
 
 LLM_LATENCY_BUCKETS = (0.25, 0.5, 1, 2, 4, 8, 16)
 
