@@ -76,9 +76,9 @@ async def test_get_exam_delivery_details_uses_cache_and_returns_metadata(
             tmp_path,
         ),
         patch(
-            "app.services.exam_delivery_service.db.get_exam",
+            "app.services.exam_delivery_service.db.get_exam_by_id",
             AsyncMock(return_value=exam_record),
-        ) as mock_get_exam,
+        ) as mock_get_exam_by_id,
     ):
         result = await service.get_exam_delivery_details(exam_id)
 
@@ -87,7 +87,7 @@ async def test_get_exam_delivery_details_uses_cache_and_returns_metadata(
     assert result.subject == "Geography"
     assert result.topics == ["Climate", "Weather"]
     assert result.errors == []
-    mock_get_exam.assert_awaited_once_with(exam_id)
+    mock_get_exam_by_id.assert_awaited_once_with(exam_id)
 
 
 @pytest.mark.asyncio
@@ -122,9 +122,9 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
             tmp_path,
         ),
         patch(
-            "app.services.exam_delivery_service.db.get_exam",
+            "app.services.exam_delivery_service.db.get_exam_by_id",
             AsyncMock(return_value=exam_record),
-        ) as mock_get_exam,
+        ) as mock_get_exam_by_id,
         patch(
             "app.services.exam_delivery_service.render_exam_pdf",
             side_effect=_render_exam,
@@ -139,7 +139,7 @@ async def test_get_exam_delivery_details_renders_missing_pdfs_from_db(
     assert result.exam_pdf_ready is True
     assert result.solution_pdf_ready is True
     assert result.errors == []
-    mock_get_exam.assert_awaited_once_with(exam_id)
+    mock_get_exam_by_id.assert_awaited_once_with(exam_id)
     mock_render_exam.assert_called_once()
     mock_render_solution.assert_called_once()
 
@@ -157,7 +157,7 @@ async def test_get_exam_delivery_details_returns_error_when_exam_missing_in_db(
             tmp_path,
         ),
         patch(
-            "app.services.exam_delivery_service.db.get_exam",
+            "app.services.exam_delivery_service.db.get_exam_by_id",
             AsyncMock(return_value=None),
         ),
     ):

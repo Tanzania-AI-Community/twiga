@@ -115,7 +115,7 @@ class ExamDeliveryService:
         exam_json: Optional[dict] = None
 
         try:
-            exam_record = await db.get_exam(exam_id)
+            exam_record = await db.get_exam_by_id(exam_id)
         except Exception as exc:
             self.logger.error(
                 f"Failed to load exam record for exam_id={exam_id}: {exc}",
