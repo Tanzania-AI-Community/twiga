@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -131,7 +131,7 @@ async def inject_sample_data():
 
 async def process_chunks(
     session: AsyncSession,
-    json_data: List[Dict[str, Any]],
+    json_data: list[dict[str, Any]],
     resource_id: int,
     batch_size: int = 30,
 ):

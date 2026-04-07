@@ -1,7 +1,6 @@
 # app/core/prompts.py
 
 import logging
-from typing import Dict
 
 from app.utils.paths import paths
 
@@ -23,7 +22,7 @@ class PromptTemplate:
 
 class PromptManager:
     def __init__(self):
-        self.prompts: Dict[str, PromptTemplate] = {}
+        self.prompts: dict[str, PromptTemplate] = {}
         self._load_prompts()
 
     def _load_prompts(self) -> None:

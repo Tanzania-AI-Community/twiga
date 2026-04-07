@@ -16,8 +16,6 @@ from pathlib import Path
 from typing import Any
 
 from app.services.exam_pdf_generation_service import (
-    ExamRenderType,
-    backend_for_subject,
     render_exam_pdf,
     render_exam_solution_pdf,
 )
@@ -64,28 +62,13 @@ def main() -> None:
     exam_pdf_path = output_dir / f"{stem}.pdf"
     solution_pdf_path = output_dir / f"{stem}_solution.pdf"
 
-    meta = exam_json.get("meta", {}) if isinstance(exam_json, dict) else {}
-    subject = meta.get("subject") if isinstance(meta, dict) else None
-    subject_for_rendering = subject if isinstance(subject, str) else None
-    selected_backend = backend_for_subject(subject_for_rendering)
-    print(
-        "Detected rendering mode by subject: "
-        + (
-            "LaTeX backend (with ReportLab fallback)"
-            if selected_backend == ExamRenderType.LATEX
-            else "ReportLab backend"
-        )
-    )
-
     render_exam_pdf(
         exam_json,
         exam_pdf_path,
-        subject=subject_for_rendering,
     )
     render_exam_solution_pdf(
         exam_json,
         solution_pdf_path,
-        subject=subject_for_rendering,
     )
 
     if not exam_pdf_path.exists():

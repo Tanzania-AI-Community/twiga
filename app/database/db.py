@@ -120,7 +120,7 @@ async def create_new_exam(
             raise Exception(f"Failed to create generated exam: {str(e)}")
 
 
-async def get_exam(exam_id: str) -> GeneratedExam | None:
+async def get_exam_by_id(exam_id: str) -> GeneratedExam | None:
     if not isinstance(exam_id, str) or not exam_id.strip():
         raise ValueError("exam_id must be a non-empty string.")
 

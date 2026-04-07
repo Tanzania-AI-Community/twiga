@@ -6,7 +6,7 @@ import pytest
 import app.database.enums as enums
 from app.config import settings
 from app.database.models import Message, User
-from app.services.latex_image_service import (
+from app.latex.latex_artifact_generator import (
     _escape_text_mode_special_chars,
     _extract_latex_document_body,
     _extract_tectonic_error_context,

@@ -115,7 +115,7 @@ class ExamDeliveryService:
         exam_json: Optional[dict] = None
 
         try:
-            exam_record = await db.get_exam(exam_id)
+            exam_record = await db.get_exam_by_id(exam_id)
         except Exception as exc:
             self.logger.error(
                 f"Failed to load exam record for exam_id={exam_id}: {exc}",
@@ -158,7 +158,6 @@ class ExamDeliveryService:
                 render_exam_pdf(
                     exam_json=exam_json,
                     output_path=exam_pdf_path,
-                    subject=subject,
                 )
 
                 exam_pdf_ready = exam_pdf_path.exists()
@@ -176,7 +175,6 @@ class ExamDeliveryService:
                 render_exam_solution_pdf(
                     exam_json=exam_json,
                     output_path=solution_pdf_path,
-                    subject=subject,
                 )
 
                 solution_pdf_ready = solution_pdf_path.exists()

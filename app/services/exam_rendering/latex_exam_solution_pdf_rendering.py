@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from app.latex.latex_artifact_generator import build_latex_document_pdf_at_path
 from app.services.exam_rendering.latex_exam_pdf_rendering import (
     build_document_end,
     build_document_start,
@@ -15,7 +16,6 @@ from app.services.exam_rendering.latex_exam_pdf_rendering import (
     build_section_c,
     normalize_inline_text,
 )
-from app.services.latex_image_service import build_latex_document_pdf_at_path
 
 logger = logging.getLogger(__name__)
 

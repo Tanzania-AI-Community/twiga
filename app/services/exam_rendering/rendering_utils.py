@@ -1,5 +1,5 @@
 import re
-from typing import Any, Iterable, Tuple
+from typing import Any, Iterable
 
 
 def safe_text(value: Any) -> str:
@@ -157,11 +157,11 @@ def format_answer_lines(value: Any, prefix: str = "") -> list[str]:
     return [f"{prefix}{safe_text(value)}"]
 
 
-def normalize_list_entries(raw_items: Any, label_style: str) -> list[Tuple[str, str]]:
+def normalize_list_entries(raw_items: Any, label_style: str) -> list[tuple[str, str]]:
     if not isinstance(raw_items, list):
         return []
 
-    normalized: list[Tuple[str, str]] = []
+    normalized: list[tuple[str, str]] = []
     for idx, item in enumerate(raw_items, start=1):
         if isinstance(item, dict):
             label = safe_text(item.get("label"))
