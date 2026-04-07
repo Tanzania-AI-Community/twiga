@@ -200,7 +200,7 @@ class Message(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True, ondelete="CASCADE")
     role: enums.MessageRole = Field(max_length=20)
     content: Optional[str] = Field(default=None)  # None when tool_calls present
-    source_chunk_ids: Optional[List[int]] = Field(default=None, sa_column=Column(JSON))
+    source_chunk_ids: Optional[list[int]] = Field(default=None, sa_column=Column(JSON))
     is_present_in_conversation: bool = Field(
         default=False,
         nullable=False,
@@ -298,7 +298,7 @@ class Message(SQLModel, table=True):
         user_id: int,
         role: enums.MessageRole,
         content: Optional[str],
-        source_chunk_ids: Optional[List[int]] = None,
+        source_chunk_ids: Optional[list[int]] = None,
     ) -> "Message":
         message_data = {
             "user_id": user_id,
