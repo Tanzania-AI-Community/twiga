@@ -5,6 +5,7 @@ import os
 
 from app.utils.paths import paths
 
+
 def _deep_merge(base: dict, override: dict) -> dict[str, Any]:
     result = base.copy()
     for key, value in override.items():
@@ -13,6 +14,7 @@ def _deep_merge(base: dict, override: dict) -> dict[str, Any]:
         else:
             result[key] = value
     return result
+
 
 def load_yaml_config() -> dict[str, Any]:
     with open(paths.CONFIG / "base.yml") as f:

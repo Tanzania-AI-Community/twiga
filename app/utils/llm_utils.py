@@ -137,12 +137,16 @@ def _create_llm_client(
     Returns:
         A configured LangChain LLM client, optionally bound with tools
     """
-    optional_params = {k: v for k, v in {
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "timeout": timeout,
-        "reasoning_effort": reasoning_effort,
-    }.items() if v is not None}
+    optional_params = {
+        k: v
+        for k, v in {
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "timeout": timeout,
+            "reasoning_effort": reasoning_effort,
+        }.items()
+        if v is not None
+    }
 
     if provider == LLMProvider.TOGETHER:
         if not api_key:
@@ -185,7 +189,11 @@ def _create_llm_client(
     elif provider == LLMProvider.GOOGLE:
         if not api_key:
             raise ValueError("Google provider requires API_KEY.")
-        google_params = {k: v for k, v in optional_params.items() if k in ("temperature", "max_tokens")}
+        google_params = {
+            k: v
+            for k, v in optional_params.items()
+            if k in ("temperature", "max_tokens")
+        }
         llm = ChatGoogleGenerativeAI(
             api_key=api_key,
             model=model_name,
