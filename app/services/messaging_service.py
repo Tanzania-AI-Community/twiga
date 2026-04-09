@@ -103,145 +103,158 @@ class MessagingService:
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
 
+        llm_responses = await self._generate_llm_responses(user, user_message)
+
+        if not llm_responses:
+            await self._handle_no_llm_response(user)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+
+        final_message = self._get_final_assistant_message(llm_responses)
+
+        if not final_message:
+            await self._handle_missing_assistant_message(user, llm_responses)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+
+        llm_content = final_message.content
+
+        if llm_content is None:
+            raise ValueError("LLM response content is unexpectedly None.")
+
+        if self._are_the_tools_names_mentioned(llm_content):
+            await self._handle_tool_leakage(user, llm_responses)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+
+        # NOTE: this changes llm_responses in-place, not very obvious
+        final_message.is_present_in_conversation = False
+        await db.create_new_messages(llm_responses)
+
+        llm_content = await self._check_and_handle_exam_delivery(
+            user=user, llm_content=llm_content
+        )
+
+        self.logger.debug(
+            f"Final message content after processing delivery marker: {llm_content}"
+        )
+
+        await self._persist_visible_assistant_message(user=user, content=llm_content)
+        await self._send_chat_response(user=user, llm_content=llm_content)
+
+        return JSONResponse(content={"status": "ok"}, status_code=200)
+
+    async def _generate_llm_responses(
+        self, user: models.User, user_message: models.Message
+    ) -> list[models.Message]:
         if llm_settings.agentic_mode:
             self.logger.info(
                 "Agentic mode is enabled. Using AgentClient for response generation."
             )
-            llm_responses = await agent_client.generate_response(
-                user=user, message=user_message
-            )
-        else:
-            self.logger.info(
-                "Agentic mode is disabled. Using standard LLMClient for response generation."
-            )
-            llm_responses = await llm_client.generate_response(
-                user=user, message=user_message
-            )
+            return await agent_client.generate_response(user=user, message=user_message)
 
-        if llm_responses:
-            final_message = next(
-                (
-                    msg
-                    for msg in reversed(llm_responses)
-                    if msg.role == enums.MessageRole.assistant and msg.content
-                ),
-                None,
-            )
-
-            if not final_message:
-                self.logger.warning(
-                    "No assistant response with content available; sending fallback."
-                )
-                fallback_error_text = strings.get_string(
-                    StringCategory.ERROR, "general"
-                )
-                await whatsapp_client.send_message(user.wa_id, fallback_error_text)
-                record_messages_generated("chat_error")
-
-                error_message = models.Message.from_attributes(
-                    user_id=user.id,
-                    role=enums.MessageRole.assistant,
-                    content=fallback_error_text,
-                )
-                error_message.is_present_in_conversation = True
-
-                messages_to_add = llm_responses + [error_message]
-                await db.create_new_messages(messages_to_add)
-
-                return JSONResponse(content={"status": "ok"}, status_code=200)
-
-            llm_content = final_message.content
-
-            if llm_content is None:
-                raise ValueError("LLM response content is unexpectedly None.")
-
-            if self._are_the_tools_names_mentioned(llm_content):
-                self.logger.warning(
-                    "Tool name leakage detected in LLM response; sending fallback message."
-                )
-                tool_leakage_message = strings.get_string(
-                    StringCategory.ERROR, "tool_leakage"
-                )
-                await whatsapp_client.send_message(user.wa_id, tool_leakage_message)
-                record_messages_generated("tool_names_mentioned_error")
-
-                error_message = models.Message.from_attributes(
-                    user_id=user.id,
-                    role=enums.MessageRole.assistant,
-                    content=tool_leakage_message,
-                )
-                error_message.is_present_in_conversation = True
-
-                messages_to_add = llm_responses + [error_message]
-                await db.create_new_messages(messages_to_add)
-
-                return JSONResponse(content={"status": "ok"}, status_code=200)
-
-            # NOTE: this changes llm_responses in-place, not very obvious
-            final_message.is_present_in_conversation = False
-            await db.create_new_messages(llm_responses)
-
-            llm_content = await self._check_and_handle_exam_delivery(
-                user=user,
-                llm_content=llm_content,
-            )
-
-            self.logger.debug(
-                f"Final message content after processing delivery marker: {llm_content}"
-            )
-
-            # persist the final message with the cleaned content (no more markers) and mark it as present in conversation
-            await self._persist_visible_assistant_message(
-                user=user, content=llm_content
-            )
-
-            self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
-
-            if looks_like_latex(llm_content):
-                prepared_latex_content = prepare_latex_body(llm_content)
-                latex_document_path = (
-                    text_to_img(prepared_latex_content)
-                    if prepared_latex_content is not None
-                    else None
-                )
-
-                if latex_document_path:
-                    image_sent = await whatsapp_client.send_image_message(
-                        wa_id=user.wa_id,
-                        image_path=latex_document_path,
-                        img_type=ImageType.PNG,
-                    )
-                    if image_sent:
-                        record_messages_generated("chat_response_with_latex_image")
-                    else:
-                        self.logger.warning(
-                            "Falling back to plain text delivery; WhatsApp image send failed."
-                        )
-                        await whatsapp_client.send_message(user.wa_id, llm_content)
-                        record_messages_generated(
-                            "chat_response_with_latex_image_fallback"
-                        )
-
-                else:
-                    self.logger.warning(
-                        "Falling back to plain text delivery; LaTeX render failed."
-                    )
-                    await whatsapp_client.send_message(user.wa_id, llm_content)
-                    record_messages_generated("chat_response_with_latex_image_fallback")
-            else:
-                await whatsapp_client.send_message(user.wa_id, llm_content)
-                record_messages_generated("chat_response")
-
-        else:
-            err_message = strings.get_string(StringCategory.ERROR, "general")
-            await whatsapp_client.send_message(user.wa_id, err_message)
-            await self._persist_visible_assistant_message(user, err_message)
-            record_messages_generated("chat_error")
-
-        return JSONResponse(
-            content={"status": "ok"},
-            status_code=200,
+        self.logger.info(
+            "Agentic mode is disabled. Using standard LLMClient for response generation."
         )
+        return await llm_client.generate_response(user=user, message=user_message)
+
+    async def _handle_no_llm_response(self, user: models.User) -> None:
+        err_message = strings.get_string(StringCategory.ERROR, "general")
+        await whatsapp_client.send_message(user.wa_id, err_message)
+        await self._persist_visible_assistant_message(user, err_message)
+        record_messages_generated("chat_error")
+
+    def _get_final_assistant_message(
+        self, llm_responses: list[models.Message]
+    ) -> models.Message | None:
+        return next(
+            (
+                msg
+                for msg in reversed(llm_responses)
+                if msg.role == enums.MessageRole.assistant and msg.content
+            ),
+            None,
+        )
+
+    async def _handle_missing_assistant_message(
+        self, user: models.User, llm_responses: list[models.Message]
+    ) -> None:
+        self.logger.warning(
+            "No assistant response with content available; sending fallback."
+        )
+
+        fallback_error_text = strings.get_string(StringCategory.ERROR, "general")
+        await whatsapp_client.send_message(user.wa_id, fallback_error_text)
+        record_messages_generated("chat_error")
+
+        error_message = models.Message.from_attributes(
+            user_id=user.id,
+            role=enums.MessageRole.assistant,
+            content=fallback_error_text,
+        )
+        error_message.is_present_in_conversation = True
+
+        messages_to_add = llm_responses + [error_message]
+        await db.create_new_messages(messages_to_add)
+
+    async def _handle_tool_leakage(
+        self, user: models.User, llm_responses: list[models.Message]
+    ) -> None:
+        self.logger.warning(
+            "Tool name leakage detected in LLM response; sending fallback message."
+        )
+
+        tool_leakage_message = strings.get_string(StringCategory.ERROR, "tool_leakage")
+        await whatsapp_client.send_message(user.wa_id, tool_leakage_message)
+        record_messages_generated("tool_names_mentioned_error")
+
+        error_message = models.Message.from_attributes(
+            user_id=user.id,
+            role=enums.MessageRole.assistant,
+            content=tool_leakage_message,
+        )
+        error_message.is_present_in_conversation = True
+
+        messages_to_add = llm_responses + [error_message]
+        await db.create_new_messages(messages_to_add)
+
+    async def _send_chat_response(self, user: models.User, llm_content: str) -> None:
+        self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
+
+        if looks_like_latex(llm_content):
+            await self._send_latex_or_text_response(user, llm_content)
+            return
+
+        await whatsapp_client.send_message(user.wa_id, llm_content)
+        record_messages_generated("chat_response")
+
+    async def _send_latex_or_text_response(
+        self, user: models.User, llm_content: str
+    ) -> None:
+        prepared_latex_content = prepare_latex_body(llm_content)
+        latex_document_path = (
+            text_to_img(prepared_latex_content)
+            if prepared_latex_content is not None
+            else None
+        )
+
+        if latex_document_path:
+            image_sent = await whatsapp_client.send_image_message(
+                wa_id=user.wa_id,
+                image_path=latex_document_path,
+                img_type=ImageType.PNG,
+            )
+            if image_sent:
+                record_messages_generated("chat_response_with_latex_image")
+                return
+
+            self.logger.warning(
+                "Falling back to plain text delivery; WhatsApp image send failed."
+            )
+            await whatsapp_client.send_message(user.wa_id, llm_content)
+            record_messages_generated("chat_response_with_latex_image_fallback")
+            return
+
+        self.logger.warning("Falling back to plain text delivery; LaTeX render failed.")
+        await whatsapp_client.send_message(user.wa_id, llm_content)
+        record_messages_generated("chat_response_with_latex_image_fallback")
 
     def _are_the_tools_names_mentioned(self, message: str) -> bool:
         tool_names = self._TOOL_NAME_MARKERS
