@@ -1,48 +1,48 @@
 
 llm:
   model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
-  timeout: 10          
-  max_tokens: null       
-  temperature: null      
+  timeout: 10
+  max_tokens: null
+  temperature: null
   reasoning_effort: null # optional; only configure if using OpenAI o-series models
-  base_url: null        
+  base_url: null
 
-  ollama: 
-    model_name: llama3.2 
-    request_timeout: 30 
+  ollama:
+    model_name: llama3.2
+    request_timeout: 30
 
 
-  modal: 
-    model_name: "twiga-qwen" 
-    request_timeout: 30 
+  modal:
+    model_name: "twiga-qwen"
+    request_timeout: 30
 
   together:
 
 
-  langsmith: 
+  langsmith:
     project_name: "twiga-whatsapp-chatbot"
-    tracing_enabled: false 
-    endpoint_url: "https://api.smith.langchain.com" 
+    tracing_enabled: false
+    endpoint_url: "https://api.smith.langchain.com"
 
-  agent: 
-    agentic_mode: false 
-    max_agent_iterations: 5 
+  agent:
+    agentic_mode: false
+    max_agent_iterations: 5
 
 embedding:
 
-  model_name: "intfloat/multilingual-e5-large-instruct" 
+  model_name: "intfloat/multilingual-e5-large-instruct"
 
-  ollama: 
-    model_name: "mxbai-embed-large" 
-    url: "http://host.docker.internal:11434" 
-    request_timeout: 30 
+  ollama:
+    model_name: "mxbai-embed-large"
+    url: "http://host.docker.internal:11434"
+    request_timeout: 30
 
-  modal: 
-    model_name: "mxbai-embed-large" 
-    request_timeout: 30 
+  modal:
+    model_name: "mxbai-embed-large"
+    request_timeout: 30
 
 tools:
-  solve_equation: 
-    model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" 
-    provider: together 
-    temperature: 0.7 
+  solve_equation:
+    model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
+    provider: together
+    temperature: 0.7
