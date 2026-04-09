@@ -1,11 +1,13 @@
 import json
 import logging
 from typing import Optional
+
 from langchain_core.messages import AIMessage
+
+from app.config import Prompt, llm_settings
 from app.database.models import Message, User
 from app.services.client_base import ClientBase
 from app.utils.llm_utils import async_llm_request
-from app.config import llm_settings, Prompt
 
 
 class AgentClient(ClientBase):

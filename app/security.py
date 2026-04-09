@@ -2,10 +2,11 @@
 This module contains the security logic for our webhook.
 """
 
-from fastapi import Request, HTTPException
 import hashlib
 import hmac
 import logging
+
+from fastapi import HTTPException, Request
 
 from app.config import settings
 

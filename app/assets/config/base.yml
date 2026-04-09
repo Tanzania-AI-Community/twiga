@@ -1,6 +1,6 @@
 
 llm:
-  model_name: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" 
+  model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
   timeout: 10          
   max_tokens: null       
   temperature: null      

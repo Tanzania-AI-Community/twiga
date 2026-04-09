@@ -2,13 +2,14 @@
 This module sets the env configs for our WhatsApp app.
 """
 
-from typing import Optional
 import os
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from enum import Enum
-from app.utils.yaml_config import yaml_config
+from typing import Optional
 
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.utils.yaml_config import yaml_config
 
 
 class Environment(str, Enum):

@@ -23,31 +23,31 @@ Required Environment Variables:
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from app.database.models import Message
-from app.database.enums import UserState, MessageRole
-
 # Import cron helpers
 from helpers import (
-    initialize_db,
-    get_users_by_state,
-    update_user,
-    create_message,
     WhatsAppClient,
+    create_message,
+    get_users_by_state,
+    initialize_db,
     setup_logging,
+    update_user,
 )
 from helpers.logging import (
-    log_job_start,
-    log_job_completion,
-    log_processing_item,
-    log_item_success,
     log_item_error,
+    log_item_success,
+    log_job_completion,
+    log_job_start,
+    log_processing_item,
 )
+
+from app.database.enums import MessageRole, UserState
+from app.database.models import Message
 
 # Configuration from environment
 WELCOME_TEMPLATE_ID = os.getenv("WELCOME_TEMPLATE_ID", "twiga_registration_approved")

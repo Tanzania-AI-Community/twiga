@@ -2,20 +2,20 @@ import logging
 
 from fastapi.responses import JSONResponse
 
-from app.database.models import Message, User
-from app.services.onboarding_service import onboarding_client
 from app.database import db
+from app.database.enums import MessageRole, OnboardingState, Role, UserState
+from app.database.models import Message, User
+from app.monitoring.metrics import record_messages_generated
+from app.services.flows.flow_service import flow_client
+from app.services.messaging_service import messaging_client
+from app.services.onboarding_service import onboarding_client
+from app.services.rate_limit_service import rate_limit_service
 from app.services.whatsapp_service import whatsapp_client
-from app.database.enums import MessageRole, UserState, OnboardingState, Role
-from app.utils.string_manager import strings, StringCategory
+from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     ValidMessageType,
     get_valid_message_type,
 )
-from app.services.messaging_service import messaging_client
-from app.services.rate_limit_service import rate_limit_service
-from app.services.flow_service import flow_client
-from app.monitoring.metrics import record_messages_generated
 
 
 class StateHandler:
@@ -153,8 +153,8 @@ class StateHandler:
     ) -> JSONResponse:
         """Handle new users - create with in_review state (flow sent after admin approval)"""
         try:
+            from app.config import Environment, settings
             from app.database.engine import get_session
-            from app.config import settings, Environment
 
             # Create a new user with in_review state (will remain in_review until approved by admin)
             new_user = User(
@@ -240,7 +240,7 @@ class StateHandler:
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
         """Handle users approved by dashboard - send welcome message and onboarding flow"""
         try:
-            from app.config import settings, Environment
+            from app.config import Environment, settings
 
             user.state = UserState.onboarding
             await db.update_user(user)
@@ -300,8 +300,8 @@ class StateHandler:
     async def handle_new_dummy(self, user: User) -> JSONResponse:
         """Create a dummy user with pre-filled data for dev/test environments"""
         try:
+            from app.database.enums import GradeLevel, SubjectName
             from app.database.models import ClassInfo
-            from app.database.enums import SubjectName, GradeLevel
 
             # Update the user object with dummy data
             user.state = UserState.active

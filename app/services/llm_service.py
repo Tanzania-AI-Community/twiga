@@ -1,11 +1,13 @@
 import json
 import uuid
 from typing import Optional
+
 from langchain_core.messages import AIMessage, HumanMessage
+
+from app.config import LLMProvider, llm_settings
 from app.database.models import Message, User
-from app.config import llm_settings, LLMProvider
-from app.utils.llm_utils import async_llm_request
 from app.services.client_base import ClientBase
+from app.utils.llm_utils import async_llm_request
 
 
 def _prepare_message_for_together(message: AIMessage) -> HumanMessage | AIMessage:

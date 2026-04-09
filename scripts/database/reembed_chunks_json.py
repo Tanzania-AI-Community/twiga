@@ -11,7 +11,6 @@ from scripts.database.reembedding_utils import (
     read_env_value,
 )
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
