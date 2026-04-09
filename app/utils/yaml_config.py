@@ -1,7 +1,7 @@
+import os
 from typing import Any
 
 import yaml
-import os
 
 from app.utils.paths import paths
 
