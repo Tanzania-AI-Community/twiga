@@ -381,6 +381,8 @@ class ExamGenerator:
             user_prompt_with_template = (
                 f"{user_prompt}\n\n"
                 f"Additional constraints:\n{constraints}\n\n"
+                "- CRITICAL: Ensure this question tests a DIFFERENT concept from the previous questions. Do not repeat topics.\n"
+                "- CRITICAL: Ensure the answer to this question cannot be directly inferred from any of the previous questions.\n\n"
                 "Output requirements (strict):\n"
                 "- Return ONLY one valid JSON object.\n"
                 "- Do NOT include explanations, reasoning, notes, or analysis.\n"
@@ -553,6 +555,13 @@ class ExamGenerator:
                         f"If task.sub_questions are present, ensure their marks sum to {expected_total_marks}.",
                     ]
                 )
+            if question_type == QuestionType.MULTIPLE_CHOICE:
+                dynamic_constraints.extend(
+                [
+                    "For the 'text' field in options, provide ONLY the raw answer text.",
+                    "Do NOT include the option letter or any punctuation prefix (e.g., write 'Mantle', NEVER write 'A. Mantle' or 'A - Mantle')."
+                ]
+            )    
 
         all_constraints = (
             constraints_list + dynamic_constraints + ["Keep output valid and concise."]
@@ -1028,9 +1037,23 @@ class ExamGenerator:
         self, question_type: QuestionType, payload: dict[str, Any]
     ) -> str:
         if question_type == QuestionType.MULTIPLE_CHOICE:
-            return str(payload.get("question", "")).strip()
+            question = str(payload.get("question", "")).strip()
+            answer = payload.get("answer")
+            answer_text = ""
+            options = payload.get("options", [])
+            if isinstance(options, list):
+                for opt in options:
+                    if isinstance(opt, dict) and opt.get("label") == answer:
+                        answer_text = str(opt.get("text", ""))
+                        break
+            return f"Question: {question} | Answer: {answer} - {answer_text}"
         if question_type == QuestionType.ITEM_MATCHING:
-            return str(payload.get("prompt", "")).strip()
+            prompt = str(payload.get("prompt", "")).strip()
+            answers_pairs = payload.get("answers_pairs", {})
+            pairs_str = ", ".join(
+                f"{k}: {v}" for k, v in answers_pairs.items()
+            ) if isinstance(answers_pairs, dict) else ""
+            return f"Prompt: {prompt} | Matches: {pairs_str}"
         if question_type == QuestionType.SHORT_ANSWER:
             parts = payload.get("parts", [])
             signature_parts: list[str] = []
@@ -1061,6 +1084,17 @@ class ExamGenerator:
                         )
                     if part_signature:
                         signature_parts.append(part_signature)
+            
+            answer_data = payload.get("answer", {})
+            if isinstance(answer_data, dict):
+                example_answer = str(answer_data.get("example_answer", "")).strip()
+                if example_answer:
+                    signature_parts.append(f"Answer: {example_answer}")
+                else:
+                    marking_points = answer_data.get("marking_points", [])
+                    if isinstance(marking_points, list):
+                        signature_parts.append("Answer Points: " + " | ".join(str(p) for p in marking_points))
+                        
             return " | ".join(signature_parts)
         if question_type == QuestionType.LONG_ANSWER:
             description = str(payload.get("description", "")).strip()
@@ -1076,6 +1110,13 @@ class ExamGenerator:
                         if sub_prompt:
                             sub_prompts.append(sub_prompt)
             parts = [description, prompt] + sub_prompts
+            
+            answer_data = payload.get("answer", {})
+            if isinstance(answer_data, dict):
+                marking_points = answer_data.get("marking_points", [])
+                if isinstance(marking_points, list):
+                    parts.append("Expected Answer Points: " + " | ".join(str(p) for p in marking_points))
+                    
             return " | ".join(part for part in parts if part)
         return ""
 
