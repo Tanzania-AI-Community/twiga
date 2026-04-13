@@ -2,7 +2,6 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from app.tools.registry import ToolName
 from langchain_core.messages import (
     AIMessage,
     HumanMessage,
@@ -15,6 +14,7 @@ from app.database.db import create_new_message_by_fields, get_user_message_histo
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.services.whatsapp_service import whatsapp_client
+from app.tools.registry import ToolName
 from app.tools.tool_manager import ToolManager
 from app.utils.message_processor import MessageProcessor
 from app.utils.prompt_manager import prompt_manager
@@ -49,7 +49,6 @@ class ClientBase(ABC):
         """Send a notification to the user when a tool call is made."""
         if tool_name == ToolName.search_knowledge.value:
             return  # issue #227
-        
         tool_strings = strings.get_category(StringCategory.TOOLS)
 
         if tool_name not in tool_strings:
