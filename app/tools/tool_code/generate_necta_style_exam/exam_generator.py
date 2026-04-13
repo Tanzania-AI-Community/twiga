@@ -555,14 +555,6 @@ class ExamGenerator:
                         f"If task.sub_questions are present, ensure their marks sum to {expected_total_marks}.",
                     ]
                 )
-            if question_type == QuestionType.MULTIPLE_CHOICE:
-                dynamic_constraints.extend(
-                    [
-                        "For the 'text' field in options, provide ONLY the raw answer text.",
-                        "Do NOT include the option letter or any punctuation prefix (e.g., write 'Mantle', NEVER write 'A. Mantle' or 'A - Mantle').",
-                    ]
-                )
-
         all_constraints = (
             constraints_list + dynamic_constraints + ["Keep output valid and concise."]
         )
@@ -1046,7 +1038,7 @@ class ExamGenerator:
                     if isinstance(opt, dict) and opt.get("label") == answer:
                         answer_text = str(opt.get("text", ""))
                         break
-            return f"Question: {question} | Answer: {answer} - {answer_text}"
+            return f"Question: {question} | Answer: {answer_text}"
         if question_type == QuestionType.ITEM_MATCHING:
             prompt = str(payload.get("prompt", "")).strip()
             answers_pairs = payload.get("answers_pairs", {})
