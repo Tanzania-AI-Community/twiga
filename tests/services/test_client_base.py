@@ -73,19 +73,11 @@ async def test_tool_call_notification_skips_persistence_when_user_id_is_missing(
 
 @pytest.mark.asyncio
 async def test_tool_call_notification_silent_for_search_knowledge() -> None:
-    """search_knowledge has an empty string in the YAML, so no message is sent."""
+    """search_knowledge notification is supressed, so no message is sent."""
     client = DummyClient()
     user = User(id=11, wa_id="255700000000", name="Teacher")
 
     with (
-        patch(
-            "app.services.client_base.strings.get_category",
-            return_value={
-                "generate_exercise": "Generating exercises...",
-                "search_knowledge": "",  
-                "solve_equation": "Solving the equation...",
-            },
-        ),
         patch(
             "app.services.client_base.whatsapp_client.send_message",
             AsyncMock(),
@@ -112,7 +104,7 @@ async def test_tool_call_notification_warns_for_unknown_tool() -> None:
             "app.services.client_base.strings.get_category",
             return_value={
                 "generate_exercise": "Generating exercises...",
-                "search_knowledge": "",
+                "search_knowledge": "📚 Searching the course content, please hold...",
                 "solve_equation": "Solving the equation...",
             },
         ),

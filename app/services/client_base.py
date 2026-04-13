@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from app.tools.registry import ToolName
 from langchain_core.messages import (
     AIMessage,
     HumanMessage,
@@ -48,6 +49,7 @@ class ClientBase(ABC):
         """Send a notification to the user when a tool call is made."""
         if tool_name == ToolName.search_knowledge.value:
                 return  # issue #227 
+        
         tool_strings = strings.get_category(StringCategory.TOOLS)
 
         if tool_name not in tool_strings:
@@ -57,9 +59,6 @@ class ClientBase(ABC):
             return
 
         notification_text = tool_strings[tool_name]
-        
-        if not notification_text:
-            return
 
         await whatsapp_client.send_message(user.wa_id, notification_text)
 
