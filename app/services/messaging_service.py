@@ -383,26 +383,49 @@ class MessagingService:
             solution_send_failed=solution_send_failed,
         )
 
-    @staticmethod
     def _build_exam_delivery_message(
+        self,
         *,
         subject: Optional[str],
         topics: list[str],
         exam_send_failed: bool,
         solution_send_failed: bool,
     ) -> str:
+        tool_name = ToolName.generate_necta_style_exam.value
+        tool_strings = strings.get_category(StringCategory.TOOLS).get(tool_name)
+
+        if not isinstance(tool_strings, dict):
+            self.logger.error(
+                f"Tool strings for '{tool_name}' must be a dictionary with delivery fields."
+            )
+            return strings.get_string(StringCategory.ERROR, "general")
+
+        def _tool_message(field: str) -> str:
+            value = tool_strings.get(field)
+            if isinstance(value, str):
+                return value
+            self.logger.error(
+                f"Missing or invalid exam delivery field '{field}' in tool strings for '{tool_name}'."
+            )
+            return strings.get_string(StringCategory.ERROR, "general")
+
         if exam_send_failed and solution_send_failed:
-            return "Sorry, something went wrong in creating the exam and exam solution."
+            return _tool_message("delivery_failed_exam_and_solution")
 
         if exam_send_failed:
-            return "Sorry, something went wrong in generating the exam."
+            return _tool_message("delivery_failed_exam")
 
         if solution_send_failed:
-            return "Sorry, something went wrong in generating the exam solution."
+            return _tool_message("delivery_failed_solution")
 
-        subject_text = subject or "the requested subject"
-        topics_text = ", ".join(topics) if topics else "the requested topics"
-        return f"Here is your practice exam in {subject_text} on topics: {topics_text}."
+        subject_text = subject or _tool_message("delivery_default_subject")
+        topics_text = (
+            ", ".join(topics) if topics else _tool_message("delivery_default_topics")
+        )
+        return _tool_message("delivery_success").format(
+            subject=subject_text,
+            topics=topics_text,
+        )
 
 
 messaging_client = MessagingService()
