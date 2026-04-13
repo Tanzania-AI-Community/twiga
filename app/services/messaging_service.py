@@ -418,10 +418,9 @@ class MessagingService:
         if solution_send_failed:
             return _tool_message("delivery_failed_solution")
 
-        subject_text = subject or _tool_message("delivery_default_subject")
-        topics_text = (
-            ", ".join(topics) if topics else _tool_message("delivery_default_topics")
-        )
+        subject_text = subject or "the requested subject"
+        topics_text = ", ".join(topics) if topics else "the requested topics"
+
         return _tool_message("delivery_success").format(
             subject=subject_text,
             topics=topics_text,

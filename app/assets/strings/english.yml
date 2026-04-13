@@ -37,8 +37,6 @@ tools:
     delivery_failed_exam_and_solution: "Sorry, something went wrong in creating the exam and exam solution."
     delivery_failed_exam: "Sorry, something went wrong in generating the exam."
     delivery_failed_solution: "Sorry, something went wrong in generating the exam solution."
-    delivery_default_subject: "the requested subject"
-    delivery_default_topics: "the requested topics"
     delivery_success: "Here is your practice exam in {subject} on topics: {topics}."
   search_knowledge:
     notification: "📚 Searching the course content, please hold..."
