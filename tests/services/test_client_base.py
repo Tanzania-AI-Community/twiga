@@ -123,4 +123,3 @@ async def test_tool_call_notification_warns_for_unknown_tool() -> None:
 
     mock_send_message.assert_not_awaited()
     mock_create_message.assert_not_awaited()
-

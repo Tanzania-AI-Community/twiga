@@ -48,7 +48,7 @@ class ClientBase(ABC):
     async def _tool_call_notification(self, user: User, tool_name: str) -> None:
         """Send a notification to the user when a tool call is made."""
         if tool_name == ToolName.search_knowledge.value:
-                return  # issue #227 
+            return  # issue #227
         
         tool_strings = strings.get_category(StringCategory.TOOLS)
 
