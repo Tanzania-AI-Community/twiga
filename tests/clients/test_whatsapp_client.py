@@ -4,7 +4,7 @@ import pytest
 
 from app.database.enums import MessageRole
 from app.database.models import User
-from app.services.whatsapp_service import WhatsAppClient
+from app.clients.whatsapp_client import WhatsAppClient
 
 
 @pytest.mark.asyncio
@@ -39,11 +39,11 @@ async def test_flow_complete_event_persists_visible_user_interaction() -> None:
 
     with (
         patch(
-            "app.services.whatsapp_service.db.get_user_by_waid",
+            "app.clients.whatsapp_client.db.get_user_by_waid",
             AsyncMock(return_value=user),
         ),
         patch(
-            "app.services.whatsapp_service.db.create_new_message_by_fields",
+            "app.clients.whatsapp_client.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
     ):
@@ -90,11 +90,11 @@ async def test_flow_complete_event_parses_string_payload_and_skips_unknown_user(
 
     with (
         patch(
-            "app.services.whatsapp_service.db.get_user_by_waid",
+            "app.clients.whatsapp_client.db.get_user_by_waid",
             AsyncMock(return_value=None),
         ),
         patch(
-            "app.services.whatsapp_service.db.create_new_message_by_fields",
+            "app.clients.whatsapp_client.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
     ):

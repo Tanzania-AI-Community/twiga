@@ -10,7 +10,7 @@ from app.services.flows.flow_service import flow_client
 from app.services.messaging_service import messaging_client
 from app.services.onboarding_service import onboarding_client
 from app.services.rate_limit_service import rate_limit_service
-from app.services.whatsapp_service import whatsapp_client
+from app.clients.whatsapp_client import whatsapp_client
 from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     ValidMessageType,

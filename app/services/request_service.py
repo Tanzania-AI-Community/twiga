@@ -8,7 +8,7 @@ import app.database.db as db
 import app.database.enums as enums
 from app.monitoring.metrics import record_whatsapp_event
 from app.services.state_service import state_client
-from app.services.whatsapp_service import whatsapp_client
+from app.clients.whatsapp_client import whatsapp_client
 from app.utils.whatsapp_utils import (
     RequestType,
     extract_message,

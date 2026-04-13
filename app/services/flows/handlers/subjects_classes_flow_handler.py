@@ -10,7 +10,7 @@ import app.database.enums as enums
 import app.database.models as models
 from app.config import settings
 from app.database.models import ClassInfo, User
-from app.services.whatsapp_service import whatsapp_client
+from app.clients.whatsapp_client import whatsapp_client
 from app.utils.string_manager import StringCategory, strings
 
 

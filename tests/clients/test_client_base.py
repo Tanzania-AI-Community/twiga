@@ -4,7 +4,7 @@ import pytest
 
 import app.database.enums as enums
 from app.database.models import Message, User
-from app.services.client_base import ClientBase
+from app.clients.client_base import ClientBase
 
 
 class DummyClient(ClientBase):
@@ -19,15 +19,15 @@ async def test_tool_call_notification_persists_visible_message() -> None:
 
     with (
         patch(
-            "app.services.client_base.strings.get_string",
+            "app.clients.client_base.strings.get_string",
             return_value="Using search_knowledge...",
         ),
         patch(
-            "app.services.client_base.whatsapp_client.send_message",
+            "app.clients.client_base.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch(
-            "app.services.client_base.create_new_message_by_fields",
+            "app.clients.client_base.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message,
     ):
@@ -51,15 +51,15 @@ async def test_tool_call_notification_skips_persistence_when_user_id_is_missing(
 
     with (
         patch(
-            "app.services.client_base.strings.get_string",
+            "app.clients.client_base.strings.get_string",
             return_value="Using search_knowledge...",
         ),
         patch(
-            "app.services.client_base.whatsapp_client.send_message",
+            "app.clients.client_base.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch(
-            "app.services.client_base.create_new_message_by_fields",
+            "app.clients.client_base.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message,
     ):

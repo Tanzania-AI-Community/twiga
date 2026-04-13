@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.config import LLMProvider, llm_settings
 from app.database.models import Message, User
-from app.services.client_base import ClientBase
+from app.clients.client_base import ClientBase
 from app.utils.llm_utils import async_llm_request
 
 

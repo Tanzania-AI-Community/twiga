@@ -13,15 +13,15 @@ from app.latex.latex_artifact_generator import (
     text_to_img,
 )
 from app.monitoring.metrics import record_messages_generated, track_messages
-from app.services.agent_client import agent_client
+from app.clients.agent_client import agent_client
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
     ExamPDFDeliveryDetails,
     exam_delivery_service,
 )
 from app.services.flows.flow_service import flow_client
-from app.services.llm_service import llm_client
-from app.services.whatsapp_service import DocumentType, ImageType, whatsapp_client
+from app.clients.llm_client import llm_client
+from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.tools.registry import ToolName
 from app.utils.string_manager import StringCategory, strings
 

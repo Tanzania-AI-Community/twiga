@@ -12,7 +12,7 @@ from app.redis.engine import disconnect_redis, init_redis
 from app.security import flows_signature_required, signature_required
 from app.services.flows.flow_service import flow_client
 from app.services.request_service import handle_request
-from app.services.whatsapp_service import whatsapp_client
+from app.clients.whatsapp_client import whatsapp_client
 
 logger = logging.getLogger(__name__)
 
