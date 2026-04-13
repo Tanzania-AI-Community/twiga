@@ -19,28 +19,28 @@ Required Environment Variables:
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from app.database.enums import UserState
-
 # Import cron helpers
 from helpers import (
-    initialize_db,
     get_users_to_mark_inactive,
-    update_user,
+    initialize_db,
     setup_logging,
+    update_user,
 )
 from helpers.logging import (
-    log_job_start,
-    log_job_completion,
-    log_processing_item,
-    log_item_success,
     log_item_error,
+    log_item_success,
+    log_job_completion,
+    log_job_start,
+    log_processing_item,
 )
+
+from app.database.enums import UserState
 
 # Configuration from environment
 USER_INACTIVITY_THRESHOLD_HOURS = int(

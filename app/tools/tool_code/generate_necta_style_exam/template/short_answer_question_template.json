@@ -1,0 +1,27 @@
+{
+    "id": null,
+    "marks": null,
+    "parts": [
+        {
+            "label": "a",
+            "marks": null,
+            "prompt": null,
+            "sub_questions": []
+        },
+        {
+            "label": "b",
+            "marks": null,
+            "prompt": null,
+            "sub_questions": []
+        }
+    ],
+    "answer": {
+        "example_answer": null,
+        "marking_scheme": null,
+        "marking_points": []
+    },
+    "metadata": {
+        "topic": null,
+        "difficulty": null
+    }
+}

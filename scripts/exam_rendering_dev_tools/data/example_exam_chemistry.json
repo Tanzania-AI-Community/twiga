@@ -1,0 +1,1100 @@
+{
+  "meta": {
+    "country": "THE UNITED REPUBLIC OF TANZANIA",
+    "office": "PRESIDENT’S OFFICE\nREGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
+    "exam_title": "GENERATED PRACTICE EXAM",
+    "subject": "CHEMISTRY",
+    "duration": "3:00 Hrs",
+    "year": 2026
+  },
+  "instructions": [
+    "This paper consists of three sections A, B and C with a total of 18 questions.",
+    "Answer all questions in section A and B and one (1) question from section C.",
+    "Calculators and cellular phones are not allowed in the examination room.",
+    "Write your Examination number on every page of your answer sheets/booklet(s)."
+  ],
+  "constants": {},
+  "section_A": {
+    "section_title": "SECTION A",
+    "section_instructions": "Answer all questions in this section.",
+    "multiple_choice_marks": 10,
+    "matching_marks": 5,
+    "total_num_questions": 11,
+    "question_types": [
+      "multiple_choice",
+      "item_matching"
+    ],
+    "question_list": [
+      {
+        "id": "A-Q1",
+        "type": "multiple_choice",
+        "marks": 10,
+        "prompt": "For each of the following items, choose the correct answer among the given alternatives and write its letter beside the item number provided.",
+        "items": [
+          {
+            "id": "A-Q1-1",
+            "marks": 1,
+            "question": "Which of the following particles is found in the nucleus of an atom?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Electron"
+              },
+              {
+                "label": "B",
+                "text": "B. Proton"
+              },
+              {
+                "label": "C",
+                "text": "C. Neutron and Electron"
+              },
+              {
+                "label": "D",
+                "text": "D. Proton and Electron"
+              },
+              {
+                "label": "E",
+                "text": "E. Proton and Neutron"
+              }
+            ],
+            "answer": "E",
+            "metadata": {
+              "topic": "Atomic Structure",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              38,
+              306,
+              448,
+              340,
+              262,
+              130,
+              285
+            ],
+            "label": "i"
+          },
+          {
+            "id": "A-Q1-2",
+            "marks": 1,
+            "question": "Which of the following elements is a noble gas?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Neon"
+              },
+              {
+                "label": "B",
+                "text": "B. Copper"
+              },
+              {
+                "label": "C",
+                "text": "C. Carbon"
+              },
+              {
+                "label": "D",
+                "text": "D. Oxygen"
+              },
+              {
+                "label": "E",
+                "text": "E. Nitrogen"
+              }
+            ],
+            "answer": "A",
+            "metadata": {
+              "topic": "Periodic Table",
+              "difficulty": "Easy"
+            },
+            "source_chunk_ids": [
+              442,
+              331,
+              492,
+              306,
+              320,
+              38,
+              262,
+              321,
+              385,
+              481
+            ],
+            "label": "ii"
+          },
+          {
+            "id": "A-Q1-3",
+            "marks": 1,
+            "question": "What type of chemical bond is typically formed between a metal and a non-metal?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Covalent bond"
+              },
+              {
+                "label": "B",
+                "text": "B. Ionic bond"
+              },
+              {
+                "label": "C",
+                "text": "C. Hydrogen bond"
+              },
+              {
+                "label": "D",
+                "text": "D. Metallic bond"
+              },
+              {
+                "label": "E",
+                "text": "E. Van der Waals bond"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Chemical Bonding",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              306,
+              38,
+              285,
+              339,
+              385,
+              127,
+              341
+            ],
+            "label": "iii"
+          },
+          {
+            "id": "A-Q1-4",
+            "marks": 1,
+            "question": "What is the main characteristic that distinguishes the atomic number of an element from its mass number?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A: The atomic number is the total number of protons and neutrons, while the mass number is the number of protons."
+              },
+              {
+                "label": "B",
+                "text": "B: The atomic number is the number of protons, while the mass number is the total number of protons and neutrons."
+              },
+              {
+                "label": "C",
+                "text": "C: The atomic number is the number of neutrons, while the mass number is the total number of protons and electrons."
+              },
+              {
+                "label": "D",
+                "text": "D: The atomic number is the total number of electrons and neutrons, while the mass number is the number of protons."
+              },
+              {
+                "label": "E",
+                "text": "E: The atomic number is the number of electrons, while the mass number is the total number of protons, neutrons, and electrons."
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Atomic Structure",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              38,
+              306,
+              448,
+              340,
+              262,
+              130,
+              285
+            ],
+            "label": "iv"
+          },
+          {
+            "id": "A-Q1-5",
+            "marks": 1,
+            "question": "Which of the following elements is likely to be found in group 11 of the periodic table?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Sodium"
+              },
+              {
+                "label": "B",
+                "text": "B. Copper"
+              },
+              {
+                "label": "C",
+                "text": "C. Neon"
+              },
+              {
+                "label": "D",
+                "text": "D. Oxygen"
+              },
+              {
+                "label": "E",
+                "text": "E. Nitrogen"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Periodic Table",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              331,
+              492,
+              306,
+              320,
+              38,
+              262,
+              321,
+              385,
+              481
+            ],
+            "label": "v"
+          },
+          {
+            "id": "A-Q1-6",
+            "marks": 1,
+            "question": "What type of bond is formed when two atoms share one or more pairs of electrons?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Ionic bond"
+              },
+              {
+                "label": "B",
+                "text": "B. Covalent bond"
+              },
+              {
+                "label": "C",
+                "text": "C. Hydrogen bond"
+              },
+              {
+                "label": "D",
+                "text": "D. Electrostatic bond"
+              },
+              {
+                "label": "E",
+                "text": "E. Metallic bond"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Chemical Bonding",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              306,
+              38,
+              285,
+              339,
+              385,
+              127,
+              341
+            ],
+            "label": "vi"
+          },
+          {
+            "id": "A-Q1-7",
+            "marks": 1,
+            "question": "The atomic number of an element is defined as the number of",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. neutrons in the nucleus"
+              },
+              {
+                "label": "B",
+                "text": "B. protons in the nucleus"
+              },
+              {
+                "label": "C",
+                "text": "C. electrons in the outermost shell"
+              },
+              {
+                "label": "D",
+                "text": "D. neutrons and protons in the nucleus"
+              },
+              {
+                "label": "E",
+                "text": "E. protons and electrons in an atom"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Atomic Structure",
+              "difficulty": "Easy"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              38,
+              306,
+              448,
+              340,
+              262,
+              130,
+              285
+            ],
+            "label": "vii"
+          },
+          {
+            "id": "A-Q1-8",
+            "marks": 1,
+            "question": "Which of the following elements is a transition metal?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Copper"
+              },
+              {
+                "label": "B",
+                "text": "B. Carbon"
+              },
+              {
+                "label": "C",
+                "text": "C. Nitrogen"
+              },
+              {
+                "label": "D",
+                "text": "D. Oxygen"
+              },
+              {
+                "label": "E",
+                "text": "E. Neon"
+              }
+            ],
+            "answer": "A",
+            "metadata": {
+              "topic": "Periodic Table",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              331,
+              492,
+              306,
+              320,
+              38,
+              262,
+              321,
+              385,
+              481
+            ],
+            "label": "viii"
+          },
+          {
+            "id": "A-Q1-9",
+            "marks": 1,
+            "question": "What is the primary force responsible for holding atoms together in a chemical bond?",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. Gravitational force"
+              },
+              {
+                "label": "B",
+                "text": "B. Electromagnetic force"
+              },
+              {
+                "label": "C",
+                "text": "C. Nuclear force"
+              },
+              {
+                "label": "D",
+                "text": "D. Frictional force"
+              },
+              {
+                "label": "E",
+                "text": "E. Intermolecular force"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Chemical Bonding",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              306,
+              38,
+              285,
+              339,
+              385,
+              127,
+              341
+            ],
+            "label": "ix"
+          },
+          {
+            "id": "A-Q1-10",
+            "marks": 1,
+            "question": "The maximum number of electrons that can occupy the third energy level (n = 3) of an atom is",
+            "options": [
+              {
+                "label": "A",
+                "text": "A. 8"
+              },
+              {
+                "label": "B",
+                "text": "B. 18"
+              },
+              {
+                "label": "C",
+                "text": "C. 2"
+              },
+              {
+                "label": "D",
+                "text": "D. 32"
+              },
+              {
+                "label": "E",
+                "text": "E. 50"
+              }
+            ],
+            "answer": "B",
+            "metadata": {
+              "topic": "Atomic Structure",
+              "difficulty": "Medium"
+            },
+            "source_chunk_ids": [
+              442,
+              492,
+              331,
+              38,
+              306,
+              448,
+              340,
+              262,
+              130,
+              285
+            ],
+            "label": "x"
+          }
+        ],
+        "metadata": {
+          "topic": "Atomic Structure, Periodic Table, Chemical Bonding",
+          "difficulty": "medium"
+        }
+      },
+      {
+        "id": "A-Q2",
+        "type": "item_matching",
+        "marks": 5,
+        "prompt": "Match the subatomic particles in List A with their corresponding characteristics in List B.",
+        "listA": [
+          "Proton",
+          "Neutron",
+          "Electron",
+          "Positron",
+          "Alpha particle"
+        ],
+        "listB": [
+          "No charge",
+          "Found in the nucleus",
+          "Positively charged",
+          "Has the same mass as an electron",
+          "Negatively charged",
+          "Orbiting the nucleus",
+          "Has the same charge as an electron"
+        ],
+        "answers_pairs": {
+          "Proton": "Positively charged",
+          "Neutron": "No charge",
+          "Electron": "Negatively charged",
+          "Positron": "Has the same mass as an electron",
+          "Alpha particle": "Found in the nucleus"
+        },
+        "allow_reuse_listB": true,
+        "metadata": {
+          "topic": "Atomic Structure",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          442,
+          492,
+          331,
+          38,
+          306,
+          448,
+          340,
+          262,
+          130,
+          285
+        ]
+      }
+    ]
+  },
+  "section_B": {
+    "section_title": "SECTION B",
+    "section_instructions": "Answer all questions in this section.",
+    "marks": 70,
+    "total_num_questions": 5,
+    "question_types": [
+      "short_answer"
+    ],
+    "question_list": [
+      {
+        "id": "B-Q3",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 6,
+            "prompt": "Describe the atomic structure components and their arrangement.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Identify the nucleus contents.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Describe electron arrangement around the nucleus.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "State the overall atomic charge.",
+                "marks": 2
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 8,
+            "prompt": "Explain the relation between atomic number, mass number, and atomic structure.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Define atomic number and its relation to protons.",
+                "marks": 3
+              },
+              {
+                "label": "ii",
+                "text": "Define mass number and its components.",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "Explain the difference between atomic and mass numbers.",
+                "marks": 2
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": "a) i) Protons and neutrons are in the nucleus. ii) Electrons are in energy levels/shells around the nucleus. iii) The atom is neutral. b) i) Atomic number equals the number of protons. ii) Mass number is the sum of protons and neutrons. iii) Mass number includes both protons and neutrons, while atomic number counts only protons.",
+          "marking_scheme": "For part a: i) 2 marks for correct nucleus content, ii) 2 marks for correct electron arrangement, iii) 2 marks for stating the atom is neutral. For part b: i) 3 marks for defining atomic number, ii) 3 marks for defining mass number, iii) 2 marks for explaining the difference.",
+          "marking_points": [
+            "a)i) Protons and neutrons in nucleus.",
+            "a)ii) Electrons in energy levels/shells.",
+            "a)iii) Atom is neutral.",
+            "b)i) Atomic number = number of protons.",
+            "b)ii) Mass number = protons + neutrons.",
+            "b)iii) Difference between atomic and mass numbers."
+          ]
+        },
+        "metadata": {
+          "topic": "Atomic Structure",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          442,
+          492,
+          331,
+          38,
+          306,
+          448,
+          340,
+          262,
+          130,
+          285
+        ]
+      },
+      {
+        "id": "B-Q4",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 6,
+            "prompt": "Describe the structure and trends in the periodic table.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Define a period.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Define a group.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "Describe a key trend across a period.",
+                "marks": 2
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 8,
+            "prompt": "Explain the predictive uses of the periodic table.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "How is element type identified?",
+                "marks": 3
+              },
+              {
+                "label": "ii",
+                "text": "How is reactivity predicted?",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "What can be deduced from an element's position?",
+                "marks": 3
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": {
+            "a": "The periodic table is structured into periods (horizontal rows) and groups (vertical columns). A period represents the filling of a new energy level with electrons. A group contains elements with similar chemical properties due to the same number of electrons in their outermost shell. Across a period, the properties of elements change from metallic to non-metallic as the number of electrons in the outer shell increases.",
+            "b": "The periodic table is used to predict the properties of elements based on their position. Elements in the same group have similar chemical properties. The table helps identify if an element is a metal, non-metal, or metalloid based on its position. The reactivity of an element can be predicted by its distance from the noble gases and its tendency to lose or gain electrons. The position of an element in the periodic table provides information about its electron configuration, valency, and likely chemical behavior."
+          },
+          "marking_scheme": "For each sub-question, allocate marks based on the completeness and accuracy of the response. For part (a), 2 marks for each sub-question. For part (b), 3, 2, and 3 marks respectively for the sub-questions.",
+          "marking_points": [
+            "Correct description of periods and groups.",
+            "Accurate explanation of how properties change across a period.",
+            "Correct identification of element types based on the periodic table.",
+            "Clear explanation of how to predict reactivity.",
+            "Accurate deduction of element properties from its position."
+          ]
+        },
+        "metadata": {
+          "topic": "Periodic Table",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          442,
+          331,
+          492,
+          306,
+          320,
+          38,
+          262,
+          321,
+          385,
+          481
+        ]
+      },
+      {
+        "id": "B-Q5",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 8,
+            "prompt": "Describe three main types of chemical bonds.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Describe ionic bonding.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Explain covalent bonding.",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "What characterizes metallic bonding?",
+                "marks": 3
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 6,
+            "prompt": "Relate chemical bonding to substance properties.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "How does ionic bonding affect melting points?",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "What are typical properties of covalent compounds?",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "How does metallic bonding influence electrical conductivity?",
+                "marks": 2
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": {
+            "a": "i. Ionic bonding involves the transfer of electrons between atoms, resulting in ions that are electrostatically attracted. ii. Covalent bonding involves the sharing of electron pairs between atoms. iii. Metallic bonding involves delocalized electrons throughout a metal lattice.",
+            "b": "i. Ionic compounds typically have high melting points. ii. Covalent compounds can have varied properties but often have lower melting points than ionic compounds. iii. Metals are good conductors due to delocalized electrons."
+          },
+          "marking_scheme": "For part a: 2 marks for describing ionic bond, 3 marks for describing covalent bond, 3 marks for describing metallic bond. For part b: 2 marks for explaining the effect of ionic bonding on melting point, 2 marks for describing properties of covalent compounds, 2 marks for explaining conductivity in metals.",
+          "marking_points": [
+            "Correct description of main chemical bond types.",
+            "Clear explanation of how bonding relates to substance properties."
+          ]
+        },
+        "metadata": {
+          "topic": "Chemical Bonding",
+          "difficulty": "Advanced"
+        },
+        "source_chunk_ids": [
+          442,
+          492,
+          331,
+          306,
+          38,
+          285,
+          339,
+          385,
+          127,
+          341
+        ]
+      },
+      {
+        "id": "B-Q6",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 8,
+            "prompt": "Describe the atomic structure, including nucleus contents and electron arrangement.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "What is in the nucleus?",
+                "marks": 3
+              },
+              {
+                "label": "ii",
+                "text": "How are electrons arranged?",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "What is the atom's overall charge?",
+                "marks": 2
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 6,
+            "prompt": "Explain atomic number and mass number.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Define atomic number.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Define mass number.",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "How do atomic and mass numbers differ?",
+                "marks": 2
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": {
+            "a": "The nucleus contains protons and neutrons. Electrons are arranged in energy levels around the nucleus. The overall charge is neutral.",
+            "b": "Atomic number is the number of protons. Mass number is the sum of protons and neutrons. The difference is that mass number includes neutrons."
+          },
+          "marking_scheme": "a: Nucleus contents (3 marks), electron arrangement (3 marks), overall charge (2 marks). b: Atomic number definition (2 marks), mass number definition (2 marks), difference between atomic and mass numbers (2 marks).",
+          "marking_points": [
+            "Nucleus contains protons and neutrons.",
+            "Electrons are in energy levels around the nucleus.",
+            "Atom is neutral.",
+            "Atomic number equals the number of protons.",
+            "Mass number is the sum of protons and neutrons.",
+            "Difference between atomic and mass numbers is the number of neutrons."
+          ]
+        },
+        "metadata": {
+          "topic": "Atomic Structure",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          442,
+          492,
+          331,
+          38,
+          306,
+          448,
+          340,
+          262,
+          130,
+          285
+        ]
+      },
+      {
+        "id": "B-Q7",
+        "marks": 14,
+        "parts": [
+          {
+            "label": "a",
+            "marks": 8,
+            "prompt": "Describe the structure of the periodic table.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "Define a period.",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "Define a group.",
+                "marks": 3
+              },
+              {
+                "label": "iii",
+                "text": "State a key trend across a period.",
+                "marks": 3
+              }
+            ]
+          },
+          {
+            "label": "b",
+            "marks": 6,
+            "prompt": "Explain the predictive uses of the periodic table.",
+            "sub_questions": [
+              {
+                "label": "i",
+                "text": "How is an element's type identified?",
+                "marks": 2
+              },
+              {
+                "label": "ii",
+                "text": "How is reactivity predicted?",
+                "marks": 2
+              },
+              {
+                "label": "iii",
+                "text": "What can be deduced from an element's position?",
+                "marks": 2
+              }
+            ]
+          }
+        ],
+        "answer": {
+          "example_answer": {
+            "a": "i. A period is a horizontal row of elements.\nii. A group is a vertical column of elements.\niii. Atomic radius generally decreases across a period.",
+            "b": "i. Element type is identified by its position.\nii. Reactivity is predicted based on the group.\niii. Electron configuration and chemical properties can be deduced."
+          },
+          "marking_scheme": "Award marks based on completeness and accuracy.",
+          "marking_points": [
+            "a.i: Definition of a period (2 marks)",
+            "a.ii: Definition of a group (3 marks)",
+            "a.iii: Trend across a period (3 marks)",
+            "b.i: Element type identification (2 marks)",
+            "b.ii: Reactivity prediction (2 marks)",
+            "b.iii: Deductions from position (2 marks)"
+          ]
+        },
+        "metadata": {
+          "topic": "Periodic Table",
+          "difficulty": "Medium"
+        },
+        "source_chunk_ids": [
+          442,
+          331,
+          492,
+          306,
+          320,
+          38,
+          262,
+          321,
+          385,
+          481
+        ]
+      }
+    ]
+  },
+  "section_C": {
+    "section_title": "SECTION C",
+    "section_instructions": "Answer only one (1) question in this section.",
+    "marks": 15,
+    "total_num_questions": 2,
+    "question_types": [
+      "long_answer"
+    ],
+    "question_list": [
+      {
+        "id": "C-Q13",
+        "marks": 15,
+        "description": "The atomic structure is a fundamental concept in chemistry. It is essential to understand its components and their significance.",
+        "task": {
+          "prompt": "Explain the atomic structure, focusing on its components and the significance of atomic number and mass number.",
+          "sub_questions": [
+            {
+              "label": "a",
+              "prompt": "Describe the components of an atom and their arrangement.",
+              "marks": 5
+            },
+            {
+              "label": "b",
+              "prompt": "Explain how the atomic number and mass number are related to the atomic structure.",
+              "marks": 10
+            }
+          ]
+        },
+        "answer": {
+          "example_answer": "a) The atom consists of a nucleus with protons and neutrons, surrounded by electrons in energy levels. The nucleus is positively charged, while electrons are negatively charged, making the overall atom neutral. b) The atomic number, representing the number of protons, defines the element. The mass number, being the sum of protons and neutrons, indicates the atom's mass. The atomic number and mass number together provide a comprehensive understanding of an atom's structure.",
+          "marking_scheme": "a) Description of atomic components (5 marks). b) Explanation of atomic number and mass number (10 marks).",
+          "marking_points": [
+            "Correct identification of nucleus contents",
+            "Correct description of electron arrangement",
+            "Correct statement of overall atomic charge",
+            "Definition of atomic number",
+            "Definition of mass number",
+            "Explanation of the relation between atomic number, mass number, and atomic structure"
+          ]
+        },
+        "metadata": {
+          "topic": "Atomic Structure",
+          "difficulty": "Advanced"
+        },
+        "source_chunk_ids": [
+          442,
+          492,
+          331,
+          38,
+          306,
+          448,
+          340,
+          262,
+          130,
+          285
+        ]
+      },
+      {
+        "id": "C-Q14",
+        "marks": 15,
+        "description": "The periodic table is a fundamental tool in chemistry that organizes elements based on their properties.",
+        "task": {
+          "prompt": "Describe the structure and trends in the periodic table and explain its predictive uses.",
+          "sub_questions": [
+            {
+              "label": "a",
+              "prompt": "Describe the main features and trends observed in the periodic table.",
+              "marks": 7
+            },
+            {
+              "label": "b",
+              "prompt": "How is the periodic table used to predict the properties and behavior of elements?",
+              "marks": 8
+            }
+          ]
+        },
+        "answer": {
+          "example_answer": "a) The periodic table is structured into periods and groups. Elements in the same group have similar chemical properties. Trends across a period include a decrease in atomic radius. b) The periodic table predicts the type of an element, its reactivity, and chemical behavior based on its position.",
+          "marking_scheme": "a) Description of periodic table structure (3 marks), description of trends (2 marks), and key trend across a period (2 marks). b) Explanation of predicting element type (2 marks), predicting reactivity (3 marks), and deducing properties from position (3 marks).",
+          "marking_points": [
+            "Definition of periods and groups",
+            "Description of trends across a period",
+            "Key trend across a period",
+            "Predicting element type based on position",
+            "Predicting reactivity based on position",
+            "Deducing properties from an element's position"
+          ]
+        },
+        "metadata": {
+          "topic": "Periodic Table",
+          "difficulty": "Advanced"
+        },
+        "source_chunk_ids": [
+          442,
+          331,
+          492,
+          306,
+          320,
+          38,
+          262,
+          321,
+          385,
+          481
+        ]
+      }
+    ]
+  },
+  "generation_trace": {
+    "exam_id": "b1740ac9-bfea-415f-8b3a-c7f06ee8c353",
+    "generated_at_utc": "2026-03-12T22:47:25.044248+00:00",
+    "topics": [
+      "Atomic Structure",
+      "Periodic Table",
+      "Chemical Bonding"
+    ],
+    "topic_chunk_ids": {
+      "Atomic Structure": [
+        442,
+        492,
+        331,
+        38,
+        306,
+        448,
+        340,
+        262,
+        130,
+        285
+      ],
+      "Periodic Table": [
+        442,
+        331,
+        492,
+        306,
+        320,
+        38,
+        262,
+        321,
+        385,
+        481
+      ],
+      "Chemical Bonding": [
+        442,
+        492,
+        331,
+        306,
+        38,
+        285,
+        339,
+        385,
+        127,
+        341
+      ]
+    }
+  }
+}
