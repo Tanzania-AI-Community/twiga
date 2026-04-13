@@ -398,10 +398,13 @@ class MessagingService:
             self.logger.error(
                 f"Tool strings for '{tool_name}' must be a dictionary with delivery fields."
             )
+            record_messages_generated("exam_delivery_string_error")
             return strings.get_string(StringCategory.ERROR, "general")
 
         def _tool_message(field: str) -> str:
             value = tool_strings.get(field)
+            record_messages_generated(f"exam_{field}")
+
             if isinstance(value, str):
                 return value
             self.logger.error(
