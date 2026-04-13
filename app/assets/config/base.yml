@@ -3,7 +3,7 @@ llm:
   model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
   timeout: 10
   max_tokens: null
-  temperature: null
+  temperature: 0.7
   reasoning_effort: null # optional; only configure if using OpenAI o-series models
   base_url: null
 
