@@ -557,11 +557,11 @@ class ExamGenerator:
                 )
             if question_type == QuestionType.MULTIPLE_CHOICE:
                 dynamic_constraints.extend(
-                [
-                    "For the 'text' field in options, provide ONLY the raw answer text.",
-                    "Do NOT include the option letter or any punctuation prefix (e.g., write 'Mantle', NEVER write 'A. Mantle' or 'A - Mantle')."
-                ]
-            )    
+                    [
+                        "For the 'text' field in options, provide ONLY the raw answer text.",
+                        "Do NOT include the option letter or any punctuation prefix (e.g., write 'Mantle', NEVER write 'A. Mantle' or 'A - Mantle').",
+                    ]
+                )
 
         all_constraints = (
             constraints_list + dynamic_constraints + ["Keep output valid and concise."]
@@ -1050,9 +1050,11 @@ class ExamGenerator:
         if question_type == QuestionType.ITEM_MATCHING:
             prompt = str(payload.get("prompt", "")).strip()
             answers_pairs = payload.get("answers_pairs", {})
-            pairs_str = ", ".join(
-                f"{k}: {v}" for k, v in answers_pairs.items()
-            ) if isinstance(answers_pairs, dict) else ""
+            pairs_str = (
+                ", ".join(f"{k}: {v}" for k, v in answers_pairs.items())
+                if isinstance(answers_pairs, dict)
+                else ""
+            )
             return f"Prompt: {prompt} | Matches: {pairs_str}"
         if question_type == QuestionType.SHORT_ANSWER:
             parts = payload.get("parts", [])
@@ -1084,7 +1086,7 @@ class ExamGenerator:
                         )
                     if part_signature:
                         signature_parts.append(part_signature)
-            
+
             answer_data = payload.get("answer", {})
             if isinstance(answer_data, dict):
                 example_answer = str(answer_data.get("example_answer", "")).strip()
@@ -1093,8 +1095,11 @@ class ExamGenerator:
                 else:
                     marking_points = answer_data.get("marking_points", [])
                     if isinstance(marking_points, list):
-                        signature_parts.append("Answer Points: " + " | ".join(str(p) for p in marking_points))
-                        
+                        signature_parts.append(
+                            "Answer Points: "
+                            + " | ".join(str(p) for p in marking_points)
+                        )
+
             return " | ".join(signature_parts)
         if question_type == QuestionType.LONG_ANSWER:
             description = str(payload.get("description", "")).strip()
@@ -1110,13 +1115,16 @@ class ExamGenerator:
                         if sub_prompt:
                             sub_prompts.append(sub_prompt)
             parts = [description, prompt] + sub_prompts
-            
+
             answer_data = payload.get("answer", {})
             if isinstance(answer_data, dict):
                 marking_points = answer_data.get("marking_points", [])
                 if isinstance(marking_points, list):
-                    parts.append("Expected Answer Points: " + " | ".join(str(p) for p in marking_points))
-                    
+                    parts.append(
+                        "Expected Answer Points: "
+                        + " | ".join(str(p) for p in marking_points)
+                    )
+
             return " | ".join(part for part in parts if part)
         return ""
 
