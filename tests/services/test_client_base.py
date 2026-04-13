@@ -80,7 +80,7 @@ async def test_tool_call_notification_skips_persistence_when_user_id_is_missing(
 
 
 @pytest.mark.asyncio
-async def test_tool_call_notification_uses_general_error_when_base_text_is_missing() -> (
+async def test_tool_call_notification_uses_general_error_when_notification_is_missing() -> (
     None
 ):
     client = DummyClient()
@@ -136,6 +136,31 @@ async def test_tool_call_notification_skips_search_knowledge_notification() -> N
         ) as mock_create_message,
     ):
         await client._tool_call_notification(user, "search_knowledge")
+
+    mock_send_message.assert_not_awaited()
+    mock_create_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tool_call_notification_returns_when_tool_not_configured() -> None:
+    client = DummyClient()
+    user = User(id=14, wa_id="255700000003", name="Teacher")
+
+    with (
+        patch(
+            "app.services.client_base.strings.get_category",
+            return_value={},
+        ),
+        patch(
+            "app.services.client_base.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.services.client_base.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message,
+    ):
+        await client._tool_call_notification(user, "solve_equation")
 
     mock_send_message.assert_not_awaited()
     mock_create_message.assert_not_awaited()
