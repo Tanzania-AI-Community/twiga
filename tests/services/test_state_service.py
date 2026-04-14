@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.responses import JSONResponse
 
 from app.config import Environment
 from app.database.enums import MessageRole, UserState
@@ -225,6 +226,7 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
     None
 ):
     service = StateHandler()
+    service.MANUAL_APPROVAL_REQUIRED = True
     session = AsyncMock()
     session.add = MagicMock()
     session.flush = AsyncMock()
@@ -260,6 +262,8 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
         )
 
     assert response.status_code == 200
+    persisted_user = session.add.call_args.args[0]
+    assert persisted_user.state == UserState.in_review
     mock_send_message.assert_awaited_once_with("255700000006", "Registration started")
     assert mock_create_message_by_fields.await_args.kwargs == {
         "user_id": 501,
@@ -267,3 +271,56 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
         "content": "Registration started",
         "is_present_in_conversation": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_handle_new_user_registration_in_production_auto_onboards_when_manual_approval_disabled() -> (
+    None
+):
+    service = StateHandler()
+    service.MANUAL_APPROVAL_REQUIRED = False
+    expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.commit = AsyncMock()
+
+    async def _refresh_user(user: User) -> None:
+        user.id = 502
+
+    session.refresh = AsyncMock(side_effect=_refresh_user)
+
+    with (
+        patch(
+            "app.database.engine.get_session",
+            return_value=_SessionContext(session),
+        ),
+        patch("app.config.settings.environment", Environment.PRODUCTION),
+        patch.object(
+            service,
+            "handle_new_approved_user",
+            AsyncMock(return_value=expected_response),
+        ) as mock_handle_new_approved_user,
+        patch(
+            "app.services.state_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.services.state_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message_by_fields,
+    ):
+        response = await service.handle_new_user_registration(
+            phone_number="255700000007",
+            message_info={"extracted_content": "Hi"},
+        )
+
+    assert response is expected_response
+    persisted_user = session.add.call_args.args[0]
+    assert persisted_user.state == UserState.approved
+    approved_user = mock_handle_new_approved_user.await_args.args[0]
+    assert approved_user.id == 502
+    assert approved_user.state == UserState.approved
+    mock_send_message.assert_not_awaited()
+    mock_create_message_by_fields.assert_not_awaited()

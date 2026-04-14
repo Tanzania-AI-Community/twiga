@@ -19,6 +19,9 @@ from app.monitoring.metrics import record_messages_generated
 
 
 class StateHandler:
+    # Temporary rollout toggle:
+    MANUAL_APPROVAL_REQUIRED = False
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
@@ -151,16 +154,24 @@ class StateHandler:
     async def handle_new_user_registration(
         self, phone_number: str, message_info: dict
     ) -> JSONResponse:
-        """Handle new users - create with in_review state (flow sent after admin approval)"""
+        """Handle new users and route to approval/onboarding according to rollout toggle."""
         try:
             from app.database.engine import get_session
             from app.config import settings, Environment
 
-            # Create a new user with in_review state (will remain in_review until approved by admin)
+            new_user_state = (
+                UserState.in_review
+                if self.MANUAL_APPROVAL_REQUIRED
+                else UserState.approved
+            )
+
+            # Create a new user in either:
+            # - in_review (legacy manual approval path), or
+            # - approved (auto-onboarding rollout path).
             new_user = User(
                 name=None,  # Will be filled during onboarding flow
                 wa_id=phone_number,
-                state=UserState.in_review,  # In review until approved
+                state=new_user_state,
                 onboarding_state=OnboardingState.new,  # Start with 'new' for normal onboarding flow
                 role=Role.teacher,
             )
@@ -178,6 +189,12 @@ class StateHandler:
                     f"Creating dummy user for {phone_number} in {settings.environment} environment"
                 )
                 return await self.handle_new_dummy(new_user)
+
+            if not self.MANUAL_APPROVAL_REQUIRED:
+                self.logger.info(
+                    "Manual approval bypass enabled. Starting onboarding for new user"
+                )
+                return await self.handle_new_approved_user(new_user)
 
             response_text = strings.get_string(
                 StringCategory.REGISTRATION, "registration_started"
