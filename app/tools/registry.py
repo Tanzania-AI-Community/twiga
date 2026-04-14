@@ -43,6 +43,10 @@ TOOLS_METADATA = [
                         "type": "integer",
                         "description": "The class id of the course the question should be based on. Available class IDs: {available_class_ids}",
                     },
+                    "subject": {
+                        "type": "string",
+                        "description": "Optional subject name to restrict retrieval to the matching subject resources for this form, for example 'chemistry'.",
+                    },
                 },
                 "required": ["search_phrase", "class_id"],
             },

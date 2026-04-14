@@ -12,10 +12,41 @@ logger = logging.getLogger(__name__)
 async def search_knowledge(
     search_phrase: str,
     class_id: int,
+    subject: str | None = None,
 ) -> str:
     try:
+        target_class_id = class_id
+
+        if subject:
+            normalized_subject = subject.strip().lower().replace(" ", "_")
+            class_records = await db.read_classes([class_id])
+            base_class = class_records[0] if class_records else None
+
+            if normalized_subject and base_class:
+                subject_record = await db.read_subject_by_name(normalized_subject)
+                if subject_record:
+                    subject_class = await db.read_class_by_subject_id_grade_level_and_status(
+                        subject_id=subject_record.id,
+                        grade_level=base_class.grade_level.value,
+                        status=base_class.status.value,
+                    )
+                    if subject_class:
+                        target_class_id = subject_class.id
+                    else:
+                        logger.warning(
+                            "No class found for subject=%s and class_id=%s, falling back to class_id",
+                            normalized_subject,
+                            class_id,
+                        )
+                else:
+                    logger.warning(
+                        "Unknown subject=%s for search_knowledge, falling back to class_id=%s",
+                        normalized_subject,
+                        class_id,
+                    )
+
         # Retrieve the resources for the class
-        resource_ids = await db.get_class_resources(class_id)
+        resource_ids = await db.get_class_resources(target_class_id)
         assert resource_ids
 
         # Retrieve the relevant content
