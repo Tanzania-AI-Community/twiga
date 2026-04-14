@@ -20,7 +20,7 @@ async def search_knowledge(
         # Retrieve the relevant content
         retrieved_content = await vector_search(
             query=search_phrase,
-            n_results=10,
+            n_results=15,
             where={
                 "chunk_type": [ChunkType.text],
                 "resource_id": resource_ids,
