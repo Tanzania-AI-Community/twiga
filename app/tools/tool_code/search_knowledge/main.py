@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, TypedDict
 
 import app.database.db as db
 from app.database.db import vector_search
@@ -9,10 +9,15 @@ from app.database.models import Chunk, Resource
 logger = logging.getLogger(__name__)
 
 
+class SearchKnowledgeResult(TypedDict):
+    content: str
+    source_chunk_ids: list[int]
+
+
 async def search_knowledge(
     search_phrase: str,
     class_id: int,
-) -> dict[str, object]:
+) -> SearchKnowledgeResult:
     try:
         # Retrieve the resources for the class
         resource_ids = await db.get_class_resources(class_id)

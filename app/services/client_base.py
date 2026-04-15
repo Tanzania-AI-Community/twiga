@@ -213,7 +213,7 @@ class ClientBase(ABC):
             return []
 
         seen_chunk_ids: set[int] = set()
-        aggregated_chunk_ids: list[int] = []
+        ordered_chunk_ids: list[int] = []
 
         for message in messages:
             if message.role != MessageRole.tool or not message.source_chunk_ids:
@@ -223,9 +223,9 @@ class ClientBase(ABC):
                 if chunk_id in seen_chunk_ids:
                     continue
                 seen_chunk_ids.add(chunk_id)
-                aggregated_chunk_ids.append(chunk_id)
+                ordered_chunk_ids.append(chunk_id)
 
-        return aggregated_chunk_ids
+        return ordered_chunk_ids
 
     @staticmethod
     def _format_messages(

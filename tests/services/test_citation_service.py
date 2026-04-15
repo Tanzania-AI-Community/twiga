@@ -38,15 +38,15 @@ async def test_render_citations_rewrites_markers_to_inline_and_appends_sources()
         result = await citation_service.render_citations(content)
 
     assert result.marker_found is True
-    assert result.valid_marker_count == 2
-    assert result.invalid_marker_count == 0
+    assert result.valid_reference_count == 2
+    assert result.invalid_reference_count == 0
     assert result.ordered_chunk_ids == [101, 102]
     assert (
         result.rendered_content
         == "Plants make food using sunlight [1], and chlorophyll absorbs light [2].\n\n"
         "Sources:\n"
-        "[1] Book, page 1\n"
-        "[2] Book, page 2"
+        "- [1] Book, page 1\n"
+        "- [2] Book, page 2"
     )
 
 
@@ -73,14 +73,14 @@ async def test_render_citations_deduplicates_repeated_chunk_markers() -> None:
         result = await citation_service.render_citations(content)
 
     assert result.marker_found is True
-    assert result.valid_marker_count == 2
-    assert result.invalid_marker_count == 0
+    assert result.valid_reference_count == 2
+    assert result.invalid_reference_count == 0
     assert result.ordered_chunk_ids == [77]
     assert (
         result.rendered_content
         == "Evaporation turns liquid water into vapor [1] and this process needs heat [1].\n\n"
         "Sources:\n"
-        "[1] Book, page 1"
+        "- [1] Book, page 1"
     )
 
 
@@ -94,8 +94,8 @@ async def test_render_citations_removes_invalid_marker_payloads_fail_soft() -> N
     result = await citation_service.render_citations(content)
 
     assert result.marker_found is True
-    assert result.valid_marker_count == 0
-    assert result.invalid_marker_count == 1
+    assert result.valid_reference_count == 0
+    assert result.invalid_reference_count == 1
     assert result.ordered_chunk_ids == []
     assert result.rendered_content == "Photosynthesis happens in green leaves."
 
@@ -119,8 +119,8 @@ async def test_render_citations_removes_marker_when_source_is_invalid() -> None:
         result = await citation_service.render_citations(content)
 
     assert result.marker_found is True
-    assert result.valid_marker_count == 0
-    assert result.invalid_marker_count == 1
+    assert result.valid_reference_count == 0
+    assert result.invalid_reference_count == 1
     assert result.ordered_chunk_ids == []
     assert result.rendered_content == "Fact from textbook."
 
@@ -132,7 +132,7 @@ async def test_render_citations_returns_original_content_when_no_markers() -> No
     result = await citation_service.render_citations(content)
 
     assert result.marker_found is False
-    assert result.valid_marker_count == 0
-    assert result.invalid_marker_count == 0
+    assert result.valid_reference_count == 0
+    assert result.invalid_reference_count == 0
     assert result.ordered_chunk_ids == []
     assert result.rendered_content == content

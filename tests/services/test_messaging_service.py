@@ -354,8 +354,8 @@ async def test_handle_chat_message_invalid_exam_marker_falls_back_to_clean_text(
                     marker_found=False,
                     rendered_content="Here you go",
                     ordered_chunk_ids=[],
-                    valid_marker_count=0,
-                    invalid_marker_count=0,
+                    valid_reference_count=0,
+                    invalid_reference_count=0,
                 )
             ),
         ),
@@ -430,8 +430,8 @@ async def test_handle_chat_message_rewrites_citation_markers_for_user_output() -
                         "[2] Book, page 2"
                     ),
                     ordered_chunk_ids=[501, 502],
-                    valid_marker_count=2,
-                    invalid_marker_count=0,
+                    valid_reference_count=2,
+                    invalid_reference_count=0,
                 )
             ),
         ),

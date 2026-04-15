@@ -21,8 +21,8 @@ class CitationRenderResult:
     marker_found: bool
     rendered_content: str
     ordered_chunk_ids: list[int] = field(default_factory=list)
-    valid_marker_count: int = 0
-    invalid_marker_count: int = 0
+    valid_reference_count: int = 0
+    invalid_reference_count: int = 0
 
 
 @dataclass
@@ -54,10 +54,10 @@ class CitationService:
                 rendered_content=content,
             )
 
-        id_to_source_info: dict[int, SourceInfo] = {}
-        id_to_marker_texts: dict[int, set[str]] = {}
-        valid_marker_count = 0
-        invalid_marker_count = 0
+        chunk_id_to_source_info: dict[int, SourceInfo] = {}
+        chunk_id_to_marker_texts: dict[int, set[str]] = {}
+        valid_reference_count = 0
+        invalid_reference_count = 0
 
         for match in matches:
             marker_text = match.group(0)
@@ -68,45 +68,45 @@ class CitationService:
                     f"Invalid marker payload, unable to extract chunk_id: {match.group(1)}"
                 )
                 content = self._handle_invalid_marker(content, marker_text)
-                invalid_marker_count += 1
+                invalid_reference_count += 1
                 continue
 
-            if chunk_id not in id_to_source_info:
+            if chunk_id not in chunk_id_to_source_info:
                 source_info = await self._get_source_info_for_marker(chunk_id=chunk_id)
                 self.logger.debug(
                     f"Source info: {source_info} for marker: {marker_text}"
                 )
-                id_to_source_info[chunk_id] = source_info
+                chunk_id_to_source_info[chunk_id] = source_info
 
             # Keep the exact marker text for each chunk so replacements/removals use
             # what was actually generated in content.
-            id_to_marker_texts.setdefault(chunk_id, set()).add(marker_text)
+            chunk_id_to_marker_texts.setdefault(chunk_id, set()).add(marker_text)
 
-            source_info = id_to_source_info[chunk_id]
+            source_info = chunk_id_to_source_info[chunk_id]
             if source_info.valid_source:
-                valid_marker_count += 1
+                valid_reference_count += 1
             else:
-                invalid_marker_count += 1
+                invalid_reference_count += 1
 
-        # since dict keys are orders in python 3.7+, the sources will be ordered by first appearance in content
+        # since dict keys are order, the sources will be ordered by first appearance in content
         content_with_sources = self._add_citations_to_content(
             content=content,
-            id_to_source_info=id_to_source_info,
-            id_to_marker_texts=id_to_marker_texts,
+            chunk_id_to_source_info=chunk_id_to_source_info,
+            chunk_id_to_marker_texts=chunk_id_to_marker_texts,
         )
 
         ordered_chunk_ids = [
             chunk_id
-            for chunk_id, source_info in id_to_source_info.items()
-            if source_info.valid_source and chunk_id in id_to_marker_texts
+            for chunk_id, source_info in chunk_id_to_source_info.items()
+            if source_info.valid_source and chunk_id in chunk_id_to_marker_texts
         ]
 
         return CitationRenderResult(
             marker_found=True,
             rendered_content=content_with_sources,
             ordered_chunk_ids=ordered_chunk_ids,
-            valid_marker_count=valid_marker_count,
-            invalid_marker_count=invalid_marker_count,
+            valid_reference_count=valid_reference_count,
+            invalid_reference_count=invalid_reference_count,
         )
 
     async def _get_source_info_for_marker(self, chunk_id: int) -> SourceInfo:
@@ -177,22 +177,22 @@ class CitationService:
     def _add_citations_to_content(
         self,
         content: str,
-        id_to_source_info: dict[int, SourceInfo],
-        id_to_marker_texts: dict[int, set[str]],
+        chunk_id_to_source_info: dict[int, SourceInfo],
+        chunk_id_to_marker_texts: dict[int, set[str]],
     ) -> str:
-        source_footer_lines: list[str] = ["Sources:"]
+        source_footer_lines: list[str] = []
         citation_index = 1
 
-        for chunk_id, source_info in id_to_source_info.items():
+        for chunk_id, source_info in chunk_id_to_source_info.items():
             if not source_info.valid_source:
                 self.logger.warning(
                     f"Invalid source for chunk_id {chunk_id}, skipping citation. Source info: {source_info}"
                 )
-                marker_texts = id_to_marker_texts.get(chunk_id, set())
+                marker_texts = chunk_id_to_marker_texts.get(chunk_id, set())
                 content = self._handle_invalid_source(content, marker_texts)
                 continue
 
-            for marker_text in id_to_marker_texts.get(chunk_id, set()):
+            for marker_text in chunk_id_to_marker_texts.get(chunk_id, set()):
                 content = content.replace(marker_text, f" [{citation_index}]")
 
             source_footer_lines.append(
@@ -204,7 +204,7 @@ class CitationService:
         if citation_index == 1:
             return content
 
-        return content + "\n\n" + "\n".join(source_footer_lines)
+        return content + "\n\nSources:\n- " + "\n- ".join(source_footer_lines)
 
     @staticmethod
     def _handle_invalid_marker(content: str, marker_text: str) -> str:

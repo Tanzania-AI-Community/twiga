@@ -11,10 +11,7 @@ from langchain_core.messages import AIMessage
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.tools.internal_args import get_internal_tool_args
-from app.tools.registry import (
-    TOOL_FUNCTION_MAP,
-    get_tools_metadata,
-)
+from app.tools.registry import TOOL_FUNCTION_MAP, ToolName, get_tools_metadata
 
 
 # Simple Types replacements for OpenAI types
@@ -280,7 +277,7 @@ class ToolManager:
         function_name: str,
     ) -> ToolExecutionResult:
 
-        if function_name == "search_knowledge":
+        if function_name == ToolName.search_knowledge.value:
             return ToolExecutionResult(
                 content=result.get("content", ""),
                 source_chunk_ids=result.get("source_chunk_ids"),
