@@ -203,7 +203,7 @@ class ToolManager:
                 )
 
                 result = await tool_function(**tool_function_args)
-                split_result = self._split_tool_results_for_llm_and_system(
+                split_result: ToolExecutionResult = self._to_tool_execution_result(
                     result=result, function_name=function_name
                 )
 
@@ -271,7 +271,7 @@ class ToolManager:
                 f"Invalid args for tool '{function_name}': {str(e)}"
             ) from e
 
-    def _split_tool_results_for_llm_and_system(
+    def _to_tool_execution_result(
         self,
         result: Any,
         function_name: str,

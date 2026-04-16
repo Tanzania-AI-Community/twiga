@@ -36,10 +36,10 @@ async def search_knowledge(
             f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
         )
 
-        source_chunk_ids = [chunk.id for chunk in retrieved_content]
+        chunk_ids = [chunk.id for chunk in retrieved_content]
         return {
             "content": _format_context(retrieved_content),
-            "source_chunk_ids": source_chunk_ids,
+            "source_chunk_ids": chunk_ids,
         }
     except Exception as e:
         logger.error(f"An error occurred when searching the knowledge base: {e}")

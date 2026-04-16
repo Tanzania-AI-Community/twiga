@@ -72,7 +72,7 @@ class AgentClient(ClientBase):
             List of tool response messages
         """
         self.logger.info(f"Agent action: processing {len(tool_calls)} tool call(s).")
-        self.logger.info(f"Tool calls: {tool_calls}")
+        self.logger.debug(f"Tool calls: {tool_calls}")
 
         unique_tools = {tool_call["function"]["name"] for tool_call in tool_calls}
         for tool_name in unique_tools:
