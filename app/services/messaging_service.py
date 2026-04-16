@@ -186,7 +186,8 @@ class MessagingService:
                 user=user,
                 llm_content=llm_content,
             )
-            llm_content = await self._check_and_handle_citation(
+
+            llm_content = await self._handle_citations(
                 llm_content=llm_content,
             )
 
@@ -393,7 +394,7 @@ class MessagingService:
             solution_send_failed=solution_send_failed,
         )
 
-    async def _check_and_handle_citation(self, llm_content: str) -> str:
+    async def _handle_citations(self, llm_content: str) -> str:
         """
         Checks for citation markers in the LLM response content and renders them if found.
         """
