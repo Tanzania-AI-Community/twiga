@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import app.database.enums as enums
-from app.database.models import Message, User
 from app.clients.client_base import ClientBase
+from app.database.models import Message, User
 
 
 class DummyClient(ClientBase):

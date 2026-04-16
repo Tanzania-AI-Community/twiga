@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.clients.whatsapp_client import WhatsAppClient
 from app.database.enums import MessageRole
 from app.database.models import User
-from app.clients.whatsapp_client import WhatsAppClient
 
 
 @pytest.mark.asyncio

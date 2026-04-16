@@ -6,6 +6,9 @@ from fastapi.responses import JSONResponse
 import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
+from app.clients.agent_client import agent_client
+from app.clients.llm_client import llm_client
+from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.config import llm_settings
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
@@ -13,15 +16,12 @@ from app.latex.latex_artifact_generator import (
     text_to_img,
 )
 from app.monitoring.metrics import record_messages_generated, track_messages
-from app.clients.agent_client import agent_client
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
     ExamPDFDeliveryDetails,
     exam_delivery_service,
 )
 from app.services.flows.flow_service import flow_client
-from app.clients.llm_client import llm_client
-from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.tools.registry import ToolName
 from app.utils.string_manager import StringCategory, strings
 

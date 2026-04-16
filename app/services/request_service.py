@@ -6,9 +6,9 @@ from fastapi.responses import JSONResponse
 
 import app.database.db as db
 import app.database.enums as enums
+from app.clients.whatsapp_client import whatsapp_client
 from app.monitoring.metrics import record_whatsapp_event
 from app.services.state_service import state_client
-from app.clients.whatsapp_client import whatsapp_client
 from app.utils.whatsapp_utils import (
     RequestType,
     extract_message,

@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 import app.database.enums as enums
+from app.clients.whatsapp_client import DocumentType, ImageType, WhatsAppClient
 from app.config import settings
 from app.database.models import Message, User
 from app.latex.latex_artifact_generator import (
@@ -13,7 +14,6 @@ from app.latex.latex_artifact_generator import (
     prepare_latex_body,
 )
 from app.services.messaging_service import MessagingService
-from app.clients.whatsapp_client import DocumentType, ImageType, WhatsAppClient
 
 
 @pytest.mark.asyncio
