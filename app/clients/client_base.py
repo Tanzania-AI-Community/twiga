@@ -14,6 +14,7 @@ from app.database.db import create_new_message_by_fields, get_user_message_histo
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.clients.whatsapp_client import whatsapp_client
+from app.tools.registry import ToolName
 from app.tools.tool_manager import ToolManager
 from app.utils.message_processor import MessageProcessor
 from app.utils.prompt_manager import prompt_manager
@@ -46,7 +47,18 @@ class ClientBase(ABC):
 
     async def _tool_call_notification(self, user: User, tool_name: str) -> None:
         """Send a notification to the user when a tool call is made."""
-        notification_text = strings.get_string(StringCategory.TOOLS, tool_name)
+        if tool_name == ToolName.search_knowledge.value:
+            return  # issue #227
+        tool_strings = strings.get_category(StringCategory.TOOLS)
+
+        if tool_name not in tool_strings:
+            self.logger.warning(
+                f"No notification string defined for tool '{tool_name}'. "
+            )
+            return
+
+        notification_text = tool_strings[tool_name]
+
         await whatsapp_client.send_message(user.wa_id, notification_text)
 
         if user.id is None:
