@@ -411,9 +411,7 @@ async def test_LLMClient_two_concurrent_messages_behavior():
             "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
-        patch(
-            "app.clients.llm_client.get_tools_metadata", MagicMock(return_value=[])
-        ),
+        patch("app.clients.llm_client.get_tools_metadata", MagicMock(return_value=[])),
     ):
         mock_get_history.return_value = []
 
