@@ -2,7 +2,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.services.citation_service import SourceInfo, citation_service
+from app.services.citation_service import (
+    FAILED_SOURCE_TEXT,
+    SourceInfo,
+    citation_service,
+)
 
 
 @pytest.mark.asyncio
@@ -17,25 +21,27 @@ async def test_render_citations_rewrites_markers_to_inline_and_appends_sources()
 
     with patch.object(
         citation_service,
-        "_get_source_info_for_marker",
+        "_get_source_info_for_markers",
         AsyncMock(
-            side_effect=[
-                SourceInfo(
+            return_value={
+                101: SourceInfo(
                     chunk_id=101,
                     resource_id=1,
                     citation_text="Book, page 1",
                     valid_source=True,
                 ),
-                SourceInfo(
+                102: SourceInfo(
                     chunk_id=102,
                     resource_id=1,
                     citation_text="Book, page 2",
                     valid_source=True,
                 ),
-            ]
+            }
         ),
-    ):
+    ) as mock_batch_lookup:
         result = await citation_service.render_citations(content)
+
+    mock_batch_lookup.assert_awaited_once_with(chunk_id_list=[101, 102])
 
     assert result.marker_found is True
     assert result.valid_reference_count == 2
@@ -60,17 +66,21 @@ async def test_render_citations_deduplicates_repeated_chunk_markers() -> None:
 
     with patch.object(
         citation_service,
-        "_get_source_info_for_marker",
+        "_get_source_info_for_markers",
         AsyncMock(
-            return_value=SourceInfo(
-                chunk_id=77,
-                resource_id=1,
-                citation_text="Book, page 1",
-                valid_source=True,
-            )
+            return_value={
+                77: SourceInfo(
+                    chunk_id=77,
+                    resource_id=1,
+                    citation_text="Book, page 1",
+                    valid_source=True,
+                )
+            }
         ),
-    ):
+    ) as mock_batch_lookup:
         result = await citation_service.render_citations(content)
+
+    mock_batch_lookup.assert_awaited_once_with(chunk_id_list=[77])
 
     assert result.marker_found is True
     assert result.valid_reference_count == 2
@@ -106,23 +116,58 @@ async def test_render_citations_removes_marker_when_source_is_invalid() -> None:
 
     with patch.object(
         citation_service,
-        "_get_source_info_for_marker",
+        "_get_source_info_for_markers",
         AsyncMock(
-            return_value=SourceInfo(
-                chunk_id=88,
-                resource_id=None,
-                citation_text="Invalid source",
-                valid_source=False,
-            )
+            return_value={
+                88: SourceInfo(
+                    chunk_id=88,
+                    resource_id=None,
+                    citation_text=None,
+                    valid_source=False,
+                )
+            }
         ),
-    ):
+    ) as mock_batch_lookup:
         result = await citation_service.render_citations(content)
+
+    mock_batch_lookup.assert_awaited_once_with(chunk_id_list=[88])
 
     assert result.marker_found is True
     assert result.valid_reference_count == 0
     assert result.invalid_reference_count == 1
     assert result.ordered_chunk_ids == []
     assert result.rendered_content == "Fact from textbook."
+
+
+@pytest.mark.asyncio
+async def test_render_citations_uses_failed_source_text_when_label_is_missing() -> None:
+    content = 'Fact from textbook{{TWIGA_CITATION:{"chunk_id":89}}}.'
+
+    with patch.object(
+        citation_service,
+        "_get_source_info_for_markers",
+        AsyncMock(
+            return_value={
+                89: SourceInfo(
+                    chunk_id=89,
+                    resource_id=7,
+                    citation_text=FAILED_SOURCE_TEXT,
+                    valid_source=True,
+                )
+            }
+        ),
+    ) as mock_batch_lookup:
+        result = await citation_service.render_citations(content)
+
+    mock_batch_lookup.assert_awaited_once_with(chunk_id_list=[89])
+
+    assert result.marker_found is True
+    assert result.valid_reference_count == 1
+    assert result.invalid_reference_count == 0
+    assert result.ordered_chunk_ids == [89]
+    assert result.rendered_content == (
+        "Fact from textbook [1].\n\n" "Sources:\n" f"- [1] {FAILED_SOURCE_TEXT}"
+    )
 
 
 @pytest.mark.asyncio

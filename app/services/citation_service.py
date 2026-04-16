@@ -29,7 +29,7 @@ class CitationRenderResult:
 class SourceInfo:
     chunk_id: int | None
     resource_id: int | None
-    citation_text: str
+    citation_text: str | None
     valid_source: bool
 
 
@@ -54,7 +54,7 @@ class CitationService:
                 rendered_content=content,
             )
 
-        chunk_id_to_source_info: dict[int, SourceInfo] = {}
+        chunk_id_to_occurrence_count: dict[int, int] = {}
         chunk_id_to_marker_texts: dict[int, set[str]] = {}
         valid_reference_count = 0
         invalid_reference_count = 0
@@ -64,6 +64,7 @@ class CitationService:
             chunk_id = self._get_chunk_id_from_marker(match)
 
             if chunk_id is None:
+                # TODO: LLM-hallucination. In the future this should be tracked in Prometheus
                 self.logger.warning(
                     f"Invalid marker payload, unable to extract chunk_id: {match.group(1)}"
                 )
@@ -71,22 +72,24 @@ class CitationService:
                 invalid_reference_count += 1
                 continue
 
-            if chunk_id not in chunk_id_to_source_info:
-                source_info = await self._get_source_info_for_marker(chunk_id=chunk_id)
-                self.logger.debug(
-                    f"Source info: {source_info} for marker: {marker_text}"
-                )
-                chunk_id_to_source_info[chunk_id] = source_info
+            chunk_id_to_occurrence_count[chunk_id] = (
+                chunk_id_to_occurrence_count.get(chunk_id, 0) + 1
+            )
 
             # Keep the exact marker text for each chunk so replacements/removals use
             # what was actually generated in content.
             chunk_id_to_marker_texts.setdefault(chunk_id, set()).add(marker_text)
 
-            source_info = chunk_id_to_source_info[chunk_id]
-            if source_info.valid_source:
-                valid_reference_count += 1
+        chunk_id_to_source_info = await self._get_source_info_for_markers(
+            chunk_id_list=list(chunk_id_to_occurrence_count.keys())
+        )
+
+        for chunk_id, occurrence_count in chunk_id_to_occurrence_count.items():
+            source_info = chunk_id_to_source_info.get(chunk_id)
+            if source_info and source_info.valid_source:
+                valid_reference_count += occurrence_count
             else:
-                invalid_reference_count += 1
+                invalid_reference_count += occurrence_count
 
         # since dict keys are order, the sources will be ordered by first appearance in content
         content_with_sources = self._add_citations_to_content(
@@ -109,59 +112,78 @@ class CitationService:
             invalid_reference_count=invalid_reference_count,
         )
 
-    async def _get_source_info_for_marker(self, chunk_id: int) -> SourceInfo:
+    async def _get_source_info_for_markers(
+        self, chunk_id_list: list[int]
+    ) -> dict[int, SourceInfo]:
         """
-        Given a chunk ID, retrieve the source information.
+        Retrieve source info for chunk IDs in one database call.
         """
+
+        if not chunk_id_list:
+            return {}
+
         async with db.get_session() as session:
             statement = (
                 db.select(Chunk)
                 .options(selectinload(Chunk.resource_))
-                .where(Chunk.id == chunk_id)
+                .where(Chunk.id.in_(chunk_id_list))
             )
             result = await session.execute(statement)
-            chunk = result.scalar_one_or_none()
+            chunks = result.scalars().all()
 
-        if chunk is None:
-            self.logger.warning(f"CitationService: Chunk not found for ID: {chunk_id}")
-            return SourceInfo(
-                chunk_id=chunk_id,
-                resource_id=None,
-                citation_text=FAILED_SOURCE_TEXT,
-                valid_source=False,
-            )
+        chunk_id_to_chunk = {
+            chunk.id: chunk for chunk in chunks if chunk.id is not None
+        }
+        chunk_id_to_source_info: dict[int, SourceInfo] = {}
 
-        if chunk.resource_id is None:
-            self.logger.warning(
-                f"CitationService: Chunk found but has no associated resource for ID: {chunk_id}"
-            )
-            return SourceInfo(
-                chunk_id=chunk.id,
-                resource_id=None,
-                citation_text=FAILED_SOURCE_TEXT,
-                valid_source=False,
-            )
+        for chunk_id in chunk_id_list:
+            chunk = chunk_id_to_chunk.get(chunk_id)
+            if chunk is None:
+                self.logger.warning(
+                    f"CitationService: Chunk not found for ID: {chunk_id}"
+                )
+                chunk_id_to_source_info[chunk_id] = SourceInfo(
+                    chunk_id=chunk_id,
+                    resource_id=None,
+                    citation_text=None,
+                    valid_source=False,
+                )
+                continue
 
-        resource_name = chunk.resource_.name if chunk.resource_ else None
-        page_number = chunk.page_number
-        section_title = chunk.top_level_section_title
+            if chunk.resource_id is None:
+                self.logger.warning(
+                    f"CitationService: Chunk found but has no associated resource for ID: {chunk_id}"
+                )
+                chunk_id_to_source_info[chunk_id] = SourceInfo(
+                    chunk_id=chunk.id,
+                    resource_id=None,
+                    citation_text=None,
+                    valid_source=False,
+                )
+                continue
 
-        if resource_name:
-            if page_number is not None:
-                citation_text = f"{resource_name}, page {page_number}"
-            elif section_title:
-                citation_text = f"{resource_name}, {section_title}"
+            resource_name = chunk.resource_.name if chunk.resource_ else None
+            page_number = chunk.page_number
+            section_title = chunk.top_level_section_title
+
+            if resource_name:
+                if page_number is not None:
+                    citation_text = f"{resource_name}, page {page_number}"
+                elif section_title:
+                    citation_text = f"{resource_name}, {section_title}"
+                else:
+                    citation_text = resource_name
             else:
-                citation_text = resource_name
-        else:
-            citation_text = FAILED_SOURCE_TEXT
+                citation_text = FAILED_SOURCE_TEXT
 
-        return SourceInfo(
-            chunk_id=chunk.id,
-            resource_id=chunk.resource_id,
-            citation_text=citation_text,
-            valid_source=True,
-        )
+            chunk_id_to_source_info[chunk_id] = SourceInfo(
+                chunk_id=chunk.id,
+                resource_id=chunk.resource_id,
+                citation_text=citation_text,
+                valid_source=True,
+            )
+
+        return chunk_id_to_source_info
 
     def _get_chunk_id_from_marker(self, match: re.Match[str]) -> int | None:
         try:
