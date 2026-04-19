@@ -187,10 +187,6 @@ class MessagingService:
                 llm_content=llm_content,
             )
 
-            llm_content = await self._handle_citations(
-                llm_content=llm_content,
-            )
-
             self.logger.debug(
                 f"Final message content after processing delivery marker: {llm_content}"
             )
@@ -394,26 +390,6 @@ class MessagingService:
             solution_send_failed=solution_send_failed,
         )
 
-    async def _handle_citations(self, llm_content: str) -> str:
-        """
-        Checks for citation markers in the LLM response content and renders them if found.
-        """
-        citation_result: CitationRenderResult = await citation_service.render_citations(
-            llm_content
-        )
-
-        if not citation_result.marker_found:
-            return llm_content
-
-        self.logger.info(
-            f"Citation marker detected. valid_marker_count={citation_result.valid_reference_count} "
-            f"invalid_marker_count={citation_result.invalid_reference_count} "
-            f"total_marker_count={citation_result.valid_reference_count + citation_result.invalid_reference_count} "
-            f"unique_chunk_ids={len(citation_result.ordered_chunk_ids)}"
-        )
-
-        return citation_result.rendered_content
-
     @staticmethod
     def _build_exam_delivery_message(
         *,
@@ -434,6 +410,26 @@ class MessagingService:
         subject_text = subject or "the requested subject"
         topics_text = ", ".join(topics) if topics else "the requested topics"
         return f"Here is your practice exam in {subject_text} on topics: {topics_text}."
+
+    async def _handle_citations(self, llm_content: str) -> str:
+        """
+        Checks for citation markers in the LLM response content and renders them if found.
+        """
+        citation_result: CitationRenderResult = await citation_service.render_citations(
+            llm_content
+        )
+
+        if not citation_result.marker_found:
+            return llm_content
+
+        self.logger.info(
+            f"Citation marker detected. valid_marker_count={citation_result.valid_reference_count} "
+            f"invalid_marker_count={citation_result.invalid_reference_count} "
+            f"total_marker_count={citation_result.valid_reference_count + citation_result.invalid_reference_count} "
+            f"unique_chunk_ids={len(citation_result.ordered_chunk_ids)}"
+        )
+
+        return citation_result.rendered_content
 
 
 messaging_client = MessagingService()
