@@ -14,6 +14,7 @@ from app.latex.latex_artifact_generator import (
 )
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.agent_client import agent_client
+from app.services.citation_service import CitationRenderResult, citation_service
 from app.services.client_base import ClientBase
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
@@ -136,12 +137,25 @@ class MessagingService:
             await self._handle_exam_delivery(user, llm_content)
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
+        llm_content = await self._handle_citations(
+            llm_content=llm_content,
+        )
+
         if self._is_response_in_latex(llm_content):
-            await self._send_latex_response(user, llm_content)
+            await self._send_latex_response(
+                user=user,
+                llm_content=llm_content,
+                source_chunk_ids=last_assistant_message.source_chunk_ids,
+            )
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
-        await self._persist_visible_assistant_message(user=user, content=llm_content)
+        await self._persist_visible_assistant_message(
+            user=user,
+            content=llm_content,
+            source_chunk_ids=last_assistant_message.source_chunk_ids,
+        )
+
         await whatsapp_client.send_message(user.wa_id, llm_content)
         record_messages_generated("chat_response")
 
@@ -222,10 +236,19 @@ class MessagingService:
     def _is_response_in_latex(self, llm_content: str) -> bool:
         return looks_like_latex(llm_content)
 
-    async def _send_latex_response(self, user: models.User, llm_content: str) -> None:
+    async def _send_latex_response(
+        self,
+        user: models.User,
+        llm_content: str,
+        source_chunk_ids: list[int] | None = None,
+    ) -> None:
         self.logger.debug(f"Sending LaTeX response to {user.wa_id}: {llm_content}")
 
-        await self._persist_visible_assistant_message(user=user, content=llm_content)
+        await self._persist_visible_assistant_message(
+            user=user,
+            content=llm_content,
+            source_chunk_ids=source_chunk_ids,
+        )
 
         prepared_latex_content = prepare_latex_body(llm_content)
         latex_document_path = (
@@ -285,7 +308,10 @@ class MessagingService:
         )
 
     async def _persist_visible_assistant_message(
-        self, user: models.User, content: str
+        self,
+        user: models.User,
+        content: str,
+        source_chunk_ids: list[int] | None = None,
     ) -> None:
         if user.id is None:
             self.logger.warning(
@@ -297,6 +323,7 @@ class MessagingService:
             user_id=user.id,
             role=enums.MessageRole.assistant,
             content=content,
+            source_chunk_ids=source_chunk_ids,
             is_present_in_conversation=True,
         )
 
@@ -483,6 +510,26 @@ class MessagingService:
         subject_text = subject or "the requested subject"
         topics_text = ", ".join(topics) if topics else "the requested topics"
         return f"Here is your practice exam in {subject_text} on topics: {topics_text}."
+
+    async def _handle_citations(self, llm_content: str) -> str:
+        """
+        Checks for citation markers in the LLM response content and renders them if found.
+        """
+        citation_result: CitationRenderResult = await citation_service.render_citations(
+            llm_content
+        )
+
+        if not citation_result.marker_found:
+            return llm_content
+
+        self.logger.info(
+            f"Citation marker detected. valid_marker_count={citation_result.valid_reference_count} "
+            f"invalid_marker_count={citation_result.invalid_reference_count} "
+            f"total_marker_count={citation_result.valid_reference_count + citation_result.invalid_reference_count} "
+            f"unique_chunk_ids={len(citation_result.ordered_chunk_ids)}"
+        )
+
+        return citation_result.rendered_content
 
 
 messaging_client = MessagingService()

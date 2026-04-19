@@ -197,6 +197,37 @@ class ClientBase(ABC):
         return initial_message
 
     @staticmethod
+    def _get_source_chunk_ids(messages: list[Message]) -> list[int]:
+        """
+        Collect source chunk IDs from tool messages in one response loop.
+        The returned list is deduplicated while preserving first-seen order.
+        This keeps the result deterministic across runs.
+
+        Inputs:
+            - messages: Messages generated in the current thinking loop.
+
+        Returns:
+            - List of unique chunk IDs in the order they were first encountered
+        """
+        if not messages:
+            return []
+
+        seen_chunk_ids: set[int] = set()
+        ordered_chunk_ids: list[int] = []
+
+        for message in messages:
+            if message.role != MessageRole.tool or not message.source_chunk_ids:
+                continue
+
+            for chunk_id in message.source_chunk_ids:
+                if chunk_id in seen_chunk_ids:
+                    continue
+                seen_chunk_ids.add(chunk_id)
+                ordered_chunk_ids.append(chunk_id)
+
+        return ordered_chunk_ids
+
+    @staticmethod
     def _format_messages(
         new_messages: list[Message],
         database_messages: Optional[list[Message]],
