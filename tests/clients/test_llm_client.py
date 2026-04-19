@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.clients.llm_client import LLMClient
 from app.database.enums import MessageRole
 from app.database.models import Message, User
-from app.services.llm_service import LLMClient
 from app.utils.prompt_manager import prompt_manager
 
 
@@ -153,24 +153,24 @@ async def test_format_messages_missmatch():
     assert "Unusual message count scenario detected" in str(excinfo.value)
 
 
-@patch("app.services.llm_service.get_user_message_history", new_callable=AsyncMock)
+@patch("app.clients.llm_client.get_user_message_history", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_LLMClient_no_tool_calls(mock_get_history):
     """Test that LLMClient generates a response without tool calls."""
 
     with (
         patch(
-            "app.services.llm_service.get_user_message_history", new_callable=AsyncMock
+            "app.clients.llm_client.get_user_message_history", new_callable=AsyncMock
         ) as mock_get_history,
         patch(
-            "app.services.llm_service.prompt_manager.format_prompt",
+            "app.clients.llm_client.prompt_manager.format_prompt",
             MagicMock(return_value="system prompt"),
         ),
         patch(
-            "app.services.llm_service.async_llm_request", new_callable=AsyncMock
+            "app.clients.llm_client.async_llm_request", new_callable=AsyncMock
         ) as mock_async_llm_request,
         patch(
-            "app.services.llm_service.whatsapp_client.send_message",
+            "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
     ):
@@ -200,17 +200,17 @@ async def test_LLMClient_single_assistant_message():
     """Test that LLMClient generates a response with a single assistant message."""
     with (
         patch(
-            "app.services.llm_service.get_user_message_history", new_callable=AsyncMock
+            "app.clients.llm_client.get_user_message_history", new_callable=AsyncMock
         ) as mock_get_history,
         patch(
-            "app.services.llm_service.prompt_manager.format_prompt",
+            "app.clients.llm_client.prompt_manager.format_prompt",
             MagicMock(return_value="system prompt"),
         ),
         patch(
-            "app.services.llm_service.async_llm_request", new_callable=AsyncMock
+            "app.clients.llm_client.async_llm_request", new_callable=AsyncMock
         ) as mock_async_llm_request,
         patch(
-            "app.services.llm_service.whatsapp_client.send_message",
+            "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
     ):
@@ -242,21 +242,21 @@ async def test_LLMClient_structured_tool_call():
     """Test that a structured tool call from the LLM is processed correctly by entering a msg with the mock LLM_request deciding it is a tool call"""
     with (
         patch(
-            "app.services.llm_service.get_user_message_history", new_callable=AsyncMock
+            "app.clients.llm_client.get_user_message_history", new_callable=AsyncMock
         ) as mock_get_history,
         patch(
-            "app.services.llm_service.prompt_manager.format_prompt",
+            "app.clients.llm_client.prompt_manager.format_prompt",
             MagicMock(return_value="system prompt"),
         ),
         patch(
-            "app.services.llm_service.async_llm_request", new_callable=AsyncMock
+            "app.clients.llm_client.async_llm_request", new_callable=AsyncMock
         ) as mock_async_llm_request,
         patch(
-            "app.services.llm_service.whatsapp_client.send_message",
+            "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
         patch(
-            "app.services.llm_service.search_knowledge", new_callable=AsyncMock
+            "app.clients.llm_client.search_knowledge", new_callable=AsyncMock
         ) as mock_search_knowledge,
     ):
         mock_get_history.return_value = []
@@ -301,17 +301,17 @@ async def test_LLMClient_tool_function_raises_error_message():
     with (
         # do not mock a db
         patch(
-            "app.services.llm_service.get_user_message_history", new_callable=AsyncMock
+            "app.clients.llm_client.get_user_message_history", new_callable=AsyncMock
         ) as mock_get_history,
         patch(
-            "app.services.llm_service.prompt_manager.format_prompt",
+            "app.clients.llm_client.prompt_manager.format_prompt",
             MagicMock(return_value="system prompt"),
         ),
         patch(
-            "app.services.llm_service.async_llm_request", new_callable=AsyncMock
+            "app.clients.llm_client.async_llm_request", new_callable=AsyncMock
         ) as mock_async_llm_request,
         patch(
-            "app.services.llm_service.whatsapp_client.send_message",
+            "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
     ):
@@ -358,15 +358,15 @@ async def test_LLMClient_character_limit_exceeded(monkeypatch):
     """Test that LLMClient handles messages exceeding character limit."""
     with (
         patch(
-            "app.services.llm_service.get_user_message_history", new_callable=AsyncMock
+            "app.clients.llm_client.get_user_message_history", new_callable=AsyncMock
         ) as mock_get_history,
         patch(
-            "app.services.llm_service.prompt_manager.format_prompt",
+            "app.clients.llm_client.prompt_manager.format_prompt",
             MagicMock(return_value="system prompt"),
         ),
-        patch("app.services.llm_service.async_llm_request", new_callable=AsyncMock),
+        patch("app.clients.llm_client.async_llm_request", new_callable=AsyncMock),
         patch(
-            "app.services.llm_service.whatsapp_client.send_message",
+            "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
     ):
@@ -399,22 +399,20 @@ async def test_LLMClient_two_concurrent_messages_behavior():
     msg2 = Message(role=MessageRole.user, content="Second message", tool_calls=None)
     with (
         patch(
-            "app.services.llm_service.get_user_message_history", new_callable=AsyncMock
+            "app.clients.llm_client.get_user_message_history", new_callable=AsyncMock
         ) as mock_get_history,
         patch(
-            "app.services.llm_service.prompt_manager.format_prompt",
+            "app.clients.llm_client.prompt_manager.format_prompt",
             MagicMock(return_value="system prompt"),
         ),
         patch(
-            "app.services.llm_service.async_llm_request", new_callable=AsyncMock
+            "app.clients.llm_client.async_llm_request", new_callable=AsyncMock
         ) as mock_async_llm_request,
         patch(
-            "app.services.llm_service.whatsapp_client.send_message",
+            "app.clients.llm_client.whatsapp_client.send_message",
             new_callable=AsyncMock,
         ),
-        patch(
-            "app.services.llm_service.get_tools_metadata", MagicMock(return_value=[])
-        ),
+        patch("app.clients.llm_client.get_tools_metadata", MagicMock(return_value=[])),
     ):
         mock_get_history.return_value = []
 

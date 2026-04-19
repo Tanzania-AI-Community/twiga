@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import app.database.enums as enums
+from app.clients.client_base import ClientBase
 from app.database.models import Message, User
-from app.services.client_base import ClientBase
 
 
 class DummyClient(ClientBase):
@@ -20,15 +20,15 @@ async def test_tool_call_notification_persists_visible_message() -> None:
 
     with (
         patch(
-            "app.services.client_base.strings.get_category",
+            "app.clients.client_base.strings.get_category",
             return_value={"generate_exercise": "Generating exercises..."},
         ),
         patch(
-            "app.services.client_base.whatsapp_client.send_message",
+            "app.clients.client_base.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch(
-            "app.services.client_base.create_new_message_by_fields",
+            "app.clients.client_base.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message,
     ):
@@ -53,15 +53,15 @@ async def test_tool_call_notification_skips_persistence_when_user_id_is_missing(
 
     with (
         patch(
-            "app.services.client_base.strings.get_category",
+            "app.clients.client_base.strings.get_category",
             return_value={"generate_exercise": "Generating exercises..."},
         ),
         patch(
-            "app.services.client_base.whatsapp_client.send_message",
+            "app.clients.client_base.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch(
-            "app.services.client_base.create_new_message_by_fields",
+            "app.clients.client_base.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message,
     ):
@@ -79,11 +79,11 @@ async def test_tool_call_notification_silent_for_search_knowledge() -> None:
 
     with (
         patch(
-            "app.services.client_base.whatsapp_client.send_message",
+            "app.clients.client_base.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch(
-            "app.services.client_base.create_new_message_by_fields",
+            "app.clients.client_base.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message,
     ):
@@ -101,7 +101,7 @@ async def test_tool_call_notification_warns_for_unknown_tool() -> None:
 
     with (
         patch(
-            "app.services.client_base.strings.get_category",
+            "app.clients.client_base.strings.get_category",
             return_value={
                 "generate_exercise": "Generating exercises...",
                 "search_knowledge": "📚 Searching the course content, please hold...",
@@ -109,11 +109,11 @@ async def test_tool_call_notification_warns_for_unknown_tool() -> None:
             },
         ),
         patch(
-            "app.services.client_base.whatsapp_client.send_message",
+            "app.clients.client_base.whatsapp_client.send_message",
             AsyncMock(),
         ) as mock_send_message,
         patch(
-            "app.services.client_base.create_new_message_by_fields",
+            "app.clients.client_base.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message,
     ):

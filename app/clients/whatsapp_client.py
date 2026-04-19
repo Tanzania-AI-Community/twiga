@@ -62,7 +62,6 @@ class WhatsAppClient:
 
         try:
             payload: dict[str, Any] = generate_payload(wa_id, message, options)
-            payload: dict[str, Any] = generate_payload(wa_id, message, options)
             response = await self.client.post(
                 "/messages", data=payload, headers=self.headers
             )

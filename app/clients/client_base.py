@@ -9,11 +9,11 @@ from langchain_core.messages import (
 )
 from langchain_core.messages.base import BaseMessage
 
+from app.clients.whatsapp_client import whatsapp_client
 from app.config import Prompt, settings
 from app.database.db import create_new_message_by_fields, get_user_message_history
 from app.database.enums import MessageRole
 from app.database.models import Message, User
-from app.services.whatsapp_service import whatsapp_client
 from app.tools.registry import ToolName
 from app.tools.tool_manager import ToolManager
 from app.utils.message_processor import MessageProcessor

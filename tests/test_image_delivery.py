@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 import app.database.enums as enums
+from app.clients.whatsapp_client import DocumentType, ImageType, WhatsAppClient
 from app.config import settings
 from app.database.models import Message, User
 from app.latex.latex_artifact_generator import (
@@ -13,7 +14,6 @@ from app.latex.latex_artifact_generator import (
     prepare_latex_body,
 )
 from app.services.messaging_service import MessagingService
-from app.services.whatsapp_service import DocumentType, ImageType, WhatsAppClient
 
 
 @pytest.mark.asyncio
@@ -34,7 +34,7 @@ async def test_send_image_message_returns_true_on_success(
             patch.object(client, "upload_media", AsyncMock(return_value="media-id")),
             patch.object(client, "delete_media", AsyncMock()) as mock_delete_media,
             patch.object(client.client, "post", AsyncMock(return_value=mock_response)),
-            patch("app.services.whatsapp_service.log_httpx_response"),
+            patch("app.clients.whatsapp_client.log_httpx_response"),
         ):
             result = await client.send_image_message(
                 wa_id="255700000000",
@@ -65,7 +65,7 @@ async def test_send_image_message_returns_false_and_cleans_local_file_on_upload_
                 "upload_media",
                 AsyncMock(side_effect=ValueError("Image size exceeds limit")),
             ),
-            patch("app.services.whatsapp_service.log_httpx_response"),
+            patch("app.clients.whatsapp_client.log_httpx_response"),
         ):
             result = await client.send_image_message(
                 wa_id="255700000000",
@@ -101,7 +101,7 @@ async def test_send_image_message_returns_false_and_cleans_uploaded_media_on_pos
             patch.object(client, "upload_media", AsyncMock(return_value="media-id")),
             patch.object(client, "delete_media", AsyncMock()) as mock_delete_media,
             patch.object(client.client, "post", AsyncMock(return_value=post_response)),
-            patch("app.services.whatsapp_service.log_httpx_response"),
+            patch("app.clients.whatsapp_client.log_httpx_response"),
         ):
             result = await client.send_image_message(
                 wa_id="255700000000",
@@ -133,7 +133,7 @@ async def test_send_document_message_returns_true_on_success_and_keeps_local_fil
             patch.object(client, "upload_media", AsyncMock(return_value="media-id")),
             patch.object(client, "delete_media", AsyncMock()) as mock_delete_media,
             patch.object(client.client, "post", AsyncMock(return_value=mock_response)),
-            patch("app.services.whatsapp_service.log_httpx_response"),
+            patch("app.clients.whatsapp_client.log_httpx_response"),
         ):
             result = await client.send_document_message(
                 wa_id="255700000000",
@@ -170,7 +170,7 @@ async def test_send_document_message_upload_failure_keeps_local_file(
                 "upload_media",
                 AsyncMock(side_effect=ValueError("Media size exceeds limit")),
             ),
-            patch("app.services.whatsapp_service.log_httpx_response"),
+            patch("app.clients.whatsapp_client.log_httpx_response"),
         ):
             result = await client.send_document_message(
                 wa_id="255700000000",
