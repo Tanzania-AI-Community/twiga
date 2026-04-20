@@ -4,9 +4,9 @@ from typing import Optional
 
 from langchain_core.messages import AIMessage
 
+from app.clients.client_base import ClientBase
 from app.config import Prompt, llm_settings
 from app.database.models import Message, User
-from app.services.client_base import ClientBase
 from app.utils.llm_utils import async_llm_request
 
 
@@ -205,6 +205,13 @@ class AgentClient(ClientBase):
                     if self._check_new_messages(processor, original_count):
                         self.logger.warning("New messages buffered during processing")
                         continue
+
+                    # the last message in final messages is always an assistant message (either from normal
+                    # flow or forced final), so we can assign source_chunk_ids there
+                    if final_messages:
+                        final_messages[-1].source_chunk_ids = (
+                            self._get_source_chunk_ids(final_messages) or None
+                        )
 
                     return final_messages
                 except Exception as e:

@@ -2,6 +2,7 @@ import logging
 
 from fastapi.responses import JSONResponse
 
+from app.clients.whatsapp_client import whatsapp_client
 from app.database import db
 from app.database.enums import MessageRole, OnboardingState, Role, UserState
 from app.database.models import Message, User
@@ -10,7 +11,6 @@ from app.services.flows.flow_service import flow_client
 from app.services.messaging_service import messaging_client
 from app.services.onboarding_service import onboarding_client
 from app.services.rate_limit_service import rate_limit_service
-from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     ValidMessageType,
