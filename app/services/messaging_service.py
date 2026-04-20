@@ -401,7 +401,7 @@ class MessagingService:
             record_messages_generated("exam_delivery_string_error")
             return strings.get_string(StringCategory.ERROR, "general")
 
-        def _tool_message(field: str) -> str:
+        def _delivery_message(field: str) -> str:
             value = tool_strings.get(field)
             record_messages_generated(f"exam_{field}")
 
@@ -413,18 +413,18 @@ class MessagingService:
             return strings.get_string(StringCategory.ERROR, "general")
 
         if exam_send_failed and solution_send_failed:
-            return _tool_message("delivery_failed_exam_and_solution")
+            return _delivery_message("delivery_failed_exam_and_solution")
 
         if exam_send_failed:
-            return _tool_message("delivery_failed_exam")
+            return _delivery_message("delivery_failed_exam")
 
         if solution_send_failed:
-            return _tool_message("delivery_failed_solution")
+            return _delivery_message("delivery_failed_solution")
 
         subject_text = subject or "the requested subject"
         topics_text = ", ".join(topics) if topics else "the requested topics"
 
-        return _tool_message("delivery_success").format(
+        return _delivery_message("delivery_success").format(
             subject=subject_text,
             topics=topics_text,
         )
