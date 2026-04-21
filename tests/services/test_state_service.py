@@ -337,9 +337,8 @@ async def test_handle_active_routes_other_to_messaging_with_inbound_message_id()
         response = await service.handle_active(user, message_info, user_message)
 
     assert response is expected_response
-    mock_send_typing_indicator.assert_not_awaited()
+    mock_send_typing_indicator.assert_awaited_once_with("wamid.OTHER001")
     mock_handle_other_message.assert_awaited_once_with(
         user,
         user_message,
-        inbound_message_id="wamid.OTHER001",
     )

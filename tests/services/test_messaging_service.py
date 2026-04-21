@@ -207,10 +207,6 @@ async def test_handle_other_message_persists_visible_error() -> None:
             return_value="Unsupported message",
         ),
         patch(
-            "app.services.messaging_service.whatsapp_client.send_read_receipt_with_typing_indicator",
-            AsyncMock(),
-        ) as mock_send_typing_indicator,
-        patch(
             "app.services.messaging_service.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
@@ -230,7 +226,6 @@ async def test_handle_other_message_persists_visible_error() -> None:
         "is_present_in_conversation": True,
         "source_chunk_ids": None,
     }
-    mock_send_typing_indicator.assert_awaited_once_with("")
     mock_send_message.assert_awaited_once_with(
         wa_id=user.wa_id,
         message="Unsupported message",
@@ -238,9 +233,7 @@ async def test_handle_other_message_persists_visible_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_other_message_sends_typing_indicator_with_inbound_message_id() -> (
-    None
-):
+async def test_handle_other_message_does_not_send_typing_indicator() -> None:
     service = MessagingService()
     user = User(id=10, wa_id="255700000556", name="Teacher")
     user_message = Message(
@@ -268,12 +261,10 @@ async def test_handle_other_message_sends_typing_indicator_with_inbound_message_
         ),
         patch("app.services.messaging_service.record_messages_generated"),
     ):
-        response = await service.handle_other_message(
-            user, user_message, inbound_message_id="wamid.OTHER002"
-        )
+        response = await service.handle_other_message(user, user_message)
 
     assert response.status_code == 200
-    mock_send_typing_indicator.assert_awaited_once_with("wamid.OTHER002")
+    mock_send_typing_indicator.assert_not_awaited()
 
 
 @pytest.mark.asyncio
