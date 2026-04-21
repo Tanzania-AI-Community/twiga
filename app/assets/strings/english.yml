@@ -30,10 +30,18 @@ settings:
   class_subject_info: "Classes and Subjects"
 
 tools:
-  generate_exercise: "📑 Generating exercises from the course content, please hold..."
-  generate_necta_style_exam: "📝 Generating a NECTA-style exam, please hold..."
-  search_knowledge: "📚 Searching the course content, please hold..."
-  solve_equation: "🧮 Solving the equation, please hold..."
+  generate_exercise:
+    notification: "📑 Generating exercises from the course content, please hold..."
+  generate_necta_style_exam:
+    notification: "📝 Generating a NECTA-style exam, please hold..."
+    delivery_failed_exam_and_solution: "Sorry, something went wrong in creating the exam and exam solution."
+    delivery_failed_exam: "Sorry, something went wrong in generating the exam."
+    delivery_failed_solution: "Sorry, something went wrong in generating the exam solution."
+    delivery_success: "Here is your practice exam in {subject} on topics: {topics}."
+  search_knowledge:
+    notification: "📚 Searching the course content, please hold..."
+  solve_equation:
+    notification: "🧮 Solving the equation, please hold..."
 
 flows:
   registration_header: "Welcome to Twiga! 🦒"
