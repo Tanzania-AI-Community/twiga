@@ -75,7 +75,10 @@ class WhatsAppClient:
         """
         Mark an inbound message as read and show WhatsApp typing indicator.
         Note: this action marks the referenced message (and possibly earlier thread
-        messages) as read on WhatsApp.
+        messages) as read on WhatsApp. The typing indicator will be shown until we
+        send a message or 25 seconds have passed.
+
+        https://developers.facebook.com/documentation/business-messaging/whatsapp/typing-indicators/
         """
         if settings.mock_whatsapp:
             return
