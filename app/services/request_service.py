@@ -65,7 +65,6 @@ async def handle_request(request: Request) -> JSONResponse:
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information
     message_info = extract_message_info(body)
-
     message_content = extract_message(message_info.get("message") or {})
 
     if not message_content:

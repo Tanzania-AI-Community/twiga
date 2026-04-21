@@ -243,6 +243,7 @@ def extract_message_info(body: dict) -> dict:
     entry = body["entry"][0]["changes"][0]["value"]
     return {
         "message": entry["messages"][0],
+        "inbound_message_id": entry["messages"][0].get("id"),
         "wa_id": entry["contacts"][0]["wa_id"],
         "timestamp": int(entry["messages"][0].get("timestamp")),
         "name": entry["contacts"][0]["profile"]["name"],

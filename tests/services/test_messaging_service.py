@@ -233,6 +233,41 @@ async def test_handle_other_message_persists_visible_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handle_other_message_does_not_send_typing_indicator() -> None:
+    service = MessagingService()
+    user = User(id=10, wa_id="255700000556", name="Teacher")
+    user_message = Message(
+        user_id=user.id,
+        role=enums.MessageRole.user,
+        content="Audio file",
+    )
+
+    with (
+        patch(
+            "app.services.messaging_service.strings.get_string",
+            return_value="Unsupported message",
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_read_receipt_with_typing_indicator",
+            AsyncMock(),
+        ) as mock_send_typing_indicator,
+        patch(
+            "app.services.messaging_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ),
+        patch("app.services.messaging_service.record_messages_generated"),
+    ):
+        response = await service.handle_other_message(user, user_message)
+
+    assert response.status_code == 200
+    mock_send_typing_indicator.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_persist_visible_assistant_message_skips_when_user_id_is_missing() -> (
     None
 ):
