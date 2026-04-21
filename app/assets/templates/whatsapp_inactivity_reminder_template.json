@@ -1,0 +1,19 @@
+{
+  "name": "twiga_inactive_reminder",
+  "category": "UTILITY",
+  "language": "en_US",
+  "allow_category_change": true,
+  "components": [
+    {
+      "type": "BODY",
+      "text": "{{1}}",
+      "example": {
+        "body_text": [
+          [
+            "👋 Hi! Twiga 🦒 is here whenever you need quick lesson support, activities, or class explanations."
+          ]
+        ]
+      }
+    }
+  ]
+}
