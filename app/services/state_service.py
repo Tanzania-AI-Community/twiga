@@ -135,18 +135,11 @@ class StateHandler:
     async def handle_active(
         self, user: User, message_info: dict, user_message: Message
     ) -> JSONResponse:
-        message_type = get_valid_message_type(message_info)
-
-        if message_type == ValidMessageType.OTHER:
-            return await messaging_client.handle_other_message(
-                user,
-                user_message,
-                inbound_message_id=message_info.get("inbound_message_id", ""),
-            )
-
         await whatsapp_client.send_read_receipt_with_typing_indicator(
             message_info.get("inbound_message_id", "")
         )
+
+        message_type = get_valid_message_type(message_info)
 
         match message_type:
             case ValidMessageType.SETTINGS_FLOW_SELECTION:
@@ -157,6 +150,8 @@ class StateHandler:
                 return await messaging_client.handle_command_message(user, user_message)
             case ValidMessageType.CHAT:
                 return await messaging_client.handle_chat_message(user, user_message)
+            case ValidMessageType.OTHER:
+                return await messaging_client.handle_other_message(user, user_message)
 
     async def handle_new_user_registration(
         self, phone_number: str, message_info: dict
