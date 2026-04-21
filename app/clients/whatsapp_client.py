@@ -71,6 +71,38 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error(f"Unexpected Error: {e}")
 
+    async def send_read_receipt_with_typing_indicator(self, message_id: str) -> None:
+        """
+        Mark an inbound message as read and show WhatsApp typing indicator.
+        Note: this action marks the referenced message (and possibly earlier thread
+        messages) as read on WhatsApp.
+        """
+        if settings.mock_whatsapp:
+            return
+
+        if not message_id:
+            self.logger.warning(
+                "Skipping WhatsApp typing indicator because inbound message id is empty."
+            )
+            return
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+            "typing_indicator": {"type": "text"},
+        }
+
+        try:
+            response = await self.client.post(
+                "/messages", json=payload, headers=self.headers
+            )
+            log_httpx_response(response)
+        except httpx.RequestError as e:
+            self.logger.error(f"Typing Indicator Request Error: {e}")
+        except Exception as e:
+            self.logger.error(f"Typing Indicator Unexpected Error: {e}")
+
     async def send_whatsapp_flow_message(
         self,
         user: User,

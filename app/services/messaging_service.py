@@ -294,8 +294,15 @@ class MessagingService:
         return False
 
     async def handle_other_message(
-        self, user: models.User, user_message: models.Message
+        self,
+        user: models.User,
+        user_message: models.Message,
+        inbound_message_id: str = "",
     ) -> JSONResponse:
+        await whatsapp_client.send_read_receipt_with_typing_indicator(
+            inbound_message_id
+        )
+
         err_message = strings.get_string(StringCategory.ERROR, "unsupported_message")
         await self._persist_visible_assistant_message(user, err_message)
 
