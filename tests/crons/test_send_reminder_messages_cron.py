@@ -6,13 +6,23 @@ import pytest
 from app.database.enums import UserState
 from app.database.models import User
 
+WITH_NAME_REMINDER = (
+    "👋 Hi{user_name}! Twiga 🦒 is here whenever you need quick lesson support, "
+    "activities, or class explanations."
+)
+WITHOUT_NAME_REMINDER = (
+    "📚 Friendly reminder from Twiga 🦒: if you're planning lessons this week, "
+    "I can help you prepare in minutes."
+)
+
 
 @pytest.mark.asyncio
-async def test_send_reminder_messages_sends_template_and_persists_message() -> None:
+async def test_send_reminder_messages_sends_with_name_template_and_persists_message() -> (
+    None
+):
     reminder_cron = import_module("scripts.crons.send_reminder_messages_cron")
 
     user = User(id=101, wa_id="255700001001", name="Teacher")
-    selected_template = "👋 Hi{user_name}! Twiga is ready to help."
 
     mock_whatsapp_client = AsyncMock()
     mock_whatsapp_context = AsyncMock()
@@ -29,11 +39,11 @@ async def test_send_reminder_messages_sends_template_and_persists_message() -> N
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
-            return_value=[selected_template],
+            return_value=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.random.choice",
-            return_value=selected_template,
+            return_value=WITH_NAME_REMINDER,
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.WhatsAppClient",
@@ -46,14 +56,17 @@ async def test_send_reminder_messages_sends_template_and_persists_message() -> N
     ):
         await reminder_cron.send_reminder_messages()
 
-    expected_message = "👋 Hi Teacher! Twiga is ready to help."
+    expected_message = (
+        "👋 Hi Teacher! Twiga 🦒 is here whenever you need quick lesson support, "
+        "activities, or class explanations."
+    )
 
     mock_initialize_db.assert_called_once()
     mock_whatsapp_client.send_template_message.assert_awaited_once_with(
         wa_id=user.wa_id,
-        template_name=reminder_cron.REMINDER_TEMPLATE_ID,
+        template_name=reminder_cron.REMINDER_TEMPLATE_WITH_NAME_ID,
         language_code=reminder_cron.REMINDER_TEMPLATE_LANGUAGE,
-        body_text_params=[expected_message],
+        body_text_params=["Teacher"],
         include_image_header=False,
     )
 
@@ -70,13 +83,12 @@ async def test_send_reminder_messages_sends_template_and_persists_message() -> N
 
 
 @pytest.mark.asyncio
-async def test_send_reminder_messages_keeps_template_without_user_name_placeholder() -> (
+async def test_send_reminder_messages_sends_without_name_template_for_static_copy() -> (
     None
 ):
     reminder_cron = import_module("scripts.crons.send_reminder_messages_cron")
 
     user = User(id=404, wa_id="255700004004", name="Teacher")
-    selected_template = "📚 Friendly reminder from Twiga 🦒."
 
     mock_whatsapp_client = AsyncMock()
     mock_whatsapp_context = AsyncMock()
@@ -91,11 +103,11 @@ async def test_send_reminder_messages_keeps_template_without_user_name_placehold
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
-            return_value=[selected_template],
+            return_value=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.random.choice",
-            return_value=selected_template,
+            return_value=WITHOUT_NAME_REMINDER,
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.WhatsAppClient",
@@ -110,15 +122,15 @@ async def test_send_reminder_messages_keeps_template_without_user_name_placehold
 
     mock_whatsapp_client.send_template_message.assert_awaited_once_with(
         wa_id=user.wa_id,
-        template_name=reminder_cron.REMINDER_TEMPLATE_ID,
+        template_name=reminder_cron.REMINDER_TEMPLATE_WITHOUT_NAME_ID,
         language_code=reminder_cron.REMINDER_TEMPLATE_LANGUAGE,
-        body_text_params=[selected_template],
+        body_text_params=None,
         include_image_header=False,
     )
 
     created_messages = mock_create_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
-    assert created_messages[0].content == selected_template
+    assert created_messages[0].content == WITHOUT_NAME_REMINDER
 
 
 @pytest.mark.asyncio
@@ -131,7 +143,6 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
         name="Onboarding Teacher",
         state=UserState.onboarding,
     )
-    selected_template = "🚀 Quick nudge{user_name} from Twiga 🦒."
 
     mock_whatsapp_client = AsyncMock()
     mock_whatsapp_context = AsyncMock()
@@ -146,11 +157,11 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
-            return_value=[selected_template],
+            return_value=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.random.choice",
-            return_value=selected_template,
+            return_value=WITH_NAME_REMINDER,
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.WhatsAppClient",
@@ -163,12 +174,15 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
     ):
         await reminder_cron.send_reminder_messages()
 
-    expected_message = "🚀 Quick nudge Onboarding Teacher from Twiga 🦒."
+    expected_message = (
+        "👋 Hi Onboarding Teacher! Twiga 🦒 is here whenever you need quick lesson "
+        "support, activities, or class explanations."
+    )
     mock_whatsapp_client.send_template_message.assert_awaited_once_with(
         wa_id=user.wa_id,
-        template_name=reminder_cron.REMINDER_TEMPLATE_ID,
+        template_name=reminder_cron.REMINDER_TEMPLATE_WITH_NAME_ID,
         language_code=reminder_cron.REMINDER_TEMPLATE_LANGUAGE,
-        body_text_params=[expected_message],
+        body_text_params=["Onboarding Teacher"],
         include_image_header=False,
     )
 
@@ -180,18 +194,19 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_reminder_messages_formats_empty_user_name_without_extra_space() -> (
-    None
-):
+async def test_send_reminder_messages_without_name_uses_static_template() -> None:
     reminder_cron = import_module("scripts.crons.send_reminder_messages_cron")
 
     user = User(id=303, wa_id="255700003003", name=None)
-    selected_template = "✨ Still teaching{user_name}? I can help now."
 
     mock_whatsapp_client = AsyncMock()
     mock_whatsapp_context = AsyncMock()
     mock_whatsapp_context.__aenter__.return_value = mock_whatsapp_client
     mock_whatsapp_context.__aexit__.return_value = None
+
+    def _pick_first(items: list[str]) -> str:
+        assert items == [WITHOUT_NAME_REMINDER]
+        return items[0]
 
     with (
         patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
@@ -201,11 +216,11 @@ async def test_send_reminder_messages_formats_empty_user_name_without_extra_spac
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
-            return_value=[selected_template],
+            return_value=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.random.choice",
-            return_value=selected_template,
+            side_effect=_pick_first,
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.WhatsAppClient",
@@ -218,20 +233,17 @@ async def test_send_reminder_messages_formats_empty_user_name_without_extra_spac
     ):
         await reminder_cron.send_reminder_messages()
 
-    expected_message = "✨ Still teaching? I can help now."
-
     mock_whatsapp_client.send_template_message.assert_awaited_once_with(
         wa_id=user.wa_id,
-        template_name=reminder_cron.REMINDER_TEMPLATE_ID,
+        template_name=reminder_cron.REMINDER_TEMPLATE_WITHOUT_NAME_ID,
         language_code=reminder_cron.REMINDER_TEMPLATE_LANGUAGE,
-        body_text_params=[expected_message],
+        body_text_params=None,
         include_image_header=False,
     )
 
     created_messages = mock_create_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
-    created_message = created_messages[0]
-    assert created_message.content == expected_message
+    assert created_messages[0].content == WITHOUT_NAME_REMINDER
 
 
 @pytest.mark.asyncio
@@ -242,7 +254,7 @@ async def test_send_reminder_messages_skips_when_no_eligible_users() -> None:
         patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch(
             "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
-            return_value=["Reminder template"],
+            return_value=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.get_users_for_reminder",
@@ -312,11 +324,11 @@ async def test_send_reminder_messages_exits_with_error_when_any_user_send_fails(
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
-            return_value=["Reminder A{user_name}", "Reminder B{user_name}"],
+            return_value=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.random.choice",
-            side_effect=["Reminder A{user_name}", "Reminder B{user_name}"],
+            side_effect=[WITH_NAME_REMINDER, WITHOUT_NAME_REMINDER],
         ),
         patch(
             "scripts.crons.send_reminder_messages_cron.WhatsAppClient",
@@ -340,5 +352,5 @@ async def test_send_reminder_messages_exits_with_error_when_any_user_send_fails(
     assert len(persisted_messages) == 1
     persisted_message = persisted_messages[0]
     assert persisted_message.user_id == users[1].id
-    assert persisted_message.content == "Reminder B Teacher Two"
+    assert persisted_message.content == WITHOUT_NAME_REMINDER
     mock_sys_exit.assert_called_once_with(1)

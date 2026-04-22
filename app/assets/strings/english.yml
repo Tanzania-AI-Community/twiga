@@ -71,9 +71,3 @@ flows:
 rate_limit:
   global_message_limit: "🚫 Twiga is currently unavailable. Please come back later."
   user_message_limit: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Come back later!"
-
-reminder:
-  - "👋 Hi{user_name}! Twiga 🦒 is here whenever you need quick lesson support, activities, or class explanations."
-  - "📚 Friendly reminder from Twiga 🦒: if you're planning lessons this week, I can help you prepare in minutes."
-  - "✨ Still teaching{user_name}? I can help with classroom-ready explanations and practice prompts anytime."
-  - "🚀 Quick nudge from Twiga 🦒: send a topic you're teaching and I’ll help you build today’s class material."
