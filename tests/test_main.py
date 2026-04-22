@@ -10,6 +10,13 @@ from app.main import app, lifespan
 from app.security import flows_signature_required, signature_required
 
 
+@pytest.fixture(autouse=True)
+def clear_dependency_overrides() -> None:
+    app.dependency_overrides.clear()
+    yield
+    app.dependency_overrides.clear()
+
+
 @pytest.mark.asyncio
 async def test_lifespan_success() -> None:
     app = FastAPI()
@@ -192,6 +199,32 @@ async def test_webhook_post_with_rate_limiting_in_request_service() -> None:
 
 
 @pytest.mark.asyncio
+async def test_webhook_post_skips_signature_check_when_mock_whatsapp_enabled() -> None:
+    mock_handle_request = AsyncMock(
+        return_value=JSONResponse(
+            content={"message": "This is a test"}, status_code=200
+        )
+    )
+
+    with (
+        patch("app.security.settings.mock_whatsapp", True),
+        patch("app.main.handle_request", mock_handle_request),
+        patch("app.main.logger") as mock_logger,
+    ):
+        client = TestClient(app)
+
+        response = client.post("/webhooks")
+
+        mock_logger.debug.assert_any_call("webhook_post is being called")
+        assert response.status_code == 200
+        assert response.json() == {"message": "This is a test"}
+
+    assert mock_handle_request.call_count == 1
+    args, _ = mock_handle_request.call_args
+    assert isinstance(args[0], Request)
+
+
+@pytest.mark.asyncio
 async def test_handle_flows_webhook_ok() -> None:
     async def mock_flows_signature_required():
         return None
@@ -204,6 +237,32 @@ async def test_handle_flows_webhook_ok() -> None:
     )
 
     with (
+        patch("app.main.logger") as mock_logger,
+        patch("app.main.flow_client", mock_flow_client),
+    ):
+        client = TestClient(app)
+
+        response = client.post("/flows")
+
+        mock_logger.debug.assert_any_call("flows webhook is being called")
+        assert response.status_code == 200
+        assert response.text == "This is a test"
+
+    assert mock_flow_client.handle_flow_request.call_count == 1
+    args, _ = mock_flow_client.handle_flow_request.call_args
+    assert isinstance(args[0], Request)
+    assert isinstance(args[1], BackgroundTasks)
+
+
+@pytest.mark.asyncio
+async def test_flows_webhook_skips_signature_check_when_mock_whatsapp_enabled() -> None:
+    mock_flow_client = AsyncMock()
+    mock_flow_client.handle_flow_request = AsyncMock(
+        return_value=PlainTextResponse(content="This is a test")
+    )
+
+    with (
+        patch("app.security.settings.mock_whatsapp", True),
         patch("app.main.logger") as mock_logger,
         patch("app.main.flow_client", mock_flow_client),
     ):
