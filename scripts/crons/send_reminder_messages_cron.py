@@ -52,10 +52,10 @@ from scripts.crons.helpers.logging import (
     log_job_start,
 )
 
-REMINDER_TEMPLATE_ID = os.getenv("REMINDER_TEMPLATE_ID", "twiga_inactive_reminder")
-REMINDER_INACTIVITY_DAYS = int(os.getenv("REMINDER_INACTIVITY_DAYS", "7"))
-REMINDER_COOLDOWN_DAYS = int(os.getenv("REMINDER_COOLDOWN_DAYS", "7"))
-REMINDER_TEMPLATE_LANGUAGE = os.getenv("REMINDER_TEMPLATE_LANGUAGE", "en_US")
+REMINDER_TEMPLATE_ID = "twiga_inactive_reminder"
+REMINDER_INACTIVITY_DAYS = 7
+REMINDER_COOLDOWN_DAYS = 7
+REMINDER_TEMPLATE_LANGUAGE = "en_US"
 
 logger = setup_logging(
     name="send_reminder_messages_cron",

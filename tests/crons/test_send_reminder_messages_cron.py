@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.database.enums import UserState
 from app.database.models import User
 
 
@@ -118,6 +119,64 @@ async def test_send_reminder_messages_keeps_template_without_user_name_placehold
     created_messages = mock_create_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
     assert created_messages[0].content == selected_template
+
+
+@pytest.mark.asyncio
+async def test_send_reminder_messages_processes_onboarding_user() -> None:
+    reminder_cron = import_module("scripts.crons.send_reminder_messages_cron")
+
+    user = User(
+        id=505,
+        wa_id="255700005005",
+        name="Onboarding Teacher",
+        state=UserState.onboarding,
+    )
+    selected_template = "🚀 Quick nudge{user_name} from Twiga 🦒."
+
+    mock_whatsapp_client = AsyncMock()
+    mock_whatsapp_context = AsyncMock()
+    mock_whatsapp_context.__aenter__.return_value = mock_whatsapp_client
+    mock_whatsapp_context.__aexit__.return_value = None
+
+    with (
+        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
+        patch(
+            "scripts.crons.send_reminder_messages_cron.get_users_for_reminder",
+            AsyncMock(return_value=[user]),
+        ),
+        patch(
+            "scripts.crons.send_reminder_messages_cron._get_reminder_strings",
+            return_value=[selected_template],
+        ),
+        patch(
+            "scripts.crons.send_reminder_messages_cron.random.choice",
+            return_value=selected_template,
+        ),
+        patch(
+            "scripts.crons.send_reminder_messages_cron.WhatsAppClient",
+            return_value=mock_whatsapp_context,
+        ),
+        patch(
+            "scripts.crons.send_reminder_messages_cron.create_messages",
+            AsyncMock(),
+        ) as mock_create_messages,
+    ):
+        await reminder_cron.send_reminder_messages()
+
+    expected_message = "🚀 Quick nudge Onboarding Teacher from Twiga 🦒."
+    mock_whatsapp_client.send_template_message.assert_awaited_once_with(
+        wa_id=user.wa_id,
+        template_name=reminder_cron.REMINDER_TEMPLATE_ID,
+        language_code=reminder_cron.REMINDER_TEMPLATE_LANGUAGE,
+        body_text_params=[expected_message],
+        include_image_header=False,
+    )
+
+    created_messages = mock_create_messages.await_args.kwargs["messages"]
+    assert len(created_messages) == 1
+    persisted_message = created_messages[0]
+    assert persisted_message.user_id == user.id
+    assert persisted_message.content == expected_message
 
 
 @pytest.mark.asyncio
