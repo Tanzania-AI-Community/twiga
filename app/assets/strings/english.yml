@@ -73,8 +73,7 @@ rate_limit:
   user_message_limit: "🚫 You have reached your daily messaging limit, so Twiga 🦒 is quite sleepy from all of today's texting 🥱. Come back later!"
 
 reminder:
-  templates:
-    - "👋 Hi! Twiga 🦒 is here whenever you need quick lesson support, activities, or class explanations."
-    - "📚 Friendly reminder from Twiga 🦒: if you're planning lessons this week, I can help you prepare in minutes."
-    - "✨ Still teaching? I can help with classroom-ready explanations and practice prompts anytime."
-    - "🚀 Quick nudge from Twiga 🦒: send a topic you're teaching and I’ll help you build today’s class material."
+  - "👋 Hi! Twiga 🦒 is here whenever you need quick lesson support, activities, or class explanations."
+  - "📚 Friendly reminder from Twiga 🦒: if you're planning lessons this week, I can help you prepare in minutes."
+  - "✨ Still teaching? I can help with classroom-ready explanations and practice prompts anytime."
+  - "🚀 Quick nudge from Twiga 🦒: send a topic you're teaching and I’ll help you build today’s class material."
