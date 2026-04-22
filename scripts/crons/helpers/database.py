@@ -189,7 +189,7 @@ async def get_users_for_reminder(
     Get users eligible for reminder messages.
 
     A user is eligible when:
-    - Their state is active or inactive
+    - Their state is active, inactive or onboarding
     - They have a non-null last_message_at timestamp
     - Their last_message_at is older than inactivity_days
     - They have not received a reminder in the last reminder_cooldown_days
@@ -224,7 +224,7 @@ async def get_users_for_reminder(
             )
             .where(
                 and_(
-                    User.state.in_([UserState.active, UserState.inactive]),  # type: ignore
+                    User.state.in_([UserState.active, UserState.inactive, UserState.onboarding]),  # type: ignore
                     User.last_message_at.is_not(None),
                     User.last_message_at < inactivity_threshold,
                     or_(

@@ -162,8 +162,8 @@ async def _process_users(
 async def send_reminder_messages() -> None:
     """Send reminder template messages to users inactive beyond the threshold."""
     log_job_start(
-        logger,
-        "send reminder messages job",
+        logger=logger,
+        job_name="send reminder messages job",
         reminder_template_id=REMINDER_TEMPLATE_ID,
         inactivity_days=REMINDER_INACTIVITY_DAYS,
         reminder_cooldown_days=REMINDER_COOLDOWN_DAYS,
