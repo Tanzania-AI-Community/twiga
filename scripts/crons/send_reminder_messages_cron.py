@@ -45,34 +45,30 @@ REMINDER_TEMPLATE_WITH_NAME_ID = "twiga_inactive_reminder_with_name"
 REMINDER_TEMPLATE_WITHOUT_NAME_ID = "twiga_inactive_reminder"
 REMINDER_INACTIVITY_DAYS = 7
 REMINDER_COOLDOWN_DAYS = 7
-REMINDER_TEMPLATE_LANGUAGE = "en_US"
-WITH_NAME_REMINDER_STRING = (
-    "👋 Hi{user_name}! Twiga 🦒 is here whenever you need quick lesson support, "
-    "activities, or class explanations."
-)
-WITHOUT_NAME_REMINDER_STRING = (
-    "📚 Friendly reminder from Twiga 🦒: if you're planning lessons this week, "
-    "I can help you prepare in minutes."
-)
-REMINDER_STRINGS = [WITH_NAME_REMINDER_STRING, WITHOUT_NAME_REMINDER_STRING]
+REMINDER_TEMPLATES_LANGUAGE = "en_US"
+REMINDER_TEMPLATES: dict[str, dict[str, str | bool]] = {
+    REMINDER_TEMPLATE_WITH_NAME_ID: {
+        "language_code": REMINDER_TEMPLATES_LANGUAGE,
+        "body_text": (
+            "👋 Hi {{1}}! Twiga 🦒 is here whenever you need quick lesson support, "
+            "activities, or class explanations."
+        ),
+        "requires_user_name": True,
+    },
+    REMINDER_TEMPLATE_WITHOUT_NAME_ID: {
+        "language_code": REMINDER_TEMPLATES_LANGUAGE,
+        "body_text": (
+            "📚 Friendly reminder from Twiga 🦒: if you're planning lessons this week, "
+            "I can help you prepare in minutes."
+        ),
+        "requires_user_name": False,
+    },
+}
 
 logger = setup_logging(
     name="send_reminder_messages_cron",
     log_file="/tmp/twiga_send_reminder_messages.log",
 )
-
-
-def _get_reminder_strings() -> list[str]:
-    reminder_strings = REMINDER_STRINGS
-
-    if (
-        not isinstance(reminder_strings, list)
-        or len(reminder_strings) == 0
-        or not all(isinstance(item, str) and item.strip() for item in reminder_strings)
-    ):
-        raise ValueError("Reminder strings must be a non-empty list of strings.")
-
-    return [reminder_string.strip() for reminder_string in reminder_strings]
 
 
 def _build_reminder_db_message(*, user_id: int, reminder_text: str) -> Message:
@@ -90,122 +86,59 @@ def _normalize_user_name(*, user_name: str | None) -> str | None:
     return normalized_name or None
 
 
-def _format_user_name_placeholder(*, user_name: str) -> str:
-    return f" {user_name}"
-
-
-def _get_eligible_reminder_strings(
-    *,
-    reminder_strings: list[str],
-    user_name: str | None,
-) -> list[str]:
+def _get_eligible_template_names(*, user_name: str | None) -> list[str]:
     if user_name is not None:
-        return reminder_strings
+        return list(REMINDER_TEMPLATES.keys())
 
     return [
-        reminder_string
-        for reminder_string in reminder_strings
-        if "{user_name}" not in reminder_string
+        template_name
+        for template_name, template_config in REMINDER_TEMPLATES.items()
+        if not bool(template_config["requires_user_name"])
     ]
 
 
-def _select_template_for_reminder_message(
+def _get_template_payload_for_user(
     *,
-    reminder_template: str,
     user_name: str | None,
-) -> tuple[str, list[str] | None]:
-    if "{user_name}" in reminder_template:
-        if user_name is None:
-            raise ValueError(
-                "Cannot send reminder template requiring user_name when name is missing."
-            )
-        return REMINDER_TEMPLATE_WITH_NAME_ID, [user_name]
-
-    return REMINDER_TEMPLATE_WITHOUT_NAME_ID, None
-
-
-def _format_reminder_message(*, template: str, user_name: str | None) -> str:
-    if "{user_name}" not in template:
-        return template
-
-    if user_name is None:
-        raise ValueError(
-            "Cannot format reminder template requiring user_name when name is missing."
-        )
-
-    return template.format(user_name=_format_user_name_placeholder(user_name=user_name))
-
-
-def _select_reminder_for_user(
-    *,
-    reminder_strings: list[str],
-    user_name: str | None,
-) -> str:
-    eligible_reminder_strings = _get_eligible_reminder_strings(
-        reminder_strings=reminder_strings,
-        user_name=user_name,
-    )
-
-    if len(eligible_reminder_strings) == 0:
+) -> tuple[str, str, str, list[str] | None]:
+    eligible_template_names = _get_eligible_template_names(user_name=user_name)
+    if len(eligible_template_names) == 0:
         raise ValueError("No eligible reminder templates found for user.")
 
-    return random.choice(eligible_reminder_strings)
+    template_name = random.choice(eligible_template_names)
+    template_config = REMINDER_TEMPLATES[template_name]
+    requires_user_name = bool(template_config["requires_user_name"])
 
+    body_text_params: list[str] | None = None
+    if requires_user_name:
+        if user_name is None:
+            raise ValueError(f"Template '{template_name}' requires user_name.")
+        body_text_params = [user_name]
 
-async def _send_whatsapp_template(
-    *,
-    whatsapp_client: WhatsAppClient,
-    wa_id: str,
-    template_name: str,
-    body_text_params: list[str] | None,
-) -> None:
-    await whatsapp_client.send_template_message(
-        wa_id=wa_id,
-        template_name=template_name,
-        language_code=REMINDER_TEMPLATE_LANGUAGE,
-        body_text_params=body_text_params,
-        include_image_header=False,
+    return (
+        template_name,
+        str(template_config["language_code"]),
+        str(template_config["body_text"]),
+        body_text_params,
     )
-
-
-def _get_reminder_message_for_user(
-    *,
-    user_name: str | None,
-    reminder_strings: list[str],
-) -> tuple[str, str, list[str] | None]:
-    selected_reminder_template = _select_reminder_for_user(
-        reminder_strings=reminder_strings,
-        user_name=user_name,
-    )
-    reminder_message = _format_reminder_message(
-        template=selected_reminder_template,
-        user_name=user_name,
-    )
-    template_name, body_text_params = _select_template_for_reminder_message(
-        reminder_template=selected_reminder_template,
-        user_name=user_name,
-    )
-
-    return reminder_message, template_name, body_text_params
 
 
 async def _send_reminder_to_user(
     *,
     user: User,
-    reminder_strings: list[str],
     whatsapp_client: WhatsAppClient,
 ) -> Message:
     user_name = _normalize_user_name(user_name=user.name)
-    reminder_message, template_name, body_text_params = _get_reminder_message_for_user(
-        user_name=user_name,
-        reminder_strings=reminder_strings,
+    template_name, language_code, reminder_message, body_text_params = (
+        _get_template_payload_for_user(user_name=user_name)
     )
 
-    await _send_whatsapp_template(
-        whatsapp_client=whatsapp_client,
+    await whatsapp_client.send_template_message(
         wa_id=user.wa_id,
         template_name=template_name,
+        language_code=language_code,
         body_text_params=body_text_params,
+        include_image_header=False,
     )
 
     if user.id is None:
@@ -220,7 +153,6 @@ async def _send_reminder_to_user(
 async def _process_users(
     *,
     users_for_reminder: Iterable[User],
-    reminder_strings: list[str],
     whatsapp_client: WhatsAppClient,
 ) -> tuple[int, int]:
     success_count = 0
@@ -231,7 +163,6 @@ async def _process_users(
         try:
             reminder_db_message = await _send_reminder_to_user(
                 user=user,
-                reminder_strings=reminder_strings,
                 whatsapp_client=whatsapp_client,
             )
             messages_to_create.append(reminder_db_message)
@@ -247,19 +178,18 @@ async def _process_users(
 
 async def send_reminder_messages() -> None:
     """Send reminder template messages to users inactive beyond the threshold."""
-    log_job_start(
-        logger=logger,
-        job_name="send reminder messages job",
-        reminder_template_with_name_id=REMINDER_TEMPLATE_WITH_NAME_ID,
-        reminder_template_without_name_id=REMINDER_TEMPLATE_WITHOUT_NAME_ID,
-        inactivity_days=REMINDER_INACTIVITY_DAYS,
-        reminder_cooldown_days=REMINDER_COOLDOWN_DAYS,
-        language=REMINDER_TEMPLATE_LANGUAGE,
-    )
-
     try:
         initialize_db()
-        reminder_strings = _get_reminder_strings()
+        log_job_start(
+            logger=logger,
+            job_name="send reminder messages job",
+            reminder_template_with_name_id=REMINDER_TEMPLATE_WITH_NAME_ID,
+            reminder_template_without_name_id=REMINDER_TEMPLATE_WITHOUT_NAME_ID,
+            inactivity_days=REMINDER_INACTIVITY_DAYS,
+            reminder_cooldown_days=REMINDER_COOLDOWN_DAYS,
+            language=REMINDER_TEMPLATES_LANGUAGE,
+        )
+
         users_for_reminder = await get_users_for_reminder(
             inactivity_days=REMINDER_INACTIVITY_DAYS,
             reminder_cooldown_days=REMINDER_COOLDOWN_DAYS,
@@ -274,7 +204,6 @@ async def send_reminder_messages() -> None:
         async with WhatsAppClient() as whatsapp_client:
             success_count, error_count = await _process_users(
                 users_for_reminder=users_for_reminder,
-                reminder_strings=reminder_strings,
                 whatsapp_client=whatsapp_client,
             )
 
