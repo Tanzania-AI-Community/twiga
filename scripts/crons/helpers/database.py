@@ -19,10 +19,8 @@ from sqlmodel import and_, or_, select
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-from app.database.enums import MessageRole, UserState
+from app.database.enums import MessageCronName, MessageRole, UserState
 from app.database.models import Message, User
-
-REMINDER_MESSAGE_TOOL_NAME = "user_inactivity_reminder"
 
 
 def get_database_url() -> str:
@@ -197,7 +195,7 @@ async def get_users_for_reminder(
     - They have not received a reminder in the last reminder_cooldown_days
 
     Reminder messages are tracked by assistant messages with
-    tool_name == "user_inactivity_reminder".
+    cron_name == "send_reminder_messages_cron".
     """
     async with get_session() as session:
         inactivity_threshold = datetime.utcnow() - timedelta(days=inactivity_days)
@@ -211,7 +209,7 @@ async def get_users_for_reminder(
             .where(
                 and_(
                     Message.role == MessageRole.assistant,
-                    Message.tool_name == REMINDER_MESSAGE_TOOL_NAME,
+                    Message.cron_name == MessageCronName.send_reminder_messages_cron,
                 )
             )
             .group_by(Message.user_id)
@@ -274,3 +272,22 @@ async def create_message(message: Message) -> Message:
         await session.commit()
         await session.refresh(message)
         return message
+
+
+async def create_messages(*, messages: list[Message]) -> list[Message]:
+    """
+    Create multiple messages in one database operation.
+
+    Args:
+        messages: Message objects to create
+
+    Returns:
+        list[Message]: Created message objects
+    """
+    if len(messages) == 0:
+        return []
+
+    async with get_session() as session:
+        session.add_all(messages)
+        await session.flush()
+        return messages
