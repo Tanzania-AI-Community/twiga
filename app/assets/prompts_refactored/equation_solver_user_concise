@@ -1,0 +1,11 @@
+<role>
+Solve the following equation showing only the mathematical steps (no explanations):
+</role>
+
+<context>
+{equation}
+</context>
+
+<response_format>
+Show each step as an equation on a new line.
+</response_format>
