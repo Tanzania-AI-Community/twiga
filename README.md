@@ -187,13 +187,20 @@ Thank you to all the people that have contributed to Twiga so far!
 <br /><sub><b>Ben-Temming</b></sub></a>
 <br />
 <a href="#code-Ben-Temming" title="code">💻</a>
-<a href="#ideas-Ben-Temming" title="ideas">🤔</a>
-<a href="#design-Ben-Temming" title="design">🎨</a>
+<a href="#doc-Ben-Temming" title="doc">📖</a>
+<a href="#test-Ben-Temming" title="test">⚠️</a>
 <a href="#infra-Ben-Temming" title="infra">🚇</a>
+<a href="#bug-Ben-Temming" title="bug">🐛</a>
+<a href="#design-Ben-Temming" title="design">🎨</a>
 <a href="#example-Ben-Temming" title="example">💡</a>
 <a href="#ideas-Ben-Temming" title="ideas">🤔</a>
+<a href="#maintenance-Ben-Temming" title="maintenance">🚧</a>
+<a href="#mentoring-Ben-Temming" title="mentoring">🧑‍🏫</a>
+<a href="#projectManagement-Ben-Temming" title="projectManagement">📆</a>
+<a href="#question-Ben-Temming" title="question">💬</a>
 <a href="#review-Ben-Temming" title="review">👀</a>
 <a href="#research-Ben-Temming" title="research">🔬</a>
+<a href="#talk-Ben-Temming" title="talk">📢</a>
 </td>
       <td align="center" valign="top" width="14.285714285714286%">
 <a href="https://github.com/JohanL01"><img src="https://avatars.githubusercontent.com/u/55000709?v=4?s=100" width="100px;" alt="JohanJohanJohan"/>
@@ -220,6 +227,24 @@ Thank you to all the people that have contributed to Twiga so far!
 <a href="#data-Erikbou" title="data">🔣</a>
 <a href="#ideas-Erikbou" title="ideas">🤔</a>
 <a href="#financial-Erikbou" title="financial">💵</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/Bhargavvvvvv"><img src="https://github.com/Bhargavvvvvv.png?s=100" width="100px;" alt="Bhargavvvvvv"/>
+<br /><sub><b>Bhargavvvvvv</b></sub></a>
+<br />
+<a href="#code-Bhargavvvvvv" title="code">💻</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/MommeAbbas"><img src="https://github.com/MommeAbbas.png?s=100" width="100px;" alt="MommeAbbas"/>
+<br /><sub><b>MommeAbbas</b></sub></a>
+<br />
+<a href="#code-MommeAbbas" title="code">💻</a>
+</td>
+      <td align="center" valign="top" width="14.285714285714286%">
+<a href="https://github.com/adricalm"><img src="https://github.com/adricalm.png?s=100" width="100px;" alt="adricalm"/>
+<br /><sub><b>adricalm</b></sub></a>
+<br />
+<a href="#code-adricalm" title="code">💻</a>
 </td>
     </tr>
   </tbody>
