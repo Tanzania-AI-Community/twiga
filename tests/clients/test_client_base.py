@@ -44,6 +44,45 @@ async def test_tool_call_notification_persists_visible_message() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tool_call_notification_uses_notification_field_when_tool_string_is_dict() -> (
+    None
+):
+    """Dict-style tool strings should use the `notification` field for visible messages."""
+    client = DummyClient()
+    user = User(id=11, wa_id="255700000000", name="Teacher")
+
+    with (
+        patch(
+            "app.clients.client_base.strings.get_category",
+            return_value={
+                "generate_necta_style_exam": {
+                    "notification": "📝 Generating a NECTA-style exam, please hold...",
+                    "delivery_success": "Here is your practice exam.",
+                }
+            },
+        ),
+        patch(
+            "app.clients.client_base.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.clients.client_base.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message,
+    ):
+        await client._tool_call_notification(user, "generate_necta_style_exam")
+
+    expected_notification = "📝 Generating a NECTA-style exam, please hold..."
+    mock_send_message.assert_awaited_once_with(user.wa_id, expected_notification)
+    assert mock_create_message.await_args.kwargs == {
+        "user_id": user.id,
+        "role": enums.MessageRole.assistant,
+        "content": expected_notification,
+        "is_present_in_conversation": True,
+    }
+
+
+@pytest.mark.asyncio
 async def test_tool_call_notification_skips_persistence_when_user_id_is_missing() -> (
     None
 ):
