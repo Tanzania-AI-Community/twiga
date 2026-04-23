@@ -57,7 +57,21 @@ class ClientBase(ABC):
             )
             return
 
-        notification_text = tool_strings[tool_name]
+        tool_value = tool_strings[tool_name]
+
+        notification_text: Optional[str]
+        if isinstance(tool_value, str):
+            notification_text = tool_value
+        elif isinstance(tool_value, dict):
+            notification_text = tool_value.get("notification")
+        else:
+            notification_text = None
+
+        if not isinstance(notification_text, str):
+            self.logger.warning(
+                f"Invalid notification string defined for tool '{tool_name}'. "
+            )
+            return
 
         await whatsapp_client.send_message(user.wa_id, notification_text)
 
