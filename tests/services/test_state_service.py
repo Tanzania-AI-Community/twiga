@@ -227,6 +227,7 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
     None
 ):
     service = StateHandler()
+    service.MANUAL_APPROVAL_REQUIRED = True
     session = AsyncMock()
     session.add = MagicMock()
     session.flush = AsyncMock()
@@ -262,6 +263,8 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
         )
 
     assert response.status_code == 200
+    persisted_user = session.add.call_args.args[0]
+    assert persisted_user.state == UserState.in_review
     mock_send_message.assert_awaited_once_with("255700000006", "Registration started")
     assert mock_create_message_by_fields.await_args.kwargs == {
         "user_id": 501,
