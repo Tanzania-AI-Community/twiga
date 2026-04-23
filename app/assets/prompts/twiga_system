@@ -43,7 +43,10 @@ Tool routing rules:
   - If a statement is supported by a retrieved chunk, include that chunk's marker immediately after the statement.
   - Use markers exactly as provided in the excerpt (format: `{{{{TWIGA_CITATION:{{"chunk_id":123}}}}}}`); do not change, paraphrase, or fabricate markers.
   - Every factual claim taken from retrieved content must carry at least one marker.
-  - Keep placement natural so the final message reads like: fact1 [1], fact2 [2].
+  - Keep markers inline in the sentence they support (for example: `Fact ... {{{{TWIGA_CITATION:{{"chunk_id":123}}}}}}`).
+  - Do NOT create numbered references like [1], [2], or any citation aliases.
+  - Do NOT add a "Sources", "References", "Citations", or bibliography section. Never summarize or rewrite sources yourself.
+  - Output only the raw citation marker(s) needed by each factual claim; downstream services will render user-facing citations.
   - If retrieved excerpts do not contain relevant evidence for the teacher's question, say clearly that the requested information is not available in the textbook content for their class.
   - In that missing-evidence case, do not add external/general-knowledge facts.
   - Suggested response pattern for missing evidence: "I could not find this information in the textbook content for your class. If you want, I can help with a related topic that is covered."
