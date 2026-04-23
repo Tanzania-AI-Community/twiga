@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import os
-import argparse
+from typing import Any
+
 import requests
-from typing import List, Dict, Any
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"
@@ -89,7 +90,7 @@ CONTRIBUTION_TYPE_EMOJI = {
 }
 
 
-def load_config() -> Dict[str, Any]:
+def load_config() -> dict[str, Any]:
     """Load the .all-contributorsrc configuration file"""
     if not os.path.exists(CONFIG_FILE):
         return {
@@ -106,13 +107,13 @@ def load_config() -> Dict[str, Any]:
         return json.load(f)
 
 
-def save_config(config: Dict[str, Any]) -> None:
+def save_config(config: dict[str, Any]) -> None:
     """Save the updated config to .all-contributorsrc"""
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=2)
 
 
-def get_github_user_info(username: str) -> Dict[str, Any]:
+def get_github_user_info(username: str) -> dict[str, Any]:
     """Fetch user information from GitHub API"""
     response = requests.get(f"{GITHUB_API_URL}/users/{username}")
     if response.status_code == 200:
@@ -131,8 +132,8 @@ def get_github_user_info(username: str) -> Dict[str, Any]:
 
 
 def add_contributor(
-    config: Dict[str, Any], github_username: str, contributions: List[str]
-) -> Dict[str, Any]:
+    config: dict[str, Any], github_username: str, contributions: list[str]
+) -> dict[str, Any]:
     """Add a new contributor or update an existing one"""
     # Validate contribution types
     valid_contributions = []
@@ -170,7 +171,7 @@ def add_contributor(
     return config
 
 
-def generate_contributor_table(config: Dict[str, Any]) -> str:
+def generate_contributor_table(config: dict[str, Any]) -> str:
     """Generate HTML for the contributors table"""
     contributors = config["contributors"]
     contributors_per_line = config.get("contributorsPerLine", 7)
@@ -231,7 +232,7 @@ def generate_contributor_table(config: Dict[str, Any]) -> str:
     return "\n".join(html)
 
 
-def update_readme(config: Dict[str, Any]) -> None:
+def update_readme(config: dict[str, Any]) -> None:
     """Update the README.md file with the contributors table"""
     for file_path in config["files"]:
         if not os.path.exists(file_path):

@@ -1,21 +1,24 @@
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional
+
 from langchain_core.messages import (
-    SystemMessage,
-    HumanMessage,
     AIMessage,
+    HumanMessage,
+    SystemMessage,
 )
 from langchain_core.messages.base import BaseMessage
-from app.database.models import Message, User
-from app.database.enums import MessageRole
-from app.database.db import create_new_message_by_fields, get_user_message_history
+
+from app.clients.whatsapp_client import whatsapp_client
 from app.config import Prompt, settings
-from app.utils.prompt_manager import prompt_manager
-from app.utils.message_processor import MessageProcessor
-from app.services.whatsapp_service import whatsapp_client
-from app.utils.string_manager import strings, StringCategory
+from app.database.db import create_new_message_by_fields, get_user_message_history
+from app.database.enums import MessageRole
+from app.database.models import Message, User
+from app.tools.registry import ToolName
 from app.tools.tool_manager import ToolManager
-from abc import ABC, abstractmethod
+from app.utils.message_processor import MessageProcessor
+from app.utils.prompt_manager import prompt_manager
+from app.utils.string_manager import StringCategory, strings
 
 
 class ClientBase(ABC):
@@ -44,7 +47,32 @@ class ClientBase(ABC):
 
     async def _tool_call_notification(self, user: User, tool_name: str) -> None:
         """Send a notification to the user when a tool call is made."""
-        notification_text = strings.get_string(StringCategory.TOOLS, tool_name)
+        if tool_name == ToolName.search_knowledge.value:
+            return  # issue #227
+        tool_strings = strings.get_category(StringCategory.TOOLS)
+
+        if tool_name not in tool_strings:
+            self.logger.warning(
+                f"No notification string defined for tool '{tool_name}'. "
+            )
+            return
+
+        tool_value = tool_strings[tool_name]
+
+        notification_text: Optional[str]
+        if isinstance(tool_value, str):
+            notification_text = tool_value
+        elif isinstance(tool_value, dict):
+            notification_text = tool_value.get("notification")
+        else:
+            notification_text = None
+
+        if not isinstance(notification_text, str):
+            self.logger.warning(
+                f"Invalid notification string defined for tool '{tool_name}'. "
+            )
+            return
+
         await whatsapp_client.send_message(user.wa_id, notification_text)
 
         if user.id is None:
@@ -181,6 +209,37 @@ class ClientBase(ABC):
             tool_calls=None,
         )
         return initial_message
+
+    @staticmethod
+    def _get_source_chunk_ids(messages: list[Message]) -> list[int]:
+        """
+        Collect source chunk IDs from tool messages in one response loop.
+        The returned list is deduplicated while preserving first-seen order.
+        This keeps the result deterministic across runs.
+
+        Inputs:
+            - messages: Messages generated in the current thinking loop.
+
+        Returns:
+            - List of unique chunk IDs in the order they were first encountered
+        """
+        if not messages:
+            return []
+
+        seen_chunk_ids: set[int] = set()
+        ordered_chunk_ids: list[int] = []
+
+        for message in messages:
+            if message.role != MessageRole.tool or not message.source_chunk_ids:
+                continue
+
+            for chunk_id in message.source_chunk_ids:
+                if chunk_id in seen_chunk_ids:
+                    continue
+                seen_chunk_ids.add(chunk_id)
+                ordered_chunk_ids.append(chunk_id)
+
+        return ordered_chunk_ids
 
     @staticmethod
     def _format_messages(

@@ -1,7 +1,7 @@
-from enum import Enum
-from typing import Any, Dict
-from functools import cached_property
 import logging
+from enum import Enum
+from functools import cached_property
+from typing import Any
 
 import yaml
 
@@ -46,7 +46,7 @@ class StringResources:
 
     def _load_all_strings(self) -> None:
         """Load all language strings at startup"""
-        self._strings: Dict[str, Dict[str, Any]] = {}
+        self._strings: dict[str, dict[str, Any]] = {}
 
         for lang_file in paths.STRINGS.glob("*.yml"):
             try:
@@ -88,7 +88,7 @@ class StringResources:
 
     def get_category(
         self, category: StringCategory, lang: str = "english"
-    ) -> Dict[str, str]:
+    ) -> dict[str, Any]:
         """Get all strings for a category"""
         try:
             return self._strings[lang][category.value]

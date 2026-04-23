@@ -1,10 +1,11 @@
 import logging
-from typing import List
+
 import requests
 from langchain_openai import OpenAIEmbeddings
 from langchain_together.embeddings import TogetherEmbeddings
 from pydantic import SecretStr
-from app.config import embedding_settings, EmbeddingProvider
+
+from app.config import EmbeddingProvider, embedding_settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class EmbeddingClient:
 
         return f"{self.base_url}/embed"
 
-    def _request_embedding(self, prompt: str) -> List[float]:
+    def _request_embedding(self, prompt: str) -> list[float]:
         payload = {"model": self.model, "input": prompt}
 
         try:
@@ -43,10 +44,10 @@ class EmbeddingClient:
             raise ValueError("Ollama response did not include an 'embedding' field")
         return embedding[0]
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         return self._request_embedding(text)
 
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self._request_embedding(text) for text in texts]
 
 
@@ -110,13 +111,13 @@ def get_embedding_client():
         raise ValueError("No valid embedding provider configured")
 
 
-def get_embedding(text: str) -> List[float]:
+def get_embedding(text: str) -> list[float]:
     """Get embedding for a single text."""
     client = get_embedding_client()
     return client.embed_query(text)
 
 
-def get_embeddings(texts: List[str]) -> List[List[float]]:
+def get_embeddings(texts: list[str]) -> list[list[float]]:
     """Get embeddings for multiple texts."""
     client = get_embedding_client()
     return client.embed_documents(texts)

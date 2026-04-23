@@ -1,19 +1,20 @@
 import json
 import logging
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+import app.database.db as db
 import app.database.enums as enums
+from app.clients.whatsapp_client import whatsapp_client
+from app.monitoring.metrics import record_whatsapp_event
+from app.services.state_service import state_client
 from app.utils.whatsapp_utils import (
     RequestType,
     extract_message,
     extract_message_info,
     get_request_type,
 )
-from app.services.whatsapp_service import whatsapp_client
-from app.services.state_service import state_client
-import app.database.db as db
-from app.monitoring.metrics import record_whatsapp_event
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,6 @@ async def handle_request(request: Request) -> JSONResponse:
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information
     message_info = extract_message_info(body)
-
     message_content = extract_message(message_info.get("message") or {})
 
     if not message_content:

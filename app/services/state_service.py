@@ -2,20 +2,20 @@ import logging
 
 from fastapi.responses import JSONResponse
 
-from app.database.models import Message, User
-from app.services.onboarding_service import onboarding_client
+from app.clients.whatsapp_client import whatsapp_client
 from app.database import db
-from app.services.whatsapp_service import whatsapp_client
-from app.database.enums import MessageRole, UserState, OnboardingState, Role
-from app.utils.string_manager import strings, StringCategory
+from app.database.enums import MessageRole, OnboardingState, Role, UserState
+from app.database.models import Message, User
+from app.monitoring.metrics import record_messages_generated
+from app.services.flows.flow_service import flow_client
+from app.services.messaging_service import messaging_client
+from app.services.onboarding_service import onboarding_client
+from app.services.rate_limit_service import rate_limit_service
+from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     ValidMessageType,
     get_valid_message_type,
 )
-from app.services.messaging_service import messaging_client
-from app.services.rate_limit_service import rate_limit_service
-from app.services.flows.flow_service import flow_client
-from app.monitoring.metrics import record_messages_generated
 
 
 class StateHandler:
@@ -138,7 +138,12 @@ class StateHandler:
     async def handle_active(
         self, user: User, message_info: dict, user_message: Message
     ) -> JSONResponse:
+        await whatsapp_client.send_read_receipt_with_typing_indicator(
+            message_info.get("inbound_message_id", "")
+        )
+
         message_type = get_valid_message_type(message_info)
+
         match message_type:
             case ValidMessageType.SETTINGS_FLOW_SELECTION:
                 return await messaging_client.handle_settings_selection(
@@ -156,8 +161,8 @@ class StateHandler:
     ) -> JSONResponse:
         """Handle new users and route to approval/onboarding according to rollout toggle."""
         try:
+            from app.config import Environment, settings
             from app.database.engine import get_session
-            from app.config import settings, Environment
 
             new_user_state = (
                 UserState.in_review
@@ -257,7 +262,7 @@ class StateHandler:
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
         """Handle users approved by dashboard - send welcome message and onboarding flow"""
         try:
-            from app.config import settings, Environment
+            from app.config import Environment, settings
 
             user.state = UserState.onboarding
             await db.update_user(user)
@@ -317,8 +322,8 @@ class StateHandler:
     async def handle_new_dummy(self, user: User) -> JSONResponse:
         """Create a dummy user with pre-filled data for dev/test environments"""
         try:
+            from app.database.enums import GradeLevel, SubjectName
             from app.database.models import ClassInfo
-            from app.database.enums import SubjectName, GradeLevel
 
             # Update the user object with dummy data
             user.state = UserState.active

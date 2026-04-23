@@ -41,6 +41,50 @@ async def test_handle_request_awaits_flow_complete_handler() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handle_valid_message_routes_with_inbound_message_id() -> None:
+    inbound_message_id = "wamid.ABC123"
+    wa_id = "255700000009"
+    body = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "contacts": [
+                                {"wa_id": wa_id, "profile": {"name": "Teacher"}}
+                            ],
+                            "messages": [
+                                {
+                                    "id": inbound_message_id,
+                                    "timestamp": "1710000000",
+                                    "type": "text",
+                                    "text": {"body": "Hello"},
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    with (
+        patch(
+            "app.services.request_service.handle_chat_message",
+            AsyncMock(return_value=expected_response),
+        ) as mock_handle_chat_message,
+    ):
+        response = await request_service.handle_valid_message(body)
+
+    assert response is expected_response
+    called_wa_id, called_message_info = mock_handle_chat_message.await_args.args
+    assert called_wa_id == wa_id
+    assert called_message_info["inbound_message_id"] == inbound_message_id
+    assert called_message_info["extracted_content"] == "Hello"
+
+
+@pytest.mark.asyncio
 async def test_handle_chat_message_persists_inbound_message_and_routes_active() -> None:
     user = User(
         id=7,

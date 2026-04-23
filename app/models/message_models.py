@@ -1,6 +1,6 @@
-from pydantic import BaseModel
-from typing import List, Dict, Literal, Optional, Union, Any
-from pydantic import model_validator
+from typing import Any, Literal, Optional, Union
+
+from pydantic import BaseModel, model_validator
 
 
 class TextObject(BaseModel):
@@ -18,7 +18,7 @@ class Button(BaseModel):
 
 
 class ButtonsAction(BaseModel):
-    buttons: List[Button]
+    buttons: list[Button]
 
 
 class Row(BaseModel):
@@ -29,12 +29,12 @@ class Row(BaseModel):
 
 class Section(BaseModel):
     title: str
-    rows: List[Row]
+    rows: list[Row]
 
 
 class ListAction(BaseModel):
     button: str
-    sections: List[Section]
+    sections: list[Section]
 
 
 # Main model for interactive button message
@@ -64,7 +64,7 @@ class TextMessage(BaseModel):
     preview_url: bool = False
     to: str
     type: Literal["text"] = "text"
-    text: Dict[Literal["body"], str]
+    text: dict[Literal["body"], str]
 
 
 """
@@ -78,13 +78,13 @@ class TemplateLanguage(BaseModel):
 
 class TemplateComponent(BaseModel):
     type: Literal["header", "body", "footer", "button"]
-    parameters: Optional[List[Dict[str, Any]]] = None
+    parameters: Optional[list[dict[str, Any]]] = None
 
 
 class Template(BaseModel):
     name: str
     language: TemplateLanguage
-    components: Optional[List[TemplateComponent]] = None
+    components: Optional[list[TemplateComponent]] = None
 
 
 class TemplateMessage(BaseModel):
@@ -101,7 +101,7 @@ Models for flow interactive messages
 
 class FlowActionPayload(BaseModel):
     screen: str
-    data: Dict[str, Union[str, int]]
+    data: dict[str, Union[str, int]]
 
 
 class FlowParameters(BaseModel):

@@ -1,11 +1,11 @@
 import logging
 
+from app.clients.whatsapp_client import whatsapp_client
 from app.database import db
+from app.database.enums import MessageRole, OnboardingState
 from app.database.models import User
-from app.database.enums import OnboardingState, MessageRole
 from app.services.flows.flow_service import flow_client
-from app.services.whatsapp_service import whatsapp_client
-from app.utils.string_manager import strings, StringCategory
+from app.utils.string_manager import StringCategory, strings
 
 
 class OnboardingHandler:

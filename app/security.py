@@ -2,10 +2,11 @@
 This module contains the security logic for our webhook.
 """
 
-from fastapi import Request, HTTPException
 import hashlib
 import hmac
 import logging
+
+from fastapi import HTTPException, Request
 
 from app.config import settings
 
@@ -26,6 +27,10 @@ def validate_signature(payload: str, signature: str) -> bool:
 
 # Dependency to ensure that incoming requests to our webhook are valid and signed with the correct signature.
 async def signature_required(request: Request) -> None:
+    if settings.mock_whatsapp:
+        logger.debug("Skipping signature verification because mock WhatsApp is enabled")
+        return
+
     signature = request.headers.get("X-Hub-Signature-256", "")[7:]  # Removing 'sha256='
     payload = await request.body()
 
@@ -36,6 +41,12 @@ async def signature_required(request: Request) -> None:
 
 # Dependency to ensure that incoming requests to our flows webhook are signed with the correct signature.
 async def flows_signature_required(request: Request) -> None:
+    if settings.mock_whatsapp:
+        logger.debug(
+            "Skipping business signature verification because mock WhatsApp is enabled"
+        )
+        return
+
     signature = request.headers.get("X-Hub-Signature-256", "")[7:]  # Removing 'sha256='
     payload = await request.body()
 
