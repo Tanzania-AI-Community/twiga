@@ -70,7 +70,8 @@ class MessagingService:
         self, user: models.User, message: models.Message
     ) -> JSONResponse:
         self.logger.debug(f"Handling command message: {message.content}")
-        assert message.content is not None
+        if message.content is None:
+            raise ValueError("Command message content is unexpectedly None.")
         key = message.content.lower()
         handler = self._command_handlers.get(key, self._command_unknown)
         await handler(user)
