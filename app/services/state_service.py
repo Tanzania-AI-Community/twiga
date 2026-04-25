@@ -189,9 +189,7 @@ class StateHandler:
             await whatsapp_client.send_message(phone_number, response_text)
 
             if new_user.id is None:
-                raise ValueError(
-                    "New user ID is unexpectedly None after registration."
-                )
+                raise ValueError("New user ID is unexpectedly None after registration.")
             await db.create_new_message_by_fields(
                 user_id=new_user.id,
                 role=MessageRole.assistant,

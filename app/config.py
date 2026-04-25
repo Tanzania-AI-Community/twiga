@@ -268,13 +268,9 @@ def initialize_settings():
     tool_settings = ToolSettings()
 
     # Validate required Meta settings
-    if not (
-        settings.meta_api_version and settings.meta_api_version.strip()
-    ):
+    if not (settings.meta_api_version and settings.meta_api_version.strip()):
         raise ValueError("META_API_VERSION is required")
-    if not (
-        settings.meta_app_id and settings.meta_app_id.strip()
-    ):
+    if not (settings.meta_app_id and settings.meta_app_id.strip()):
         raise ValueError("META_APP_ID is required")
     if not (
         settings.meta_app_secret and settings.meta_app_secret.get_secret_value().strip()
@@ -298,9 +294,7 @@ def initialize_settings():
         raise ValueError("WHATSAPP_API_TOKEN is required")
 
     # Validate other required settings
-    if not (
-        settings.database_url and settings.database_url.get_secret_value().strip()
-    ):
+    if not (settings.database_url and settings.database_url.get_secret_value().strip()):
         raise ValueError("DATABASE_URL is required")
 
     return settings, llm_settings, embedding_settings, tool_settings
