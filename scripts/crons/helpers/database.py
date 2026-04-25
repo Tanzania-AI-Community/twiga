@@ -15,11 +15,11 @@ from urllib.parse import urlparse
 
 from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlmodel import and_, select
+from sqlmodel import and_, or_, select
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-from app.database.enums import UserState
+from app.database.enums import MessageCronName, MessageRole, UserState
 from app.database.models import Message, User
 
 
@@ -181,6 +181,65 @@ async def get_users_to_mark_inactive(hours_threshold: int) -> list[User]:
         return list(result.scalars().all())
 
 
+async def get_users_for_reminder(
+    inactivity_days: int,
+    reminder_cooldown_days: int,
+) -> list[User]:
+    """
+    Get users eligible for reminder messages.
+
+    A user is eligible when:
+    - Their state is active, inactive or onboarding
+    - They have a non-null last_message_at timestamp
+    - Their last_message_at is older than inactivity_days
+    - They have not received a reminder in the last reminder_cooldown_days
+
+    Reminder messages are tracked by assistant messages with
+    cron_name == "send_reminder_messages_cron".
+    """
+    async with get_session() as session:
+        inactivity_threshold = datetime.utcnow() - timedelta(days=inactivity_days)
+        cooldown_threshold = datetime.utcnow() - timedelta(days=reminder_cooldown_days)
+
+        reminder_history_subquery = (
+            select(
+                Message.user_id.label("user_id"),
+                func.max(Message.created_at).label("last_reminder_at"),
+            )
+            .where(
+                and_(
+                    Message.role == MessageRole.assistant,
+                    Message.cron_name == MessageCronName.send_reminder_messages_cron,
+                )
+            )
+            .group_by(Message.user_id)
+            .subquery()
+        )
+
+        statement = (
+            select(User)
+            .outerjoin(
+                reminder_history_subquery,
+                User.id == reminder_history_subquery.c.user_id,
+            )
+            .where(
+                and_(
+                    User.state.in_([UserState.active, UserState.inactive, UserState.onboarding]),  # type: ignore
+                    User.last_message_at.is_not(None),
+                    User.last_message_at < inactivity_threshold,
+                    or_(
+                        reminder_history_subquery.c.last_reminder_at.is_(None),
+                        reminder_history_subquery.c.last_reminder_at
+                        < cooldown_threshold,
+                    ),
+                )
+            )
+        )
+
+        result = await session.execute(statement)
+        return list(result.scalars().all())
+
+
 async def update_user(user: User) -> User:
     """
     Update a user in the database.
@@ -213,3 +272,22 @@ async def create_message(message: Message) -> Message:
         await session.commit()
         await session.refresh(message)
         return message
+
+
+async def create_messages(*, messages: list[Message]) -> list[Message]:
+    """
+    Create multiple messages in one database operation.
+
+    Args:
+        messages: Message objects to create
+
+    Returns:
+        list[Message]: Created message objects
+    """
+    if len(messages) == 0:
+        return []
+
+    async with get_session() as session:
+        session.add_all(messages)
+        await session.flush()
+        return messages

@@ -22,6 +22,7 @@ class StringCategory(str, Enum):
     SETTINGS = "settings"
     FLOWS = "flows"
     RATE_LIMIT = "rate_limit"
+    REMINDER = "reminder"
 
 
 class StringResources:

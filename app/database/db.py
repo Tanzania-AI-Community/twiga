@@ -300,6 +300,7 @@ async def create_new_message_by_fields(
     tool_calls: list[dict] | None = None,
     tool_call_id: str | None = None,
     tool_name: str | None = None,
+    cron_name: enums.MessageCronName | None = None,
 ) -> Message:
     message = Message(
         user_id=user_id,
@@ -310,6 +311,7 @@ async def create_new_message_by_fields(
         tool_calls=tool_calls,
         tool_call_id=tool_call_id,
         tool_name=tool_name,
+        cron_name=cron_name,
     )
     return await create_new_message(message)
 

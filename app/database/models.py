@@ -211,6 +211,7 @@ class Message(SQLModel, table=True):
     tool_calls: Optional[list[dict]] = Field(default=None, sa_column=Column(JSON))
     tool_call_id: Optional[str] = Field(default=None)
     tool_name: Optional[str] = Field(default=None, max_length=50)
+    cron_name: Optional[enums.MessageCronName] = Field(default=None, max_length=100)
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),  # type: ignore
