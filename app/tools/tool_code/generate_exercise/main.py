@@ -55,10 +55,10 @@ async def generate_exercise(
         # Format the context and prompt
         context = _format_context(retrieved_content, retrieved_exercises)
         system_prompt = prompt_manager.format_prompt(
-            "exercise_generator_system", class_info=subject
+            "exercise_generator_system_v2", class_info=subject
         )
         user_prompt = prompt_manager.format_prompt(
-            "exercise_generator_user", query=query, context_str=context
+            "exercise_generator_user_v2", query=query, context_str=context
         )
 
         # Convert to LangChain BaseMessage objects
