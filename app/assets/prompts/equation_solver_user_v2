@@ -1,0 +1,11 @@
+<role>
+Solve the following equation and show all steps:
+</role>
+
+<context>
+{equation}
+</context>
+
+<response_format>
+Provide a step-by-step solution that explains each step clearly.
+</response_format>
