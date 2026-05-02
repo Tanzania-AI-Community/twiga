@@ -1,0 +1,10 @@
+<role>
+Follow these instructions ({query})
+</role>
+
+<context>
+Context information is below:
+
+{context_str}
+
+</context>
