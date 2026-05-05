@@ -21,11 +21,11 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
     """
     try:
         system_prompt_name = (
-            "equation_solver_system_concise_v2" if concise else "equation_solver_system_v2"
+            "equation_solver_system_concise" if concise else "equation_solver_system"
         )
         user_prompt_name = (
-            "equation_solver_user_concise_v2" if concise else "equation_solver_user_v2"
-        ) 
+            "equation_solver_user_concise" if concise else "equation_solver_user"
+        )
 
         system_prompt = prompt_manager.format_prompt(system_prompt_name)
         user_prompt = prompt_manager.format_prompt(user_prompt_name, equation=equation)

@@ -54,6 +54,7 @@ find = { include = ["app", "scripts"] }
 
 [tool.uv]
 dev-dependencies = [
+    "pre-commit>=4.0.1",
     "requests>=2.32.3",
 ]
 

@@ -1908,6 +1908,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pre-commit" },
     { name = "requests" },
 ]
 
@@ -1950,7 +1951,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "requests", specifier = ">=2.32.3" }]
+dev = [
+    { name = "pre-commit", specifier = ">=4.0.1" },
+    { name = "requests", specifier = ">=2.32.3" },
+]
 
 [[package]]
 name = "typing-extensions"
