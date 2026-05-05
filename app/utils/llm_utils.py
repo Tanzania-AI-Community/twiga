@@ -1,18 +1,19 @@
 import copy
 import logging
-import backoff
 import os
+from typing import Optional, Union, cast
+
+import backoff
 import requests
-from typing import List, Optional, Dict, cast, Union
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.runnables import Runnable
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langchain_together.chat_models import ChatTogether
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import BaseMessage, AIMessage
-from langchain_core.language_models import BaseChatModel
-from langchain_core.runnables import Runnable
 from pydantic import SecretStr
 
-from app.config import llm_settings, LLMProvider
+from app.config import LLMProvider, llm_settings
 from app.monitoring.metrics import LLMCallTracker
 
 
@@ -88,7 +89,7 @@ if langsmith_active:
     )
 
 
-def _convert_tools_for_gemini(tools: List[Dict]) -> List[Dict]:
+def _convert_tools_for_gemini(tools: list[dict]) -> list[dict]:
     """
     Convert tool schemas to be compatible with Gemini.
     Gemini only allows enum on STRING type properties, so we convert
@@ -111,8 +112,12 @@ def _create_llm_client(
     model_name: str,
     api_key: Optional[SecretStr],
     base_url: Optional[str] = None,
-    tools: Optional[List[Dict]] = None,
+    tools: Optional[list[dict]] = None,
     tool_choice: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    timeout: Optional[float] = None,
+    reasoning_effort: Optional[str] = None,
 ) -> Union[BaseChatModel, Runnable]:
     """
     Internal function to create an LLM client for a specific provider, optionally bound with tools.
@@ -124,16 +129,32 @@ def _create_llm_client(
         base_url: Base URL for providers that support it (OLLAMA/MODAL)
         tools: Optional list of tools for function calling
         tool_choice: Optional tool choice strategy ("auto", "required", etc.)
+        temperature: Sampling temperature (0.0 = deterministic)
+        max_tokens: Maximum number of tokens in the response
+        timeout: Seconds before the request times out
+        reasoning_effort: Reasoning effort for supported models ("low", "medium", "high")
 
     Returns:
         A configured LangChain LLM client, optionally bound with tools
     """
+    optional_params = {
+        k: v
+        for k, v in {
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "timeout": timeout,
+            "reasoning_effort": reasoning_effort,
+        }.items()
+        if v is not None
+    }
+
     if provider == LLMProvider.TOGETHER:
         if not api_key:
             raise ValueError("Together provider requires API_KEY.")
         llm = ChatTogether(
             api_key=api_key,
             model=model_name,
+            **optional_params,
         )
 
     elif provider == LLMProvider.OPENAI:
@@ -142,6 +163,7 @@ def _create_llm_client(
         llm = ChatOpenAI(
             api_key=api_key,
             model=model_name,
+            **optional_params,
         )
 
     elif provider == LLMProvider.OLLAMA:
@@ -151,6 +173,7 @@ def _create_llm_client(
             api_key=api_key or SecretStr("ollama"),
             model=model_name,
             base_url=base_url,
+            **optional_params,
         )
 
     elif provider == LLMProvider.MODAL:
@@ -160,15 +183,22 @@ def _create_llm_client(
             api_key=api_key or SecretStr("modal"),
             model=model_name,
             base_url=base_url,
+            **optional_params,
         )
 
     elif provider == LLMProvider.GOOGLE:
         if not api_key:
             raise ValueError("Google provider requires API_KEY.")
+        google_params = {
+            k: v
+            for k, v in optional_params.items()
+            if k in ("temperature", "max_tokens")
+        }
         llm = ChatGoogleGenerativeAI(
             api_key=api_key,
             model=model_name,
             convert_system_message_to_human=True,
+            **google_params,
         )
 
     else:
@@ -211,15 +241,15 @@ def _check_correct_overriding(
     max_time=45,
 )
 async def async_llm_request(
-    messages: List[BaseMessage],
-    tools: Optional[List[Dict]] = None,
+    messages: list[BaseMessage],
+    tools: Optional[list[dict]] = None,
     tool_choice: Optional[str] = None,
     model_name: Optional[str] = None,
     provider: Optional[LLMProvider] = None,
     api_key: Optional[SecretStr] = None,
     verbose: bool = False,
     run_name: Optional[str] = None,
-    metadata: Optional[Dict] = None,
+    metadata: Optional[dict] = None,
     **kwargs,
 ) -> AIMessage:
     """
@@ -265,7 +295,7 @@ async def async_llm_request(
         elif effective_provider == LLMProvider.MODAL:
             effective_base_url = llm_settings.modal_base_url.get_secret_value()
         else:
-            effective_base_url = None
+            effective_base_url = llm_settings.base_url
 
         llm = _create_llm_client(
             provider=effective_provider,
@@ -274,6 +304,10 @@ async def async_llm_request(
             base_url=effective_base_url,
             tools=tools,
             tool_choice=tool_choice,
+            temperature=llm_settings.temperature,
+            max_tokens=llm_settings.max_tokens,
+            timeout=llm_settings.timeout,
+            reasoning_effort=llm_settings.reasoning_effort,
         )
 
         if verbose:

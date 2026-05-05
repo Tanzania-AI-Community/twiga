@@ -7,6 +7,7 @@ from app.config import Environment
 from app.database.enums import MessageRole, UserState
 from app.database.models import Message, User
 from app.services.state_service import StateHandler
+from app.utils.whatsapp_utils import ValidMessageType
 
 
 class _SessionContext:
@@ -274,53 +275,73 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
 
 
 @pytest.mark.asyncio
-async def test_handle_new_user_registration_in_production_auto_onboards_when_manual_approval_disabled() -> (
-    None
-):
+async def test_handle_active_sends_typing_indicator_before_chat_routing() -> None:
     service = StateHandler()
-    service.MANUAL_APPROVAL_REQUIRED = False
+    user = User(id=77, wa_id="255700000077", name="Teacher", state=UserState.active)
+    user_message = Message(
+        user_id=user.id,
+        role=MessageRole.user,
+        content="Hello",
+        is_present_in_conversation=True,
+    )
+    message_info = {"inbound_message_id": "wamid.ACTIVE001"}
     expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
-
-    session = AsyncMock()
-    session.add = MagicMock()
-    session.flush = AsyncMock()
-    session.commit = AsyncMock()
-
-    async def _refresh_user(user: User) -> None:
-        user.id = 502
-
-    session.refresh = AsyncMock(side_effect=_refresh_user)
 
     with (
         patch(
-            "app.database.engine.get_session",
-            return_value=_SessionContext(session),
+            "app.services.state_service.get_valid_message_type",
+            return_value=ValidMessageType.CHAT,
         ),
-        patch("app.config.settings.environment", Environment.PRODUCTION),
-        patch.object(
-            service,
-            "handle_new_approved_user",
+        patch(
+            "app.services.state_service.whatsapp_client.send_read_receipt_with_typing_indicator",
+            AsyncMock(),
+        ) as mock_send_typing_indicator,
+        patch(
+            "app.services.state_service.messaging_client.handle_chat_message",
             AsyncMock(return_value=expected_response),
-        ) as mock_handle_new_approved_user,
-        patch(
-            "app.services.state_service.whatsapp_client.send_message",
-            AsyncMock(),
-        ) as mock_send_message,
-        patch(
-            "app.services.state_service.db.create_new_message_by_fields",
-            AsyncMock(),
-        ) as mock_create_message_by_fields,
+        ) as mock_handle_chat_message,
     ):
-        response = await service.handle_new_user_registration(
-            phone_number="255700000007",
-            message_info={"extracted_content": "Hi"},
-        )
+        response = await service.handle_active(user, message_info, user_message)
 
     assert response is expected_response
-    persisted_user = session.add.call_args.args[0]
-    assert persisted_user.state == UserState.approved
-    approved_user = mock_handle_new_approved_user.await_args.args[0]
-    assert approved_user.id == 502
-    assert approved_user.state == UserState.approved
-    mock_send_message.assert_not_awaited()
-    mock_create_message_by_fields.assert_not_awaited()
+    mock_send_typing_indicator.assert_awaited_once_with("wamid.ACTIVE001")
+    mock_handle_chat_message.assert_awaited_once_with(user, user_message)
+
+
+@pytest.mark.asyncio
+async def test_handle_active_routes_other_to_messaging_with_inbound_message_id() -> (
+    None
+):
+    service = StateHandler()
+    user = User(id=78, wa_id="255700000078", name="Teacher", state=UserState.active)
+    user_message = Message(
+        user_id=user.id,
+        role=MessageRole.user,
+        content="Unsupported",
+        is_present_in_conversation=True,
+    )
+    message_info = {"inbound_message_id": "wamid.OTHER001"}
+    expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    with (
+        patch(
+            "app.services.state_service.get_valid_message_type",
+            return_value=ValidMessageType.OTHER,
+        ),
+        patch(
+            "app.services.state_service.whatsapp_client.send_read_receipt_with_typing_indicator",
+            AsyncMock(),
+        ) as mock_send_typing_indicator,
+        patch(
+            "app.services.state_service.messaging_client.handle_other_message",
+            AsyncMock(return_value=expected_response),
+        ) as mock_handle_other_message,
+    ):
+        response = await service.handle_active(user, message_info, user_message)
+
+    assert response is expected_response
+    mock_send_typing_indicator.assert_awaited_once_with("wamid.OTHER001")
+    mock_handle_other_message.assert_awaited_once_with(
+        user,
+        user_message,
+    )

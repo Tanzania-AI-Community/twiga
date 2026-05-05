@@ -1,0 +1,9 @@
+Generate a high-quality {question_type} question about the topic: {topic}.
+
+Ensure it does NOT repeat any of the following previously generated questions:
+{previous_questions}
+
+Use the following context from the textbook:
+{context_str}
+
+Remember to return only the requested fields and follow the requested JSON structure exactly.

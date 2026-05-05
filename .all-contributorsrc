@@ -112,8 +112,8 @@
       "profile": "https://github.com/Ben-Temming",
       "contributions": [
         "code",
-        "ideas",
-        "design"
+        "doc",
+        "test"
       ]
     },
     {
@@ -149,6 +149,33 @@
         "data",
         "ideas",
         "financial"
+      ]
+    },
+    {
+      "login": "Bhargavvvvvv",
+      "name": "Bhargavvvvvv",
+      "avatar_url": "https://github.com/Bhargavvvvvv.png",
+      "profile": "https://github.com/Bhargavvvvvv",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "MommeAbbas",
+      "name": "MommeAbbas",
+      "avatar_url": "https://github.com/MommeAbbas.png",
+      "profile": "https://github.com/MommeAbbas",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "adricalm",
+      "name": "adricalm",
+      "avatar_url": "https://github.com/adricalm.png",
+      "profile": "https://github.com/adricalm",
+      "contributions": [
+        "code"
       ]
     }
   ]

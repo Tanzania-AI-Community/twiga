@@ -1,9 +1,8 @@
-from time import time
 import logging
+from time import time
 from urllib.parse import urlparse
 
 from app.config import settings
-
 
 logger = logging.getLogger(__name__)
 

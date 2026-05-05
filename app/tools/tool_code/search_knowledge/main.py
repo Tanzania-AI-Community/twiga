@@ -1,17 +1,23 @@
 import logging
-from typing import List, Optional
-from app.database.db import vector_search
-from app.database.models import Chunk, Resource
-from app.database.enums import ChunkType
+from typing import Optional, TypedDict
+
 import app.database.db as db
+from app.database.db import vector_search
+from app.database.enums import ChunkType
+from app.database.models import Chunk, Resource
 
 logger = logging.getLogger(__name__)
+
+
+class SearchKnowledgeResult(TypedDict):
+    content: str
+    source_chunk_ids: list[int]
 
 
 async def search_knowledge(
     search_phrase: str,
     class_id: int,
-) -> str:
+) -> SearchKnowledgeResult:
     try:
         # Retrieve the resources for the class
         resource_ids = await db.get_class_resources(class_id)
@@ -30,16 +36,19 @@ async def search_knowledge(
             f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
         )
 
-        # Format the context and prompt
-        return _format_context(retrieved_content)
+        chunk_ids = [chunk.id for chunk in retrieved_content]
+        return {
+            "content": _format_context(retrieved_content),
+            "source_chunk_ids": chunk_ids,
+        }
     except Exception as e:
         logger.error(f"An error occurred when searching the knowledge base: {e}")
         raise Exception("Unable to search the course content. Skipping.")
 
 
 def _format_context(
-    retrieved_content: List[Chunk],
-    resources: Optional[List[Resource]] = None,
+    retrieved_content: list[Chunk],
+    resources: Optional[list[Resource]] = None,
 ) -> str:
     # Formatting the context
     context_parts = []
@@ -56,5 +65,8 @@ def _format_context(
             heading = f"-{str(chunk.chunk_type)} from resource {chunk.resource_id}"
         context_parts.append(heading)
         context_parts.append(f"{chunk.content}")
+        context_parts.append(
+            f'Cite as: {{{{TWIGA_CITATION:{{"chunk_id":{chunk.id}}}}}}}\n'
+        )
 
     return str("\n".join(context_parts))

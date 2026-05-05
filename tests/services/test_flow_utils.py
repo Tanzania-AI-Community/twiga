@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-from pydantic import SecretStr
 import pytest
+from pydantic import SecretStr
 
 import app.services.flows.utils as flow_utils
 

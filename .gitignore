@@ -1,3 +1,6 @@
+# ignore pdf files that we generate for exams
+outputs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

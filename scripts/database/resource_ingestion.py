@@ -1,18 +1,18 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-import json
-from pathlib import Path
-from sqlmodel import select
-import logging
-from pydantic import BaseModel
 import argparse
 import asyncio
+import json
+import logging
 import sys
+from pathlib import Path
 
-import app.database.models as models
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlmodel import select
+
 import app.database.db as db
+import app.database.models as models
 from app.database.enums import ChunkType
 from app.database.utils import get_database_url
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

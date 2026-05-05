@@ -1,10 +1,11 @@
-from typing import Any
-from fastapi.responses import PlainTextResponse
 import logging
+from typing import Any
 
+from fastapi.responses import PlainTextResponse
+
+import app.services.flows.utils as flow_utils
 from app.database import db
 from app.database.models import User
-import app.services.flows.utils as flow_utils
 
 logger = logging.getLogger(__name__)
 FLOW_OPTION_TITLE_MAX_LEN = 30

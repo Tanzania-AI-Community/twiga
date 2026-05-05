@@ -7,9 +7,9 @@ For integration testing with the actual LLM, run scripts/tool/test_solve_equatio
 Run only tool tests with: docker-compose -f docker/dev/docker-compose.yml exec app uv run pytest tests/test_solve_equation.py -v -s
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 
 MOCK_RESPONSES = {
     "2x + 5 = 13": {

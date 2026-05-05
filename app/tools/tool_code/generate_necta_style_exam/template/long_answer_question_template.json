@@ -1,0 +1,18 @@
+{
+    "id": null,
+    "marks": null,
+    "description": null,
+    "task": {
+        "prompt": null,
+        "sub_questions": []
+    },
+    "answer": {
+        "example_answer": null,
+        "marking_scheme": null,
+        "marking_points": []
+    },
+    "metadata": {
+        "topic": null,
+        "difficulty": null
+    }
+}

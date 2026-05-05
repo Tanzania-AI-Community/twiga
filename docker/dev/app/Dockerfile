@@ -4,6 +4,13 @@
 # Use a Python image with uv pre-installed
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim as twiga-dev
 
+# Install system dependencies required by Tectonic LaTeX runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        fontconfig \
+        libgraphite2-3 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 
 # Copy dependency files first to leverage caching

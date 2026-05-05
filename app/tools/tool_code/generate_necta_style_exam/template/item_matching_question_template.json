@@ -1,0 +1,13 @@
+{
+    "id": null,
+    "marks": null,
+    "prompt": null,
+    "listA": [],
+    "listB": [],
+    "answers_pairs": {},
+    "allow_reuse_listB": true,
+    "metadata": {
+        "topic": null,
+        "difficulty": null
+    }
+}

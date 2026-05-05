@@ -1,14 +1,17 @@
-import re
-import uuid
+import inspect
 import json
 import logging
-from langchain_core.messages import AIMessage
-from app.database.models import Message
-from app.database.enums import MessageRole
-from typing import Optional, Any
+import re
+import uuid
 from dataclasses import dataclass
-from app.database.models import User
-from app.tools.registry import get_tools_metadata, TOOL_FUNCTION_MAP
+from typing import Any, Optional
+
+from langchain_core.messages import AIMessage
+
+from app.database.enums import MessageRole
+from app.database.models import Message, User
+from app.tools.internal_args import get_internal_tool_args
+from app.tools.registry import TOOL_FUNCTION_MAP, ToolName, get_tools_metadata
 
 
 # Simple Types replacements for OpenAI types
@@ -16,6 +19,12 @@ from app.tools.registry import get_tools_metadata, TOOL_FUNCTION_MAP
 class Function:
     name: str
     arguments: str
+
+
+@dataclass
+class ToolExecutionResult:
+    content: str
+    source_chunk_ids: Optional[list[int]] = None
 
 
 @dataclass
@@ -181,15 +190,31 @@ class ToolManager:
                         f"Unknown tool: {function_name}, cannot process tool call."
                     )
 
-                result = await tool_function(**function_args)
+                tool_function_args = self._build_tool_args(
+                    function_name=function_name,
+                    user=user,
+                    function_args=function_args,
+                )
+                # validate the final tool function args against the tool function signature to avoid runtime errors
+                self._validate_tool_args(
+                    function_name=function_name,
+                    tool_function=tool_function,
+                    tool_function_args=tool_function_args,
+                )
+
+                result = await tool_function(**tool_function_args)
+                split_result: ToolExecutionResult = self._to_tool_execution_result(
+                    result=result, function_name=function_name
+                )
 
                 tool_responses.append(
                     Message(
                         user_id=user.id,
                         role=MessageRole.tool,
-                        content=result,
+                        content=split_result.content,
                         tool_call_id=tool_call.id,
-                        tool_name=tool_call.function.name,
+                        tool_name=function_name,
+                        source_chunk_ids=split_result.source_chunk_ids,
                     )
                 )
 
@@ -205,3 +230,58 @@ class ToolManager:
                     )
                 )
         return tool_responses
+
+    def _build_tool_args(
+        self, user: User, function_name: str, function_args: dict[str, Any]
+    ) -> dict[str, Any]:
+        try:
+            internal_args = get_internal_tool_args(
+                function_name=function_name, user=user
+            )
+
+            if not isinstance(internal_args, dict):
+                self.logger.error(
+                    f"Internal args for tool {function_name} must be a dictionary got {type(internal_args)}."
+                )
+                internal_args = {}
+
+        except Exception as e:
+            self.logger.error(
+                f"Failed to build internal args for tool {function_name}: {str(e)}",
+                exc_info=True,
+            )
+            internal_args = {}
+
+        return {**function_args, **internal_args}
+
+    def _validate_tool_args(
+        self,
+        function_name: str,
+        tool_function: Any,
+        tool_function_args: dict[str, Any],
+    ) -> None:
+        try:
+            inspect.signature(tool_function).bind(**tool_function_args)
+        except TypeError as e:
+            self.logger.error(
+                f"Tool arg validation failed for function '{function_name}'. "
+                f"Error: {str(e)}. provided tool_function_args: {tool_function_args}",
+            )
+            raise ValueError(
+                f"Invalid args for tool '{function_name}': {str(e)}"
+            ) from e
+
+    def _to_tool_execution_result(
+        self,
+        result: Any,
+        function_name: str,
+    ) -> ToolExecutionResult:
+
+        if function_name == ToolName.search_knowledge.value:
+            return ToolExecutionResult(
+                content=result.get("content", ""),
+                source_chunk_ids=result.get("source_chunk_ids"),
+            )
+
+        # all other tools return string content only
+        return ToolExecutionResult(content=str(result))
