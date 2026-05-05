@@ -178,6 +178,3 @@ cython_debug/
 .idea/
 
 scripts/assets/books/
-
-# Ignores any folder named "prompts_refactored" anywhere
-/assets/prompts_refactored/
