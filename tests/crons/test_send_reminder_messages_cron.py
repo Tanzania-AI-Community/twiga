@@ -45,9 +45,6 @@ async def test_send_reminder_messages_sends_with_name_template_and_persists_mess
 
     with (
         patch(
-            "scripts.crons.send_reminder_messages_cron.initialize_db"
-        ) as mock_initialize_db,
-        patch(
             "scripts.crons.send_reminder_messages_cron.get_users_for_reminder",
             AsyncMock(return_value=[user]),
         ),
@@ -65,13 +62,11 @@ async def test_send_reminder_messages_sends_with_name_template_and_persists_mess
             return_value=mock_whatsapp_context,
         ),
         patch(
-            "scripts.crons.send_reminder_messages_cron.create_messages",
+            "scripts.crons.send_reminder_messages_cron.create_new_messages",
             AsyncMock(),
-        ) as mock_create_messages,
+        ) as mock_create_new_messages,
     ):
         await reminder_cron.send_reminder_messages()
-
-    mock_initialize_db.assert_called_once()
     mock_whatsapp_client.send_template_message.assert_awaited_once_with(
         wa_id=user.wa_id,
         template_name=reminder_cron.REMINDER_TEMPLATE_WITH_NAME_ID,
@@ -80,7 +75,7 @@ async def test_send_reminder_messages_sends_with_name_template_and_persists_mess
         include_image_header=False,
     )
 
-    created_messages = mock_create_messages.await_args.kwargs["messages"]
+    created_messages = mock_create_new_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
     created_message = created_messages[0]
     assert created_message.user_id == user.id
@@ -105,7 +100,6 @@ async def test_send_reminder_messages_sends_without_name_template_for_static_cop
     mock_whatsapp_context.__aexit__.return_value = None
 
     with (
-        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch(
             "scripts.crons.send_reminder_messages_cron.get_users_for_reminder",
             AsyncMock(return_value=[user]),
@@ -124,9 +118,9 @@ async def test_send_reminder_messages_sends_without_name_template_for_static_cop
             return_value=mock_whatsapp_context,
         ),
         patch(
-            "scripts.crons.send_reminder_messages_cron.create_messages",
+            "scripts.crons.send_reminder_messages_cron.create_new_messages",
             AsyncMock(),
-        ) as mock_create_messages,
+        ) as mock_create_new_messages,
     ):
         await reminder_cron.send_reminder_messages()
 
@@ -138,7 +132,7 @@ async def test_send_reminder_messages_sends_without_name_template_for_static_cop
         include_image_header=False,
     )
 
-    created_messages = mock_create_messages.await_args.kwargs["messages"]
+    created_messages = mock_create_new_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
     assert created_messages[0].content == WITHOUT_NAME_TEMPLATE_BODY
 
@@ -159,7 +153,6 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
     mock_whatsapp_context.__aexit__.return_value = None
 
     with (
-        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch(
             "scripts.crons.send_reminder_messages_cron.get_users_for_reminder",
             AsyncMock(return_value=[user]),
@@ -178,9 +171,9 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
             return_value=mock_whatsapp_context,
         ),
         patch(
-            "scripts.crons.send_reminder_messages_cron.create_messages",
+            "scripts.crons.send_reminder_messages_cron.create_new_messages",
             AsyncMock(),
-        ) as mock_create_messages,
+        ) as mock_create_new_messages,
     ):
         await reminder_cron.send_reminder_messages()
 
@@ -192,7 +185,7 @@ async def test_send_reminder_messages_processes_onboarding_user() -> None:
         include_image_header=False,
     )
 
-    created_messages = mock_create_messages.await_args.kwargs["messages"]
+    created_messages = mock_create_new_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
     persisted_message = created_messages[0]
     assert persisted_message.user_id == user.id
@@ -214,7 +207,6 @@ async def test_send_reminder_messages_without_name_uses_static_template() -> Non
         return items[0]
 
     with (
-        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch(
             "scripts.crons.send_reminder_messages_cron.get_users_for_reminder",
             AsyncMock(return_value=[user]),
@@ -233,9 +225,9 @@ async def test_send_reminder_messages_without_name_uses_static_template() -> Non
             return_value=mock_whatsapp_context,
         ),
         patch(
-            "scripts.crons.send_reminder_messages_cron.create_messages",
+            "scripts.crons.send_reminder_messages_cron.create_new_messages",
             AsyncMock(),
-        ) as mock_create_messages,
+        ) as mock_create_new_messages,
     ):
         await reminder_cron.send_reminder_messages()
 
@@ -247,7 +239,7 @@ async def test_send_reminder_messages_without_name_uses_static_template() -> Non
         include_image_header=False,
     )
 
-    created_messages = mock_create_messages.await_args.kwargs["messages"]
+    created_messages = mock_create_new_messages.await_args.kwargs["messages"]
     assert len(created_messages) == 1
     assert created_messages[0].content == WITHOUT_NAME_TEMPLATE_BODY
 
@@ -257,7 +249,6 @@ async def test_send_reminder_messages_skips_when_no_eligible_users() -> None:
     reminder_cron = import_module("scripts.crons.send_reminder_messages_cron")
 
     with (
-        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch.dict(
             "scripts.crons.send_reminder_messages_cron.REMINDER_TEMPLATES",
             _reminder_templates(reminder_cron),
@@ -271,14 +262,14 @@ async def test_send_reminder_messages_skips_when_no_eligible_users() -> None:
             "scripts.crons.send_reminder_messages_cron.WhatsAppClient"
         ) as mock_whatsapp_client_class,
         patch(
-            "scripts.crons.send_reminder_messages_cron.create_messages",
+            "scripts.crons.send_reminder_messages_cron.create_new_messages",
             AsyncMock(),
-        ) as mock_create_messages,
+        ) as mock_create_new_messages,
     ):
         await reminder_cron.send_reminder_messages()
 
     mock_whatsapp_client_class.assert_not_called()
-    mock_create_messages.assert_not_awaited()
+    mock_create_new_messages.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -287,7 +278,6 @@ async def test_send_reminder_messages_exits_when_template_mapping_is_invalid() -
     user = User(id=909, wa_id="255700009009", name=None)
 
     with (
-        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch.dict(
             "scripts.crons.send_reminder_messages_cron.REMINDER_TEMPLATES",
             {
@@ -333,7 +323,6 @@ async def test_send_reminder_messages_exits_with_error_when_any_user_send_fails(
     mock_whatsapp_context.__aexit__.return_value = None
 
     with (
-        patch("scripts.crons.send_reminder_messages_cron.initialize_db"),
         patch.dict(
             "scripts.crons.send_reminder_messages_cron.REMINDER_TEMPLATES",
             _reminder_templates(reminder_cron),
@@ -355,9 +344,9 @@ async def test_send_reminder_messages_exits_with_error_when_any_user_send_fails(
             return_value=mock_whatsapp_context,
         ),
         patch(
-            "scripts.crons.send_reminder_messages_cron.create_messages",
+            "scripts.crons.send_reminder_messages_cron.create_new_messages",
             AsyncMock(),
-        ) as mock_create_messages,
+        ) as mock_create_new_messages,
         patch(
             "scripts.crons.send_reminder_messages_cron.sys.exit",
             side_effect=SystemExit(1),
@@ -366,8 +355,8 @@ async def test_send_reminder_messages_exits_with_error_when_any_user_send_fails(
         with pytest.raises(SystemExit):
             await reminder_cron.send_reminder_messages()
 
-    assert mock_create_messages.await_count == 1
-    persisted_messages = mock_create_messages.await_args.kwargs["messages"]
+    assert mock_create_new_messages.await_count == 1
+    persisted_messages = mock_create_new_messages.await_args.kwargs["messages"]
     assert len(persisted_messages) == 1
     persisted_message = persisted_messages[0]
     assert persisted_message.user_id == users[1].id

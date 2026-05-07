@@ -30,9 +30,8 @@ from app.database.enums import MessageCronName, MessageRole
 from app.database.models import Message, User
 from scripts.crons.helpers import (
     WhatsAppClient,
-    create_messages,
+    create_new_messages,
     get_users_for_reminder,
-    initialize_db,
     setup_logging,
 )
 from scripts.crons.helpers.logging import (
@@ -171,7 +170,7 @@ async def _process_users(
             log_item_error(logger, "user", user.wa_id, "send reminder to", exc)
             error_count += 1
 
-    await create_messages(messages=messages_to_create)
+    await create_new_messages(messages=messages_to_create)
 
     return success_count, error_count
 
@@ -179,7 +178,6 @@ async def _process_users(
 async def send_reminder_messages() -> None:
     """Send reminder template messages to users inactive beyond the threshold."""
     try:
-        initialize_db()
         log_job_start(
             logger=logger,
             job_name="send reminder messages job",
