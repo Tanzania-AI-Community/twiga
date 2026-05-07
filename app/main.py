@@ -10,7 +10,7 @@ from app.config import Environment, embedding_settings, llm_settings, settings
 from app.database.engine import db_engine, init_db
 from app.monitoring import metrics  # noqa: F401 - registers metrics on import
 from app.redis.engine import disconnect_redis, init_redis
-from app.security import flows_signature_required, signature_required
+from app.security import flows_signature_required
 from app.services.flows.flow_service import flow_client
 from app.services.request_service import handle_request
 
@@ -66,7 +66,7 @@ async def webhook_get(request: Request) -> Response:
     return whatsapp_client.verify(request)
 
 
-@app.post("/webhooks", dependencies=[Depends(signature_required)])
+@app.post("/webhooks")  # dependencies=[Depends(signature_required)])
 async def webhook_post(request: Request) -> JSONResponse:
     logger.debug("webhook_post is being called")
     return await handle_request(request)
