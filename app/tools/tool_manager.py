@@ -11,10 +11,7 @@ from langchain_core.messages import AIMessage
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.tools.internal_args import get_internal_tool_args
-from app.tools.registry import (
-    TOOL_FUNCTION_MAP,
-    get_tools_metadata,
-)
+from app.tools.registry import TOOL_FUNCTION_MAP, ToolName, get_tools_metadata
 
 
 # Simple Types replacements for OpenAI types
@@ -22,6 +19,12 @@ from app.tools.registry import (
 class Function:
     name: str
     arguments: str
+
+
+@dataclass
+class ToolExecutionResult:
+    content: str
+    source_chunk_ids: Optional[list[int]] = None
 
 
 @dataclass
@@ -200,14 +203,18 @@ class ToolManager:
                 )
 
                 result = await tool_function(**tool_function_args)
+                split_result: ToolExecutionResult = self._to_tool_execution_result(
+                    result=result, function_name=function_name
+                )
 
                 tool_responses.append(
                     Message(
                         user_id=user.id,
                         role=MessageRole.tool,
-                        content=result,
+                        content=split_result.content,
                         tool_call_id=tool_call.id,
-                        tool_name=tool_call.function.name,
+                        tool_name=function_name,
+                        source_chunk_ids=split_result.source_chunk_ids,
                     )
                 )
 
@@ -263,3 +270,18 @@ class ToolManager:
             raise ValueError(
                 f"Invalid args for tool '{function_name}': {str(e)}"
             ) from e
+
+    def _to_tool_execution_result(
+        self,
+        result: Any,
+        function_name: str,
+    ) -> ToolExecutionResult:
+
+        if function_name == ToolName.search_knowledge.value:
+            return ToolExecutionResult(
+                content=result.get("content", ""),
+                source_chunk_ids=result.get("source_chunk_ids"),
+            )
+
+        # all other tools return string content only
+        return ToolExecutionResult(content=str(result))

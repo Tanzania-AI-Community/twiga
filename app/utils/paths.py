@@ -43,6 +43,11 @@ class ProjectPaths:
         return self.ASSETS / "prompts"
 
     @cached_property
+    def CONFIG(self) -> Path:
+        """Directory containing YAML configuration files"""
+        return self.ASSETS / "config"
+
+    @cached_property
     def STRINGS(self) -> Path:
         """Directory containing string resources"""
         return self.ASSETS / "strings"

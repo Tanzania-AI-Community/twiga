@@ -1,6 +1,6 @@
 [project]
 name = "twiga"
-version = "0.1.7"
+version = "0.2.0"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = [

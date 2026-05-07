@@ -5,6 +5,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.clients.whatsapp_client import whatsapp_client
 from app.config import Environment, embedding_settings, llm_settings, settings
 from app.database.engine import db_engine, init_db
 from app.monitoring import metrics  # noqa: F401 - registers metrics on import
@@ -12,7 +13,6 @@ from app.redis.engine import disconnect_redis, init_redis
 from app.security import flows_signature_required, signature_required
 from app.services.flows.flow_service import flow_client
 from app.services.request_service import handle_request
-from app.services.whatsapp_service import whatsapp_client
 
 logger = logging.getLogger(__name__)
 

@@ -4,9 +4,9 @@ from typing import Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
 
+from app.clients.client_base import ClientBase
 from app.config import LLMProvider, llm_settings
 from app.database.models import Message, User
-from app.services.client_base import ClientBase
 from app.utils.llm_utils import async_llm_request
 
 
@@ -188,6 +188,9 @@ class LLMClient(ClientBase):
                             )
                             final_message = Message.from_langchain_message(
                                 final_response, user.id
+                            )
+                            final_message.source_chunk_ids = (
+                                self._get_source_chunk_ids(new_messages) or None
                             )
                             new_messages.append(final_message)
 

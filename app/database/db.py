@@ -295,19 +295,23 @@ async def create_new_message_by_fields(
     user_id: int,
     role: enums.MessageRole,
     content: str | None = None,
+    source_chunk_ids: list[int] | None = None,
     is_present_in_conversation: bool = False,
     tool_calls: list[dict] | None = None,
     tool_call_id: str | None = None,
     tool_name: str | None = None,
+    cron_name: enums.MessageCronName | None = None,
 ) -> Message:
     message = Message(
         user_id=user_id,
         role=role,
         content=content,
+        source_chunk_ids=source_chunk_ids,
         is_present_in_conversation=is_present_in_conversation,
         tool_calls=tool_calls,
         tool_call_id=tool_call_id,
         tool_name=tool_name,
+        cron_name=cron_name,
     )
     return await create_new_message(message)
 

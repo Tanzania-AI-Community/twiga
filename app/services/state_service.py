@@ -2,6 +2,7 @@ import logging
 
 from fastapi.responses import JSONResponse
 
+from app.clients.whatsapp_client import whatsapp_client
 from app.database import db
 from app.database.enums import MessageRole, OnboardingState, Role, UserState
 from app.database.models import Message, User
@@ -10,7 +11,6 @@ from app.services.flows.flow_service import flow_client
 from app.services.messaging_service import messaging_client
 from app.services.onboarding_service import onboarding_client
 from app.services.rate_limit_service import rate_limit_service
-from app.services.whatsapp_service import whatsapp_client
 from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     ValidMessageType,
@@ -19,6 +19,9 @@ from app.utils.whatsapp_utils import (
 
 
 class StateHandler:
+    # Temporary rollout toggle:
+    MANUAL_APPROVAL_REQUIRED = False
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
@@ -135,7 +138,12 @@ class StateHandler:
     async def handle_active(
         self, user: User, message_info: dict, user_message: Message
     ) -> JSONResponse:
+        await whatsapp_client.send_read_receipt_with_typing_indicator(
+            message_info.get("inbound_message_id", "")
+        )
+
         message_type = get_valid_message_type(message_info)
+
         match message_type:
             case ValidMessageType.SETTINGS_FLOW_SELECTION:
                 return await messaging_client.handle_settings_selection(
@@ -151,16 +159,24 @@ class StateHandler:
     async def handle_new_user_registration(
         self, phone_number: str, message_info: dict
     ) -> JSONResponse:
-        """Handle new users - create with in_review state (flow sent after admin approval)"""
+        """Handle new users and route to approval/onboarding according to rollout toggle."""
         try:
             from app.config import Environment, settings
             from app.database.engine import get_session
 
-            # Create a new user with in_review state (will remain in_review until approved by admin)
+            new_user_state = (
+                UserState.in_review
+                if self.MANUAL_APPROVAL_REQUIRED
+                else UserState.approved
+            )
+
+            # Create a new user in either:
+            # - in_review (legacy manual approval path), or
+            # - approved (auto-onboarding rollout path).
             new_user = User(
                 name=None,  # Will be filled during onboarding flow
                 wa_id=phone_number,
-                state=UserState.in_review,  # In review until approved
+                state=new_user_state,
                 onboarding_state=OnboardingState.new,  # Start with 'new' for normal onboarding flow
                 role=Role.teacher,
             )
@@ -178,6 +194,12 @@ class StateHandler:
                     f"Creating dummy user for {phone_number} in {settings.environment} environment"
                 )
                 return await self.handle_new_dummy(new_user)
+
+            if not self.MANUAL_APPROVAL_REQUIRED:
+                self.logger.info(
+                    "Manual approval bypass enabled. Starting onboarding for new user"
+                )
+                return await self.handle_new_approved_user(new_user)
 
             response_text = strings.get_string(
                 StringCategory.REGISTRATION, "registration_started"

@@ -34,6 +34,7 @@ async def test_create_new_message_by_fields_builds_message_and_delegates() -> No
             tool_calls=[{"id": "call-1"}],
             tool_call_id="call-1",
             tool_name="search_knowledge",
+            cron_name=enums.MessageCronName.send_reminder_messages_cron,
         )
 
     persisted_message = mock_create_new_message.await_args.args[0]
@@ -44,6 +45,9 @@ async def test_create_new_message_by_fields_builds_message_and_delegates() -> No
     assert persisted_message.tool_calls == [{"id": "call-1"}]
     assert persisted_message.tool_call_id == "call-1"
     assert persisted_message.tool_name == "search_knowledge"
+    assert (
+        persisted_message.cron_name == enums.MessageCronName.send_reminder_messages_cron
+    )
     assert created_message is persisted_message
 
 

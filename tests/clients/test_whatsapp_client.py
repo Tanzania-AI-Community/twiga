@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.clients.whatsapp_client import WhatsAppClient
 from app.database.enums import MessageRole
 from app.database.models import User
-from app.services.whatsapp_service import WhatsAppClient
 
 
 @pytest.mark.asyncio
@@ -39,11 +39,11 @@ async def test_flow_complete_event_persists_visible_user_interaction() -> None:
 
     with (
         patch(
-            "app.services.whatsapp_service.db.get_user_by_waid",
+            "app.clients.whatsapp_client.db.get_user_by_waid",
             AsyncMock(return_value=user),
         ),
         patch(
-            "app.services.whatsapp_service.db.create_new_message_by_fields",
+            "app.clients.whatsapp_client.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
     ):
@@ -56,6 +56,32 @@ async def test_flow_complete_event_persists_visible_user_interaction() -> None:
     assert persisted_kwargs["is_present_in_conversation"] is True
     assert persisted_kwargs["content"].startswith("[FLOW_COMPLETED]")
     assert '"field_1": "value-1"' in persisted_kwargs["content"]
+
+    await client.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_send_read_receipt_with_typing_indicator_posts_expected_payload() -> None:
+    client = WhatsAppClient()
+    inbound_message_id = "wamid.ABC123"
+
+    with (
+        patch("app.clients.whatsapp_client.settings.mock_whatsapp", False),
+        patch.object(client.client, "post", AsyncMock()) as mock_post,
+        patch("app.clients.whatsapp_client.log_httpx_response"),
+    ):
+        await client.send_read_receipt_with_typing_indicator(inbound_message_id)
+
+    mock_post.assert_awaited_once_with(
+        "/messages",
+        json={
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": inbound_message_id,
+            "typing_indicator": {"type": "text"},
+        },
+        headers=client.headers,
+    )
 
     await client.client.aclose()
 
@@ -90,11 +116,11 @@ async def test_flow_complete_event_parses_string_payload_and_skips_unknown_user(
 
     with (
         patch(
-            "app.services.whatsapp_service.db.get_user_by_waid",
+            "app.clients.whatsapp_client.db.get_user_by_waid",
             AsyncMock(return_value=None),
         ),
         patch(
-            "app.services.whatsapp_service.db.create_new_message_by_fields",
+            "app.clients.whatsapp_client.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
     ):
@@ -102,5 +128,20 @@ async def test_flow_complete_event_parses_string_payload_and_skips_unknown_user(
 
     assert response.status_code == 200
     mock_create_message_by_fields.assert_not_awaited()
+
+    await client.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_send_read_receipt_with_typing_indicator_skips_empty_message_id() -> None:
+    client = WhatsAppClient()
+
+    with (
+        patch("app.clients.whatsapp_client.settings.mock_whatsapp", False),
+        patch.object(client.client, "post", AsyncMock()) as mock_post,
+    ):
+        await client.send_read_receipt_with_typing_indicator("")
+
+    mock_post.assert_not_awaited()
 
     await client.client.aclose()

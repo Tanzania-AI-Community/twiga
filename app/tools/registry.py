@@ -37,7 +37,7 @@ TOOLS_METADATA = [
                 "properties": {
                     "search_phrase": {
                         "type": "string",
-                        "description": "A message describing the information you are looking for.",
+                        "description": "A short, topic-focused search query (concept keywords only).",
                     },
                     "class_id": {
                         "type": "integer",

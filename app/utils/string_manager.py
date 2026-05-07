@@ -22,6 +22,7 @@ class StringCategory(str, Enum):
     SETTINGS = "settings"
     FLOWS = "flows"
     RATE_LIMIT = "rate_limit"
+    REMINDER = "reminder"
 
 
 class StringResources:
@@ -88,7 +89,7 @@ class StringResources:
 
     def get_category(
         self, category: StringCategory, lang: str = "english"
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """Get all strings for a category"""
         try:
             return self._strings[lang][category.value]
