@@ -24,6 +24,10 @@ class MessageRole(str, Enum):
     system = "system"
 
 
+class MessageCronName(str, Enum):
+    send_reminder_messages_cron = "send_reminder_messages_cron"
+
+
 class GradeLevel(str, Enum):
     p1 = "p1"
     p2 = "p2"
