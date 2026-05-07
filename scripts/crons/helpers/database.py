@@ -10,7 +10,7 @@ import os
 # Import from app directory
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from sqlalchemy import func, text
@@ -198,8 +198,12 @@ async def get_users_for_reminder(
     cron_name == "send_reminder_messages_cron".
     """
     async with get_session() as session:
-        inactivity_threshold = datetime.utcnow() - timedelta(days=inactivity_days)
-        cooldown_threshold = datetime.utcnow() - timedelta(days=reminder_cooldown_days)
+        inactivity_threshold = datetime.now(timezone.utc) - timedelta(
+            days=inactivity_days
+        )
+        cooldown_threshold = datetime.now(timezone.utc) - timedelta(
+            days=reminder_cooldown_days
+        )
 
         reminder_history_subquery = (
             select(

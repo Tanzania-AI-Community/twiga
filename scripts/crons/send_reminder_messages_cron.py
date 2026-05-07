@@ -221,12 +221,8 @@ async def send_reminder_messages() -> None:
 
 async def main():
     """Main entry point."""
-    try:
-        await send_reminder_messages()
-        logger.info("Reminder cron job completed successfully")
-    except Exception as e:
-        logger.error(f"Critical error in reminder cron job: {str(e)}")
-        sys.exit(1)
+    await send_reminder_messages()
+    logger.info("Reminder cron job completed successfully")
 
 
 if __name__ == "__main__":
