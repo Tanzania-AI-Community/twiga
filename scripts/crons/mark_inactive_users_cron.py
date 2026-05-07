@@ -28,7 +28,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 # Import cron helpers
 from helpers import (
     get_users_to_mark_inactive,
-    initialize_db,
     setup_logging,
     update_user,
 )
@@ -65,9 +64,6 @@ async def mark_inactive_users():
     )
 
     try:
-        # Initialize database
-        initialize_db()
-
         # Get all users who should be marked as inactive
         users_to_mark_inactive = await get_users_to_mark_inactive(
             USER_INACTIVITY_THRESHOLD_HOURS

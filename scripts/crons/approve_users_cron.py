@@ -34,7 +34,6 @@ from helpers import (
     WhatsAppClient,
     create_message,
     get_users_by_state,
-    initialize_db,
     setup_logging,
     update_user,
 )
@@ -73,9 +72,6 @@ async def approve_and_welcome_users():
     )
 
     try:
-        # Initialize database
-        initialize_db()
-
         # Get all users with state 'new' (approved by dashboard but not yet welcomed)
         new_users = await get_users_by_state(UserState.approved)
 
