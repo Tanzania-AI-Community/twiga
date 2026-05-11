@@ -22,7 +22,8 @@ class OnboardingHandler:
         self.logger.debug(
             f"Onboarding user {user.wa_id} with onboarding_state {user.onboarding_state}"
         )
-        assert user.onboarding_state is not None
+        if user.onboarding_state is None:
+            raise ValueError("User onboarding_state is unexpectedly None.")
         onboarding_handler = self.handlers.get(
             user.onboarding_state, self.handle_default
         )

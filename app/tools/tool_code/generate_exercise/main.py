@@ -19,7 +19,8 @@ async def generate_exercise(
     try:
         # Retrieve the resources for the class
         resource_ids = await db.get_class_resources(class_id)
-        assert resource_ids
+        if not resource_ids:
+            raise ValueError(f"No resources found for class {class_id}.")
 
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
@@ -86,7 +87,8 @@ async def generate_exercise(
                 ),
             },
         )
-        assert response.content
+        if not response.content:
+            raise ValueError("LLM returned empty exercise content.")
 
         # Convert content to string if it's not already
         content = response.content

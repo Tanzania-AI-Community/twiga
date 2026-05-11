@@ -99,7 +99,8 @@ class RateLimitService:
 
             # Check user limit
             user_key = RedisKeys.USER_RATE(phone_number)
-            assert settings.user_message_limit is not None
+            if settings.user_message_limit is None:
+                raise ValueError("User message rate limit is unexpectedly None.")
             is_exceeded, result = await self._check_rate_limit(
                 key=user_key,
                 limit=settings.user_message_limit,
@@ -122,7 +123,8 @@ class RateLimitService:
 
             # Check global limit
             global_key = RedisKeys.GLOBAL_RATE
-            assert settings.global_message_limit is not None
+            if settings.global_message_limit is None:
+                raise ValueError("Global message rate limit is unexpectedly None.")
             is_exceeded, result = await self._check_rate_limit(
                 key=global_key,
                 limit=settings.global_message_limit,
@@ -167,7 +169,8 @@ class RateLimitService:
         if redis is None:
             return False, 0
 
-        assert settings.time_to_live
+        if not settings.time_to_live:
+            raise ValueError("Rate limit TTL is missing or zero.")
         pipe = await redis.pipeline()
         await pipe.incr(key)
         await pipe.expire(key, settings.time_to_live)
