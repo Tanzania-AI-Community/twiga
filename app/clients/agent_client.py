@@ -219,11 +219,16 @@ class AgentClient(ClientBase):
                     return None
                 finally:
                     # This always runs, whether we returned above or an exception occurred.
-                    self.logger.debug(
-                        "Clearing message buffer and cleaning up processor"
-                    )
-                    processor.clear_messages()
-                    self._cleanup_processor(user.id)
+                    if self.current_last_message_id == processor.last_message_id:
+                        self.logger.debug(
+                            "Clearing message buffer and cleaning up processor"
+                        )
+                        processor.clear_messages()
+                        self._cleanup_processor(user.id)
+                    else:
+                        self.logger.debug(
+                            "New messages detected during processing, not clearing buffer"
+                        )
 
 
 agent_client = AgentClient()
