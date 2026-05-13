@@ -10,18 +10,15 @@ class MessageProcessor:
         self.user_id = user_id
         self.lock = asyncio.Lock()
         self.messages: list[Message] = []
-        self.last_message_id: int | None = None
 
     def add_message(self, message: Message) -> None:
         self.messages.append(message)
-        self.last_message_id = message.id
 
     def get_pending_messages(self) -> list[Message]:
         return self.messages.copy()
 
     def clear_messages(self) -> None:
         self.messages.clear()
-        self.last_message_id = None
 
     @property
     def has_messages(self) -> bool:

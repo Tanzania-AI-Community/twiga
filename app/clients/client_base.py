@@ -26,7 +26,6 @@ class ClientBase(ABC):
         self.logger = logging.getLogger(__name__)
         self._processors: dict[int, MessageProcessor] = {}
         self.tool_manager = ToolManager()
-        self.current_last_message_id: int | None = None
 
     def _get_processor(self, user_id: int) -> MessageProcessor:
         """Get or create a message processor for a user."""
@@ -108,8 +107,6 @@ class ClientBase(ABC):
             Tuple of (None, error_messages) if validation failed
         """
         messages_to_process = processor.get_pending_messages()
-        if messages_to_process:
-            self.current_last_message_id = messages_to_process[-1].id
 
         if not messages_to_process:
             self.logger.warning(f"No messages to process for user.id={user.id}.")
