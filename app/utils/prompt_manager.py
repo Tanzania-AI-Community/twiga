@@ -2,6 +2,8 @@
 
 import logging
 
+import yaml
+
 from app.utils.paths import paths
 
 logger = logging.getLogger(__name__)
@@ -22,36 +24,74 @@ class PromptTemplate:
 
 class PromptManager:
     def __init__(self):
-        self.prompts: dict[str, PromptTemplate] = {}
-        self._load_prompts()
+        self._prompts: dict[tuple[str, str], PromptTemplate] = {}
+        self._active_versions: dict[str, str] = {}
+        self._load_prompts_from_registry()
 
-    def _load_prompts(self) -> None:
-        """Load all .txt files from the prompts directory."""
-        if not paths.PROMPTS.exists():
-            logger.warning(f"Prompts directory not found at {paths.PROMPTS}")
-            return
+    def _load_prompts_from_registry(self) -> None:
+        """Load prompt templates from the registry (prompts.yml) and the prompts directory."""
+        if not paths.PROMPT_REGISTRY.exists():
+            raise FileNotFoundError(
+                f"Prompt registry not found at {paths.PROMPT_REGISTRY}"
+            )
 
-        for prompt_file in paths.PROMPTS.glob("*"):
-            try:
-                with open(prompt_file, "r", encoding="utf-8") as f:
-                    template = f.read()
-                prompt_name = prompt_file.stem
-                self.prompts[prompt_name] = PromptTemplate(template)
-                logger.debug(f"Loaded prompt: {prompt_name}")
-            except Exception as e:
-                logger.error(f"Failed to load prompt {prompt_file}: {e}")
+        with open(paths.PROMPT_REGISTRY, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
 
-    def get_prompt(self, prompt_name: str) -> str:
-        """Get raw prompt template by name."""
-        if prompt_name not in self.prompts:
-            raise KeyError(f"Prompt template not found: {prompt_name}")
-        return self.prompts[prompt_name].template
+        registry: dict = data.get("prompts") or {}
 
-    def format_prompt(self, prompt_name: str, **kwargs) -> str:
+        for name, config in registry.items():
+            active_version: str = config["active_version"]
+            versions: dict = config.get("versions") or {}
+
+            if active_version not in versions:
+                raise ValueError(
+                    f"Active version '{active_version}' for prompt '{name}' is not declared in versions."
+                )
+            self._active_versions[name] = active_version
+
+            # Load every version listed under "versions:" so eval/test code can
+            # use explicit overrides without touching YAML.
+            for version in versions:
+                prompt_path = paths.PROMPTS / name / version
+                if not prompt_path.exists():
+                    raise FileNotFoundError(
+                        f"Prompt file missing for '{name}' version '{version}': {prompt_path}"
+                    )
+                with open(prompt_path, encoding="utf-8") as f:
+                    template_text = f.read()
+                self._prompts[(name, version)] = PromptTemplate(template_text)
+                logger.debug(f"Loaded prompt '{name}' version '{version}'")
+
+    def get_active_prompt(self, name: str) -> str:
+        """Get the raw template text for the active version of a prompt."""
+        version = self.get_active_version(name)
+        return self._prompts[(name, version)].template
+
+    def get_active_version(self, name: str) -> str:
+        """Return the active version label for a prompt (e.g. 'v0.0')."""
+        if name not in self._active_versions:
+            raise KeyError(f"Prompt '{name}' not found in registry.")
+        return self._active_versions[name]
+
+    def format_prompt(
+        self,
+        name: str,
+        *,
+        version: str | None = None,
+        **kwargs,
+    ) -> str:
         """Format a prompt with the given parameters."""
-        if prompt_name not in self.prompts:
-            raise KeyError(f"Prompt template not found: {prompt_name}")
-        return self.prompts[prompt_name].format(**kwargs)
+        resolved_version = (
+            version if version is not None else self.get_active_version(name)
+        )
+        key = (name, resolved_version)
+        if key not in self._prompts:
+            raise KeyError(
+                f"Prompt '{name}' version '{resolved_version}' not loaded. "
+                f"Known versions: {[v for n, v in self._prompts if n == name]}"
+            )
+        return self._prompts[key].format(**kwargs)
 
 
 # Initialize the global instance
