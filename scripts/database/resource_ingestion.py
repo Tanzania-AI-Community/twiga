@@ -201,6 +201,7 @@ async def process_chunks(
                     resource_id=resource_id,
                     content=item.content,
                     chunk_type=ChunkType.text,  # TODO: include in json
+                    page_number=item.page_number,
                     top_level_section_index=str(item.chapter_number),
                     top_level_section_title=title[:100] if title else None,
                     embedding=item.embedding,
