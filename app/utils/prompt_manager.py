@@ -40,6 +40,9 @@ class PromptManager:
 
         registry: dict = data.get("prompts") or {}
 
+        if not registry:
+            raise ValueError("No prompts found in registry.")
+
         for name, config in registry.items():
             active_version: str = config["active_version"]
             versions: dict = config.get("versions") or {}
