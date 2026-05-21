@@ -77,6 +77,19 @@ class PromptManager:
             raise KeyError(f"Prompt '{name}' not found in registry.")
         return self._active_versions[name]
 
+    def _resolve_version(self, name: str, version: str | None = None) -> str:
+        """Resolve the provided version override or fall back to the active version."""
+        resolved_version = version or self.get_active_version(name)
+
+        if (name, resolved_version) not in self._prompts:
+            known_versions = [v for n, v in self._prompts if n == name]
+            raise KeyError(
+                f"Prompt '{name}' version '{resolved_version}' not loaded. "
+                f"Known versions: {known_versions}"
+            )
+
+        return resolved_version
+
     def format_prompt(
         self,
         name: str,
@@ -84,17 +97,31 @@ class PromptManager:
         version: str | None = None,
         **kwargs,
     ) -> str:
-        """Format a prompt with the given parameters."""
-        resolved_version = (
-            version if version is not None else self.get_active_version(name)
-        )
-        key = (name, resolved_version)
-        if key not in self._prompts:
-            raise KeyError(
-                f"Prompt '{name}' version '{resolved_version}' not loaded. "
-                f"Known versions: {[v for n, v in self._prompts if n == name]}"
+        resolved_version = self._resolve_version(name, version)
+        return self._prompts[(name, resolved_version)].format(**kwargs)
+
+    def build_trace_metadata(
+        self,
+        *,
+        system: str,
+        user: str | None = None,
+        system_version: str | None = None,
+        user_version: str | None = None,
+    ) -> dict[str, str]:
+        metadata = {
+            "system_prompt_name": system,
+            "system_prompt_version": self._resolve_version(system, system_version),
+        }
+
+        if user is not None:
+            metadata.update(
+                {
+                    "user_prompt_name": user,
+                    "user_prompt_version": self._resolve_version(user, user_version),
+                }
             )
-        return self._prompts[key].format(**kwargs)
+
+        return metadata
 
 
 # Initialize the global instance
