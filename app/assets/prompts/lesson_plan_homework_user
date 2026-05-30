@@ -1,0 +1,19 @@
+Create homework ideas based on the lesson plan so far.
+
+Lesson details:
+- Class ID: {class_id}
+- Subject: {subject}
+- Topic: {topic}
+- Lesson Title: {lesson_title}
+- Class Context: {class_context}
+
+Objectives and key concepts (JSON):
+{objectives_json}
+
+Lesson flow (JSON):
+{lesson_flow_json}
+
+Return ONLY JSON with this schema:
+{{
+  "homework": ["...", "..."]
+}}

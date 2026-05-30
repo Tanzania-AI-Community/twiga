@@ -1,0 +1,45 @@
+Create the lesson core based on the details and objectives below.
+
+Lesson details:
+- Class ID: {class_id}
+- Subject: {subject}
+- Topic: {topic}
+- Lesson Title: {lesson_title}
+- Class Context: {class_context}
+
+Objectives and key concepts (JSON):
+{objectives_json}
+
+Context from the textbook:
+{context_str}
+
+Return ONLY JSON with this schema:
+{{
+  "materials_preparation": {{
+    "materials_needed": ["..."],
+    "teacher_preparation": ["..."]
+  }},
+  "lesson_flow": [
+    {{
+      "title": "Introduction to topic",
+      "duration_minutes": 25,
+      "activities": [
+        {{"type": "explanation", "content": "..."}}
+      ]
+    }},
+    {{
+      "title": "Exercise",
+      "duration_minutes": 15,
+      "activities": [
+        {{"type": "exercise", "prompt": "...", "answer": "..."}}
+      ]
+    }},
+    {{
+      "title": "Closure",
+      "duration_minutes": 5,
+      "activities": [
+        {{"type": "closure", "content": "..."}}
+      ]
+    }}
+  ]
+}}
