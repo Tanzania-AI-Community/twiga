@@ -47,9 +47,12 @@ async def create_lesson_plan(
             "duration_minutes": 45,
         }
 
+        system_prompt_name_objectives = "lesson_plan_objectives_system"
+        user_prompt_name_objectives = "lesson_plan_objectives_user"
+
         objectives_payload = await _call_llm_json(
-            system_prompt_name="lesson_plan_objectives_system",
-            user_prompt_name="lesson_plan_objectives_user",
+            system_prompt_name=system_prompt_name_objectives,
+            user_prompt_name=user_prompt_name_objectives,
             prompt_vars={
                 "class_id": class_id,
                 "subject": subject,
@@ -65,12 +68,19 @@ async def create_lesson_plan(
                 "class_id": str(class_id),
                 "subject": subject,
                 "topic": topic,
+                **prompt_manager.build_trace_metadata(
+                    system_prompt_name=system_prompt_name_objectives,
+                    user_prompt_name=user_prompt_name_objectives,
+                ),
             },
         )
 
+        system_prompt_name_core = "lesson_plan_core_system"
+        user_prompt_name_core = "lesson_plan_core_user"
+
         core_payload = await _call_llm_json(
-            system_prompt_name="lesson_plan_core_system",
-            user_prompt_name="lesson_plan_core_user",
+            system_prompt_name=system_prompt_name_core,
+            user_prompt_name=user_prompt_name_core,
             prompt_vars={
                 "class_id": class_id,
                 "subject": subject,
@@ -87,12 +97,19 @@ async def create_lesson_plan(
                 "class_id": str(class_id),
                 "subject": subject,
                 "topic": topic,
+                **prompt_manager.build_trace_metadata(
+                    system_prompt_name=system_prompt_name_core,
+                    user_prompt_name=user_prompt_name_core,
+                ),
             },
         )
 
+        system_prompt_name_homework = "lesson_plan_homework_system"
+        user_prompt_name_homework = "lesson_plan_homework_user"
+
         homework_payload = await _call_llm_json(
-            system_prompt_name="lesson_plan_homework_system",
-            user_prompt_name="lesson_plan_homework_user",
+            system_prompt_name=system_prompt_name_homework,
+            user_prompt_name=user_prompt_name_homework,
             prompt_vars={
                 "class_id": class_id,
                 "subject": subject,
@@ -109,6 +126,10 @@ async def create_lesson_plan(
                 "class_id": str(class_id),
                 "subject": subject,
                 "topic": topic,
+                **prompt_manager.build_trace_metadata(
+                    system_prompt_name=system_prompt_name_homework,
+                    user_prompt_name=user_prompt_name_homework,
+                ),
             },
         )
 
