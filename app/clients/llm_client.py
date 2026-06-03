@@ -115,7 +115,7 @@ class LLMClient(ClientBase):
                             "message_count": len(api_messages),
                             "phase": "initial_request",
                             **prompt_manager.build_trace_metadata(
-                                system=Prompt.TWIGA_SYSTEM.value
+                                system_prompt_name=Prompt.TWIGA_SYSTEM.value
                             ),
                         },
                     )
@@ -189,7 +189,7 @@ class LLMClient(ClientBase):
                                     "phase": "final_request_with_tools",
                                     "tool_calls_processed": len(tool_responses),
                                     **prompt_manager.build_trace_metadata(
-                                        system=Prompt.TWIGA_SYSTEM.value
+                                        system_prompt_name=Prompt.TWIGA_SYSTEM.value
                                     ),
                                 },
                             )
