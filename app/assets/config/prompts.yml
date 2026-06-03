@@ -3,70 +3,70 @@ prompts:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   twiga_agent_system:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   equation_solver_system:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   equation_solver_system_concise:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   equation_solver_user:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   equation_solver_user_concise:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   exercise_generator_system:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   exercise_generator_user:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   exam_generator_system:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   exam_generator_user:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   exam_generator_validator_system:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
 
   exam_generator_validator_user:
     active_version: v0.0
     versions:
       v0.0:
-        description: "Initial migrated version."
+        description: "Baseline version."
