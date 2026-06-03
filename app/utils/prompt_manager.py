@@ -103,21 +103,25 @@ class PromptManager:
     def build_trace_metadata(
         self,
         *,
-        system: str,
-        user: str | None = None,
-        system_version: str | None = None,
-        user_version: str | None = None,
+        system_prompt_name: str,
+        user_prompt_name: str | None = None,
+        system_prompt_version: str | None = None,
+        user_prompt_version: str | None = None,
     ) -> dict[str, str]:
         metadata = {
-            "system_prompt_name": system,
-            "system_prompt_version": self._resolve_version(system, system_version),
+            "system_prompt_name": system_prompt_name,
+            "system_prompt_version": self._resolve_version(
+                system_prompt_name, system_prompt_version
+            ),
         }
 
-        if user is not None:
+        if user_prompt_name is not None:
             metadata.update(
                 {
-                    "user_prompt_name": user,
-                    "user_prompt_version": self._resolve_version(user, user_version),
+                    "user_prompt_name": user_prompt_name,
+                    "user_prompt_version": self._resolve_version(
+                        user_prompt_name, user_prompt_version
+                    ),
                 }
             )
 
