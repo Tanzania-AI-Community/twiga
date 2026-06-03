@@ -54,6 +54,10 @@ async def solve_equation(equation: str, concise: bool = True) -> str:
             metadata={
                 "tool": "solve_equation",
                 "equation": equation,
+                **prompt_manager.build_trace_metadata(
+                    system=system_prompt_name,
+                    user=user_prompt_name,
+                ),
             },
         )
 

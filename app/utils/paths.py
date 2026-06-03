@@ -48,6 +48,11 @@ class ProjectPaths:
         return self.ASSETS / "config"
 
     @cached_property
+    def PROMPT_REGISTRY(self) -> Path:
+        """YAML file defining prompt versions, active selections, and metadata"""
+        return self.CONFIG / "prompts.yml"
+
+    @cached_property
     def STRINGS(self) -> Path:
         """Directory containing string resources"""
         return self.ASSETS / "strings"
@@ -59,7 +64,8 @@ class ProjectPaths:
             f"  APP_ROOT: {self.APP_ROOT}\n"
             f"  REPO_ROOT: {self.REPO_ROOT}\n"
             f"  ASSETS: {self.ASSETS}\n"
-            f"  PROMPTS: {self.PROMPTS}"
+            f"  PROMPTS: {self.PROMPTS}\n"
+            f"  PROMPT_REGISTRY: {self.PROMPT_REGISTRY}"
         )
 
 

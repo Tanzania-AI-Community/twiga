@@ -54,11 +54,13 @@ async def generate_exercise(
     try:
         # Format the context and prompt
         context = _format_context(retrieved_content, retrieved_exercises)
+        system_prompt_name = "exercise_generator_system"
+        user_prompt_name = "exercise_generator_user"
         system_prompt = prompt_manager.format_prompt(
-            "exercise_generator_system", class_info=subject
+            system_prompt_name, class_info=subject
         )
         user_prompt = prompt_manager.format_prompt(
-            "exercise_generator_user", query=query, context_str=context
+            user_prompt_name, query=query, context_str=context
         )
 
         # Convert to LangChain BaseMessage objects
@@ -83,6 +85,10 @@ async def generate_exercise(
                 ),
                 "exercise_chunks": (
                     len(retrieved_exercises) if "retrieved_exercises" in locals() else 0
+                ),
+                **prompt_manager.build_trace_metadata(
+                    system=system_prompt_name,
+                    user=user_prompt_name,
                 ),
             },
         )

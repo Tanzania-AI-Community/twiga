@@ -5,9 +5,10 @@ from typing import Optional
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.clients.client_base import ClientBase
-from app.config import LLMProvider, llm_settings
+from app.config import LLMProvider, Prompt, llm_settings
 from app.database.models import Message, User
 from app.utils.llm_utils import async_llm_request
+from app.utils.prompt_manager import prompt_manager
 
 
 def _prepare_message_for_together(message: AIMessage) -> HumanMessage | AIMessage:
@@ -113,6 +114,9 @@ class LLMClient(ClientBase):
                             "user_id": str(user.id),
                             "message_count": len(api_messages),
                             "phase": "initial_request",
+                            **prompt_manager.build_trace_metadata(
+                                system=Prompt.TWIGA_SYSTEM.value
+                            ),
                         },
                     )
 
@@ -184,6 +188,9 @@ class LLMClient(ClientBase):
                                     "message_count": len(api_messages),
                                     "phase": "final_request_with_tools",
                                     "tool_calls_processed": len(tool_responses),
+                                    **prompt_manager.build_trace_metadata(
+                                        system=Prompt.TWIGA_SYSTEM.value
+                                    ),
                                 },
                             )
                             final_message = Message.from_langchain_message(
