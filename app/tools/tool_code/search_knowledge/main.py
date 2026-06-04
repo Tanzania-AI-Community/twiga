@@ -17,11 +17,13 @@ class SearchKnowledgeResult(TypedDict):
 async def search_knowledge(
     search_phrase: str,
     class_id: int,
+    resource_ids: Optional[list[int]] = None,
+    chapter_ids: Optional[list[int]] = None,
+    subchapter_ids: Optional[list[int]] = None,
 ) -> SearchKnowledgeResult:
     try:
         # Retrieve the resources for the class
-        resource_ids = await db.get_class_resources(class_id)
-        assert resource_ids
+        class_resource_ids = await db.get_class_resources(class_id)
 
         # Retrieve the relevant content
         retrieved_content = await vector_search(
