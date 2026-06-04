@@ -5,6 +5,7 @@ This package contains all the tool calls available to Twiga. Each tool is isolat
 ## Current Tools
 
 - **search_knowledge** - Retrieves relevant information from the knowledge base (TIE textbooks)
+- **create_lesson_plan** - Creates a lesson plan scaffold based on class context and topic
 - **generate_exercise** - Generates practice questions based on course literature
 - **solve_equation** - Solves mathematical equations with step-by-step solutions
 - **generate_necta_style_exam** - Generates exams based on course literature using the NECTA style

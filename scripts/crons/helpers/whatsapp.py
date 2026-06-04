@@ -71,6 +71,8 @@ class WhatsAppClient:
         wa_id: str,
         template_name: str,
         language_code: str = "en_US",
+        body_text_params: list[str] | None = None,
+        include_image_header: bool = True,
     ) -> None:
         """
         Send a WhatsApp template message.
@@ -79,6 +81,8 @@ class WhatsAppClient:
             wa_id: WhatsApp ID (phone number) of recipient
             template_name: Name of the approved template message
             language_code: Language code for the template (default: "en_US")
+            body_text_params: Optional body text placeholders for template variables
+            include_image_header: Whether to include the default image header component
 
         Raises:
             httpx.HTTPStatusError: If API request fails
@@ -89,6 +93,34 @@ class WhatsAppClient:
             return
 
         try:
+            components: list[dict] = []
+
+            if include_image_header:
+                components.append(
+                    {
+                        "type": "header",
+                        "parameters": [
+                            {
+                                "type": "image",
+                                "image": {
+                                    "link": "https://twiga.ai.or.tz/external/classroom-image.jpeg"
+                                },
+                            }
+                        ],
+                    }
+                )
+
+            if body_text_params:
+                components.append(
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {"type": "text", "text": value}
+                            for value in body_text_params
+                        ],
+                    }
+                )
+
             payload = {
                 "messaging_product": "whatsapp",
                 "to": wa_id,
@@ -96,21 +128,11 @@ class WhatsAppClient:
                 "template": {
                     "name": template_name,
                     "language": {"code": language_code},
-                    "components": [
-                        {
-                            "type": "header",
-                            "parameters": [
-                                {
-                                    "type": "image",
-                                    "image": {
-                                        "link": "https://twiga.ai.or.tz/external/classroom-image.jpeg"
-                                    },
-                                }
-                            ],
-                        }
-                    ],
                 },
             }
+
+            if components:
+                payload["template"]["components"] = components
 
             response = await self.client.post(
                 "/messages",

@@ -8,6 +8,7 @@ from app.clients.client_base import ClientBase
 from app.config import Prompt, llm_settings
 from app.database.models import Message, User
 from app.utils.llm_utils import async_llm_request
+from app.utils.prompt_manager import prompt_manager
 
 
 class AgentClient(ClientBase):
@@ -49,6 +50,9 @@ class AgentClient(ClientBase):
                 "user_id": str(user.id),
                 "message_count": len(api_messages),
                 "phase": f"agent_loop_{iteration + 1}/{llm_settings.MAX_AGENT_ITERATIONS}",
+                **prompt_manager.build_trace_metadata(
+                    system_prompt_name=Prompt.TWIGA_AGENT_SYSTEM.value
+                ),
             },
         )
 
@@ -108,6 +112,9 @@ class AgentClient(ClientBase):
                 "user_id": str(user.id),
                 "message_count": len(api_messages),
                 "phase": "agent_forced_final_request",
+                **prompt_manager.build_trace_metadata(
+                    system_prompt_name=Prompt.TWIGA_AGENT_SYSTEM.value
+                ),
             },
         )
 
