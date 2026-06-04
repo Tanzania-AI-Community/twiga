@@ -51,7 +51,7 @@ class AgentClient(ClientBase):
                 "message_count": len(api_messages),
                 "phase": f"agent_loop_{iteration + 1}/{llm_settings.MAX_AGENT_ITERATIONS}",
                 **prompt_manager.build_trace_metadata(
-                    system=Prompt.TWIGA_AGENT_SYSTEM.value
+                    system_prompt_name=Prompt.TWIGA_AGENT_SYSTEM.value
                 ),
             },
         )
@@ -113,7 +113,7 @@ class AgentClient(ClientBase):
                 "message_count": len(api_messages),
                 "phase": "agent_forced_final_request",
                 **prompt_manager.build_trace_metadata(
-                    system=Prompt.TWIGA_AGENT_SYSTEM.value
+                    system_prompt_name=Prompt.TWIGA_AGENT_SYSTEM.value
                 ),
             },
         )

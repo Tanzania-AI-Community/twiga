@@ -410,8 +410,8 @@ class ExamGenerator:
                     "topic": topic,
                     "question_type": question_type.value,
                     **prompt_manager.build_trace_metadata(
-                        system=exam_gen_system_name,
-                        user=exam_gen_user_name,
+                        system_prompt_name=exam_gen_system_name,
+                        user_prompt_name=exam_gen_user_name,
                     ),
                 },
             )
@@ -527,8 +527,8 @@ class ExamGenerator:
                 "topic": topic,
                 "question_type": question_type.value,
                 **prompt_manager.build_trace_metadata(
-                    system=validator_system_name,
-                    user=validator_user_name,
+                    system_prompt_name=validator_system_name,
+                    user_prompt_name=validator_user_name,
                 ),
             },
         )

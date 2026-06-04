@@ -70,3 +70,39 @@ prompts:
     versions:
       v0.0:
         description: "Baseline version."
+
+  lesson_plan_core_system:
+      active_version: v0.0
+      versions:
+        v0.0:
+          description: "Baseline version."
+
+  lesson_plan_core_user:
+      active_version: v0.0
+      versions:
+        v0.0:
+          description: "Baseline version."
+
+  lesson_plan_homework_system:
+      active_version: v0.0
+      versions:
+        v0.0:
+          description: "Baseline version."
+
+  lesson_plan_homework_user:
+      active_version: v0.0
+      versions:
+        v0.0:
+          description: "Baseline version."
+
+  lesson_plan_objectives_system:
+      active_version: v0.0
+      versions:
+        v0.0:
+          description: "Baseline version."
+
+  lesson_plan_objectives_user:
+      active_version: v0.0
+      versions:
+        v0.0:
+          description: "Baseline version."

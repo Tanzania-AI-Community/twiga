@@ -3,6 +3,7 @@ import json
 import logging
 from enum import Enum
 
+from app.tools.tool_code.create_lesson_plan.main import create_lesson_plan
 from app.tools.tool_code.generate_exercise.main import generate_exercise
 from app.tools.tool_code.generate_necta_style_exam.main import generate_necta_style_exam
 from app.tools.tool_code.search_knowledge.main import search_knowledge
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ToolName(str, Enum):
+    create_lesson_plan = "create_lesson_plan"
     search_knowledge = "search_knowledge"
     generate_exercise = "generate_exercise"
     solve_equation = "solve_equation"
@@ -19,6 +21,7 @@ class ToolName(str, Enum):
 
 
 TOOL_FUNCTION_MAP = {
+    ToolName.create_lesson_plan.value: create_lesson_plan,
     ToolName.search_knowledge.value: search_knowledge,
     ToolName.generate_exercise.value: generate_exercise,
     ToolName.solve_equation.value: solve_equation,
@@ -117,6 +120,40 @@ TOOLS_METADATA = [
                     },
                 },
                 "required": ["class_id", "subject", "topics"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": ToolName.create_lesson_plan.value,
+            "description": "Create a lesson plan for a specific class, subject, and topic.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "class_id": {
+                        "type": "integer",
+                        "description": "The class id for the lesson plan. Available class IDs: {available_class_ids}",
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "The subject the lesson plan should cover.",
+                    },
+                    "topic": {
+                        "type": "string",
+                        "description": "The topic the lesson plan should cover.",
+                    },
+                    "lesson_title": {
+                        "type": "string",
+                        "description": "The title of the lesson plan.",
+                    },
+                    "class_context": {
+                        "type": "array",
+                        "description": "Optional list of class context notes (prior knowledge, struggles, or relevant notes provided by the teacher).",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["class_id", "subject", "topic", "lesson_title"],
             },
         },
     },

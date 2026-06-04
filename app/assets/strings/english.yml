@@ -30,6 +30,8 @@ settings:
   class_subject_info: "Classes and Subjects"
 
 tools:
+  create_lesson_plan:
+    notification: "📋 Creating a lesson plan, please hold..."
   generate_exercise:
     notification: "📑 Generating exercises from the course content, please hold..."
   generate_necta_style_exam:

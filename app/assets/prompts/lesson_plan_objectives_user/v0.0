@@ -1,0 +1,17 @@
+Create learning objectives and key concepts for the lesson plan below.
+
+Lesson details:
+- Class ID: {class_id}
+- Subject: {subject}
+- Topic: {topic}
+- Lesson Title: {lesson_title}
+- Class Context: {class_context}
+
+Context from the textbook:
+{context_str}
+
+Return ONLY JSON with this schema:
+{{
+  "learning_objectives": ["...", "...", "..."],
+  "key_concepts": ["...", "..."]
+}}
