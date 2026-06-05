@@ -366,9 +366,11 @@ class ExamGenerator:
                 "\n".join(previous_questions) if previous_questions else "None"
             )
 
-            system_prompt = prompt_manager.format_prompt("exam_generator_system")
+            exam_gen_system_name = "exam_generator_system"
+            exam_gen_user_name = "exam_generator_user"
+            system_prompt = prompt_manager.format_prompt(exam_gen_system_name)
             user_prompt = prompt_manager.format_prompt(
-                "exam_generator_user",
+                exam_gen_user_name,
                 question_type=question_type.value,
                 topic=topic,
                 previous_questions=previous_questions_str,
@@ -407,6 +409,10 @@ class ExamGenerator:
                     "subject": subject,
                     "topic": topic,
                     "question_type": question_type.value,
+                    **prompt_manager.build_trace_metadata(
+                        system_prompt_name=exam_gen_system_name,
+                        user_prompt_name=exam_gen_user_name,
+                    ),
                 },
             )
 
@@ -490,14 +496,16 @@ class ExamGenerator:
         template: dict[str, Any],
         expected_total_marks: int,
     ) -> dict[str, Any]:
-        system_prompt = prompt_manager.format_prompt("exam_generator_validator_system")
+        validator_system_name = "exam_generator_validator_system"
+        validator_user_name = "exam_generator_validator_user"
+        system_prompt = prompt_manager.format_prompt(validator_system_name)
         constraints = self._constraints_for(question_type, expected_total_marks)
         prompt_template = self._template_without_system_fields(template)
         template_json = json.dumps(prompt_template, indent=2, ensure_ascii=False)
         candidate_json = json.dumps(question_payload, indent=2, ensure_ascii=False)
 
         user_prompt = prompt_manager.format_prompt(
-            "exam_generator_validator_user",
+            validator_user_name,
             question_type=question_type.value,
             topic=topic,
             constraints=constraints,
@@ -518,6 +526,10 @@ class ExamGenerator:
                 "stage": "question_validator",
                 "topic": topic,
                 "question_type": question_type.value,
+                **prompt_manager.build_trace_metadata(
+                    system_prompt_name=validator_system_name,
+                    user_prompt_name=validator_user_name,
+                ),
             },
         )
 

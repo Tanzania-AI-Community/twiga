@@ -1,6 +1,6 @@
 [project]
 name = "twiga"
-version = "0.2.0"
+version = "0.2.1"
 description = "A WhatsApp chatbot for Tanzanian Teachers"
 readme = "README.md"
 authors = [
@@ -43,6 +43,7 @@ dependencies = [
     "PyMuPDF>=1.24.0",
     "Pillow>=11.0.0",
     "reportlab>=4.4.10",
+    "requests>=2.32.3",
 ]
 
 [build-system]

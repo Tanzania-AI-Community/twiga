@@ -256,7 +256,7 @@ class ClientBase(ABC):
             {
                 "role": MessageRole.system,
                 "content": prompt_manager.format_prompt(
-                    prompt_name=prompt.value,
+                    name=prompt.value,
                     user_name=user.name,
                     class_info=user.formatted_class_info,
                 ),
