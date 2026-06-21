@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Optional
 
 from langchain_core.messages import (
@@ -19,6 +20,18 @@ from app.tools.tool_manager import ToolManager
 from app.utils.message_processor import MessageProcessor
 from app.utils.prompt_manager import prompt_manager
 from app.utils.string_manager import StringCategory, strings
+
+
+@dataclass(frozen=True)
+class BufferedResponse:
+    """Generation was skipped because another request is already processing this user."""
+
+    reason: str = "message_buffered"
+
+
+BUFFERED_RESPONSE = BufferedResponse()
+
+GenerateResponseResult = list[Message] | BufferedResponse | None
 
 
 class ClientBase(ABC):
@@ -292,6 +305,6 @@ class ClientBase(ABC):
         self,
         user: User,
         message: Message,
-    ) -> Optional[list[Message]]:
+    ) -> GenerateResponseResult:
         """Generate a response, handling message batching and tool calls."""
         pass

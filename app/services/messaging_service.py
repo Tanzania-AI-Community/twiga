@@ -7,7 +7,7 @@ import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
-from app.clients.client_base import ClientBase
+from app.clients.client_base import BUFFERED_RESPONSE, ClientBase
 from app.clients.llm_client import llm_client
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.config import llm_settings
@@ -109,6 +109,9 @@ class MessagingService:
         llm_responses = await llm_client.generate_response(
             user=user, message=user_message
         )
+
+        if llm_responses is BUFFERED_RESPONSE:
+            return JSONResponse(content={"status": "ok"}, status_code=200)
 
         if not llm_responses:
             await self._handle_no_llm_response(user)

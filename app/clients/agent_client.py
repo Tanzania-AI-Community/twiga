@@ -1,10 +1,13 @@
 import json
 import logging
-from typing import Optional
 
 from langchain_core.messages import AIMessage
 
-from app.clients.client_base import ClientBase
+from app.clients.client_base import (
+    BUFFERED_RESPONSE,
+    ClientBase,
+    GenerateResponseResult,
+)
 from app.config import Prompt, llm_settings
 from app.database.models import Message, User
 from app.utils.llm_utils import async_llm_request
@@ -124,7 +127,7 @@ class AgentClient(ClientBase):
         self,
         user: User,
         message: Message,
-    ) -> Optional[list[Message]]:
+    ) -> GenerateResponseResult:
         """Generates a response using an agentic loop."""
         if user.id is None:
             self.logger.error("User object is missing an ID, cannot generate response.")
@@ -139,7 +142,7 @@ class AgentClient(ClientBase):
 
         if processor.is_locked:
             self.logger.info(f"Lock held for user {user.id}, message buffered")
-            return None
+            return BUFFERED_RESPONSE
 
         async with processor.lock:
             while True:
