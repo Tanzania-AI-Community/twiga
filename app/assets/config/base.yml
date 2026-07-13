@@ -1,6 +1,6 @@
 
 llm:
-  model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
+  model_name: "MiniMaxAI/MiniMax-M3"
   timeout: 60
   max_tokens: null
   temperature: 0.25
@@ -43,6 +43,6 @@ embedding:
 
 tools:
   solve_equation:
-    model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
+    model_name: "MiniMaxAI/MiniMax-M3"
     provider: together
     temperature: 0.25
