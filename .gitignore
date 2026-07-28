@@ -8,6 +8,10 @@ __pycache__/
 
 .codex/
 
+# local tool-generated dirs: deepeval telemetry marker, streamlit local config
+.deepeval/
+.streamlit/
+
 # C extensions
 *.so
 
@@ -181,3 +185,17 @@ cython_debug/
 .idea/
 
 scripts/assets/books/
+
+# evaluation run outputs: per-run folders (full per-row results + model
+# responses) stay local. The lightweight index — one line per run with date,
+# label and headline scores — can be committed so the team shares history.
+# The golden datasets in eval/data/golden/ ARE meant to be committed.
+eval/data/results/*
+!eval/data/results/runs.csv
+
+# content-addressed cache of generated answers/retrievals — local only,
+# self-invalidating (see eval/generation_cache.py), not for git
+eval/data/generation_cache/
+
+# local re-sampling source for the retrieval working set — not for git
+eval/data/golden/retrieval_golden_pool.csv

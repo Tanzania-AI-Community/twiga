@@ -1,0 +1,51 @@
+question,subject,grade_level,category
+How does photosynthesis produce glucose in plant leaves?,history,os1,out_of_domain
+What is the formula for calculating the area of a trapezium?,history,os1,out_of_domain
+Solve for x: 2x + 6 = 14.,history,os2,out_of_domain
+What is the chemical symbol for potassium?,history,os3,out_of_domain
+How many soldiers fought in the Asante army at the Battle of Feyiase?,history,os1,not_in_book
+What were the names of Obiri-Yeboa's children and which of them inherited the throne?,history,os1,not_in_book
+What was the exact price of a kilogram of cloves in Zanzibar in 1870?,history,os2,not_in_book
+List the full names of all the wives of Kabaka Mutesa I.,history,os2,not_in_book
+Why did the Asante Kingdom relocate its capital from Kumasi to Cairo?,history,os1,false_premise
+In which year did the Mali Empire colonize Portugal?,history,os1,false_premise
+Why did the Buganda Kingdom adopt Christianity as its official religion in the 12th century?,history,os2,false_premise
+Why did Vasco da Gama travel to East Africa by airplane in 1498?,history,os2,false_premise
+Why was the Berlin Conference of 1884 hosted in Nairobi?,history,os3,false_premise
+Who wrote the novel Things Fall Apart and what is its main plot?,geography,os1,out_of_domain
+Explain how enzymes speed up digestion in the human stomach.,geography,os1,out_of_domain
+Describe the structure of a Shakespearean sonnet.,geography,os2,out_of_domain
+How do white blood cells fight infection in the human body?,geography,os3,out_of_domain
+What was the exact population of Dodoma recorded in the 2022 national census?,geography,os1,not_in_book
+What is the average annual rainfall measured at the Mbeya airport weather station?,geography,os2,not_in_book
+What was the exact temperature recorded in Dodoma on 1 January 2024?,geography,os2,not_in_book
+How many tourists visited the Ngorongoro Crater last month?,geography,os3,not_in_book
+Why does the sun orbit the Earth once every twenty-four hours?,geography,os1,false_premise
+Why is Mount Kilimanjaro located in the middle of the Sahara Desert?,geography,os1,false_premise
+Why is the Indian Ocean the largest ocean on Earth?,geography,os2,false_premise
+"Why does the River Nile flow from north to south, starting in Egypt and ending in Uganda?",geography,os3,false_premise
+Who was the first president of Tanzania and what were his main policies?,biology,os1,out_of_domain
+Explain the causes of the First World War in Europe.,biology,os1,out_of_domain
+What events led to the signing of the Treaty of Versailles?,biology,os2,out_of_domain
+Convert 45 degrees Celsius to Fahrenheit showing your working.,biology,os3,out_of_domain
+What is the complete amino acid sequence of human insulin?,biology,os1,not_in_book
+Which Tanzanian hospital performed the country's first successful heart transplant and when?,biology,os2,not_in_book
+What is the current number of registered medical doctors in Tanzania?,biology,os2,not_in_book
+Which gene mutations were identified in the 2023 malaria vaccine trials?,biology,os3,not_in_book
+Why do healthy human beings have three lungs instead of two?,biology,os1,false_premise
+Why do plant cells lack a cell wall while animal cells have one?,biology,os1,false_premise
+Why do red blood cells use their nucleus to produce antibodies?,biology,os2,false_premise
+Why is the human heart located in the abdomen next to the stomach?,biology,os3,false_premise
+Describe the main battles of the Maji Maji rebellion.,agriculture,os1,out_of_domain
+What is the past participle of the irregular verb 'to swim'?,agriculture,os1,out_of_domain
+What is the plot of the play Romeo and Juliet?,agriculture,os2,out_of_domain
+State Newton's three laws of motion.,agriculture,os3,out_of_domain
+What was the average maize yield per hectare recorded in Iringa region in 2023?,agriculture,os1,not_in_book
+Which specific pesticide brands are currently licensed for sale in Tanzania?,agriculture,os2,not_in_book
+What is the current market price of one tray of eggs in Dar es Salaam?,agriculture,os2,not_in_book
+How many hectares of new irrigated farmland were added in Tanzania during 2024?,agriculture,os3,not_in_book
+Which fertilizer subsidy programme did the government announce last year?,agriculture,os4,not_in_book
+Why does maize grow best in permanently waterlogged saline soil?,agriculture,os1,false_premise
+Why should farmers plant crops during the dry season to maximize germination?,agriculture,os1,false_premise
+Why do chickens produce milk to feed their newly hatched chicks?,agriculture,os2,false_premise
+Why does planting the same crop on the same field every year improve soil fertility?,agriculture,os3,false_premise
