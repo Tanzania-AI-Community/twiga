@@ -35,6 +35,7 @@ _LOWER_BETTER = {"hallucination_rate", "retrieval_miss_rate"}
 _MODEL_FIELDS = [
     ("Pipeline", "pipeline"),
     ("Generator", "gen_model"),
+    ("Gen provider", "gen_provider"),
     ("Gen judge", "gen_judge_model"),
     ("Retrieval judge", "retrieval_judge_model"),
     ("Escalation judge", "escalation_judge_model"),

@@ -252,6 +252,10 @@ def render():
 
     embed_api_key = os.environ.get("EVAL_EMBED_API_KEY", "")
     judge_api_key = os.environ.get("EVAL_JUDGE_API_KEY", "")
+    # Generation prefers Together (production's real provider) when it has a
+    # key configured, falling back to OpenRouter (judge_api_key) otherwise —
+    # see eval.twiga_runner.resolve_gen_client.
+    together_api_key = os.environ.get("LLM_API_KEY") or None
     db_url = os.environ.get("DATABASE_URL", "")
     if not embed_api_key:
         st.error("EVAL_EMBED_API_KEY is not set in your environment / .env — can't reach the embedder (DeepInfra).")
@@ -324,6 +328,8 @@ def render():
             f"These mirror the real Twiga — {src} — so the eval can't drift from production. "
             "Change them in Twiga and this follows automatically."
         )
+        gen_provider = "Together (production's real provider)" if together_api_key else "OpenRouter (no LLM_API_KEY set, so falling back)"
+        st.caption(f"Generation provider this run: **{gen_provider}**.")
         st.caption(
             f"Grader: `{GEN_JUDGE_MODEL}` (fixed so runs stay comparable) · second opinion on "
             f"unverifiable facts: `{ESCALATION_JUDGE_MODEL}` · citation and hallucination checks always on."
@@ -445,7 +451,7 @@ def render():
             if ret_rows:
                 phase = "Retrieval"
                 await run_retrieval_eval(
-                    rows=ret_rows, conn=conn, embed_api_key=embed_api_key, gen_api_key=judge_api_key,
+                    rows=ret_rows, conn=conn, embed_api_key=embed_api_key, together_api_key=together_api_key, openrouter_api_key=judge_api_key,
                     judge_llm=retrieval_judge_llm, gen_model=gen_model,
                     top_k=int(twiga_top_k), timeout_s=float(timeout_s),
                     progress_cb=progress_cb, update_cb=update_cb,
@@ -454,7 +460,7 @@ def render():
             if gen_rows:
                 phase = "Generation"
                 await run_generation_eval(
-                    rows=gen_rows, embed_api_key=embed_api_key, gen_api_key=judge_api_key, gen_model=gen_model,
+                    rows=gen_rows, embed_api_key=embed_api_key, together_api_key=together_api_key, openrouter_api_key=judge_api_key, gen_model=gen_model,
                     judge_llm=gen_judge_llm, timeout_s=float(timeout_s),
                     progress_cb=progress_cb, update_cb=update_cb,
                     conn=conn, use_twiga=not use_direct,
@@ -467,7 +473,7 @@ def render():
             if abst_rows:
                 phase = "Abstention"
                 await run_abstention_eval(
-                    rows=abst_rows, conn=conn, embed_api_key=embed_api_key, gen_api_key=judge_api_key,
+                    rows=abst_rows, conn=conn, embed_api_key=embed_api_key, together_api_key=together_api_key, openrouter_api_key=judge_api_key,
                     gen_model=gen_model, judge_llm=gen_judge_llm,
                     top_k=int(twiga_top_k), timeout_s=float(timeout_s),
                     progress_cb=progress_cb, update_cb=update_cb,
@@ -525,6 +531,7 @@ def render():
                         else ",".join(suites + (["lexical"] if run_lexical else []))),
         "pipeline": pipeline_tag,
         "gen_model": gen_model,
+        "gen_provider": "together" if together_api_key else "openrouter",
         "gen_judge_model": gen_judge_model if ("generation" in suites or "abstention" in suites) else None,
         "retrieval_judge_model": retrieval_judge_model if "retrieval" in suites else None,
         "escalation_judge_model": ESCALATION_JUDGE_MODEL if escalate_idk else None,

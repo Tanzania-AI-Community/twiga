@@ -38,7 +38,7 @@ from eval.cleaning import clean_response
 from eval.twiga_runner import (
     OPENROUTER_BASE_URL,
     _embed,
-    openrouter_slug,
+    resolve_gen_client,
     run_twiga_pipeline,
 )
 
@@ -304,8 +304,9 @@ async def run_retrieval_eval(
     rows: list[dict],
     conn: asyncpg.Connection,
     embed_api_key: str,
-    gen_api_key: str,
     judge_llm: OpenRouterJudgeLLM,
+    together_api_key: str | None = None,
+    openrouter_api_key: str | None = None,
     gen_model: str = GEN_MODEL,
     top_k: int = _FALLBACK_TOP_K,
     timeout_s: float = DEFAULT_TIMEOUT_S,
@@ -319,11 +320,13 @@ async def run_retrieval_eval(
 
     With judge_metrics=False only the local ranking metrics (Recall@k, MRR,
     NDCG) are computed — no answer generation and no judge calls — which is
-    what quick runs use (so gen_api_key goes unused there).
+    what quick runs use (so together_api_key/openrouter_api_key go unused
+    there).
 
-    `embed_api_key` (DeepInfra) embeds the retrieval golden queries;
-    `gen_api_key` (OpenRouter) generates the answer the contextual judge
-    metrics score.
+    `embed_api_key` (DeepInfra) embeds the retrieval golden queries. The
+    answer the contextual judge metrics score prefers Together
+    (`together_api_key` — production's real provider) and falls back to
+    OpenRouter (`openrouter_api_key`) if no Together key is set.
 
     skip_judge=True (only meaningful with judge_metrics=True) still generates
     and caches the answer — see eval/generation_cache.py — but skips the
@@ -334,7 +337,6 @@ async def run_retrieval_eval(
     rather than sharing one across rows — a_measure() writes score/reason
     onto `self`, so sharing would let concurrent rows clobber each other.
     """
-    gen_client = AsyncOpenAI(base_url=OPENROUTER_BASE_URL, api_key=gen_api_key, timeout=timeout_s)
     _metric_names = {
         "ContextualPrecisionMetric": "contextual_precision",
         "ContextualRecallMetric": "contextual_recall",
@@ -348,7 +350,13 @@ async def run_retrieval_eval(
             ContextualRelevancyMetric(model=judge_llm, threshold=0.5, verbose_mode=False),
         ] if judge_metrics else []
 
-    gen_fingerprint = generation_cache.retrieval_eval_fingerprint(gen_model)
+    if judge_metrics:
+        gen_client, resolved_gen_model, gen_provider = resolve_gen_client(
+            gen_model, timeout_s, together_api_key, openrouter_api_key,
+        )
+        gen_fingerprint = generation_cache.retrieval_eval_fingerprint(resolved_gen_model, gen_provider)
+    else:
+        gen_client = resolved_gen_model = gen_fingerprint = None
     gen_cache_hits = generation_cache.HitCounter()
     sem = asyncio.Semaphore(concurrency)
 
@@ -392,7 +400,7 @@ async def run_retrieval_eval(
                     else:
                         gen_cache_hits.miss()
                         actual_output = await _generate_response(
-                            gen_client, openrouter_slug(gen_model), row["user_query"], retrieval_context
+                            gen_client, resolved_gen_model, row["user_query"], retrieval_context
                         )
                         generation_cache.put(gen_cache_key, {"response": actual_output})
 
@@ -533,9 +541,10 @@ async def _escalate_ambiguous_claims(
 async def run_generation_eval(
     rows: list[dict],
     embed_api_key: str,
-    gen_api_key: str,
     gen_model: str,
     judge_llm: OpenRouterJudgeLLM,
+    together_api_key: str | None = None,
+    openrouter_api_key: str | None = None,
     timeout_s: float = DEFAULT_TIMEOUT_S,
     progress_cb: Callable[[int, int], None] | None = None,
     update_cb: Callable[[dict], None] | None = None,
@@ -556,8 +565,10 @@ async def run_generation_eval(
     actual system prompt — so the judge metrics score the real system instead
     of a generic prompt over the CSV's pre-retrieved chunks.
 
-    `embed_api_key` (DeepInfra) embeds the question when use_twiga=True;
-    `gen_api_key` (OpenRouter) generates the answer either way.
+    `embed_api_key` (DeepInfra) embeds the question when use_twiga=True.
+    Generation either way prefers Together (`together_api_key` — production's
+    real provider) and falls back to OpenRouter (`openrouter_api_key`) if no
+    Together key is set.
 
     skip_judge=True runs generation only (writing to the generation cache —
     see eval/generation_cache.py) and returns before any judge/citation call,
@@ -573,7 +584,11 @@ async def run_generation_eval(
     """
     if use_twiga and conn is None:
         raise ValueError("use_twiga=True requires a database connection")
-    gen_client = AsyncOpenAI(base_url=OPENROUTER_BASE_URL, api_key=gen_api_key, timeout=timeout_s)
+    if not use_twiga:
+        gen_client, resolved_gen_model, gen_provider = resolve_gen_client(
+            gen_model, timeout_s, together_api_key, openrouter_api_key,
+        )
+        gen_fingerprint = generation_cache.retrieval_eval_fingerprint(resolved_gen_model, gen_provider)
     _metric_names = {
         "AnswerRelevancyMetric": "answer_relevancy",
         "FaithfulnessMetric": "faithfulness",
@@ -596,7 +611,6 @@ async def run_generation_eval(
             ),
         ]
 
-    gen_fingerprint = generation_cache.retrieval_eval_fingerprint(gen_model)
     gen_cache_hits = generation_cache.HitCounter()
     sem = asyncio.Semaphore(concurrency)
 
@@ -618,7 +632,8 @@ async def run_generation_eval(
                             [row],
                             conn=conn,
                             embed_api_key=embed_api_key,
-                            gen_api_key=gen_api_key,
+                            together_api_key=together_api_key,
+                            openrouter_api_key=openrouter_api_key,
                             gen_model=gen_model,
                             top_k=twiga_top_k,
                             timeout_s=timeout_s,
@@ -656,7 +671,7 @@ async def run_generation_eval(
                     else:
                         gen_cache_hits.miss()
                         response = await _generate_response(
-                            gen_client, openrouter_slug(gen_model), row["question"], chunk_contents
+                            gen_client, resolved_gen_model, row["question"], chunk_contents
                         )
                         generation_cache.put(gen_cache_key, {"response": response})
 

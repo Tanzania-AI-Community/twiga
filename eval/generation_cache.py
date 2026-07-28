@@ -36,18 +36,25 @@ def _source_hash(*fns: Callable) -> str:
     return _sha256("".join(inspect.getsource(fn) for fn in fns))
 
 
-def twiga_pipeline_fingerprint(gen_model: str, top_k: int) -> dict[str, str]:
+def twiga_pipeline_fingerprint(resolved_gen_model: str, gen_provider: str, top_k: int) -> dict[str, str]:
     """Fingerprint for eval.twiga_runner.run_twiga_pipeline's output: covers
     embedding, retrieval formatting, the real Twiga system prompt, and
-    generation."""
+    generation.
+
+    `resolved_gen_model`/`gen_provider` come from resolve_gen_client — the
+    provider can vary per run (Together vs OpenRouter, whichever key is
+    configured), so both are part of the fingerprint rather than assuming one
+    provider's naming: a cached answer from one is never silently served as
+    if from the other.
+    """
     from eval import twiga_runner
     from eval.twiga_config import EMBEDDING_MODEL, GEN_MAX_TOKENS, GEN_TEMPERATURE
 
     prompt_text = twiga_runner._SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
     return {
         "fn": "twiga_pipeline",
-        "gen_model": gen_model,
-        "gen_model_slug": twiga_runner.openrouter_slug(gen_model),
+        "gen_model_resolved": resolved_gen_model,
+        "gen_provider": gen_provider,
         "gen_temperature": repr(GEN_TEMPERATURE),
         "gen_max_tokens": repr(GEN_MAX_TOKENS),
         "embedding_model": EMBEDDING_MODEL,
@@ -61,17 +68,20 @@ def twiga_pipeline_fingerprint(gen_model: str, top_k: int) -> dict[str, str]:
     }
 
 
-def retrieval_eval_fingerprint(gen_model: str) -> dict[str, str]:
+def retrieval_eval_fingerprint(resolved_gen_model: str, gen_provider: str) -> dict[str, str]:
     """Fingerprint for deepeval_runner._generate_response's output: the
     generic contextual-metrics prompt over CSV-provided retrieval context
-    (distinct from Twiga's real system prompt)."""
+    (distinct from Twiga's real system prompt).
+
+    See twiga_pipeline_fingerprint for why the resolved model name and
+    provider are passed in rather than recomputed here.
+    """
     from eval import deepeval_runner
-    from eval.twiga_runner import openrouter_slug
 
     return {
         "fn": "retrieval_eval_generate",
-        "gen_model": gen_model,
-        "gen_model_slug": openrouter_slug(gen_model),
+        "gen_model_resolved": resolved_gen_model,
+        "gen_provider": gen_provider,
         "code_sha256": _source_hash(deepeval_runner._generate_response),
     }
 

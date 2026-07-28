@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 import asyncpg
 from openai import AsyncOpenAI
+from together import AsyncTogether
 
 from eval import generation_cache
 
@@ -37,6 +38,40 @@ _OPENROUTER_MODEL_SLUGS = {
 
 def openrouter_slug(model: str) -> str:
     return _OPENROUTER_MODEL_SLUGS.get(model, model)
+
+
+def resolve_gen_client(
+    gen_model: str,
+    timeout_s: float,
+    together_api_key: str | None = None,
+    openrouter_api_key: str | None = None,
+) -> tuple[Any, str, str]:
+    """Picks a generation provider from whichever key is actually configured.
+
+    Together is preferred when its key is set — it's production's real
+    provider, so `gen_model` (Twiga's own config value) needs no name
+    translation. OpenRouter is the fallback (e.g. when Together has no
+    balance), which does need translation since it names some models
+    differently (see _OPENROUTER_MODEL_SLUGS).
+
+    Returns (client, resolved_model_name, provider) — `provider` feeds the
+    generation cache's fingerprint (see eval/generation_cache.py) so a cached
+    answer from one provider is never silently served as if from the other.
+    Raises if neither key is set — one of the two is required to generate
+    anything.
+    """
+    if together_api_key:
+        return AsyncTogether(api_key=together_api_key, timeout=timeout_s), gen_model, "together"
+    if openrouter_api_key:
+        return (
+            AsyncOpenAI(base_url=OPENROUTER_BASE_URL, api_key=openrouter_api_key, timeout=timeout_s),
+            openrouter_slug(gen_model),
+            "openrouter",
+        )
+    raise ValueError(
+        "No generation provider configured — set LLM_API_KEY (Together, matches "
+        "production exactly) or EVAL_JUDGE_API_KEY (OpenRouter, used as a fallback)."
+    )
 
 
 # DeepInfra hosts EMBEDDING_MODEL under the identical HuggingFace-style id, so
@@ -176,7 +211,8 @@ async def run_twiga_pipeline(
     rows: list[dict[str, Any]],
     conn: asyncpg.Connection,
     embed_api_key: str,
-    gen_api_key: str,
+    together_api_key: str | None = None,
+    openrouter_api_key: str | None = None,
     gen_model: str = GEN_MODEL,
     top_k: int = RETRIEVAL_TOP_K,
     timeout_s: float = DEFAULT_TIMEOUT_S,
@@ -189,17 +225,19 @@ async def run_twiga_pipeline(
     Returns result dicts with 'response', 'retrieved_context' (plain text),
     'retrieved_chunk_ids', plus all input fields passed through.
 
-    `embed_api_key` (DeepInfra) embeds the question; `gen_api_key`
-    (OpenRouter) generates the answer. Split into two providers because
-    Together (production's actual provider for both) may not have credit for
-    one even when it does for the other — and neither is used here at all.
+    `embed_api_key` (DeepInfra) embeds the question. Generation prefers
+    Together (`together_api_key`) — production's real provider — and falls
+    back to OpenRouter (`openrouter_api_key`) if no Together key is set (e.g.
+    no balance); at least one of the two is required.
     """
-    gen_client = AsyncOpenAI(base_url=OPENROUTER_BASE_URL, api_key=gen_api_key, timeout=timeout_s)
+    gen_client, resolved_gen_model, gen_provider = resolve_gen_client(
+        gen_model, timeout_s, together_api_key, openrouter_api_key,
+    )
 
     class_id_cache: dict[tuple[str, str], int | None] = {}
     resource_id_cache: dict[int, list[int]] = {}
 
-    fingerprint = generation_cache.twiga_pipeline_fingerprint(gen_model, top_k)
+    fingerprint = generation_cache.twiga_pipeline_fingerprint(resolved_gen_model, gen_provider, top_k)
     gen_cache_hits = generation_cache.HitCounter()
 
     results: list[dict[str, Any]] = []
@@ -274,7 +312,7 @@ async def run_twiga_pipeline(
             system_prompt = _load_system_prompt(subject, grade_level)
 
             raw_response = await _generate(
-                gen_client, openrouter_slug(gen_model), system_prompt, question, formatted_context
+                gen_client, resolved_gen_model, system_prompt, question, formatted_context
             )
             # citations kept for citation-correctness scoring; stripped copy
             # for metrics that should see plain prose

@@ -69,6 +69,10 @@ args = parser.parse_args()
 load_dotenv(_REPO_ROOT / ".env")
 EMBED_API_KEY = os.environ["EVAL_EMBED_API_KEY"]
 JUDGE_API_KEY = os.environ["EVAL_JUDGE_API_KEY"]
+# Generation prefers Together (production's real provider) when it has a key
+# configured, falling back to OpenRouter (JUDGE_API_KEY) otherwise — see
+# eval.twiga_runner.resolve_gen_client.
+TOGETHER_API_KEY = os.environ.get("LLM_API_KEY") or None
 DB_URL = os.environ["DATABASE_URL"].replace("postgresql+asyncpg://", "postgresql://")
 TIMEOUT = 300.0
 LABEL = args.label.strip() or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -172,7 +176,7 @@ async def main():
             phase = "retrieval"
             write_status("running")
             await run_retrieval_eval(
-                rows=ret_rows, conn=conn, embed_api_key=EMBED_API_KEY, gen_api_key=JUDGE_API_KEY,
+                rows=ret_rows, conn=conn, embed_api_key=EMBED_API_KEY, together_api_key=TOGETHER_API_KEY, openrouter_api_key=JUDGE_API_KEY,
                 judge_llm=ret_judge, gen_model=GEN_MODEL, top_k=RETRIEVAL_TOP_K,
                 timeout_s=TIMEOUT, progress_cb=progress, update_cb=update,
                 judge_metrics=False,  # quick: ranking metrics only, no judge calls
@@ -181,7 +185,7 @@ async def main():
         phase = "generation"
         write_status("running")
         await run_generation_eval(
-            rows=gen_rows, embed_api_key=EMBED_API_KEY, gen_api_key=JUDGE_API_KEY,
+            rows=gen_rows, embed_api_key=EMBED_API_KEY, together_api_key=TOGETHER_API_KEY, openrouter_api_key=JUDGE_API_KEY,
             gen_model=GEN_MODEL, judge_llm=gen_judge,
             timeout_s=TIMEOUT, progress_cb=progress, update_cb=update,
             conn=conn, use_twiga=True, twiga_top_k=RETRIEVAL_TOP_K,
@@ -192,7 +196,7 @@ async def main():
             phase = "abstention"
             write_status("running")
             await run_abstention_eval(
-                rows=abst_rows, conn=conn, embed_api_key=EMBED_API_KEY, gen_api_key=JUDGE_API_KEY,
+                rows=abst_rows, conn=conn, embed_api_key=EMBED_API_KEY, together_api_key=TOGETHER_API_KEY, openrouter_api_key=JUDGE_API_KEY,
                 gen_model=GEN_MODEL, judge_llm=gen_judge, top_k=RETRIEVAL_TOP_K,
                 timeout_s=TIMEOUT, progress_cb=progress, update_cb=update,
                 skip_judge=GENERATE_ONLY, concurrency=CONCURRENCY,
@@ -227,6 +231,7 @@ try:
         "dataset_used": "quick: generation + retrieval + abstention",
         "metrics_run": "faithfulness,abstention,recall_at_10",
         "pipeline": "twiga", "gen_model": GEN_MODEL, "gen_judge_model": GEN_JUDGE_MODEL,
+        "gen_provider": "together" if TOGETHER_API_KEY else "openrouter",
         "retrieval_judge_model": RETRIEVAL_JUDGE_MODEL if ret_rows else None,
         "escalation_judge_model": None,
         "default_judge": True, "gen_temperature": GEN_TEMPERATURE,
