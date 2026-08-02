@@ -103,3 +103,11 @@ def test_message_model_defaults_is_present_in_conversation_to_false() -> None:
         content="Incoming text",
     )
     assert message.is_present_in_conversation is False
+
+
+@pytest.mark.asyncio
+async def test_create_new_messages_returns_early_for_empty_input() -> None:
+    with patch("app.database.db.get_session") as mock_get_session:
+        created_messages = await db.create_new_messages([])
+
+    assert created_messages == [] and not mock_get_session.called

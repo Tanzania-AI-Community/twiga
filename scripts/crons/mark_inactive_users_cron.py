@@ -26,21 +26,19 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # Import cron helpers
-from helpers import (
+from app.database.enums import UserState
+from scripts.crons.helpers import (
     get_users_to_mark_inactive,
-    initialize_db,
     setup_logging,
     update_user,
 )
-from helpers.logging import (
+from scripts.crons.helpers.logging import (
     log_item_error,
     log_item_success,
     log_job_completion,
     log_job_start,
     log_processing_item,
 )
-
-from app.database.enums import UserState
 
 # Configuration from environment
 USER_INACTIVITY_THRESHOLD_HOURS = int(
@@ -65,9 +63,6 @@ async def mark_inactive_users():
     )
 
     try:
-        # Initialize database
-        initialize_db()
-
         # Get all users who should be marked as inactive
         users_to_mark_inactive = await get_users_to_mark_inactive(
             USER_INACTIVITY_THRESHOLD_HOURS

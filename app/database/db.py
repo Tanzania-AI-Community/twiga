@@ -1,9 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import selectinload
 from sqlmodel import and_, delete, desc, exists, insert, or_, select
+from sqlmodel.sql.expression import SelectOfScalar
 
 import app.database.enums as enums
 from app.database.engine import get_session
@@ -243,12 +244,14 @@ async def get_latest_user_message_by_role(
 
 
 async def create_new_messages(messages: list[Message]) -> list[Message]:
-    """Optimized bulk message creation"""
+    """Create messages without changing the users' activity timestamps. (e.g cronjobs reminders)"""
+    if not messages:
+        return []
+
     async with get_session() as session:
         try:
-            # Add all messages to the session
             session.add_all(messages)
-            await session.flush()  # Get IDs without committing
+            await session.flush()
             return messages
         except Exception as e:
             logger.error(
@@ -634,6 +637,85 @@ async def assign_teacher_to_classes(
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
 
 
+async def _fetch_users(statement: SelectOfScalar[User]) -> list[User]:
+    async with get_session() as session:
+        result = await session.execute(statement)
+        return list(result.scalars().all())
+
+
+def _build_users_by_state_statement(
+    state: enums.UserState,
+) -> SelectOfScalar[User]:
+    return select(User).where(User.state == state)
+
+
+def _build_users_to_mark_inactive_statement(
+    inactive_before: datetime,
+) -> SelectOfScalar[User]:
+    return select(User).where(
+        and_(
+            User.state == enums.UserState.active,
+            or_(
+                User.last_message_at.is_(None),
+                User.last_message_at < inactive_before,
+            ),
+        )
+    )
+
+
+def _build_reminder_history_subquery(
+    reminder_cron_name: enums.MessageCronName,
+):
+    return (
+        select(
+            Message.user_id.label("user_id"),
+            func.max(Message.created_at).label("last_reminder_at"),
+        )
+        .where(
+            and_(
+                Message.role == enums.MessageRole.assistant,
+                Message.cron_name == reminder_cron_name,
+            )
+        )
+        .group_by(Message.user_id)
+        .subquery()
+    )
+
+
+def _build_users_for_reminder_statement(
+    inactive_before: datetime,
+    cooldown_before: datetime,
+) -> SelectOfScalar[User]:
+    reminder_history = _build_reminder_history_subquery(
+        enums.MessageCronName.send_reminder_messages_cron
+    )
+
+    return (
+        select(User)
+        .outerjoin(
+            reminder_history,
+            User.id == reminder_history.c.user_id,
+        )
+        .where(
+            and_(
+                User.state.in_(
+                    [
+                        enums.UserState.active,
+                        enums.UserState.inactive,
+                        enums.UserState.onboarding,
+                    ]
+                ),
+                User.last_message_at.is_not(None),
+                User.last_message_at < inactive_before,
+                or_(
+                    reminder_history.c.last_reminder_at.is_(None),
+                    reminder_history.c.last_reminder_at < cooldown_before,
+                ),
+            )
+        )
+    )
+
+
 async def get_users_by_state(state: enums.UserState) -> list[User]:
     """
     Get all users with a specific state.
@@ -644,15 +726,12 @@ async def get_users_by_state(state: enums.UserState) -> list[User]:
     Returns:
         list[User]: List of users with the specified state
     """
-    async with get_session() as session:
-        try:
-            # Simple load without full class hierarchy
-            statement = select(User).where(User.state == state)
-            result = await session.execute(statement)
-            return list(result.scalars().all())
-        except Exception as e:
-            logger.error(f"Failed to query users by state {state}: {str(e)}")
-            raise Exception(f"Failed to query users by state: {str(e)}")
+    try:
+        statement = _build_users_by_state_statement(state)
+        return await _fetch_users(statement)
+    except Exception as e:
+        logger.error(f"Failed to query users by state {state}: {str(e)}")
+        raise Exception(f"Failed to query users by state: {str(e)}")
 
 
 async def get_users_to_mark_inactive(hours_threshold: int) -> list[User]:
@@ -665,35 +744,47 @@ async def get_users_to_mark_inactive(hours_threshold: int) -> list[User]:
     Returns:
         list[User]: List of active users who should be marked as inactive
     """
-    from datetime import datetime, timedelta, timezone
+    try:
+        inactive_before = datetime.now(timezone.utc) - timedelta(hours=hours_threshold)
+        statement = _build_users_to_mark_inactive_statement(inactive_before)
+        return await _fetch_users(statement)
+    except Exception as e:
+        logger.error(
+            f"Failed to query inactive users with threshold {hours_threshold}h: {str(e)}"
+        )
+        raise Exception(f"Failed to query inactive users: {str(e)}")
 
-    async with get_session() as session:
-        try:
-            # Calculate the threshold datetime
-            threshold_time = datetime.now(timezone.utc) - timedelta(
-                hours=hours_threshold
-            )
 
-            # Find active users whose last_message_at is older than threshold
-            # OR users who have never sent/received messages (last_message_at is None)
-            from sqlalchemy import func
+async def get_users_for_reminder(
+    inactivity_days: int,
+    reminder_cooldown_days: int,
+) -> list[User]:
+    """
+    Get users eligible for reminder messages.
 
-            statement = select(User).where(
-                and_(
-                    User.state == enums.UserState.active,
-                    func.coalesce(
-                        User.last_message_at,
-                        text("'1970-01-01'::timestamp with time zone"),
-                    )
-                    < threshold_time,
-                )
-            )
+    A user is eligible when:
+    - Their state is active, inactive or onboarding
+    - They have a non-null last_message_at timestamp
+    - Their last_message_at is older than inactivity_days
+    - They have not received a reminder in the last reminder_cooldown_days
 
-            result = await session.execute(statement)
-            return list(result.scalars().all())
-
-        except Exception as e:
-            logger.error(
-                f"Failed to query inactive users with threshold {hours_threshold}h: {str(e)}"
-            )
-            raise Exception(f"Failed to query inactive users: {str(e)}")
+    Reminder messages are tracked by assistant messages with
+    cron_name == "send_reminder_messages_cron".
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        inactive_before = now - timedelta(days=inactivity_days)
+        cooldown_before = now - timedelta(days=reminder_cooldown_days)
+        statement = _build_users_for_reminder_statement(
+            inactive_before,
+            cooldown_before,
+        )
+        return await _fetch_users(statement)
+    except Exception as e:
+        logger.error(
+            "Failed to query users for reminders (inactivity_days=%s, reminder_cooldown_days=%s): %s",
+            inactivity_days,
+            reminder_cooldown_days,
+            str(e),
+        )
+        raise Exception(f"Failed to query users for reminders: {str(e)}")
