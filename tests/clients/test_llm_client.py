@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
+from app.clients.client_base import BUFFERED_RESPONSE
 from app.clients.llm_client import LLMClient, _prepare_message_for_together
 from app.config import Prompt
 from app.database.enums import MessageRole
@@ -105,6 +106,28 @@ async def test_generate_response_requires_user_id() -> None:
             user=user,
             message=_make_user_message("hello"),
         )
+
+
+@pytest.mark.asyncio
+async def test_generate_response_returns_buffered_when_processor_is_locked() -> None:
+    llm_client = LLMClient()
+    user = _make_user()
+    incoming_message = _make_user_message("second quick message")
+
+    processor = llm_client._get_processor(user.id)
+    await processor.lock.acquire()
+
+    try:
+        response = await llm_client.generate_response(
+            user=user,
+            message=incoming_message,
+        )
+    finally:
+        processor.lock.release()
+        processor.clear_messages()
+        llm_client._cleanup_processor(user.id)
+
+    assert response is BUFFERED_RESPONSE
 
 
 @pytest.mark.asyncio

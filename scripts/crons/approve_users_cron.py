@@ -29,25 +29,22 @@ import sys
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-# Import cron helpers
-from helpers import (
+from app.database.enums import MessageRole, UserState
+from app.database.models import Message
+from scripts.crons.helpers import (
     WhatsAppClient,
-    create_message,
+    create_new_messages,
     get_users_by_state,
-    initialize_db,
     setup_logging,
     update_user,
 )
-from helpers.logging import (
+from scripts.crons.helpers.logging import (
     log_item_error,
     log_item_success,
     log_job_completion,
     log_job_start,
     log_processing_item,
 )
-
-from app.database.enums import MessageRole, UserState
-from app.database.models import Message
 
 # Configuration from environment
 WELCOME_TEMPLATE_ID = os.getenv("WELCOME_TEMPLATE_ID", "twiga_registration_approved")
@@ -59,7 +56,7 @@ logger = setup_logging(
 )
 
 
-async def approve_and_welcome_users():
+async def approve_and_welcome_users() -> None:
     """
     Find users with UserState.new (approved by dashboard) and:
     1. Send welcome messages
@@ -73,9 +70,6 @@ async def approve_and_welcome_users():
     )
 
     try:
-        # Initialize database
-        initialize_db()
-
         # Get all users with state 'new' (approved by dashboard but not yet welcomed)
         new_users = await get_users_by_state(UserState.approved)
 
@@ -104,14 +98,13 @@ async def approve_and_welcome_users():
                     user.state = UserState.onboarding
                     await update_user(user)
 
-                    # Create a message record in the database
                     assert user.id is not None
                     welcome_db_message = Message(
                         user_id=user.id,
                         role=MessageRole.assistant,
                         content=f"Welcome template sent: {WELCOME_TEMPLATE_ID}",
                     )
-                    await create_message(welcome_db_message)
+                    await create_new_messages([welcome_db_message])
 
                     log_item_success(
                         logger, "user", user.wa_id, "approved and activated"

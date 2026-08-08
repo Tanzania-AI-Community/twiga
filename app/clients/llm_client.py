@@ -1,10 +1,13 @@
 import json
 import uuid
-from typing import Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.clients.client_base import ClientBase
+from app.clients.client_base import (
+    BUFFERED_RESPONSE,
+    ClientBase,
+    GenerateResponseResult,
+)
 from app.config import LLMProvider, Prompt, llm_settings
 from app.database.models import Message, User
 from app.utils.llm_utils import async_llm_request
@@ -65,7 +68,7 @@ class LLMClient(ClientBase):
         self,
         user: User,
         message: Message,
-    ) -> Optional[list[Message]]:
+    ) -> GenerateResponseResult:
         """Generate a response, handling message batching and tool calls."""
         if user.id is None:
             self.logger.error("User object is missing an ID, cannot generate response.")
@@ -80,11 +83,11 @@ class LLMClient(ClientBase):
 
         if processor.is_locked:
             self.logger.info(f"Lock held for user {user.id}, message buffered")
-            return None
+            return BUFFERED_RESPONSE
 
         async with processor.lock:
-            while True:
-                try:
+            try:
+                while True:
                     # Preprocess messages: validate and build API messages
                     api_messages, error_messages = await self._preprocess_messages(
                         user=user,
@@ -211,16 +214,14 @@ class LLMClient(ClientBase):
                     self.logger.debug(f"New messages: {new_messages}")
                     return new_messages
 
-                except Exception as e:
-                    self.logger.error(f"Error processing messages: {e}")
-                    return None
-                finally:
-                    # This always runs, whether we returned above or an exception occurred.
-                    self.logger.debug(
-                        "Clearing message buffer and cleaning up processor"
-                    )
-                    processor.clear_messages()
-                    self._cleanup_processor(user.id)
+            except Exception as e:
+                self.logger.error(f"Error processing messages: {e}")
+                return None
+            finally:
+                # This always runs, whether we returned above or an exception occurred.
+                self.logger.debug("Clearing message buffer and cleaning up processor")
+                processor.clear_messages()
+                self._cleanup_processor(user.id)
 
 
 llm_client = LLMClient()

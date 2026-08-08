@@ -1,10 +1,13 @@
 import json
 import logging
-from typing import Optional
 
 from langchain_core.messages import AIMessage
 
-from app.clients.client_base import ClientBase
+from app.clients.client_base import (
+    BUFFERED_RESPONSE,
+    ClientBase,
+    GenerateResponseResult,
+)
 from app.config import Prompt, llm_settings
 from app.database.models import Message, User
 from app.utils.llm_utils import async_llm_request
@@ -124,7 +127,7 @@ class AgentClient(ClientBase):
         self,
         user: User,
         message: Message,
-    ) -> Optional[list[Message]]:
+    ) -> GenerateResponseResult:
         """Generates a response using an agentic loop."""
         if user.id is None:
             self.logger.error("User object is missing an ID, cannot generate response.")
@@ -139,11 +142,11 @@ class AgentClient(ClientBase):
 
         if processor.is_locked:
             self.logger.info(f"Lock held for user {user.id}, message buffered")
-            return None
+            return BUFFERED_RESPONSE
 
         async with processor.lock:
-            while True:
-                try:
+            try:
+                while True:
                     api_messages, error_messages = await self._preprocess_messages(
                         user=user,
                         processor=processor,
@@ -210,7 +213,9 @@ class AgentClient(ClientBase):
                         final_messages.append(final_message)
 
                     if self._check_new_messages(processor, original_count):
-                        self.logger.warning("New messages buffered during processing")
+                        self.logger.info(
+                            "New messages buffered during processing. Discarding response and reprocessing batch."
+                        )
                         continue
 
                     # the last message in final messages is always an assistant message (either from normal
@@ -221,16 +226,14 @@ class AgentClient(ClientBase):
                         )
 
                     return final_messages
-                except Exception as e:
-                    self.logger.error(f"Error processing messages in agent loop: {e}")
-                    return None
-                finally:
-                    # This always runs, whether we returned above or an exception occurred.
-                    self.logger.debug(
-                        "Clearing message buffer and cleaning up processor"
-                    )
-                    processor.clear_messages()
-                    self._cleanup_processor(user.id)
+            except Exception as e:
+                self.logger.error(f"Error processing messages in agent loop: {e}")
+                return None
+            finally:
+                # This always runs, whether we returned above or an exception occurred.
+                self.logger.debug("Clearing message buffer and cleaning up processor")
+                processor.clear_messages()
+                self._cleanup_processor(user.id)
 
 
 agent_client = AgentClient()

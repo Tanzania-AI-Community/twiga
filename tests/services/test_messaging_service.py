@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import app.database.enums as enums
+from app.clients.client_base import BUFFERED_RESPONSE
 from app.database.models import Message, User
 from app.services.citation_service import CitationRenderResult
 from app.services.exam_delivery_service import ExamPDFDeliveryDetails
@@ -142,6 +143,52 @@ async def test_handle_chat_message_persists_general_error_when_llm_returns_none(
         "is_present_in_conversation": True,
         "source_chunk_ids": None,
     }
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_does_not_send_error_when_message_is_buffered() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=3, wa_id="255700000000", name="Teacher")
+    user_message = Message(
+        user_id=3,
+        role=enums.MessageRole.user,
+        content="Second quick message",
+    )
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=BUFFERED_RESPONSE),
+        ),
+        patch(
+            "app.services.messaging_service.strings.get_string",
+            return_value="Something went wrong.",
+        ) as mock_get_string,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.services.messaging_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message_by_fields,
+        patch(
+            "app.services.messaging_service.record_messages_generated"
+        ) as mock_record_messages_generated,
+    ):
+        response = await service.handle_chat_message(
+            user=user,
+            user_message=user_message,
+        )
+
+    assert response.status_code == 200
+    mock_get_string.assert_not_called()
+    mock_send_message.assert_not_awaited()
+    mock_create_message_by_fields.assert_not_awaited()
+    mock_record_messages_generated.assert_not_called()
 
 
 @pytest.mark.asyncio
