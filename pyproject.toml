@@ -58,6 +58,21 @@ dev-dependencies = [
     "requests>=2.32.3",
 ]
 
+[dependency-groups]
+# Streamlit dashboard + eval pipelines under eval/ (`streamlit run eval/app/app.py`).
+# Install with `uv sync --group eval`.
+eval = [
+    "deepeval==4.1.0",  # pinned: judge prompt changes across versions shift tracked scores
+    "nltk>=3.9.4",
+    "openai>=1.54.3",
+    "pandas>=3.0.3",
+    "plotly>=6.8.0",
+    "python-dotenv>=1.2.2",
+    "rouge-score>=0.1.2",
+    "streamlit>=1.56.0",
+    "together>=2.19.0",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

@@ -8,6 +8,10 @@ from app.database.models import Chunk, Resource
 
 logger = logging.getLogger(__name__)
 
+# Number of textbook chunks retrieved per query. Imported by the eval tool so
+# it always mirrors production retrieval — change it here and the eval follows.
+SEARCH_KNOWLEDGE_N_RESULTS = 15
+
 
 class SearchKnowledgeResult(TypedDict):
     content: str
@@ -26,7 +30,7 @@ async def search_knowledge(
         # Retrieve the relevant content
         retrieved_content = await vector_search(
             query=search_phrase,
-            n_results=15,
+            n_results=SEARCH_KNOWLEDGE_N_RESULTS,
             where={
                 "chunk_type": [ChunkType.text],
                 "resource_id": resource_ids,
