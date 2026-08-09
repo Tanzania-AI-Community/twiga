@@ -242,6 +242,10 @@ class ToolSettings(BaseSettings):
         env_prefix="TOOL_",
     )
 
+    search_knowledge_n_results: int = yaml_config["tools"]["search_knowledge"][
+        "n_results"
+    ]
+
     solve_equation_api_key: Optional[SecretStr] = Field(
         default=None, validation_alias="llm_api_key"
     )
