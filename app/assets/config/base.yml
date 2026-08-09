@@ -42,6 +42,9 @@ embedding:
     request_timeout: 30
 
 tools:
+  search_knowledge:
+    n_results: 15
+
   solve_equation:
     model_name: "MiniMaxAI/MiniMax-M3"
     provider: together

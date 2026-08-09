@@ -2,6 +2,7 @@ import logging
 from typing import Optional, TypedDict
 
 import app.database.db as db
+from app.config import tool_settings
 from app.database.db import vector_search
 from app.database.enums import ChunkType
 from app.database.models import Chunk, Resource
@@ -26,7 +27,7 @@ async def search_knowledge(
         # Retrieve the relevant content
         retrieved_content = await vector_search(
             query=search_phrase,
-            n_results=15,
+            n_results=tool_settings.search_knowledge_n_results,
             where={
                 "chunk_type": [ChunkType.text],
                 "resource_id": resource_ids,
