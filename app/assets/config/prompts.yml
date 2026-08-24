@@ -1,15 +1,19 @@
 prompts:
   twiga_system:
-    active_version: v0.0
+    active_version: v0.1
     versions:
       v0.0:
         description: "Baseline version."
+      v0.1:
+        description: "Ensure Twiga searches course material before handling non-greeting requests."
 
   twiga_agent_system:
-    active_version: v0.0
+    active_version: v0.1
     versions:
       v0.0:
         description: "Baseline version."
+      v0.1:
+        description: "Ensure Twiga searches course material before handling non-greeting requests."
 
   equation_solver_system:
     active_version: v0.0
