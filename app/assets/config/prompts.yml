@@ -5,7 +5,7 @@ prompts:
       v0.0:
         description: "Baseline version."
       v0.1:
-        description: "Ensure Twiga searches course material before handling non-greeting requests."
+        description: "Search course material first for curriculum content and accept multilingual input while responding in English."
 
   twiga_agent_system:
     active_version: v0.1
@@ -13,7 +13,7 @@ prompts:
       v0.0:
         description: "Baseline version."
       v0.1:
-        description: "Ensure Twiga searches course material before handling non-greeting requests."
+        description: "Search course material first for curriculum content and accept multilingual input while responding in English."
 
   equation_solver_system:
     active_version: v0.0
