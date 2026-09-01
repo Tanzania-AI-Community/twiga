@@ -159,8 +159,9 @@ class MessagingService:
             source_chunk_ids=last_assistant_message.source_chunk_ids,
         )
 
-        await whatsapp_client.send_message(user.wa_id, llm_content)
-        record_messages_generated("chat_response")
+        sent = await whatsapp_client.send_message(user.wa_id, llm_content)
+        if sent:
+            record_messages_generated("chat_response")
 
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
