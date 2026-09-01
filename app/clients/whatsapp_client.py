@@ -21,6 +21,7 @@ from app.utils.whatsapp_utils import (
     generate_payload,
     generate_payload_for_document,
     generate_payload_for_image,
+    split_text_for_whatsapp,
 )
 
 
@@ -44,6 +45,7 @@ def _extract_statuses(body: dict) -> list[dict]:
 class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
     _MAX_DOCUMENT_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
+    _MAX_TEXT_LENGTH_CHARS = 4096
 
     def __init__(self):
         self.headers = {
@@ -56,20 +58,47 @@ class WhatsAppClient:
 
     async def send_message(
         self, wa_id: str, message: str, options: list[str] | None = None
-    ) -> None:
+    ) -> bool:
         if settings.mock_whatsapp:
-            return
+            return True
 
+        i, total = 0, 0
         try:
-            payload: dict[str, Any] = generate_payload(wa_id, message, options)
-            response = await self.client.post(
-                "/messages", data=payload, headers=self.headers
+            # Margin: Meta may count emoji as 2 chars (UTF-16 units)
+            safe_limit = self._MAX_TEXT_LENGTH_CHARS - 96
+            chunks: list[str] = split_text_for_whatsapp(message, max_length=safe_limit)
+            total = len(chunks)
+
+            for i, chunk in enumerate(chunks, start=1):
+                payload: dict[str, Any] = generate_payload(
+                    wa_id, chunk, options if i == total else None
+                )
+                response = await self.client.post(
+                    "/messages", data=payload, headers=self.headers
+                )
+
+                log_httpx_response(response)
+                response.raise_for_status()
+
+            return True
+
+        except httpx.HTTPStatusError as e:
+            self.logger.error(
+                f"WhatsApp rejected message for {wa_id} (chunk {i}/{total}, "
+                f"status {e.response.status_code}): {e.response.text}"
             )
-            log_httpx_response(response)
+            record_whatsapp_event(f"send_failed:{e.response.status_code}")
         except httpx.RequestError as e:
-            self.logger.error(f"Request Error: {e}")
+            self.logger.error(
+                f"WhatsApp request error for {wa_id} (chunk {i}/{total}): {e}"
+            )
+            record_whatsapp_event("send_failed:request_error")
         except Exception as e:
-            self.logger.error(f"Unexpected Error: {e}")
+            self.logger.error(
+                f"Unexpected error sending to {wa_id} (chunk {i}/{total}): {e}"
+            )
+            record_whatsapp_event("send_failed:unexpected")
+        return False
 
     async def send_read_receipt_with_typing_indicator(self, message_id: str) -> None:
         """
