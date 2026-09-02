@@ -378,3 +378,44 @@ def get_request_type(body: dict) -> RequestType:
         raise
 
     return RequestType.VALID_MESSAGE
+
+
+def split_text_for_whatsapp(message: str, max_length: int) -> list[str]:
+    messages = []
+    remaining = message
+
+    while remaining:
+        valid_chunk, remaining = _split_text(remaining, max_length)
+        messages.append(valid_chunk)
+
+    # Return only non-empty chunks
+    return [chunk for chunk in messages if chunk.strip()]
+
+
+_MIN_FILL_RATIO = 0.6
+
+
+def _split_text(text: str, max_length: int) -> tuple[str, str]:
+    """
+    Splits text into (first_chunk, remainder) where len(first_chunk) <= max_length.
+
+    Fallback priority:
+      1. Paragraph boundary ('\\n\\n')
+      2. Line boundary ('\\n')
+      3. Sentence boundary ('. ')
+      4. Hard cut (max_length)
+    """
+    if len(text) <= max_length:
+        return text, ""
+
+    candidate = text[:max_length]
+    floor = int(max_length * _MIN_FILL_RATIO)
+
+    # (separator, chars of the separator to keep on the left side)
+    for separator, keep in (("\n\n", 0), ("\n", 0), (". ", 1)):
+        idx = candidate.rfind(separator)
+        if idx >= floor:
+            cut = idx + keep
+            return text[:cut].rstrip(), text[cut:].lstrip()
+
+    return text[:max_length], text[max_length:]
