@@ -19,7 +19,8 @@ async def generate_exercise(
     try:
         # Retrieve the resources for the class
         resource_ids = await db.get_class_resources(class_id)
-        assert resource_ids
+        if not resource_ids:
+            raise ValueError(f"No textbook resources found for class {class_id}")
 
         # Retrieve the relevant content and exercises
         retrieved_content = await vector_search(
@@ -40,16 +41,17 @@ async def generate_exercise(
         )
 
         logger.debug(
-            f"Retrieved {len(retrieved_content)} content chunks, this is the first: {retrieved_content[0]}"
+            "Retrieved %s content chunks and %s exercise chunks",
+            len(retrieved_content),
+            len(retrieved_exercises),
         )
-        logger.debug(
-            f"Retrieved {len(retrieved_content)} exercise chunks, this is the first: {retrieved_content[0]}"
-        )
-    except Exception:
+        if not retrieved_content:
+            raise ValueError("No textbook content found for the exercise")
+    except Exception as exc:
         logger.exception("Failed to retrieve textbook content for an exercise")
         raise Exception(
             "Failed to find content from the textbooks to generate this exercise. Skipping."
-        )
+        ) from exc
 
     try:
         # Format the context and prompt
@@ -92,16 +94,6 @@ async def generate_exercise(
                 ),
             },
         )
-        if not response.content:
-            logger.error(
-                "Exercise generation returned empty content: "
-                "class_id=%s, response_metadata=%r, usage_metadata=%r",
-                class_id,
-                response.response_metadata,
-                response.usage_metadata,
-            )
-        assert response.content
-
         # Convert content to string if it's not already
         content = response.content
         if isinstance(content, list):
@@ -112,14 +104,26 @@ async def generate_exercise(
                     content_str += item
                 elif isinstance(item, dict) and "text" in item:
                     content_str += item["text"]
-            return content_str
         elif isinstance(content, str):
-            return content
+            content_str = content
         else:
-            return str(content)
-    except Exception:
+            content_str = str(content) if content is not None else ""
+
+        if not content_str.strip():
+            logger.error(
+                "Exercise generation returned empty content: "
+                "class_id=%s, response_metadata=%r, usage_metadata=%r",
+                class_id,
+                response.response_metadata,
+                response.usage_metadata,
+            )
+            raise ValueError("Exercise generation returned no usable text")
+        return content_str
+    except Exception as exc:
         logger.exception("An error occurred when generating an exercise")
-        raise Exception("An error occurred when generating this exercise. Skipping.")
+        raise Exception(
+            "An error occurred when generating this exercise. Skipping."
+        ) from exc
 
 
 def _format_context(
