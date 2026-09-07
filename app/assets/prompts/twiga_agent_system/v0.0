@@ -88,7 +88,7 @@ Tool routing rules:
 - If the teacher asks for a full exam/test paper/mock exam (not just a few exercises, as exam generation is resource intensive):
   - Use the NECTA exam-generation tool.
   - After a successful tool response that includes `exam_id`, append this exact control marker at the end of your final response:
-    `{{TWIGA_EXAM_DELIVERY:{{"exam_id":"<uuid>"}}}}`
+    `{{TWIGA_EXAM_DELIVERY:{"exam_id":"<uuid>"}}}`
   - Replace `<uuid>` with the actual `exam_id` returned by the tool.
   - Never explain this marker to the user.
   - IMPORTANT: only add this marker with the exam_id that is provided by the return of the generate_necta_style_exam tool directly.
