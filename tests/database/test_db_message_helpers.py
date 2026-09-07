@@ -1,9 +1,33 @@
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from app.database import db, enums
 from app.database.models import Message
+
+
+@pytest.fixture
+def message_history_session(monkeypatch):
+    """Execute the real history query locally without a PostgreSQL connection."""
+    engine = create_engine("sqlite:///:memory:")
+    Message.__table__.create(engine)
+    try:
+        with Session(engine) as session:
+            async_session = AsyncMock()
+            async_session.execute.side_effect = session.execute
+
+            @asynccontextmanager
+            async def get_session():
+                yield async_session
+
+            monkeypatch.setattr(db, "get_session", get_session)
+            yield session
+    finally:
+        engine.dispose()
 
 
 class _SessionContext:
@@ -15,6 +39,67 @@ class _SessionContext:
 
     async def __aexit__(self, exc_type, exc, tb):
         return False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("limit", [1, 3, 10])
+async def test_history_limits_visible_messages_in_chronological_order(
+    message_history_session, limit
+) -> None:
+    start = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    visible_messages = []
+    for index in range(12):
+        visible = Message(
+            user_id=7,
+            role=enums.MessageRole.user
+            if index % 2 == 0
+            else enums.MessageRole.assistant,
+            content=f"Visible message {index}",
+            is_present_in_conversation=True,
+            created_at=start + timedelta(seconds=index * 2),
+        )
+        visible_messages.append(visible)
+        message_history_session.add_all(
+            [
+                visible,
+                Message(
+                    user_id=7,
+                    role=visible.role,
+                    content=f"Hidden message {index}",
+                    is_present_in_conversation=False,
+                    created_at=start + timedelta(seconds=index * 2 + 1),
+                ),
+            ]
+        )
+    message_history_session.add(
+        Message(
+            user_id=8,
+            role=enums.MessageRole.assistant,
+            content="Another user's visible message",
+            is_present_in_conversation=True,
+            created_at=start + timedelta(minutes=1),
+        )
+    )
+    message_history_session.commit()
+
+    history = await db.get_user_message_history(7, limit=limit)
+
+    assert [message.id for message in history] == [
+        message.id for message in visible_messages[-limit:]
+    ]
+    assert message_history_session.query(Message).count() == 25
+
+
+@pytest.mark.asyncio
+async def test_history_returns_none_when_only_hidden_messages_exist(
+    message_history_session,
+) -> None:
+    message_history_session.add(
+        Message(user_id=7, role=enums.MessageRole.assistant, content="Raw response")
+    )
+    message_history_session.commit()
+
+    assert await db.get_user_message_history(7) is None
 
 
 @pytest.mark.asyncio
