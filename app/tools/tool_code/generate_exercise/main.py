@@ -45,8 +45,8 @@ async def generate_exercise(
         logger.debug(
             f"Retrieved {len(retrieved_content)} exercise chunks, this is the first: {retrieved_content[0]}"
         )
-    except Exception as e:
-        logger.error(f"An error occurred when generating an exercise: {e}")
+    except Exception:
+        logger.exception("Failed to retrieve textbook content for an exercise")
         raise Exception(
             "Failed to find content from the textbooks to generate this exercise. Skipping."
         )
@@ -73,7 +73,7 @@ async def generate_exercise(
 
         response = await async_llm_request(
             messages=messages,
-            max_tokens=100,
+            max_tokens=2048,
             run_name="twiga_generate_exercise",
             metadata={
                 "tool": "generate_exercise",
@@ -87,11 +87,19 @@ async def generate_exercise(
                     len(retrieved_exercises) if "retrieved_exercises" in locals() else 0
                 ),
                 **prompt_manager.build_trace_metadata(
-                    system=system_prompt_name,
-                    user=user_prompt_name,
+                    system_prompt_name=system_prompt_name,
+                    user_prompt_name=user_prompt_name,
                 ),
             },
         )
+        if not response.content:
+            logger.error(
+                "Exercise generation returned empty content: "
+                "class_id=%s, response_metadata=%r, usage_metadata=%r",
+                class_id,
+                response.response_metadata,
+                response.usage_metadata,
+            )
         assert response.content
 
         # Convert content to string if it's not already
@@ -109,8 +117,8 @@ async def generate_exercise(
             return content
         else:
             return str(content)
-    except Exception as e:
-        logger.error(f"An error occurred when generating an exercise: {e}")
+    except Exception:
+        logger.exception("An error occurred when generating an exercise")
         raise Exception("An error occurred when generating this exercise. Skipping.")
 
 
