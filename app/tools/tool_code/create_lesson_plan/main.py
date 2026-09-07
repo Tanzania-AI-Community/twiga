@@ -25,7 +25,7 @@ async def create_lesson_plan(
     class_context: Optional[list[str]] = None,
 ) -> str:
     """
-    Create a structured lesson plan and return a rendered string.
+    Create a structured lesson plan and return it as a JSON string.
     """
     try:
         resource_ids = await db.get_class_resources(class_id)
@@ -147,7 +147,7 @@ async def create_lesson_plan(
             f"Successfully created lesson plan for class_id={class_id}, subject={subject}, topic={topic}, lesson_plan={lesson_plan}"
         )
 
-        return _lesson_plan_json_to_string(lesson_plan)
+        return json.dumps(lesson_plan, ensure_ascii=False)
     except Exception as e:
         logger.error(
             f"Error creating lesson plan for class_id={class_id}, subject={subject}, topic={topic}: {e}",
@@ -262,7 +262,8 @@ def _parse_json_response(content: str, step: str = "unknown") -> dict[str, Any]:
             raise
 
 
-def _lesson_plan_json_to_string(lesson_plan: dict[str, Any]) -> str:
+def format_lesson_plan_as_text(lesson_plan: dict[str, Any]) -> str:
+    """Format a structured lesson plan as readable plain text for chat fallback."""
     lines: list[str] = []
 
     lines.append(f"Lesson Plan: {lesson_plan.get('lesson_title', '')}")
