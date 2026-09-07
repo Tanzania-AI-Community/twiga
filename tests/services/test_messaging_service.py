@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -9,6 +10,35 @@ from app.database.models import Message, User
 from app.services.citation_service import CitationRenderResult
 from app.services.exam_delivery_service import ExamPDFDeliveryDetails
 from app.services.messaging_service import MessagingService
+from app.tools.tool_code.create_lesson_plan.main import format_lesson_plan_as_text
+
+SAMPLE_LESSON_PLAN = {
+    "lesson_title": "Introduction to Algebra",
+    "subject": "Mathematics",
+    "topic": "Equations",
+    "duration_minutes": 45,
+    "learning_objectives": ["Solve linear equations"],
+    "key_concepts": ["Balance method"],
+    "materials_preparation": {
+        "materials_needed": ["Whiteboard"],
+        "teacher_preparation": ["Prepare examples"],
+    },
+    "lesson_flow": [
+        {
+            "title": "Introduction",
+            "duration_minutes": 10,
+            "activities": [
+                {"type": "instruction", "content": "Review prior knowledge"},
+                {
+                    "type": "exercise",
+                    "prompt": "Solve $x + 2 = 5$",
+                    "answer": "$x = 3$",
+                },
+            ],
+        }
+    ],
+    "homework": ["Complete exercise 1"],
+}
 
 
 @pytest.mark.asyncio
@@ -686,3 +716,293 @@ async def test_handle_chat_message_marker_only_skips_text_send_after_documents()
         user.wa_id,
         "Here is your practice exam in Geography on topics: Climate, Weather.",
     )
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_sends_lesson_plan_pdf_from_successful_tool() -> None:
+    service = MessagingService()
+    user = User(id=21, wa_id="255700000201", name="Teacher")
+    user_message = Message(
+        user_id=21,
+        role=enums.MessageRole.user,
+        content="Create a geography lesson plan",
+    )
+    tool_message = Message(
+        user_id=21,
+        role=enums.MessageRole.tool,
+        content=json.dumps(SAMPLE_LESSON_PLAN),
+        tool_name="create_lesson_plan",
+        tool_call_id="call_lesson_plan",
+    )
+    final_message = Message(
+        user_id=21,
+        role=enums.MessageRole.assistant,
+        content="Here is your lesson plan with $d = vt$.",
+    )
+    rendered_paths: list[Path] = []
+
+    def fake_render(plan, output_path) -> None:
+        assert plan == SAMPLE_LESSON_PLAN
+        path = Path(output_path)
+        path.write_bytes(b"%PDF-1.4")
+        rendered_paths.append(path)
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[tool_message, final_message]),
+        ),
+        patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
+        patch(
+            "app.services.messaging_service.render_lesson_plan_pdf",
+            side_effect=fake_render,
+        ) as mock_render,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_document_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_document,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_image_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_image,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+        patch(
+            "app.services.messaging_service.record_messages_generated"
+        ) as mock_record_messages,
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    mock_render.assert_called_once()
+    mock_send_document.assert_awaited_once()
+    send_document_kwargs = mock_send_document.await_args.kwargs
+    assert send_document_kwargs["wa_id"] == user.wa_id
+    assert send_document_kwargs["filename"] == "lesson_plan.pdf"
+    mock_send_image.assert_not_awaited()
+    mock_send_message.assert_awaited_once_with(
+        user.wa_id,
+        "Here is your lesson plan as a PDF.",
+    )
+    mock_persist_visible.assert_awaited_once_with(
+        user=user, content="Here is your lesson plan as a PDF."
+    )
+    mock_record_messages.assert_any_call("lesson_plan_pdf_sent")
+    assert rendered_paths
+    assert not rendered_paths[0].exists()
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_failed_lesson_plan_tool_does_not_send_pdf() -> None:
+    service = MessagingService()
+    user = User(id=22, wa_id="255700000202", name="Teacher")
+    user_message = Message(
+        user_id=22,
+        role=enums.MessageRole.user,
+        content="Create a lesson plan",
+    )
+    tool_message = Message(
+        user_id=22,
+        role=enums.MessageRole.tool,
+        content='{"error": "Failed to create lesson plan. Please try again."}',
+        tool_name="create_lesson_plan",
+        tool_call_id="call_lesson_plan",
+    )
+    final_message = Message(
+        user_id=22,
+        role=enums.MessageRole.assistant,
+        content="Sorry, I could not create the lesson plan.",
+    )
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[tool_message, final_message]),
+        ),
+        patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
+        patch(
+            "app.services.messaging_service.citation_service.render_citations",
+            AsyncMock(
+                return_value=CitationRenderResult(
+                    marker_found=False,
+                    rendered_content=final_message.content,
+                    ordered_chunk_ids=[],
+                    valid_reference_count=0,
+                    invalid_reference_count=0,
+                )
+            ),
+        ),
+        patch(
+            "app.services.messaging_service.render_lesson_plan_pdf",
+        ) as mock_render,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_document_message",
+            AsyncMock(),
+        ) as mock_send_document,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ),
+        patch("app.services.messaging_service.looks_like_latex", return_value=False),
+        patch("app.services.messaging_service.record_messages_generated"),
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    mock_render.assert_not_called()
+    mock_send_document.assert_not_awaited()
+    mock_send_message.assert_awaited_once_with(user.wa_id, final_message.content)
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_lesson_plan_pdf_render_failure_falls_back_to_text() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=23, wa_id="255700000203", name="Teacher")
+    user_message = Message(
+        user_id=23,
+        role=enums.MessageRole.user,
+        content="Create a lesson plan",
+    )
+    tool_message = Message(
+        user_id=23,
+        role=enums.MessageRole.tool,
+        content=json.dumps(SAMPLE_LESSON_PLAN),
+        tool_name="create_lesson_plan",
+        tool_call_id="call_lesson_plan",
+    )
+    final_message = Message(
+        user_id=23,
+        role=enums.MessageRole.assistant,
+        content="Here is your lesson plan.",
+    )
+    expected_text = format_lesson_plan_as_text(SAMPLE_LESSON_PLAN)
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[tool_message, final_message]),
+        ),
+        patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
+        patch(
+            "app.services.messaging_service.render_lesson_plan_pdf",
+            side_effect=RuntimeError("Tectonic failed"),
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_document_message",
+            AsyncMock(),
+        ) as mock_send_document,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+        patch(
+            "app.services.messaging_service.record_messages_generated"
+        ) as mock_record_messages,
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    mock_send_document.assert_not_awaited()
+    mock_send_message.assert_awaited_once_with(user.wa_id, expected_text)
+    mock_persist_visible.assert_awaited_once_with(user=user, content=expected_text)
+    mock_record_messages.assert_any_call("lesson_plan_pdf_render_failed")
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_lesson_plan_pdf_send_failure_falls_back_to_text() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=24, wa_id="255700000204", name="Teacher")
+    user_message = Message(
+        user_id=24,
+        role=enums.MessageRole.user,
+        content="Create a lesson plan",
+    )
+    tool_message = Message(
+        user_id=24,
+        role=enums.MessageRole.tool,
+        content=json.dumps(SAMPLE_LESSON_PLAN),
+        tool_name="create_lesson_plan",
+        tool_call_id="call_lesson_plan",
+    )
+    final_message = Message(
+        user_id=24,
+        role=enums.MessageRole.assistant,
+        content="Here is your lesson plan.",
+    )
+    expected_text = format_lesson_plan_as_text(SAMPLE_LESSON_PLAN)
+    rendered_paths: list[Path] = []
+
+    def fake_render(plan, output_path) -> None:
+        path = Path(output_path)
+        path.write_bytes(b"%PDF-1.4")
+        rendered_paths.append(path)
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[tool_message, final_message]),
+        ),
+        patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
+        patch(
+            "app.services.messaging_service.render_lesson_plan_pdf",
+            side_effect=fake_render,
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_document_message",
+            AsyncMock(return_value=False),
+        ) as mock_send_document,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+        patch(
+            "app.services.messaging_service.record_messages_generated"
+        ) as mock_record_messages,
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    mock_send_document.assert_awaited_once()
+    mock_send_message.assert_awaited_once_with(user.wa_id, expected_text)
+    mock_persist_visible.assert_awaited_once_with(user=user, content=expected_text)
+    mock_record_messages.assert_any_call("lesson_plan_pdf_send_failed")
+    assert rendered_paths
+    assert not rendered_paths[0].exists()
