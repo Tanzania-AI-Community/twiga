@@ -1,9 +1,12 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
+import fitz
 import httpx
 import pytest
 
 import app.database.enums as enums
+import app.latex.latex_artifact_generator as latex_artifact_generator
 from app.clients.whatsapp_client import DocumentType, ImageType, WhatsAppClient
 from app.config import settings
 from app.database.models import Message, User
@@ -12,6 +15,7 @@ from app.latex.latex_artifact_generator import (
     _extract_latex_document_body,
     _extract_tectonic_error_context,
     prepare_latex_body,
+    text_to_images,
 )
 from app.services.messaging_service import MessagingService
 
@@ -207,8 +211,8 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
         patch(
-            "app.services.messaging_service.text_to_img",
-            return_value="/tmp/twiga_latex_image.png",
+            "app.services.messaging_service.text_to_images",
+            return_value=["/tmp/twiga_latex_image.png"],
         ),
         patch(
             "app.services.messaging_service.whatsapp_client.send_image_message",
@@ -235,6 +239,166 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
     mock_persist_visible.assert_awaited_once_with(
         user=user, content=llm_message.content, source_chunk_ids=None
     )
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_sends_all_latex_images_in_page_order() -> None:
+    service = MessagingService()
+    user = User(id=1, wa_id="255700000000", name="Teacher")
+    user_message = Message(user_id=1, role=enums.MessageRole.user, content="Solve")
+    llm_message = Message(
+        user_id=1,
+        role=enums.MessageRole.assistant,
+        content="\\frac{1}{2}",
+    )
+    image_paths = ["/tmp/page_1.png", "/tmp/page_2.png"]
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[llm_message]),
+        ),
+        patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
+        patch(
+            "app.services.messaging_service.text_to_images",
+            return_value=image_paths,
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_image_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_image,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ),
+        patch(
+            "app.services.messaging_service.record_messages_generated"
+        ) as mock_record_messages,
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    assert mock_send_image.await_args_list == [
+        call(wa_id=user.wa_id, image_path=image_path, img_type=ImageType.PNG)
+        for image_path in image_paths
+    ]
+    mock_send_message.assert_not_awaited()
+    mock_record_messages.assert_called_once_with("chat_response_with_latex_image")
+
+
+@pytest.mark.asyncio
+async def test_handle_chat_message_falls_back_to_text_after_page_send_failure(
+    tmp_path,
+) -> None:
+    service = MessagingService()
+    user = User(id=1, wa_id="255700000000", name="Teacher")
+    user_message = Message(user_id=1, role=enums.MessageRole.user, content="Solve")
+    llm_message = Message(
+        user_id=1,
+        role=enums.MessageRole.assistant,
+        content="\\frac{1}{2}",
+    )
+    image_paths = [str(tmp_path / f"page_{page}.png") for page in range(1, 4)]
+    for image_path in image_paths:
+        Path(image_path).write_bytes(b"image")
+
+    with (
+        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(return_value=[llm_message]),
+        ),
+        patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
+        patch(
+            "app.services.messaging_service.text_to_images",
+            return_value=image_paths,
+        ),
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_image_message",
+            AsyncMock(side_effect=[True, False]),
+        ) as mock_send_image,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ),
+        patch(
+            "app.services.messaging_service.record_messages_generated"
+        ) as mock_record_messages,
+    ):
+        response = await service.handle_chat_message(
+            user=user, user_message=user_message
+        )
+
+    assert response.status_code == 200
+    assert mock_send_image.await_count == 2
+    mock_send_message.assert_awaited_once_with(user.wa_id, llm_message.content)
+    assert not Path(image_paths[2]).exists()
+    mock_record_messages.assert_called_once_with(
+        "chat_response_with_latex_image_fallback"
+    )
+
+
+def test_text_to_images_returns_an_image_for_each_pdf_page(
+    tmp_path, monkeypatch
+) -> None:
+    pdf_path = tmp_path / "response.pdf"
+    document = fitz.open()
+    document.new_page()
+    document.new_page()
+    document.save(pdf_path)
+    document.close()
+    monkeypatch.setattr(
+        latex_artifact_generator,
+        "_should_persist_latex_image_locally",
+        lambda: False,
+    )
+
+    with patch(
+        "app.latex.latex_artifact_generator.compile_latex_to_pdf",
+        return_value=str(pdf_path),
+    ):
+        image_paths = text_to_images("Ignored because compilation is mocked.")
+
+    try:
+        assert image_paths is not None
+        assert len(image_paths) == 2
+        assert all(Path(image_path).exists() for image_path in image_paths)
+    finally:
+        for image_path in image_paths or []:
+            Path(image_path).unlink(missing_ok=True)
+
+
+def test_text_to_images_cleans_compile_directory_on_failure(
+    tmp_path, monkeypatch
+) -> None:
+    compile_directory = tmp_path / "latex-compile"
+    compile_directory.mkdir()
+    monkeypatch.setattr(
+        latex_artifact_generator.tempfile,
+        "mkdtemp",
+        lambda: str(compile_directory),
+    )
+
+    with patch(
+        "app.latex.latex_artifact_generator.compile_latex_to_pdf",
+        side_effect=RuntimeError("Tectonic failed"),
+    ):
+        assert text_to_images("Invalid LaTeX") is None
+
+    assert not compile_directory.exists()
 
 
 def test_extract_latex_document_body() -> None:
