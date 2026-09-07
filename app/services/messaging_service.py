@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Optional
 
 from fastapi.responses import JSONResponse
@@ -14,7 +15,7 @@ from app.config import llm_settings
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
     prepare_latex_body,
-    text_to_img,
+    text_to_images,
 )
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.citation_service import CitationRenderResult, citation_service
@@ -255,28 +256,41 @@ class MessagingService:
         )
 
         prepared_latex_content = prepare_latex_body(llm_content)
-        latex_document_path = (
-            text_to_img(prepared_latex_content)
+        latex_document_paths = (
+            text_to_images(prepared_latex_content)
             if prepared_latex_content is not None
             else None
         )
 
-        if latex_document_path:
-            image_sent = await whatsapp_client.send_image_message(
-                wa_id=user.wa_id,
-                image_path=latex_document_path,
-                img_type=ImageType.PNG,
-            )
-            if image_sent:
-                record_messages_generated("chat_response_with_latex_image")
-                return
-            else:
+        if latex_document_paths:
+            for page_index, image_path in enumerate(latex_document_paths):
+                image_sent = await whatsapp_client.send_image_message(
+                    wa_id=user.wa_id,
+                    image_path=image_path,
+                    img_type=ImageType.PNG,
+                )
+                if image_sent:
+                    continue
+
+                for unsent_image_path in latex_document_paths[page_index + 1 :]:
+                    try:
+                        Path(unsent_image_path).unlink(missing_ok=True)
+                    except OSError as exc:
+                        self.logger.warning(
+                            "Failed to delete unsent LaTeX image %s: %s",
+                            unsent_image_path,
+                            exc,
+                        )
+
                 self.logger.warning(
                     "Falling back to plain text delivery; WhatsApp image send failed."
                 )
                 await whatsapp_client.send_message(user.wa_id, llm_content)
                 record_messages_generated("chat_response_with_latex_image_fallback")
                 return
+
+            record_messages_generated("chat_response_with_latex_image")
+            return
 
         else:
             self.logger.warning(
