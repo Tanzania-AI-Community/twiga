@@ -52,10 +52,10 @@ async def test_history_limits_visible_messages_in_chronological_order(
         visible = Message(
             user_id=7,
             role=(
-    enums.MessageRole.user
-    if index % 2 == 0
-    else enums.MessageRole.assistant
-),
+                enums.MessageRole.user
+                if index % 2 == 0
+                else enums.MessageRole.assistant
+            ),
             content=f"Visible message {index}",
             is_present_in_conversation=True,
             created_at=start + timedelta(seconds=index * 2),
