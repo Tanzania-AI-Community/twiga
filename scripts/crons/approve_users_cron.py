@@ -103,6 +103,7 @@ async def approve_and_welcome_users() -> None:
                         user_id=user.id,
                         role=MessageRole.assistant,
                         content=f"Welcome template sent: {WELCOME_TEMPLATE_ID}",
+                        is_present_in_conversation=True,
                     )
                     await create_new_messages([welcome_db_message])
 
