@@ -39,12 +39,20 @@ class Chunk(BaseModel):
     embedding: list[float]
     page_number: int
     chapter_number: int
+    subchapter_number: int | None = None
+
+
+class SubChapter(BaseModel):
+    name: str
+    number: str
+    start_page: int
 
 
 class Chapter(BaseModel):
     name: str
     number: int
     start_page: int
+    subchapters: list[SubChapter] | None = None
 
 
 class TableOfContents(BaseModel):
@@ -85,6 +93,14 @@ def get_parsed_book(file_name: str) -> ParsedBook:
                     name=chapter["name"],
                     number=chapter["number"],
                     start_page=chapter["start_page"],
+                    subchapters=[
+                        SubChapter(
+                            name=subchapter["name"],
+                            number=subchapter["number"],
+                            start_page=subchapter["start_page"]
+                        )
+                        for subchapter in chapter.get("subchapters", [])
+                    ] if chapter.get("subchapters") else None,
                 )
                 for chapter in book_content_raw["table_of_contents"]["chapters"]
             ]
@@ -95,6 +111,7 @@ def get_parsed_book(file_name: str) -> ParsedBook:
                 embedding=chunk_raw["embedding"],
                 page_number=chunk_raw["page_number"],
                 chapter_number=chunk_raw["chapter_number"],
+                subchapter_number=chunk_raw.get("subchapter_number"),
             )
             for chunk_raw in book_content_raw["chunks"]
         ],
@@ -147,6 +164,7 @@ async def inject_subject_class_and_resource_data(parsed_book: ParsedBook):
                     name=parsed_book.resource.name,
                     type=parsed_book.resource.type,
                     authors=parsed_book.resource.authors,
+                    table_of_contents=parsed_book.table_of_contents.dict(),
                 )
                 session.add(resource)
                 await session.flush()
@@ -202,6 +220,8 @@ async def process_chunks(
                     content=item.content,
                     chunk_type=ChunkType.text,  # TODO: include in json
                     page_number=item.page_number,
+                    chapter_number=item.chapter_number,
+                    subchapter_number=item.subchapter_number,
                     top_level_section_index=str(item.chapter_number),
                     top_level_section_title=title[:100] if title else None,
                     embedding=item.embedding,
