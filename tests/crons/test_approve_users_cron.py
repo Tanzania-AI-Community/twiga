@@ -45,3 +45,4 @@ async def test_approve_users_persists_welcome_with_shared_message_writer() -> No
         and persisted_messages[0].user_id == user.id
         and "Welcome template sent" in persisted_messages[0].content
     )
+    assert persisted_messages[0].is_present_in_conversation is True
