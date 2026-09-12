@@ -361,9 +361,12 @@ async def test_persist_visible_assistant_message_skips_when_user_id_is_missing()
 
 
 @pytest.mark.asyncio
-async def test_handle_chat_message_exam_marker_sends_documents_and_strips_marker() -> (
-    None
-):
+@pytest.mark.parametrize(
+    "delivery_source", ["marker", "tool", "tool_with_wrong_marker"]
+)
+async def test_handle_chat_message_exam_delivery_sends_documents(
+    delivery_source: str,
+) -> None:
     service = MessagingService()
     user = User(id=11, wa_id="255700000101", name="Teacher")
     user_message = Message(
@@ -376,11 +379,31 @@ async def test_handle_chat_message_exam_marker_sends_documents_and_strips_marker
         "Your exam is ready.\n"
         '{{TWIGA_EXAM_DELIVERY:{"exam_id":"b1740ac9-bfea-415f-8b3a-c7f06ee8c353"}}}'
     )
+    if delivery_source == "tool":
+        llm_content = "Your exam is ready: https://twiga.exams/invented-link"
+    elif delivery_source == "tool_with_wrong_marker":
+        llm_content = llm_content.replace(
+            exam_id, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        )
     final_message = Message(
         user_id=11,
         role=enums.MessageRole.assistant,
         content=llm_content,
     )
+    llm_responses = [final_message]
+    if delivery_source != "marker":
+        llm_responses.insert(
+            0,
+            Message(
+                user_id=user.id,
+                role=enums.MessageRole.tool,
+                tool_name="generate_necta_style_exam",
+                tool_call_id="exam-call",
+                content=json.dumps(
+                    {"message": "Exam generation successful.", "exam_id": exam_id}
+                ),
+            ),
+        )
 
     artifacts = ExamPDFDeliveryDetails(
         exam_id=exam_id,
@@ -396,7 +419,7 @@ async def test_handle_chat_message_exam_marker_sends_documents_and_strips_marker
         patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
             "app.services.messaging_service.llm_client.generate_response",
-            AsyncMock(return_value=[final_message]),
+            AsyncMock(return_value=llm_responses),
         ),
         patch(
             "app.services.messaging_service.db.create_new_messages",
@@ -405,7 +428,7 @@ async def test_handle_chat_message_exam_marker_sends_documents_and_strips_marker
         patch(
             "app.services.messaging_service.exam_delivery_service.get_exam_delivery_details",
             AsyncMock(return_value=artifacts),
-        ),
+        ) as mock_get_details,
         patch(
             "app.services.messaging_service.whatsapp_client.send_document_message",
             AsyncMock(return_value=True),
@@ -427,7 +450,8 @@ async def test_handle_chat_message_exam_marker_sends_documents_and_strips_marker
         )
 
     assert response.status_code == 200
-    mock_create_messages.assert_awaited_once_with([final_message])
+    mock_create_messages.assert_awaited_once_with(llm_responses)
+    mock_get_details.assert_awaited_once_with(exam_id)
     assert final_message.content == llm_content
     assert mock_send_document.await_count == 2
     mock_send_message.assert_awaited_once_with(

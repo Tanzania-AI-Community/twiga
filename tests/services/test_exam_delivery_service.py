@@ -4,7 +4,31 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.database.enums import MessageRole
+from app.database.models import Message
 from app.services.exam_delivery_service import ExamDeliveryService
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ["not JSON", "[]", "{}", '{"exam_id":"invalid"}', '{"error":"timeout"}'],
+)
+def test_resolve_delivery_marker_ignores_unsuccessful_tool_results(
+    payload: str,
+) -> None:
+    service = ExamDeliveryService()
+    message = Message(
+        user_id=1,
+        role=MessageRole.tool,
+        tool_name="generate_necta_style_exam",
+        content=payload,
+    )
+
+    marker = service.resolve_delivery_marker("No exam available.", [message])
+
+    assert marker.marker_found is False
+    assert marker.exam_id is None
+    assert marker.cleaned_content == "No exam available."
 
 
 def test_parse_delivery_marker_returns_valid_exam_id_and_cleaned_text() -> None:

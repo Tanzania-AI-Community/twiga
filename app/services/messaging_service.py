@@ -143,7 +143,7 @@ class MessagingService:
         await db.create_new_messages(llm_responses)
 
         if self._should_handle_exam_delivery(llm_responses, llm_content):
-            await self._handle_exam_delivery(user, llm_content)
+            await self._handle_exam_delivery(user, llm_content, llm_responses)
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         if self._should_handle_lesson_plan_delivery(llm_responses):
@@ -457,9 +457,11 @@ class MessagingService:
         if sent:
             record_messages_generated("chat_response")
 
-    async def _handle_exam_delivery(self, user: models.User, llm_content: str) -> None:
+    async def _handle_exam_delivery(
+        self, user: models.User, llm_content: str, llm_responses: list[models.Message]
+    ) -> None:
         delivery_marker: ExamDeliveryMarker = (
-            exam_delivery_service.parse_delivery_marker(llm_content)
+            exam_delivery_service.resolve_delivery_marker(llm_content, llm_responses)
         )
 
         llm_content = (
