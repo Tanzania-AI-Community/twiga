@@ -17,6 +17,10 @@ from app.utils.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 
+# Exam questions are long sequential LLM calls. The global chat timeout (60s)
+# is too short for later short-answer prompts; keep this override exam-only.
+EXAM_LLM_TIMEOUT_SECONDS = 180
+
 
 class ExamGenerationError(Exception):
     """Raised when exam JSON generation fails."""
@@ -404,6 +408,7 @@ class ExamGenerator:
                 tools=None,
                 tool_choice=None,
                 run_name="twiga_necta_exam_generator",
+                timeout=EXAM_LLM_TIMEOUT_SECONDS,
                 metadata={
                     "tool": "generate_necta_style_exam",
                     "subject": subject,
@@ -521,6 +526,7 @@ class ExamGenerator:
             tools=None,
             tool_choice=None,
             run_name="twiga_necta_exam_validator",
+            timeout=EXAM_LLM_TIMEOUT_SECONDS,
             metadata={
                 "tool": "generate_necta_style_exam",
                 "stage": "question_validator",

@@ -27,6 +27,7 @@ if "app.utils.llm_utils" not in sys.modules:
     sys.modules["app.utils.llm_utils"] = llm_utils_module
 
 from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
+    EXAM_LLM_TIMEOUT_SECONDS,
     ExamGenerator,
     QuestionType,
 )
@@ -43,9 +44,12 @@ def test_generate_single_item_matching_sets_question_type() -> None:
         "metadata": {"topic": "Acids and bases", "difficulty": "medium"},
     }
 
+    mock_llm_request = AsyncMock(
+        return_value=SimpleNamespace(content=json.dumps(llm_payload))
+    )
     with patch(
         "app.tools.tool_code.generate_necta_style_exam.exam_generator.async_llm_request",
-        AsyncMock(return_value=SimpleNamespace(content=json.dumps(llm_payload))),
+        mock_llm_request,
     ):
         success, question = asyncio.run(
             generator._generate_single_question(
@@ -61,6 +65,7 @@ def test_generate_single_item_matching_sets_question_type() -> None:
             )
         )
 
+    assert mock_llm_request.await_args.kwargs["timeout"] == EXAM_LLM_TIMEOUT_SECONDS
     assert success is True
     assert list(question.keys())[:3] == ["id", "type", "marks"]
     assert question["type"] == QuestionType.ITEM_MATCHING.value

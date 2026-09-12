@@ -250,6 +250,7 @@ async def async_llm_request(
     verbose: bool = False,
     run_name: Optional[str] = None,
     metadata: Optional[dict] = None,
+    timeout: Optional[float] = None,
     **kwargs,
 ) -> AIMessage:
     """
@@ -265,6 +266,7 @@ async def async_llm_request(
         verbose: Whether to log debug information
         run_name: Optional name for LangSmith trace run
         metadata: Optional metadata for LangSmith tracing
+        timeout: Optional request timeout in seconds (defaults to llm settings)
         **kwargs: Additional keyword arguments for the LLM call
 
     Returns:
@@ -306,7 +308,7 @@ async def async_llm_request(
             tool_choice=tool_choice,
             temperature=llm_settings.temperature,
             max_tokens=llm_settings.max_tokens,
-            timeout=llm_settings.timeout,
+            timeout=timeout if timeout is not None else llm_settings.timeout,
             reasoning_effort=llm_settings.reasoning_effort,
         )
 
