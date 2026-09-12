@@ -106,6 +106,71 @@ async def test_llm_request_contains_visible_assistant_response_without_raw_dupli
 
 
 @pytest.mark.asyncio
+async def test_repeated_tool_calls_notify_the_user_only_once(
+    message_history_session,
+) -> None:
+    """A tool called in several agent iterations is announced once, not once per call."""
+    client = AgentClient()
+    user = _make_user()
+    incoming_message = Message(
+        user_id=user.id,
+        role=MessageRole.user,
+        content="Create 10 questions on trigonometry.",
+        is_present_in_conversation=True,
+    )
+    incoming_message.created_at = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    message_history_session.add(incoming_message)
+    message_history_session.commit()
+
+    def _exercise_call(call_id: str) -> AIMessage:
+        return AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "generate_exercise",
+                    "args": {"query": "trigonometry question", "class_id": 21},
+                    "id": call_id,
+                }
+            ],
+        )
+
+    llm_responses = [
+        _exercise_call("call_1"),
+        _exercise_call("call_2"),
+        AIMessage(content="Here are your questions."),
+    ]
+
+    with (
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(side_effect=llm_responses),
+        ),
+        patch.object(
+            client.tool_manager,
+            "process_tool_calls",
+            AsyncMock(
+                return_value=[
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.tool,
+                        content="A question.",
+                        tool_call_id="call_1",
+                        tool_name="generate_exercise",
+                    )
+                ]
+            ),
+        ),
+        patch.object(
+            client, "_tool_call_notification", AsyncMock()
+        ) as mock_notification,
+    ):
+        response = await client.generate_response(user, incoming_message)
+
+    assert response is not None
+    mock_notification.assert_awaited_once_with(user, "generate_exercise")
+
+
+@pytest.mark.asyncio
 async def test_generate_response_returns_buffered_when_processor_is_locked() -> None:
     agent_client = AgentClient()
     user = _make_user()

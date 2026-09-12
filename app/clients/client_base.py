@@ -94,11 +94,14 @@ class ClientBase(ABC):
             )
             return
 
+        # Kept out of the LLM context (is_present_in_conversation drives
+        # get_user_message_history): read back as assistant turns, these status lines
+        # taught the agent to reply with a progress message instead of doing the work.
         await create_new_message_by_fields(
             user_id=user.id,
             role=MessageRole.assistant,
             content=notification_text,
-            is_present_in_conversation=True,
+            is_present_in_conversation=False,
         )
 
     async def _preprocess_messages(
