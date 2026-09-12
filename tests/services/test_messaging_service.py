@@ -790,13 +790,8 @@ async def test_handle_chat_message_sends_lesson_plan_pdf_from_successful_tool() 
     assert send_document_kwargs["wa_id"] == user.wa_id
     assert send_document_kwargs["filename"] == "lesson_plan.pdf"
     mock_send_image.assert_not_awaited()
-    mock_send_message.assert_awaited_once_with(
-        user.wa_id,
-        "Here is your lesson plan as a PDF.",
-    )
-    mock_persist_visible.assert_awaited_once_with(
-        user=user, content="Here is your lesson plan as a PDF."
-    )
+    mock_send_message.assert_not_awaited()
+    mock_persist_visible.assert_not_awaited()
     mock_record_messages.assert_any_call("lesson_plan_pdf_sent")
     assert rendered_paths
     assert not rendered_paths[0].exists()
