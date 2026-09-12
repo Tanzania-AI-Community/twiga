@@ -447,11 +447,6 @@ class MessagingService:
             Path(pdf_path).unlink(missing_ok=True)
 
         if pdf_sent:
-            delivery_message = self._build_lesson_plan_delivery_message()
-            await self._persist_visible_assistant_message(
-                user=user, content=delivery_message
-            )
-            await whatsapp_client.send_message(user.wa_id, delivery_message)
             record_messages_generated("lesson_plan_pdf_sent")
             record_messages_generated("chat_response")
             return
@@ -461,19 +456,6 @@ class MessagingService:
         sent = await whatsapp_client.send_message(user.wa_id, plan_text)
         if sent:
             record_messages_generated("chat_response")
-
-    def _build_lesson_plan_delivery_message(self) -> str:
-        tool_name = ToolName.create_lesson_plan.value
-        tool_strings = strings.get_category(StringCategory.TOOLS).get(tool_name)
-        if isinstance(tool_strings, dict):
-            delivery_message = tool_strings.get("delivery_success")
-            if isinstance(delivery_message, str) and delivery_message.strip():
-                return delivery_message
-
-        self.logger.error(
-            f"Missing lesson plan delivery string for tool '{tool_name}'."
-        )
-        return "Here is your lesson plan as a PDF."
 
     async def _handle_exam_delivery(self, user: models.User, llm_content: str) -> None:
         delivery_marker: ExamDeliveryMarker = (
