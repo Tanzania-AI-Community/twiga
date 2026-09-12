@@ -13,7 +13,7 @@ class DummyClient(ClientBase):
 
 
 @pytest.mark.asyncio
-async def test_tool_call_notification_persists_visible_message() -> None:
+async def test_tool_call_notification_persists_message_outside_llm_context() -> None:
     """Tools with a defined string (e.g. generate_exercise) send a WhatsApp message."""
     client = DummyClient()
     user = User(id=11, wa_id="255700000000", name="Teacher")
@@ -39,7 +39,7 @@ async def test_tool_call_notification_persists_visible_message() -> None:
         "user_id": user.id,
         "role": enums.MessageRole.assistant,
         "content": "Generating exercises...",
-        "is_present_in_conversation": True,
+        "is_present_in_conversation": False,
     }
 
 
@@ -47,7 +47,7 @@ async def test_tool_call_notification_persists_visible_message() -> None:
 async def test_tool_call_notification_uses_notification_field_when_tool_string_is_dict() -> (
     None
 ):
-    """Dict-style tool strings should use the `notification` field for visible messages."""
+    """Dict-style tool strings should use the `notification` field for the sent message."""
     client = DummyClient()
     user = User(id=11, wa_id="255700000000", name="Teacher")
 
@@ -78,7 +78,7 @@ async def test_tool_call_notification_uses_notification_field_when_tool_string_i
         "user_id": user.id,
         "role": enums.MessageRole.assistant,
         "content": expected_notification,
-        "is_present_in_conversation": True,
+        "is_present_in_conversation": False,
     }
 
 
