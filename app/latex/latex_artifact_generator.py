@@ -505,62 +505,69 @@ def compile_latex_to_pdf(latex_body: str, temp_dir: str) -> str:
     return pdf_path
 
 
-def text_to_img(content: str) -> str | None:
-    """
-    Convert a LaTeX document body to a PNG image. Returns the path to the PNG image.
-    """
+def text_to_images(content: str) -> list[str] | None:
+    """Convert every page of a LaTeX document body to a PNG image."""
     logger = logging.getLogger(__name__)
     temp_dir = tempfile.mkdtemp()
     output_dir = os.getcwd() if _should_persist_latex_image_locally() else None
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
-    output_file_descriptor, output_path = tempfile.mkstemp(
-        prefix="twiga_latex_", suffix=".png", dir=output_dir
-    )
-    os.close(output_file_descriptor)
-    rendered_image_ready = False
+    output_paths: list[str] = []
+    rendered_images_ready = False
 
     try:
         pdf_path = compile_latex_to_pdf(content, temp_dir)
     except Exception as exc:
         logger.error("Error compiling LaTeX: %s", exc)
-        try:
-            os.remove(output_path)
-        except OSError:
-            pass
         shutil.rmtree(temp_dir, ignore_errors=True)
         return None
 
     try:
         pdf_document = fitz.open(pdf_path)
         try:
-            page = pdf_document[0]
-            for dpi in PDF_RENDER_DPI_CANDIDATES:
-                pix = page.get_pixmap(dpi=dpi)
-                pix.save(output_path)
-                if os.path.getsize(output_path) <= WHATSAPP_MAX_IMAGE_SIZE_BYTES:
-                    rendered_image_ready = True
-                    if output_dir is not None:
-                        logger.info(
-                            "Saved LaTeX image locally for debugging: %s",
-                            output_path,
-                        )
-                    return output_path
-            logger.warning(
-                "Generated image exceeds WhatsApp upload limit after DPI fallback (%s).",
-                output_path,
-            )
+            for page_number, page in enumerate(pdf_document, start=1):
+                output_file_descriptor, output_path = tempfile.mkstemp(
+                    prefix="twiga_latex_", suffix=".png", dir=output_dir
+                )
+                os.close(output_file_descriptor)
+                output_paths.append(output_path)
+
+                for dpi in PDF_RENDER_DPI_CANDIDATES:
+                    pix = page.get_pixmap(dpi=dpi)
+                    pix.save(output_path)
+                    if os.path.getsize(output_path) <= WHATSAPP_MAX_IMAGE_SIZE_BYTES:
+                        if output_dir is not None:
+                            logger.info(
+                                "Saved LaTeX image locally for debugging: %s",
+                                output_path,
+                            )
+                        break
+
+                else:
+                    logger.warning(
+                        "Generated LaTeX image for page %s exceeds WhatsApp upload "
+                        "limit after DPI fallback (%s).",
+                        page_number,
+                        output_path,
+                    )
+                    return None
+
+            if output_paths:
+                rendered_images_ready = True
+                return output_paths
+            return None
         finally:
             pdf_document.close()
     except Exception as exc:
-        logger.error("Error converting LaTeX PDF to image: %s", exc)
+        logger.error("Error converting LaTeX PDF to images: %s", exc)
         return None
     finally:
-        if not rendered_image_ready and os.path.exists(output_path):
-            try:
-                os.remove(output_path)
-            except OSError:
-                pass
+        if not rendered_images_ready:
+            for output_path in output_paths:
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 

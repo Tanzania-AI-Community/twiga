@@ -65,6 +65,7 @@ class AgentClient(ClientBase):
         user: User,
         api_messages: list,
         final_messages: list[Message],
+        notified_tools: set[str],
     ) -> list[Message]:
         """
         OBSERVE: Process tool calls and collect their responses.
@@ -74,6 +75,7 @@ class AgentClient(ClientBase):
             user: User object for context
             api_messages: Current conversation history (will be modified)
             final_messages: List of final messages (will be modified)
+            notified_tools: Tools already announced to the user this turn (will be modified)
 
         Returns:
             List of tool response messages
@@ -82,8 +84,9 @@ class AgentClient(ClientBase):
         self.logger.debug(f"Tool calls: {tool_calls}")
 
         unique_tools = {tool_call["function"]["name"] for tool_call in tool_calls}
-        for tool_name in unique_tools:
+        for tool_name in sorted(unique_tools - notified_tools):
             await self._tool_call_notification(user, tool_name)
+        notified_tools.update(unique_tools)
 
         tool_responses = await self.tool_manager.process_tool_calls(tool_calls, user)
         return tool_responses
@@ -145,6 +148,8 @@ class AgentClient(ClientBase):
             return BUFFERED_RESPONSE
 
         async with processor.lock:
+            # A tool is announced at most once per turn
+            notified_tools: set[str] = set()
             try:
                 while True:
                     api_messages, error_messages = await self._preprocess_messages(
@@ -197,6 +202,7 @@ class AgentClient(ClientBase):
                             user=user,
                             api_messages=api_messages,
                             final_messages=final_messages,
+                            notified_tools=notified_tools,
                         )
 
                         if tool_responses:

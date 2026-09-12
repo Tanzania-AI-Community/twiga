@@ -1,4 +1,8 @@
+import json
 import logging
+import os
+import tempfile
+from pathlib import Path
 from typing import Optional
 
 from fastapi.responses import JSONResponse
@@ -14,7 +18,7 @@ from app.config import llm_settings
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
     prepare_latex_body,
-    text_to_img,
+    text_to_images,
 )
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.citation_service import CitationRenderResult, citation_service
@@ -24,7 +28,9 @@ from app.services.exam_delivery_service import (
     exam_delivery_service,
 )
 from app.services.flows.flow_service import flow_client
+from app.services.lesson_plan_pdf_generation_service import render_lesson_plan_pdf
 from app.tools.registry import ToolName
+from app.tools.tool_code.create_lesson_plan.main import format_lesson_plan_as_text
 from app.utils.string_manager import StringCategory, strings
 
 
@@ -138,6 +144,13 @@ class MessagingService:
 
         if self._should_handle_exam_delivery(llm_responses, llm_content):
             await self._handle_exam_delivery(user, llm_content)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+
+        if self._should_handle_lesson_plan_delivery(llm_responses):
+            await self._handle_lesson_plan_delivery(
+                user=user,
+                llm_responses=llm_responses,
+            )
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         llm_content = await self._handle_citations(
@@ -255,28 +268,41 @@ class MessagingService:
         )
 
         prepared_latex_content = prepare_latex_body(llm_content)
-        latex_document_path = (
-            text_to_img(prepared_latex_content)
+        latex_document_paths = (
+            text_to_images(prepared_latex_content)
             if prepared_latex_content is not None
             else None
         )
 
-        if latex_document_path:
-            image_sent = await whatsapp_client.send_image_message(
-                wa_id=user.wa_id,
-                image_path=latex_document_path,
-                img_type=ImageType.PNG,
-            )
-            if image_sent:
-                record_messages_generated("chat_response_with_latex_image")
-                return
-            else:
+        if latex_document_paths:
+            for page_index, image_path in enumerate(latex_document_paths):
+                image_sent = await whatsapp_client.send_image_message(
+                    wa_id=user.wa_id,
+                    image_path=image_path,
+                    img_type=ImageType.PNG,
+                )
+                if image_sent:
+                    continue
+
+                for unsent_image_path in latex_document_paths[page_index + 1 :]:
+                    try:
+                        Path(unsent_image_path).unlink(missing_ok=True)
+                    except OSError as exc:
+                        self.logger.warning(
+                            "Failed to delete unsent LaTeX image %s: %s",
+                            unsent_image_path,
+                            exc,
+                        )
+
                 self.logger.warning(
                     "Falling back to plain text delivery; WhatsApp image send failed."
                 )
                 await whatsapp_client.send_message(user.wa_id, llm_content)
                 record_messages_generated("chat_response_with_latex_image_fallback")
                 return
+
+            record_messages_generated("chat_response_with_latex_image")
+            return
 
         else:
             self.logger.warning(
@@ -349,6 +375,87 @@ class MessagingService:
             msg.role == enums.MessageRole.tool and msg.tool_name == exam_tool_name
             for msg in llm_responses
         )
+
+    def _should_handle_lesson_plan_delivery(
+        self, llm_responses: list[models.Message]
+    ) -> bool:
+        return self._get_successful_lesson_plan(llm_responses) is not None
+
+    def _get_successful_lesson_plan(
+        self, llm_responses: list[models.Message]
+    ) -> dict | None:
+        tool_name = ToolName.create_lesson_plan.value
+        for message in reversed(llm_responses):
+            if message.role != enums.MessageRole.tool or message.tool_name != tool_name:
+                continue
+            content = (message.content or "").strip()
+            if not content:
+                continue
+            try:
+                payload = json.loads(content)
+            except json.JSONDecodeError:
+                self.logger.warning(
+                    "Ignoring create_lesson_plan tool result that is not valid JSON."
+                )
+                continue
+            if not isinstance(payload, dict) or payload.get("error"):
+                continue
+            return payload
+        return None
+
+    async def _handle_lesson_plan_delivery(
+        self,
+        user: models.User,
+        llm_responses: list[models.Message],
+    ) -> None:
+        lesson_plan = self._get_successful_lesson_plan(llm_responses)
+        if lesson_plan is None:
+            self.logger.warning(
+                "Lesson plan delivery requested, but no successful tool result was found."
+            )
+            return
+
+        pdf_file_descriptor, pdf_path = tempfile.mkstemp(
+            prefix="twiga_lesson_plan_", suffix=".pdf"
+        )
+        os.close(pdf_file_descriptor)
+        pdf_sent = False
+
+        try:
+            try:
+                render_lesson_plan_pdf(lesson_plan, pdf_path)
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to render lesson plan PDF; falling back to text delivery. "
+                    f"error={exc}"
+                )
+                record_messages_generated("lesson_plan_pdf_render_failed")
+            else:
+                pdf_sent = await whatsapp_client.send_document_message(
+                    wa_id=user.wa_id,
+                    document_path=pdf_path,
+                    doc_type=DocumentType.PDF,
+                    filename="lesson_plan.pdf",
+                    delete_local_file=True,
+                )
+                if not pdf_sent:
+                    self.logger.warning(
+                        "Failed to send lesson plan PDF; falling back to text delivery."
+                    )
+                    record_messages_generated("lesson_plan_pdf_send_failed")
+        finally:
+            Path(pdf_path).unlink(missing_ok=True)
+
+        if pdf_sent:
+            record_messages_generated("lesson_plan_pdf_sent")
+            record_messages_generated("chat_response")
+            return
+
+        plan_text = format_lesson_plan_as_text(lesson_plan)
+        await self._persist_visible_assistant_message(user=user, content=plan_text)
+        sent = await whatsapp_client.send_message(user.wa_id, plan_text)
+        if sent:
+            record_messages_generated("chat_response")
 
     async def _handle_exam_delivery(self, user: models.User, llm_content: str) -> None:
         delivery_marker: ExamDeliveryMarker = (

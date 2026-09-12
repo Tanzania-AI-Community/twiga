@@ -13,6 +13,9 @@ from app.utils.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 
+# Prevent the provider's default output limit from truncating lesson-plan JSON.
+_LESSON_PLAN_STEP_MAX_TOKENS = 8000
+
 
 async def create_lesson_plan(
     class_id: int,
@@ -22,7 +25,7 @@ async def create_lesson_plan(
     class_context: Optional[list[str]] = None,
 ) -> str:
     """
-    Create a structured lesson plan and return a rendered string.
+    Create a structured lesson plan and return it as a JSON string.
     """
     try:
         resource_ids = await db.get_class_resources(class_id)
@@ -144,7 +147,7 @@ async def create_lesson_plan(
             f"Successfully created lesson plan for class_id={class_id}, subject={subject}, topic={topic}, lesson_plan={lesson_plan}"
         )
 
-        return _lesson_plan_json_to_string(lesson_plan)
+        return json.dumps(lesson_plan, ensure_ascii=False)
     except Exception as e:
         logger.error(
             f"Error creating lesson plan for class_id={class_id}, subject={subject}, topic={topic}: {e}",
@@ -212,23 +215,55 @@ async def _call_llm_json(
         messages=messages,
         run_name=run_name,
         metadata=metadata,
+        max_tokens=_LESSON_PLAN_STEP_MAX_TOKENS,
     )
 
-    return _parse_json_response(response.content)
+    return _parse_json_response(response.content, step=metadata.get("step", "unknown"))
 
 
-def _parse_json_response(content: str) -> dict[str, Any]:
+# Excerpt sizes for the parse-failure logs below. Large enough to identify the
+# malformed token, small enough not to dump whole lesson plans into the logs.
+_LOG_EXCERPT_HEAD = 300
+_LOG_EXCERPT_WINDOW = 200
+
+
+def _describe_json_failure(
+    attempt: str, step: str, content: str, error: json.JSONDecodeError
+) -> str:
+    parts = [
+        f"Lesson plan JSON parse failed (step={step}, attempt={attempt}): {error}.",
+        f"length={len(content)}",
+        f"head={content[:_LOG_EXCERPT_HEAD]!r}",
+    ]
+    # When the failure is inside the head excerpt, a window would just repeat it
+    if error.pos >= _LOG_EXCERPT_HEAD:
+        start = max(0, error.pos - _LOG_EXCERPT_WINDOW)
+        end = min(len(content), error.pos + _LOG_EXCERPT_WINDOW)
+        parts.append(f"around_error={content[start:end]!r}")
+    return " ".join(parts)
+
+
+def _parse_json_response(content: str, step: str = "unknown") -> dict[str, Any]:
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as direct_error:
+        logger.error(_describe_json_failure("direct", step, content, direct_error))
         start = content.find("{")
         end = content.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            return json.loads(content[start : end + 1])
-        raise
+        if start == -1 or end == -1 or end <= start:
+            raise
+        candidate = content[start : end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as candidate_error:
+            logger.error(
+                _describe_json_failure("braces", step, candidate, candidate_error)
+            )
+            raise
 
 
-def _lesson_plan_json_to_string(lesson_plan: dict[str, Any]) -> str:
+def format_lesson_plan_as_text(lesson_plan: dict[str, Any]) -> str:
+    """Format a structured lesson plan as readable plain text for chat fallback."""
     lines: list[str] = []
 
     lines.append(f"Lesson Plan: {lesson_plan.get('lesson_title', '')}")

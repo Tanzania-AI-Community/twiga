@@ -195,12 +195,16 @@ async def update_user(user: User) -> User:
 async def get_user_message_history(
     user_id: int, limit: int = 10
 ) -> list[Message] | None:
+    """Return the latest visible conversation messages in chronological order."""
     async with get_session() as session:
         try:
             # TODO: Make the database order this by default to reduce repeated operations
             statement = (
                 select(Message)
-                .where(Message.user_id == user_id)
+                .where(
+                    Message.user_id == user_id,
+                    Message.is_present_in_conversation.is_(True),
+                )
                 .order_by(desc(Message.created_at))
                 .limit(limit)
             )
@@ -208,7 +212,7 @@ async def get_user_message_history(
             result = await session.execute(statement)
             messages = result.scalars().all()
 
-            # If no messages found, return empty list
+            # If no visible messages are found, return None
             if not messages:
                 logger.debug(f"No message history found for user {user_id}")
                 return None
