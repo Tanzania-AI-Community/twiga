@@ -7,10 +7,13 @@ from pathlib import Path
 from typing import Optional
 
 import app.database.db as db
+from app.database.enums import MessageRole
+from app.database.models import Message
 from app.services.exam_pdf_generation_service import (
     render_exam_pdf,
     render_exam_solution_pdf,
 )
+from app.tools.registry import ToolName
 from app.utils.paths import paths
 
 EXAM_DELIVERY_MARKER_RE = re.compile(
@@ -43,6 +46,29 @@ class ExamDeliveryService:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         paths.EXAM_PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    def resolve_delivery_marker(
+        self, content: str | None, tool_responses: list[Message]
+    ) -> ExamDeliveryMarker:
+        """Prefer the generated exam ID from the tool over model-written content."""
+        for message in reversed(tool_responses):
+            if (
+                message.role != MessageRole.tool
+                or message.tool_name != ToolName.generate_necta_style_exam.value
+            ):
+                continue
+            payload = self._parse_marker_payload(message.content or "")
+            if payload is None or payload.get("error"):
+                continue
+            exam_id = self._get_exam_id_in_expected_format(payload.get("exam_id"))
+            if exam_id is not None:
+                return ExamDeliveryMarker(
+                    marker_found=True,
+                    marker_valid=True,
+                    exam_id=exam_id,
+                    cleaned_content="",
+                )
+        return self.parse_delivery_marker(content)
 
     def parse_delivery_marker(self, content: str | None) -> ExamDeliveryMarker:
         if content is None:
