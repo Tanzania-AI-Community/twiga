@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -325,7 +326,7 @@ async def create_new_message_by_fields(
 
 async def vector_search(query: str, n_results: int, where: dict) -> list[Chunk]:
     try:
-        query_vector = embedder.get_embedding(query)
+        query_vector = await asyncio.to_thread(embedder.get_embedding, query)
     except Exception as e:
         logger.error(f"Failed to get embedding for query {query}: {str(e)}")
         raise Exception(f"Failed to get embedding for query: {str(e)}")
