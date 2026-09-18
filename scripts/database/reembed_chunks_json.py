@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from scripts.database.reembedding_utils import (
-    TogetherEmbeddingClient,
+    EmbeddingClient,
+    add_embedding_arguments,
+    build_embedding_client,
     chunked,
     project_root,
-    read_env_value,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +46,7 @@ def load_chunks(input_file: Path) -> list[dict[str, Any]]:
 
 def reembed_chunks_payload(
     chunks: list[dict[str, Any]],
-    embedding_client: TogetherEmbeddingClient,
+    embedding_client: EmbeddingClient,
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> list[dict[str, Any]]:
     if batch_size <= 0:
@@ -64,7 +65,7 @@ def reembed_chunks_payload(
 
         embeddings = embedding_client.embed_documents(texts)
         if len(embeddings) != len(batch):
-            raise ValueError("Together returned an unexpected number of embeddings.")
+            raise ValueError("Provider returned an unexpected number of embeddings.")
 
         for chunk_obj, embedding in zip(batch, embeddings):
             updated_chunk = dict(chunk_obj)
@@ -80,9 +81,11 @@ def reembed_chunks_payload(
 def reembed_chunks_file(
     input_file: Path,
     output_file: Path,
-    embedding_client: TogetherEmbeddingClient,
+    embedding_client: EmbeddingClient,
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> int:
+    if input_file.resolve() == output_file.resolve():
+        raise ValueError("Input and output files must be different.")
     chunks = load_chunks(input_file)
     updated_chunks = reembed_chunks_payload(
         chunks=chunks,
@@ -102,9 +105,10 @@ def _parse_args() -> argparse.Namespace:
     default_env_file = project_root() / ".env"
     parser = argparse.ArgumentParser(
         description=(
-            "Create a new chunks JSON file with updated embeddings from Together."
+            "Create a new chunks JSON file with updated embeddings from the selected provider."
         )
     )
+    add_embedding_arguments(parser)
     parser.add_argument(
         "--env-file",
         default=str(default_env_file),
@@ -128,7 +132,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         default=None,
-        help=f"Together embedding model. Defaults to {DEFAULT_MODEL}.",
+        help="Embedding model; defaults to the selected provider model.",
     )
     parser.add_argument(
         "--batch-size",
@@ -145,7 +149,7 @@ def _parse_args() -> argparse.Namespace:
         "--timeout-seconds",
         type=int,
         default=60,
-        help="HTTP timeout for Together requests.",
+        help="HTTP timeout for embedding requests.",
     )
     return parser.parse_args()
 
@@ -156,35 +160,18 @@ def main() -> None:
     if not env_file.is_absolute():
         env_file = project_root() / env_file
 
-    api_key = args.api_key or read_env_value("EMBEDDING_API_KEY", env_file=env_file)
-    if not api_key:
-        raise ValueError(
-            "EMBEDDING_API_KEY is required. Pass --api-key or set EMBEDDING_API_KEY."
+    embedder = build_embedding_client(args, env_file)
+
+    try:
+        total = reembed_chunks_file(
+            input_file=Path(args.input_file),
+            output_file=Path(args.output_file),
+            embedding_client=embedder,
+            batch_size=args.batch_size,
         )
-    model = args.model or read_env_value(
-        "EMBEDDING_MODEL",
-        env_file=env_file,
-        default=DEFAULT_MODEL,
-    )
-    base_url = args.base_url or read_env_value(
-        "TOGETHER_BASE_URL",
-        env_file=env_file,
-        default="https://api.together.xyz/v1",
-    )
-
-    embedder = TogetherEmbeddingClient(
-        api_key=api_key,
-        model=model,
-        base_url=base_url,
-        timeout_seconds=args.timeout_seconds,
-    )
-
-    total = reembed_chunks_file(
-        input_file=Path(args.input_file),
-        output_file=Path(args.output_file),
-        embedding_client=embedder,
-        batch_size=args.batch_size,
-    )
+    finally:
+        if hasattr(embedder, "close"):
+            embedder.close()
     logger.info("Wrote %s re-embedded chunks to %s", total, args.output_file)
 
 

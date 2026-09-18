@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 import requests
 from langchain_openai import OpenAIEmbeddings
@@ -51,9 +52,19 @@ class EmbeddingClient:
         return [self._request_embedding(text) for text in texts]
 
 
+@lru_cache(maxsize=1)
 def get_embedding_client():
     """Get the appropriate LangChain embedding client."""
-    if embedding_settings.provider == EmbeddingProvider.OPENAI:
+    if embedding_settings.provider == EmbeddingProvider.GOOGLE:
+        from app.utils.google_embedder import GoogleEmbeddingClient
+
+        return GoogleEmbeddingClient(
+            project=embedding_settings.google_cloud_project,
+            location=embedding_settings.google_cloud_location,
+            model=embedding_settings.embedder_name,
+            dimensions=embedding_settings.dimensions,
+        )
+    elif embedding_settings.provider == EmbeddingProvider.OPENAI:
         if not embedding_settings.api_key:
             raise ValueError("OpenAI embeddings require EMBEDDING_API_KEY to be set.")
         return OpenAIEmbeddings(

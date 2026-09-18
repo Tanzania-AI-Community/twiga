@@ -44,6 +44,9 @@ dependencies = [
     "Pillow>=11.0.0",
     "reportlab>=4.4.10",
     "requests>=2.32.3",
+    "google-genai>=1.30,<2",
+    # google-genai requires httpx >=0.28; older OpenAI clients pass removed proxies arguments.
+    "openai>=1.55.3,<2",
 ]
 
 [build-system]

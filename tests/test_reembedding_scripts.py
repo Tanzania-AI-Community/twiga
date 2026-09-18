@@ -97,6 +97,15 @@ def test_normalize_database_url_adds_ssl_for_neon() -> None:
     assert "ssl=require" in normalized
 
 
+def test_migration_uses_same_neon_branch_direct_endpoint() -> None:
+    normalized = normalize_database_url(
+        "postgresql://user:escaped%40password@ep-test-pooler.eu.neon.tech:5432/twiga?sslmode=require"
+    )
+    assert normalized == (
+        "postgresql+asyncpg://user:escaped%40password@ep-test.eu.neon.tech:5432/twiga?ssl=require"
+    )
+
+
 @pytest.mark.unittest
 def test_normalize_database_url_rewrites_sslmode_and_drops_channel_binding() -> None:
     normalized = normalize_database_url(
