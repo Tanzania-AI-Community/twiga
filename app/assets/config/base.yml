@@ -30,7 +30,7 @@ llm:
 
 embedding:
 
-  model_name: "intfloat/multilingual-e5-large-instruct"
+  model_name: "gemini-embedding-001"
 
   ollama:
     model_name: "mxbai-embed-large"
