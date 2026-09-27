@@ -35,6 +35,7 @@ class LLMProvider(str, Enum):
 
 
 class EmbeddingProvider(str, Enum):
+    GOOGLE = "google"
     TOGETHER = BaseProviders.TOGETHER.value
     OPENAI = BaseProviders.OPENAI.value
     OLLAMA = BaseProviders.OLLAMA.value
@@ -194,6 +195,9 @@ class EmbeddingSettings(BaseSettings):
         default=yaml_config["embedding"]["model_name"],
         validation_alias="embedding_model",
     )
+    dimensions: int = Field(default=1024, validation_alias="embedding_dimensions")
+    google_cloud_project: Optional[str] = None
+    google_cloud_location: str = "global"
 
     ollama_model: Optional[str] = Field(
         default=yaml_config["embedding"]["ollama"]["model_name"],

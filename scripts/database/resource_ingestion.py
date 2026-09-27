@@ -11,6 +11,7 @@ from sqlmodel import select
 
 import app.database.db as db
 import app.database.models as models
+from app.config import EmbeddingProvider, embedding_settings
 from app.database.enums import ChunkType
 from app.database.utils import get_database_url
 
@@ -59,11 +60,36 @@ class ParsedBook(BaseModel):
     chunks: list[Chunk]
 
 
+def validate_book_embeddings(payload: dict) -> None:
+    """Prevent importing legacy vectors into a Gemini corpus."""
+    if embedding_settings.provider != EmbeddingProvider.GOOGLE:
+        return
+    from app.utils.google_embedder import DOCUMENT_MAX_BYTES, validate_embedding
+
+    expected = {
+        "provider": "google",
+        "model": embedding_settings.embedder_name,
+        "dimensions": embedding_settings.dimensions,
+        "task_type": "RETRIEVAL_DOCUMENT",
+        "document_max_bytes": DOCUMENT_MAX_BYTES,
+    }
+    if payload.get("embedding_metadata") != expected:
+        raise ValueError(
+            "Book embeddings do not match the configured Google model; re-embed before ingestion."
+        )
+    if not payload.get("chunks"):
+        raise ValueError("Cannot ingest a book without embedded chunks.")
+    for chunk in payload["chunks"]:
+        validate_embedding(chunk.get("embedding", []), embedding_settings.dimensions)
+
+
 def get_parsed_book(file_name: str) -> ParsedBook:
     file_path = Path(__file__).parent.parent / "assets" / "books" / f"{file_name}"
 
     with open(file_path, "r", encoding="utf-8") as f:
         book_content_raw = json.load(f)
+
+    validate_book_embeddings(book_content_raw)
 
     parsed_book = ParsedBook(
         resource=ResourceConfig(
