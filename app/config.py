@@ -224,6 +224,12 @@ class EmbeddingSettings(BaseSettings):
         validation_alias="modal_embedding_request_timeout",
     )
 
+    @field_validator("embedder_name", mode="before")
+    @classmethod
+    def fallback_blank_embedder_name(cls, v):
+        # A blank EMBEDDING_MODEL= would otherwise reach the provider as "".
+        return v or yaml_config["embedding"]["model_name"]
+
 
 class ToolLLMConfig(BaseModel):
     """LLM configuration for a specific tool"""

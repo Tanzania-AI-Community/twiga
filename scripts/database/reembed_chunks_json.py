@@ -16,19 +16,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE = 8
-DEFAULT_MODEL = "intfloat/multilingual-e5-large-instruct"
-DEFAULT_INPUT_FILE = (
-    Path(__file__).resolve().parent.parent
-    / "assets"
-    / "sample_data"
-    / "chunks_BAAI.json"
-)
-DEFAULT_OUTPUT_FILE = (
-    Path(__file__).resolve().parent.parent
-    / "assets"
-    / "sample_data"
-    / "chunks_multilingual.json"
-)
 
 
 def load_chunks(input_file: Path) -> list[dict[str, Any]]:
@@ -116,12 +103,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input-file",
-        default=str(DEFAULT_INPUT_FILE),
+        required=True,
         help="Input chunks JSON file path.",
     )
     parser.add_argument(
         "--output-file",
-        default=str(DEFAULT_OUTPUT_FILE),
+        required=True,
         help="Output chunks JSON file path.",
     )
     parser.add_argument(

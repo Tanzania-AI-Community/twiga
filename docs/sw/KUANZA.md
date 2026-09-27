@@ -130,7 +130,7 @@ Ikiwa kila kitu kimeenda vizuri, matokeo ya laini ya amri yanapaswa kuonyesha ku
 
 ## 🤖 Pata tokeni ya API ya Together AI au OpenAI
 
-Ili kutumia mifano mikubwa ya lugha na embedding, tunahitaji huduma ya utambuzi yenye utendaji wa hali ya juu. Kwa chaguo msingi, mradi huu unatumia Together AI, ambayo hutupatia ufikiaji wa mifano mbalimbali ya chanzo huria inayoweza kuendeshwa kwa kutumia programu tumizi ya OpenAI (SDK).
+Ili kutumia mifano mikubwa ya lugha, tunahitaji huduma ya utambuzi yenye utendaji wa hali ya juu. Kwa chaguo msingi, mradi huu unatumia Together AI, ambayo hutupatia ufikiaji wa mifano mbalimbali ya chanzo huria inayoweza kuendeshwa kwa kutumia programu tumizi ya OpenAI (SDK). Embedding zinasanidiwa kando, kwa kutumia Google Cloud (tazama [hapa chini](#-sanidi-google-cloud-kwa-ajili-ya-embedding)).
 
 - Ikiwa unataka kutumia Together AI, [unda akaunti](https://api.together.ai/) na upate API key
 - kiwa unataka kutumia OpenAI, [unda akaunti](https://platform.openai.com/) na upate API key
@@ -146,6 +146,49 @@ LLM_API_KEY=$YOUR_API_KEY
 > Tunapendekeza kutumia Together AI, lakini ikiwa utachagua OpenAI, kuna hatua chache za ziada za kufuata.
 
 Tafuta katika hifadhi kwa kitambulisho `XXX:` na hakikisha unasasisha miongozo kulingana na maelekezo ili programu ya FastAPI iendeshe mifano ya program za OpenAI. Wakati wa kuandika hii, hii inapaswa kuwa ndani ya a`app/config.py` na `app/database/models.py`
+
+## 🔎 Sanidi Google Cloud kwa ajili ya embedding
+
+> [!Kumbuka]
+>
+> Sehemu hii imetafsiriwa kwa msaada wa AI kutoka toleo la [Kiingereza](../en/GETTING_STARTED.md#-set-up-google-cloud-for-embeddings) na bado haijakaguliwa na mzungumzaji wa Kiswahili. Ikiwa kuna tofauti, toleo la Kiingereza ndilo sahihi.
+
+Twiga hutengeneza embedding za maswali ya walimu kwa kutumia mfano wa Google `gemini-embedding-001` kupitia Vertex AI, na vipande vya vitabu kwenye hifadhidata vilitengenezwa kwa mfano huo huo. Google haitumii API key kwa hili. Badala yake, maktaba za Google hupata vitambulisho vyako vya kuingia (credentials) kupitia [Application Default Credentials (ADC)](https://cloud.google.com/docs/authentication/application-default-credentials), ambavyo unaviunda mara moja kwa kuingia na akaunti yako ya Google.
+
+1. **Andaa mradi wa Google Cloud.** [Unda mradi](https://console.cloud.google.com/projectcreate) wenye malipo (billing) yaliyowezeshwa na [uwezeshe Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com). Twiga hutengeneza embedding za maswali yako ya majaribio tu, jambo ambalo linagharimu kidogo sana. Ikiwa mtunzaji (maintainer) tayari amekupa ufikiaji wa mradi, tumia huo badala yake.
+2. **Sakinisha [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)** kisha ingia:
+
+    ```bash
+    gcloud auth application-default login
+    ```
+
+    Amri hii hufungua kivinjari na kuhifadhi vitambulisho vyako katika `~/.config/gcloud/` kwenye kompyuta yako.
+
+3. **Jaza faili `.env`** kwa ID ya mradi wako:
+
+    ```bash
+    EMBEDDING_PROVIDER=google
+    EMBEDDING_MODEL=gemini-embedding-001
+    EMBEDDING_DIMENSIONS=1024
+    GOOGLE_CLOUD_PROJECT=<project ID>
+    GOOGLE_CLOUD_LOCATION=global
+    ```
+
+Usanidi wa Docker huunganisha (mount) `~/.config/gcloud/` ndani ya kontena la programu, kwa hiyo kuingia huko huko kunafanya kazi humo pia.
+
+> [!Kumbuka]
+>
+> Kwenye **Windows** (nje ya WSL), `gcloud` huhifadhi vitambulisho katika folda tofauti. Ukitumia usanidi wa Docker, ongeza mstari huu kwenye `.env` ili kontena liweze kuvipata:
+>
+> ```bash
+> GCLOUD_CONFIG_DIR=C:/Users/<your user>/AppData/Roaming/gcloud
+> ```
+>
+> Ukiendesha Docker kutoka [WSL](https://learn.microsoft.com/windows/wsl/install) na kuingia na `gcloud` ndani ya WSL, huhitaji mstari huu.
+
+> [!Tahadhari]
+>
+> Data ya mfano inayopakiwa na `make setup-env` imetengenezwa kwa `gemini-embedding-001`. Ukibadilisha kwenda mfano mwingine wa embedding wenye ukubwa sawa wa vekta (kama ule wa msingi wa Ollama), hutapata hitilafu yoyote, ila matokeo ya utafutaji hayatahusiana na swali.
 
 ## 🧠 Sanidi hifadhidata yako ya Postgres kwenye kompyuta yako.
 

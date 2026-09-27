@@ -36,6 +36,15 @@ def test_google_settings_and_routing_without_api_key(monkeypatch):
         embedder.get_embedding_client.cache_clear()
 
 
+@pytest.mark.parametrize("model_kwargs", [{}, {"embedding_model": ""}])
+def test_unset_or_blank_embedding_model_defaults_to_gemini(monkeypatch, model_kwargs):
+    monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
+    config = EmbeddingSettings(
+        _env_file=None, embedding_provider="google", **model_kwargs
+    )
+    assert config.embedder_name == "gemini-embedding-001"
+
+
 def test_ingestion_refuses_legacy_embeddings(monkeypatch):
     from scripts.database import resource_ingestion
 

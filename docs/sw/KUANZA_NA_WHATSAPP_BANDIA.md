@@ -23,7 +23,7 @@ Anza kwa kutengeneza faili la `.env` kwenye folda kuu ya Twiga, kisha nakili na 
 
 ## 🤖 Pata tokeni ya API ya Together AI au OpenAI
 
-Ili kutumia mifano mikubwa ya lugha na embedding, tunahitaji huduma ya utambuzi yenye utendaji wa hali ya juu. Kwa chaguo msingi, mradi huu unatumia Together AI, ambayo hutupatia ufikiaji wa mifano mbalimbali ya chanzo huria inayoweza kuendeshwa kwa kutumia programu tumizi ya OpenAI (SDK).
+Ili kutumia mifano mikubwa ya lugha, tunahitaji huduma ya utambuzi yenye utendaji wa hali ya juu. Kwa chaguo msingi, mradi huu unatumia Together AI, ambayo hutupatia ufikiaji wa mifano mbalimbali ya chanzo huria inayoweza kuendeshwa kwa kutumia programu tumizi ya OpenAI (SDK). Embedding zinasanidiwa kando, kwa kutumia Google Cloud: fuata [Sanidi Google Cloud kwa ajili ya embedding](./KUANZA.md#-sanidi-google-cloud-kwa-ajili-ya-embedding).
 
 - Ikiwa unataka kutumia Together AI, [unda akaunti](https://api.together.ai/) na upate API key
 - kiwa unataka kutumia OpenAI, [unda akaunti](https://platform.openai.com/) na upate API key
