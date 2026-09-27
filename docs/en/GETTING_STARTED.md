@@ -103,7 +103,7 @@ If all worked smoothly, the command line output should suggest that ngrok is act
 >
 > If you're planning to run every model locally with [Ollama](https://ollama.com/), you can skip this API token step and follow the [Ollama setup](#-set-up-ollama-for-local-llm-and-embeddings) below instead.
 
-In order to use large language and embedding models we need access to a high performance inference service. By default, this project uses Together AI, which gives us access to a wide range of open source models that can be run with OpenAI's software development kit (SDK).
+In order to use large language models we need access to a high performance inference service. By default, this project uses Together AI, which gives us access to a wide range of open source models that can be run with OpenAI's software development kit (SDK). Embeddings are set up separately, with Google Cloud (see [below](#-set-up-google-cloud-for-embeddings)).
 
 - If you want to use Together AI, [create an account](https://api.together.ai/) and get an API key
 - If you want to use OpenAI, [create an account](https://platform.openai.com/) and get an API key
@@ -112,15 +112,52 @@ Both providers have a free tier with a starting amount of free credits. Add the 
 
 ```bash
 LLM_API_KEY=$YOUR_API_KEY
-EMBEDDING_API_KEY=$EMBEDDING_API_KEY
 ```
-NOTE: You can use the same API_KEY for both the LLM and EMBEDING if you decide to use the same provider for both.
 
 > [!Important]
 >
 > We recommend using Together AI, but if you decide on OpenAI there are a few extra steps to fill.
 
 Search the repository for the identifier `XXX:` and make sure to update the values according to the instructions so that the FastAPI application will run OpenAI models. At the time of writing, this should be within `app/config.py` and `app/database/models.py`.
+
+## 🔎 Set up Google Cloud for embeddings
+
+Twiga embeds teacher questions with Google's `gemini-embedding-001` model on Vertex AI, and the textbook chunks in the database were embedded with the same model. Google doesn't use an API key for this. Instead, the Google libraries find your credentials through [Application Default Credentials (ADC)](https://cloud.google.com/docs/authentication/application-default-credentials), which you create once by logging in with your own Google account.
+
+1. **Set up a Google Cloud project.** [Create a project](https://console.cloud.google.com/projectcreate) with billing enabled and [enable the Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com). Twiga only embeds your test questions, which costs very little. If a maintainer has already given you access to a project, use that one instead.
+2. **Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)** and log in:
+
+    ```bash
+    gcloud auth application-default login
+    ```
+
+    This opens a browser and saves your credentials in `~/.config/gcloud/` on your computer.
+
+3. **Fill in the `.env`** with your project ID:
+
+    ```bash
+    EMBEDDING_PROVIDER=google
+    EMBEDDING_MODEL=gemini-embedding-001
+    EMBEDDING_DIMENSIONS=1024
+    GOOGLE_CLOUD_PROJECT=<project ID>
+    GOOGLE_CLOUD_LOCATION=global
+    ```
+
+The Docker setup mounts `~/.config/gcloud/` into the app container, so the same login works there.
+
+> [!Note]
+>
+> On **Windows** (outside WSL), `gcloud` stores credentials in a different folder. If you use the Docker setup, add this line to your `.env` so the container can find them:
+>
+> ```bash
+> GCLOUD_CONFIG_DIR=C:/Users/<your user>/AppData/Roaming/gcloud
+> ```
+>
+> If you run Docker from [WSL](https://learn.microsoft.com/windows/wsl/install) and log in with `gcloud` inside WSL, you don't need this line.
+
+> [!Warning]
+>
+> The sample data loaded by `make setup-env` is embedded with `gemini-embedding-001`. If you switch to another embedding model with the same vector size (such as the Ollama default), you won't get an error, just irrelevant search results.
 
 ## 🦙 Set up Ollama for local LLM and embeddings
 
@@ -138,7 +175,7 @@ If you prefer to run Twiga without using Together AI or OpenAI, you can host bot
 
 4. **Restart the FastAPI stack** (`make run` or `docker-compose … up`) so that the new configuration is loaded.
 
-With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `LLM_PROVIDER` and `EMBEDDING_PROVIDER`.
+With this setup, Twiga sends all chat and embedding requests to your local Ollama instance. Note that search results won't be relevant with Ollama embeddings, because the sample data is embedded with Google's model (see [Set up Google Cloud for embeddings](#-set-up-google-cloud-for-embeddings)). If you also keep an `LLM_API_KEY`, the app can still switch back to Together AI or OpenAI by changing `LLM_PROVIDER`.
 
 ## 📊 LangSmith Tracing (Optional)
 

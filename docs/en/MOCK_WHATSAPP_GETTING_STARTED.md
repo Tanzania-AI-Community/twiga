@@ -23,10 +23,11 @@ The dependencies should now be installed and your shell environment should be se
 
 ## 🤫 Create a `.env` file (Simple Version)
 
-Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template.simple` into it. You'll only need to fill in two variables:
+Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template.simple` into it. You'll only need to fill in these variables:
 
 1. `LLM_API_KEY` - Your Together AI or OpenAI API key
-2. `DATABASE_URL` - If you want to modify the default database settings
+2. `EMBEDDING_PROVIDER` and `GOOGLE_CLOUD_PROJECT` - Follow [Set up Google Cloud for embeddings](./GETTING_STARTED.md#-set-up-google-cloud-for-embeddings)
+3. `DATABASE_URL` - If you want to modify the default database settings
 
 The remaining variables are pre-filled with default values suitable for mock WhatsApp development.
 
