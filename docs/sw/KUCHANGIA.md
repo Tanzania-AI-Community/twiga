@@ -6,7 +6,7 @@ Tunakaribisha michango ya ukubwa wowote na kiwango chochote cha ujuzi. Kama mrad
 >
 > **Kwa wachangiaji wapya 🚼:** Angalia [michango ya kwanza](https://github.com/firstcontributions/first-contributions) kwa taarifa muhimu juu ya kuchangia. Unaweza pia kuuliza maswali katika [Discord](https://discord.gg/bCe2HfZY2C) yetu.
 
-Kwa kuchangia unakubali [**Kanuni zetu za Maadili**](https://github.com/Tanzania-AI-Community/twiga/blob/main/.github/CODE_OF_CONDUCT.md).
+Kwa kuchangia unakubali [**Kanuni zetu za Maadili**](../../.github/CODE_OF_CONDUCT.md).
 
 ## Sera ya Kuunganisha kwa Maombi ya Kuvuta
 
@@ -146,6 +146,6 @@ Hata hivyo, unaweza kuona `pre-commit` ikishindwa kwenye pipeline ya ujenzi waka
 
 ## Leseni
 
-Kwa kuchangia kwenye Twiga, unakubali kwamba michango yako itakuwa chini ya [Leseni](https://github.com/Tanzania-AI-Community/twiga/blob/main/LICENSE) ya mradi.
+Kwa kuchangia kwenye Twiga, unakubali kwamba michango yako itakuwa chini ya [Leseni](../../LICENSE) ya mradi.
 
 Asante kwa nia yako ya kuchangia kwenye Twiga! Tunatazamia michango yako.

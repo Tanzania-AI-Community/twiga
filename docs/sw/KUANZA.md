@@ -62,7 +62,7 @@ Anza kwa kutengeneza faili la `.env` kwenye folda kuu ya Twiga, kisha nakili na 
 >
 > > Hatua nyingi zilizo katika [mahitaji ya usanidi](#-setup-prerequisites) zinatokana na [mafunzo](https://github.com/daveebbelaar/python-whatsapp-bot) yaliyoandaliwa na Dave Ebbelaar.
 
-Katika faili [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), unaweza kuona vipengele vikuu vya miundombinu inayotumika kuendesha Twiga. Hata hivyo, si lazima kutumia Neon na Render, kwani unaweza kuzibadilisha na toleo la 'local'. Lakini, unaweza kuzijaribu ikiwa unapenda, kwani zinatoa matoleo ya bure yenye ukarimu mkubwa.
+Katika faili [`architecture.md`](../en/ARCHITECTURE.md), unaweza kuona vipengele vikuu vya miundombinu inayotumika kuendesha Twiga. Hata hivyo, si lazima kutumia Neon na Render, kwani unaweza kuzibadilisha na toleo la 'local'. Lakini, unaweza kuzijaribu ikiwa unapenda, kwani zinatoa matoleo ya bure yenye ukarimu mkubwa.
 
 Kwa kuzingatia hayo, unapaswa kuanza kwa kuunda akaunti ya **Meta API**.
 

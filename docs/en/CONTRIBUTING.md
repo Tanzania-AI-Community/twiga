@@ -6,7 +6,7 @@ We welcome contributions of any size and skill level. As an open source project,
 >
 > **For new contributors 🚼:** Take a look at [first contributions](https://github.com/firstcontributions/first-contributions) for helpful information on contributing. You can of course ask questions in our [Discord](https://discord.gg/bCe2HfZY2C).
 
-By contributing you agree to our [**Code of Conduct**](https://github.com/Tanzania-AI-Community/twiga/blob/main/.github/CODE_OF_CONDUCT.md).
+By contributing you agree to our [**Code of Conduct**](../../.github/CODE_OF_CONDUCT.md).
 
 ## Merge Policy for Pull Requests
 
@@ -146,6 +146,6 @@ However, you may see `pre-commit` fail in the build pipeline upon submitting a P
 
 ## Licensing
 
-By contributing to Twiga, you agree that your contributions will be licensed under the [License](https://github.com/Tanzania-AI-Community/twiga/blob/main/LICENSE) of the project.
+By contributing to Twiga, you agree that your contributions will be licensed under the [License](../../LICENSE) of the project.
 
 Thank you for your interest in contributing to Twiga! We look forward to your contributions.

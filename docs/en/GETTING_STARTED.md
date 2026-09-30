@@ -35,7 +35,7 @@ Start by creating a `.env` file in the main directory of Twiga and copy-paste th
 >
 > Many of the steps provided in the [setup prerequisites](#-setup-prerequisites) come from the [tutorial](https://github.com/daveebbelaar/python-whatsapp-bot) made by Dave Ebbelaar.
 
-In the file [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. However, it's not necessary to use Neon and Render, as these can be replaced with a 'local' version. However, you're welcome to test them out if you want since they offer quite generous free versions. With that said, you should start off by creating a Meta API account.
+In the file [`architecture.md`](./ARCHITECTURE.md), you can see the main components of the infrastructure used to run Twiga. However, it's not necessary to use Neon and Render, as these can be replaced with a 'local' version. However, you're welcome to test them out if you want since they offer quite generous free versions. With that said, you should start off by creating a Meta API account.
 
 ### Meta Account (Optional if using Mock WhatsApp)
 

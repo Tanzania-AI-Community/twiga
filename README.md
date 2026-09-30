@@ -71,7 +71,7 @@ We would like to thank those who are sponsoring this project.
 
 ## 📱 Demo
 
-Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/twiga.gif).
+Here are a couple of screenshots. Alternatively, you can take a look at our brief [demo](docs/twiga.gif).
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/27fb128e-32f0-4265-baf8-2dc3ec69ca5f" alt="End of onboarding" width="300"/>
@@ -80,7 +80,7 @@ Here are a couple of screenshots. Alternatively, you can take a look at our brie
 
 ## 🤝 Get involved
 
-We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md) of Twiga, how to [contribute](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/CONTRIBUTING.md), and how to [get started](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/GETTING_STARTED.md) in the `docs/` folder.
+We encourage you to contribute to Twiga! There is plenty of documentation describing the current [architecture](docs/en/ARCHITECTURE.md) of Twiga, how to [contribute](docs/en/CONTRIBUTING.md), and how to [get started](docs/en/GETTING_STARTED.md) in the `docs/` folder.
 
 For further support you can join our [Discord](https://discord.gg/bCe2HfZY2C) to discuss directly with the community and stay up to date on what's happening, or you can contact us more formally using GitHub [Discussions](https://github.com/Tanzania-AI-Community/twiga/discussions).
 
