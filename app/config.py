@@ -47,6 +47,39 @@ class Prompt(str, Enum):
 
     TWIGA_SYSTEM = "twiga_system"
     TWIGA_AGENT_SYSTEM = "twiga_agent_system"
+    IMAGE_INTERPRETER_SYSTEM = "image_interpreter_system"
+
+
+class ImageInputSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=os.getenv("TWIGA_ENV", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    image_input_enabled: bool = False
+    vision_base_url: str = ""
+    vision_model: str = ""
+    vision_api_key: SecretStr = SecretStr("")
+    vision_timeout_seconds: float = Field(default=30, gt=0)
+
+    @model_validator(mode="after")
+    def require_vision_configuration(self):
+        if self.image_input_enabled:
+            if not all(
+                value.strip()
+                for value in (
+                    self.vision_base_url,
+                    self.vision_model,
+                    self.vision_api_key.get_secret_value(),
+                )
+            ):
+                raise ValueError(
+                    "Image input requires VISION_BASE_URL, VISION_MODEL and VISION_API_KEY"
+                )
+            if not self.vision_base_url.startswith("https://"):
+                raise ValueError("VISION_BASE_URL must use HTTPS")
+        return self
 
 
 # Store configurations for the app
@@ -315,3 +348,4 @@ def initialize_settings():
 
 
 settings, llm_settings, embedding_settings, tool_settings = initialize_settings()
+image_input_settings = ImageInputSettings()

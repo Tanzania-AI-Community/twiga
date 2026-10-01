@@ -14,6 +14,7 @@ from app.utils.whatsapp_utils import (
     extract_message,
     extract_message_info,
     get_request_type,
+    split_message_payloads,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,26 +27,20 @@ async def handle_request(request: Request) -> JSONResponse:
     try:
         body = await request.json()
 
-        request_type = get_request_type(body)
-        record_whatsapp_event(request_type.name.lower())
-        logger.info(f"Received a request of type: {request_type}")
-
-        # Route the basic and stateless request types
-        match request_type:
-            case RequestType.FLOW_EVENT:
-                return whatsapp_client.handle_flow_event(body)
-            case RequestType.MESSAGE_STATUS_UPDATE:
-                return whatsapp_client.handle_status_update(body)
-            case RequestType.FLOW_COMPLETE:
-                return await whatsapp_client.handle_flow_message_complete(body)
-            case RequestType.INVALID_MESSAGE:
-                return whatsapp_client.handle_invalid_message(body)
-            case RequestType.OUTDATED:
-                return whatsapp_client.handle_outdated_message(body)
-            case RequestType.VALID_MESSAGE:
-                return await handle_valid_message(body)
-
-        raise Exception(f"Invalid request type. This is the request body: {body}")
+        # Classify at arrival: processing one image must not age out the next.
+        requests = [
+            (item, get_request_type(item)) for item in split_message_payloads(body)
+        ]
+        responses = []
+        for item, request_type in requests:
+            record_whatsapp_event(request_type.name.lower())
+            logger.info("Received a request of type: %s", request_type)
+            try:
+                responses.append(await _dispatch_request(item, request_type))
+            except Exception as exc:
+                # One failed message must not silently discard the rest of a batch.
+                responses.append(_internal_error_response(exc))
+        return next((r for r in responses if r.status_code >= 400), responses[-1])
     except json.JSONDecodeError:
         record_whatsapp_event("invalid_json")
         logger.error("Failed to decode JSON")
@@ -54,12 +49,33 @@ async def handle_request(request: Request) -> JSONResponse:
             status_code=400,
         )
     except Exception as e:
-        record_whatsapp_event("internal_error")
-        logger.error(f"Unexpected error in webhook handler: {str(e)}")
-        return JSONResponse(
-            content={"status": "error", "message": "Internal server error"},
-            status_code=500,
-        )
+        return _internal_error_response(e)
+
+
+def _internal_error_response(exc: Exception) -> JSONResponse:
+    record_whatsapp_event("internal_error")
+    logger.error("Unexpected error in webhook handler: %s", type(exc).__name__)
+    return JSONResponse(
+        content={"status": "error", "message": "Internal server error"},
+        status_code=500,
+    )
+
+
+async def _dispatch_request(body: dict, request_type: RequestType) -> JSONResponse:
+    match request_type:
+        case RequestType.FLOW_EVENT:
+            return whatsapp_client.handle_flow_event(body)
+        case RequestType.MESSAGE_STATUS_UPDATE:
+            return whatsapp_client.handle_status_update(body)
+        case RequestType.FLOW_COMPLETE:
+            return await whatsapp_client.handle_flow_message_complete(body)
+        case RequestType.INVALID_MESSAGE:
+            return whatsapp_client.handle_invalid_message(body)
+        case RequestType.OUTDATED:
+            return whatsapp_client.handle_outdated_message(body)
+        case RequestType.VALID_MESSAGE:
+            return await handle_valid_message(body)
+    raise ValueError("Invalid request type")
 
 
 async def handle_valid_message(body: dict) -> JSONResponse:

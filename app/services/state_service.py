@@ -153,6 +153,10 @@ class StateHandler:
                 return await messaging_client.handle_command_message(user, user_message)
             case ValidMessageType.CHAT:
                 return await messaging_client.handle_chat_message(user, user_message)
+            case ValidMessageType.IMAGE:
+                return await messaging_client.handle_image_message(
+                    user, user_message, message_info["message"].get("image") or {}
+                )
             case ValidMessageType.OTHER:
                 return await messaging_client.handle_other_message(user, user_message)
 

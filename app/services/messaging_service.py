@@ -3,23 +3,31 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from time import monotonic
 from typing import Optional
 
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
+<<<<<<< HEAD
 from app.clients.client_base import BUFFERED_RESPONSE, ClientBase
+=======
+from app.clients.client_base import ClientBase
+from app.clients.image_interpreter import image_interpreter
+>>>>>>> 9458005 (feat: first MVP of image input)
 from app.clients.llm_client import llm_client
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
-from app.config import llm_settings
+from app.config import image_input_settings, llm_settings, settings
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
     prepare_latex_body,
     text_to_images,
 )
+from app.models.image_models import ImageInputError, IncomingImage
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.citation_service import CitationRenderResult, citation_service
 from app.services.exam_delivery_service import (
@@ -98,6 +106,10 @@ class MessagingService:
     @track_messages("command_help")
     async def _command_help(self, user: models.User) -> None:
         response_text = strings.get_string(StringCategory.INFO, "help")
+        if image_input_settings.image_input_enabled:
+            response_text += "\n\n" + strings.get_string(
+                StringCategory.INFO, "image_help"
+            )
         await whatsapp_client.send_message(user.wa_id, response_text)
         await self._persist_visible_assistant_message(user, response_text)
 
@@ -110,8 +122,59 @@ class MessagingService:
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
+        return await self._generate_and_deliver(
+            user, user_message, self._get_llm_client()
+        )
 
-        llm_client: ClientBase = self._get_llm_client()
+    async def handle_image_message(
+        self, user: models.User, user_message: models.Message, image_payload: dict
+    ) -> JSONResponse:
+        error_key = None
+        started = monotonic()
+        try:
+            if not image_input_settings.image_input_enabled:
+                raise ImageInputError("image_disabled")
+            incoming = IncomingImage(
+                media_id=image_payload.get("id", ""),
+                caption=image_payload.get("caption") or "",
+            )
+            image = await whatsapp_client.download_image(incoming.media_id)
+            interpretation = await image_interpreter.interpret(image, incoming.caption)
+            if interpretation.readability != "clear":
+                raise ImageInputError("image_unreadable")
+            content = interpretation.to_request_text(incoming.caption)
+            if len(content) > settings.message_character_limit:
+                raise ImageInputError("image_too_complex")
+            await db.update_message_content(user_message, content)
+        except ValidationError:
+            error_key = "image_invalid"
+        except ImageInputError as exc:
+            error_key = exc.message_key
+        except Exception as exc:
+            # Provider/validation exceptions may embed raw request/response bodies.
+            self.logger.warning("Image processing failed: %s", type(exc).__name__)
+            error_key = "image_processing_failed"
+        finally:
+            self.logger.info(
+                "Image stage=prepare result=%s elapsed_ms=%d",
+                error_key or "ready",
+                (monotonic() - started) * 1000,
+            )
+
+        if error_key:
+            text = strings.get_string(StringCategory.ERROR, error_key)
+            await self._persist_visible_assistant_message(user, text)
+            await whatsapp_client.send_message(user.wa_id, text)
+            record_messages_generated(error_key)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+
+        # Release image bytes before the (potentially long) agent/tool workflow.
+        del image
+        return await self._generate_and_deliver(user, user_message, agent_client)
+
+    async def _generate_and_deliver(
+        self, user: models.User, user_message: models.Message, llm_client: ClientBase
+    ) -> JSONResponse:
         llm_responses = await llm_client.generate_response(
             user=user, message=user_message
         )
