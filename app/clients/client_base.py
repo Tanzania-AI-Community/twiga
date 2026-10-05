@@ -33,6 +33,8 @@ BUFFERED_RESPONSE = BufferedResponse()
 
 GenerateResponseResult = list[Message] | BufferedResponse | None
 
+_FLOW_MARKER_PREFIXES = ("[FLOW_SENT]", "[FLOW_COMPLETED]")
+
 
 class ClientBase(ABC):
     def __init__(self) -> None:
@@ -179,6 +181,9 @@ class ClientBase(ABC):
         for msg_dict in formatted_messages:
             role = msg_dict["role"]
             content = msg_dict["content"] or ""
+            # Bug fix: Avoid LLM reading flow bookkeping from history
+            if content.startswith(_FLOW_MARKER_PREFIXES):
+                continue
             if role == "system":
                 api_messages.append(SystemMessage(content=content))
             elif role == "user":
