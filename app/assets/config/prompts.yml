@@ -1,5 +1,6 @@
 prompts:
   twiga_system:
+    path: twiga/standard/system
     active_version: v0.1
     versions:
       v0.0:
@@ -8,6 +9,7 @@ prompts:
         description: "Search course material first for curriculum content and accept multilingual input while responding in English."
 
   twiga_agent_system:
+    path: twiga/agent/system
     active_version: v0.1
     versions:
       v0.0:
@@ -16,96 +18,112 @@ prompts:
         description: "Search course material first for curriculum content and accept multilingual input while responding in English."
 
   equation_solver_system:
+    path: equation_solver/standard/system
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   equation_solver_system_concise:
+    path: equation_solver/concise/system
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   equation_solver_user:
+    path: equation_solver/standard/user
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   equation_solver_user_concise:
+    path: equation_solver/concise/user
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   exercise_generator_system:
+    path: exercise_generator/system
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   exercise_generator_user:
+    path: exercise_generator/user
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   exam_generator_system:
+    path: exam_generator/standard/system
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   exam_generator_user:
+    path: exam_generator/standard/user
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   exam_generator_validator_system:
+    path: exam_generator/validator/system
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   exam_generator_validator_user:
+    path: exam_generator/validator/user
     active_version: v0.0
     versions:
       v0.0:
         description: "Baseline version."
 
   lesson_plan_core_system:
+      path: lesson_plan/core/system
       active_version: v0.0
       versions:
         v0.0:
           description: "Baseline version."
 
   lesson_plan_core_user:
+      path: lesson_plan/core/user
       active_version: v0.0
       versions:
         v0.0:
           description: "Baseline version."
 
   lesson_plan_homework_system:
+      path: lesson_plan/homework/system
       active_version: v0.0
       versions:
         v0.0:
           description: "Baseline version."
 
   lesson_plan_homework_user:
+      path: lesson_plan/homework/user
       active_version: v0.0
       versions:
         v0.0:
           description: "Baseline version."
 
   lesson_plan_objectives_system:
+      path: lesson_plan/objectives/system
       active_version: v0.0
       versions:
         v0.0:
           description: "Baseline version."
 
   lesson_plan_objectives_user:
+      path: lesson_plan/objectives/user
       active_version: v0.0
       versions:
         v0.0:

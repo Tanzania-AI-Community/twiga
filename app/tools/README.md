@@ -65,10 +65,46 @@ Notes:
 
 Add tool usage guidance to the agent's system prompts:
 
-- `app/assets/prompts/twiga_agent_system` - For the main agent
-- `app/assets/prompts/twiga_system` - For the LLM service
+- `app/assets/prompts/twiga/agent/system/` - For the main agent
+- `app/assets/prompts/twiga/standard/system/` - For the LLM service
 
 Add appropriate instructions in the tool usage section describing when and how to use your tool.
+
+#### Prompt folders and versions
+
+Prompts live under `app/assets/prompts/`, grouped by tool, then by variant or step
+where needed, and finally by role (`system` or `user`). Each role folder contains
+version files such as `v0.0` and `v0.1`. For example:
+
+```text
+equation_solver/standard/system/v0.0
+equation_solver/concise/user/v0.0
+lesson_plan/objectives/system/v0.0
+exercise_generator/user/v0.0
+```
+
+Register each prompt in `app/assets/config/prompts.yml`:
+
+```yaml
+prompts:
+  equation_solver_system:
+    path: equation_solver/standard/system
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Baseline version."
+```
+
+The required `path` is a folder relative to `app/assets/prompts/`; it does not
+include the version filename. `PromptManager` loads every version listed in
+`versions` from that folder. `active_version` must be one of those versions and
+is used unless the caller supplies an explicit version.
+
+Python callers use the registry name, for example
+`prompt_manager.format_prompt("equation_solver_system")`. Moving a prompt folder
+requires updating its `path`, but callers can stay unchanged when the registry
+name stays the same. When adding a version, create its file and register it under
+`versions`; update `active_version` when it should become the default.
 
 ### 4. Add User-Facing Message
 
