@@ -181,9 +181,6 @@ class ClientBase(ABC):
         for msg_dict in formatted_messages:
             role = msg_dict["role"]
             content = msg_dict["content"] or ""
-            # Bug fix: Avoid LLM reading flow bookkeping from history
-            if content.startswith(_FLOW_MARKER_PREFIXES):
-                continue
             if role == "system":
                 api_messages.append(SystemMessage(content=content))
             elif role == "user":
@@ -301,7 +298,12 @@ class ClientBase(ABC):
                 if message_count > 0
                 else database_messages
             )
-            formatted_messages.extend(msg.to_api_format() for msg in old_messages)
+            # Bug fix: Avoid LLM reading flow bookkeeping from history
+            formatted_messages.extend(
+                msg.to_api_format()
+                for msg in old_messages
+                if not (msg.content or "").startswith(_FLOW_MARKER_PREFIXES)
+            )
 
         # Add new messages
         formatted_messages.extend(msg.to_api_format() for msg in new_messages)
