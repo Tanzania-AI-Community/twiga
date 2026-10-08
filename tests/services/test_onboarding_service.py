@@ -6,6 +6,7 @@ import pytest
 import app.database.enums as enums
 from app.database.models import Message, User
 from app.services.onboarding_service import OnboardingHandler
+from app.utils.string_manager import StringCategory, strings
 
 
 @pytest.mark.asyncio
@@ -179,3 +180,97 @@ async def test_handle_new_rejects_blank_or_too_long_name(reply: str) -> None:
         "content": "Please send a shorter name",
         "is_present_in_conversation": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_handle_new_does_not_save_a_reply_after_only_the_welcome_template() -> (
+    None
+):
+    user = User(
+        id=72,
+        wa_id="255700000472",
+        name=None,
+        onboarding_state=enums.OnboardingState.new,
+    )
+    service = OnboardingHandler()
+    ask_name = strings.get_string(StringCategory.ONBOARDING, "ask_name")
+    template_note = Message(
+        user_id=user.id,
+        role=enums.MessageRole.assistant,
+        content="Welcome template sent: twiga_registration_approved",
+    )
+
+    with (
+        patch(
+            "app.services.onboarding_service.db.get_latest_user_message_by_role",
+            AsyncMock(return_value=template_note),
+        ),
+        patch(
+            "app.services.onboarding_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_message,
+        patch(
+            "app.services.onboarding_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message_by_fields,
+        patch(
+            "app.services.onboarding_service.db.update_user",
+            AsyncMock(),
+        ) as mock_update_user,
+        patch.object(
+            service.flow_client,
+            "send_subjects_classes_flow",
+            AsyncMock(),
+        ) as mock_send_subjects_flow,
+    ):
+        await service.handle_new(user, "Hi")
+
+    assert user.name is None
+    assert user.onboarding_state == enums.OnboardingState.new
+    mock_update_user.assert_not_awaited()
+    mock_send_subjects_flow.assert_not_awaited()
+    mock_send_message.assert_awaited_once_with(user.wa_id, ask_name)
+    assert mock_create_message_by_fields.await_args.kwargs == {
+        "user_id": user.id,
+        "role": enums.MessageRole.assistant,
+        "content": ask_name,
+        "is_present_in_conversation": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_handle_new_does_not_record_the_name_question_when_send_fails() -> None:
+    user = User(
+        id=73,
+        wa_id="255700000473",
+        name=None,
+        onboarding_state=enums.OnboardingState.new,
+    )
+    service = OnboardingHandler()
+    ask_name = strings.get_string(StringCategory.ONBOARDING, "ask_name")
+
+    with (
+        patch(
+            "app.services.onboarding_service.db.get_latest_user_message_by_role",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.onboarding_service.whatsapp_client.send_message",
+            AsyncMock(return_value=False),
+        ) as mock_send_message,
+        patch(
+            "app.services.onboarding_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message_by_fields,
+        patch(
+            "app.services.onboarding_service.db.update_user",
+            AsyncMock(),
+        ) as mock_update_user,
+    ):
+        await service.handle_new(user, "Hi")
+
+    assert user.name is None
+    assert user.onboarding_state == enums.OnboardingState.new
+    mock_update_user.assert_not_awaited()
+    mock_send_message.assert_awaited_once_with(user.wa_id, ask_name)
+    mock_create_message_by_fields.assert_not_awaited()
