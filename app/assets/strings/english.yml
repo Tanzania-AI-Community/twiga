@@ -10,10 +10,12 @@ error:
   tool_leakage: "Sorry, I can't help with that request. If you have another question or need help with a different topic, I'm happy to assist."
 
 info:
-  help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."
+  help: "You can type 'settings' to change your name or your classes and subjects. Or just talk to me like a colleague."
 
 onboarding:
-  welcome: "Welcome! I'm here to help you with your teaching journey. I'm **Twiga 🦒**, your teaching assistant. I can help you with questions related to the classes you teach, search the content, and generate exercises you can use in your classes.\n\nTo update your personal or subject information, type 'settings' in the chat. \n\nLet's get started! Just talk to me like a colleague."
+  ask_name: "Hi! I'm Twiga 🦒, a teaching assistant for teachers in Tanzania. I can answer questions about your subjects, find content in your textbooks and create exercises for your classes. We only use your messages to help you, and never for anything else. What should I call you?"
+  ask_name_retry: "I didn't catch a name I can use. Please send the name I should call you, in 50 characters or less."
+  welcome: "Welcome! I'm here to help you with your teaching journey. I'm **Twiga 🦒**, your teaching assistant. I can help you with questions related to the classes you teach, search the content, and generate exercises you can use in your classes.\n\nTo change your name or your classes and subjects, type 'settings' in the chat. \n\nLet's get started! Just talk to me like a colleague."
   personal_info_submitted: "Thanks for submitting your personal information. Let's continue with your class and subject information to complete your onboarding."
   completion: "Hurray! {user_name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start talking to Twiga 🦒."
   onboarding_override: "Looks like you're overriding the onboarding process. You've been given default classes and subjects. You can start talking to Twiga 🦒."
@@ -26,7 +28,9 @@ registration:
 
 settings:
   intro: "Welcome to the Settings Menu, please select what you want to update."
-  personal_info: "Personal Info"
+  personal_info: "Profile"
+  ask_name: "What should I call you?"
+  name_updated: "Got it, I'll call you {name}."
   class_subject_info: "Classes and Subjects"
 
 tools:

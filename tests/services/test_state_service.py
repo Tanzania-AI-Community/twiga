@@ -4,9 +4,10 @@ import pytest
 from fastapi.responses import JSONResponse
 
 from app.config import Environment
-from app.database.enums import MessageRole, UserState
+from app.database.enums import MessageRole, OnboardingState, UserState
 from app.database.models import Message, User
 from app.services.state_service import StateHandler
+from app.utils.string_manager import StringCategory
 from app.utils.whatsapp_utils import ValidMessageType
 
 
@@ -136,19 +137,32 @@ async def test_handle_in_review_user_persists_visible_message_when_not_duplicate
 
 
 @pytest.mark.asyncio
-async def test_handle_new_approved_user_in_production_persists_visible_template_message() -> (
+async def test_handle_new_approved_user_sends_ask_name_and_keeps_onboarding_new() -> (
     None
 ):
-    user = User(id=4, wa_id="255700000004", name="Teacher", state=UserState.approved)
+    user = User(
+        id=4,
+        wa_id="255700000004",
+        name="Teacher",
+        state=UserState.approved,
+        onboarding_state=OnboardingState.new,
+    )
     service = StateHandler()
+    ask_name_message = "What should I call you?"
 
     with (
         patch(
             "app.services.state_service.db.update_user",
             AsyncMock(return_value=user),
         ),
-        patch("app.config.settings.environment", Environment.PRODUCTION),
-        patch("app.config.settings.welcome_template_id", "welcome-template-1"),
+        patch(
+            "app.services.state_service.strings.get_string",
+            return_value=ask_name_message,
+        ) as mock_get_string,
+        patch(
+            "app.services.state_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
         patch(
             "app.services.state_service.whatsapp_client.send_template_message",
             AsyncMock(),
@@ -157,26 +171,21 @@ async def test_handle_new_approved_user_in_production_persists_visible_template_
             "app.services.state_service.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
-        patch(
-            "app.services.state_service.flow_client.send_personal_and_school_info_flow",
-            AsyncMock(),
-        ) as mock_send_onboarding_flow,
     ):
         response = await service.handle_new_approved_user(user)
 
     assert response.status_code == 200
-    mock_send_template_message.assert_awaited_once_with(
-        user.wa_id,
-        "welcome-template-1",
-        language_code="en_US",
-    )
+    assert user.state == UserState.onboarding
+    assert user.onboarding_state == OnboardingState.new
+    mock_get_string.assert_called_once_with(StringCategory.ONBOARDING, "ask_name")
+    mock_send_message.assert_awaited_once_with(user.wa_id, ask_name_message)
+    mock_send_template_message.assert_not_awaited()
     assert mock_create_message_by_fields.await_args.kwargs == {
         "user_id": user.id,
         "role": MessageRole.assistant,
-        "content": "Welcome template sent: welcome-template-1",
+        "content": ask_name_message,
         "is_present_in_conversation": True,
     }
-    mock_send_onboarding_flow.assert_awaited_once_with(user)
 
 
 @pytest.mark.asyncio
