@@ -264,15 +264,8 @@ class StateHandler:
             user.state = UserState.onboarding
             await db.update_user(user)
 
-            assert user.id is not None
             ask_name_message = strings.get_string(StringCategory.ONBOARDING, "ask_name")
-            await whatsapp_client.send_message(user.wa_id, ask_name_message)
-            await db.create_new_message_by_fields(
-                user_id=user.id,
-                role=MessageRole.assistant,
-                content=ask_name_message,
-                is_present_in_conversation=True,
-            )
+            await onboarding_client.send_recorded_message(user, ask_name_message)
 
             self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)

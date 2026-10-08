@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import app.database.enums as enums
-from app.database.models import User
+from app.database.models import Message, User
 from app.services.onboarding_service import OnboardingHandler
 
 
@@ -81,8 +81,22 @@ async def test_handle_new_saves_name_and_sends_subjects_flow() -> None:
         school_name="Twiga School",
     )
     service = OnboardingHandler()
+    ask_name = "What should I call you?"
+    name_question = Message(
+        user_id=user.id,
+        role=enums.MessageRole.assistant,
+        content=ask_name,
+    )
 
     with (
+        patch(
+            "app.services.onboarding_service.strings.get_string",
+            return_value=ask_name,
+        ),
+        patch(
+            "app.services.onboarding_service.db.get_latest_user_message_by_role",
+            AsyncMock(return_value=name_question),
+        ),
         patch(
             "app.services.onboarding_service.db.update_user",
             AsyncMock(return_value=user),
@@ -119,6 +133,11 @@ async def test_handle_new_rejects_blank_or_too_long_name(reply: str) -> None:
         onboarding_state=enums.OnboardingState.new,
     )
     service = OnboardingHandler()
+    name_question = Message(
+        user_id=user.id,
+        role=enums.MessageRole.assistant,
+        content="Please send a shorter name",
+    )
 
     with (
         patch(
@@ -126,8 +145,12 @@ async def test_handle_new_rejects_blank_or_too_long_name(reply: str) -> None:
             return_value="Please send a shorter name",
         ),
         patch(
+            "app.services.onboarding_service.db.get_latest_user_message_by_role",
+            AsyncMock(return_value=name_question),
+        ),
+        patch(
             "app.services.onboarding_service.whatsapp_client.send_message",
-            AsyncMock(),
+            AsyncMock(return_value=True),
         ) as mock_send_message,
         patch(
             "app.services.onboarding_service.db.create_new_message_by_fields",

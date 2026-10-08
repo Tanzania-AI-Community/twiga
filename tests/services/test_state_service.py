@@ -160,15 +160,15 @@ async def test_handle_new_approved_user_sends_ask_name_and_keeps_onboarding_new(
             return_value=ask_name_message,
         ) as mock_get_string,
         patch(
-            "app.services.state_service.whatsapp_client.send_message",
-            AsyncMock(),
+            "app.services.onboarding_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
         ) as mock_send_message,
         patch(
             "app.services.state_service.whatsapp_client.send_template_message",
             AsyncMock(),
         ) as mock_send_template_message,
         patch(
-            "app.services.state_service.db.create_new_message_by_fields",
+            "app.services.onboarding_service.db.create_new_message_by_fields",
             AsyncMock(),
         ) as mock_create_message_by_fields,
     ):

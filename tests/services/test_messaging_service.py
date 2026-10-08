@@ -96,7 +96,7 @@ async def test_profile_selection_asks_for_a_name_without_the_personal_info_flow(
     with (
         patch(
             "app.services.messaging_service.whatsapp_client.send_message",
-            AsyncMock(),
+            AsyncMock(return_value=True),
         ) as mock_send_message,
         patch.object(
             service,
@@ -151,7 +151,7 @@ async def test_chat_reply_after_profile_prompt_updates_only_the_name() -> None:
         ) as mock_update_user,
         patch(
             "app.services.messaging_service.whatsapp_client.send_message",
-            AsyncMock(),
+            AsyncMock(return_value=True),
         ) as mock_send_message,
         patch.object(
             service,

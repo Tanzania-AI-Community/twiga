@@ -45,6 +45,11 @@ class OnboardingHandler:
 
     async def handle_new(self, user: User, message_text: str):
         try:
+            if not await self._name_question_was_recorded(user):
+                ask_name = strings.get_string(StringCategory.ONBOARDING, "ask_name")
+                await self.send_recorded_message(user, ask_name)
+                return
+
             name = usable_display_name(message_text)
             if name is None:
                 await self._ask_again_for_name(user)
@@ -58,18 +63,42 @@ class OnboardingHandler:
         except Exception as e:
             self.logger.error(f"Error handling new user {user.wa_id}: {str(e)}")
 
-    async def _ask_again_for_name(self, user: User) -> None:
+    async def _name_question_was_recorded(self, user: User) -> bool:
+        """True when the newest assistant message asked for the teacher's name."""
         if user.id is None:
             raise ValueError("User ID is unexpectedly None during onboarding.")
 
+        latest_assistant_message = await db.get_latest_user_message_by_role(
+            user.id, MessageRole.assistant
+        )
+        if latest_assistant_message is None:
+            return False
+
+        return latest_assistant_message.content in {
+            strings.get_string(StringCategory.ONBOARDING, "ask_name"),
+            strings.get_string(StringCategory.ONBOARDING, "ask_name_retry"),
+        }
+
+    async def _ask_again_for_name(self, user: User) -> None:
         retry_message = strings.get_string(StringCategory.ONBOARDING, "ask_name_retry")
-        await whatsapp_client.send_message(user.wa_id, retry_message)
+        await self.send_recorded_message(user, retry_message)
+
+    async def send_recorded_message(self, user: User, content: str) -> bool:
+        """Send a message and record it only when WhatsApp accepts the send."""
+        if user.id is None:
+            raise ValueError("User ID is unexpectedly None during onboarding.")
+
+        sent = await whatsapp_client.send_message(user.wa_id, content)
+        if not sent:
+            return False
+
         await db.create_new_message_by_fields(
             user_id=user.id,
             role=MessageRole.assistant,
-            content=retry_message,
+            content=content,
             is_present_in_conversation=True,
         )
+        return True
 
     async def handle_personal_info_submitted(self, user: User):
         try:
