@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -29,6 +30,7 @@ from app.services.exam_delivery_service import (
 )
 from app.services.flows.flow_service import flow_client
 from app.services.lesson_plan_pdf_generation_service import render_lesson_plan_pdf
+from app.services.onboarding_service import usable_display_name
 from app.tools.registry import ToolName
 from app.tools.tool_code.create_lesson_plan.main import format_lesson_plan_as_text
 from app.utils.string_manager import StringCategory, strings
@@ -40,20 +42,23 @@ class MessagingService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self._settings_handlers = {
-            "personal info": self._handle_personal_info_settings,
             "classes and subjects": self._handle_classes_subjects_settings,
         }
         self._command_handlers = {
             "settings": self._command_settings,
             "help": self._command_help,
         }
+        self._profile_rename_locks: dict[int, asyncio.Lock] = {}
 
     async def handle_settings_selection(
         self, user: models.User, message: models.Message
     ) -> JSONResponse:
         self.logger.debug(f"Handling interactive message with title: {message.content}")
         key = (message.content or "").strip().lower()
-        handler = self._settings_handlers.get(key)
+        if key in self._profile_settings_keys():
+            handler = self._handle_personal_info_settings
+        else:
+            handler = self._settings_handlers.get(key)
         if handler is None:
             raise Exception(f"Unrecognized user reply: {message.content}")
         await handler(user)
@@ -62,10 +67,67 @@ class MessagingService:
             status_code=200,
         )
 
+    def _profile_settings_key(self) -> str:
+        return (
+            strings.get_string(StringCategory.SETTINGS, "personal_info").strip().lower()
+        )
+
+    def _profile_settings_keys(self) -> set[str]:
+        return {self._profile_settings_key(), "personal info"}
+
+    def _profile_name_prompts(self) -> set[str]:
+        return {
+            strings.get_string(StringCategory.SETTINGS, "ask_name"),
+            strings.get_string(StringCategory.ONBOARDING, "ask_name_retry"),
+        }
+
     @track_messages("settings_flow_personal_info")
     async def _handle_personal_info_settings(self, user: models.User) -> None:
-        self.logger.debug("Sending update personal and school info flow")
-        await flow_client.send_user_settings_flow(user)
+        self.logger.debug("Asking for the name to show on the teacher's profile")
+        ask_name = strings.get_string(StringCategory.SETTINGS, "ask_name")
+        await self._send_recorded_message(user, ask_name)
+
+    def _profile_rename_lock(self, user_id: int) -> asyncio.Lock:
+        lock = self._profile_rename_locks.get(user_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._profile_rename_locks[user_id] = lock
+        return lock
+
+    async def _save_profile_name_reply(
+        self, user: models.User, user_message: models.Message
+    ) -> bool:
+        """Save a profile rename when the previous message asked for a name."""
+        if user.id is None:
+            return False
+
+        async with self._profile_rename_lock(user.id):
+            latest_assistant_message = await db.get_latest_user_message_by_role(
+                user.id, enums.MessageRole.assistant
+            )
+            if (
+                latest_assistant_message is None
+                or latest_assistant_message.content not in self._profile_name_prompts()
+            ):
+                return False
+
+            name = usable_display_name(user_message.content or "")
+            if name is None:
+                retry_message = strings.get_string(
+                    StringCategory.ONBOARDING, "ask_name_retry"
+                )
+                await self._send_recorded_message(user, retry_message)
+                return True
+
+            user.name = name
+            await db.update_user(user)
+            confirmation = strings.get_template(
+                StringCategory.SETTINGS, "name_updated", name=name
+            )
+            await self._persist_visible_assistant_message(user, confirmation)
+
+        await whatsapp_client.send_message(user.wa_id, confirmation)
+        return True
 
     @track_messages("settings_flow_classes_subjects")
     async def _handle_classes_subjects_settings(self, user: models.User) -> None:
@@ -110,6 +172,8 @@ class MessagingService:
     async def handle_chat_message(
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
+        if await self._save_profile_name_reply(user, user_message):
+            return JSONResponse(content={"status": "ok"}, status_code=200)
 
         llm_client: ClientBase = self._get_llm_client()
         llm_responses = await llm_client.generate_response(
@@ -327,15 +391,48 @@ class MessagingService:
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
         err_message = strings.get_string(StringCategory.ERROR, "unsupported_message")
-        await self._persist_visible_assistant_message(user, err_message)
+        if user.id is not None:
+            async with self._profile_rename_lock(user.id):
+                if await self._profile_name_is_pending(user):
+                    await self._send_unsupported_message(user, err_message)
+                    ask_name = strings.get_string(StringCategory.SETTINGS, "ask_name")
+                    await self._send_recorded_message(user, ask_name)
+                    return JSONResponse(content={"status": "ok"}, status_code=200)
 
-        # Send message to the user
-        await whatsapp_client.send_message(wa_id=user.wa_id, message=err_message)
-        record_messages_generated("unsupported_message")
+        await self._send_unsupported_message(user, err_message)
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
         )
+
+    async def _send_unsupported_message(
+        self, user: models.User, err_message: str
+    ) -> None:
+        await self._persist_visible_assistant_message(user, err_message)
+        await whatsapp_client.send_message(wa_id=user.wa_id, message=err_message)
+        record_messages_generated("unsupported_message")
+
+    async def _profile_name_is_pending(self, user: models.User) -> bool:
+        """True when the newest assistant message is still asking for a Profile name."""
+        if user.id is None:
+            return False
+
+        latest_assistant_message = await db.get_latest_user_message_by_role(
+            user.id, enums.MessageRole.assistant
+        )
+        return (
+            latest_assistant_message is not None
+            and latest_assistant_message.content in self._profile_name_prompts()
+        )
+
+    async def _send_recorded_message(self, user: models.User, content: str) -> bool:
+        """Send a message and record it only when WhatsApp accepts the send."""
+        sent = await whatsapp_client.send_message(user.wa_id, content)
+        if not sent:
+            return False
+
+        await self._persist_visible_assistant_message(user, content)
+        return True
 
     async def _persist_visible_assistant_message(
         self,

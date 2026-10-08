@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from app.database.enums import MessageRole, UserState
 from app.database.models import Message
+from app.utils.string_manager import StringCategory, strings
 from scripts.crons.helpers import (
     WhatsAppClient,
     create_new_messages,
@@ -58,10 +59,10 @@ logger = setup_logging(
 
 async def approve_and_welcome_users() -> None:
     """
-    Find users with UserState.new (approved by dashboard) and:
-    1. Send welcome messages
-    2. Update their state to active
-    3. Log the message to database
+    Find users with UserState.approved and:
+    1. Send the welcome template and record it
+    2. Move them to onboarding
+    3. Send the name question, recording it only when WhatsApp accepts it
     """
     log_job_start(
         logger,
@@ -99,13 +100,27 @@ async def approve_and_welcome_users() -> None:
                     await update_user(user)
 
                     assert user.id is not None
-                    welcome_db_message = Message(
-                        user_id=user.id,
-                        role=MessageRole.assistant,
-                        content=f"Welcome template sent: {WELCOME_TEMPLATE_ID}",
-                        is_present_in_conversation=True,
+                    recorded_messages = [
+                        Message(
+                            user_id=user.id,
+                            role=MessageRole.assistant,
+                            content=f"Welcome template sent: {WELCOME_TEMPLATE_ID}",
+                            is_present_in_conversation=True,
+                        )
+                    ]
+                    ask_name_message = strings.get_string(
+                        StringCategory.ONBOARDING, "ask_name"
                     )
-                    await create_new_messages([welcome_db_message])
+                    if await whatsapp_client.send_message(user.wa_id, ask_name_message):
+                        recorded_messages.append(
+                            Message(
+                                user_id=user.id,
+                                role=MessageRole.assistant,
+                                content=ask_name_message,
+                                is_present_in_conversation=True,
+                            )
+                        )
+                    await create_new_messages(recorded_messages)
 
                     log_item_success(
                         logger, "user", user.wa_id, "approved and activated"
