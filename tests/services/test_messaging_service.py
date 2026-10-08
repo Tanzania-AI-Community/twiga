@@ -41,6 +41,15 @@ SAMPLE_LESSON_PLAN = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _no_pending_profile_name():
+    with patch(
+        "app.services.messaging_service.db.get_latest_user_message_by_role",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_command_settings_persists_visible_message() -> None:
     service = MessagingService()

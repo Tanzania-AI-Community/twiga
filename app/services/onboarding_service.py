@@ -11,6 +11,14 @@ _MAX_NAME_LENGTH = 50
 _UNSUPPORTED_MESSAGE_CONTENT = "warning: user sent an unsupported message type"
 
 
+def usable_display_name(message_text: str) -> str | None:
+    """Return a name that fits the user record, or None when the reply cannot be saved."""
+    name = message_text.strip()
+    if not name or len(name) > _MAX_NAME_LENGTH or name == _UNSUPPORTED_MESSAGE_CONTENT:
+        return None
+    return name
+
+
 class OnboardingHandler:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -37,7 +45,7 @@ class OnboardingHandler:
 
     async def handle_new(self, user: User, message_text: str):
         try:
-            name = self._usable_name(message_text)
+            name = usable_display_name(message_text)
             if name is None:
                 await self._ask_again_for_name(user)
                 return
@@ -49,16 +57,6 @@ class OnboardingHandler:
             await self.flow_client.send_subjects_classes_flow(user)
         except Exception as e:
             self.logger.error(f"Error handling new user {user.wa_id}: {str(e)}")
-
-    def _usable_name(self, message_text: str) -> str | None:
-        name = message_text.strip()
-        if (
-            not name
-            or len(name) > _MAX_NAME_LENGTH
-            or name == _UNSUPPORTED_MESSAGE_CONTENT
-        ):
-            return None
-        return name
 
     async def _ask_again_for_name(self, user: User) -> None:
         if user.id is None:
