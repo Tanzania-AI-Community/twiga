@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -78,6 +79,104 @@ async def test_command_settings_persists_visible_message() -> None:
         ["Personal info", "Classes and subjects"],
     )
     mock_persist_visible.assert_awaited_once_with(user, "Settings intro")
+
+
+@pytest.mark.asyncio
+async def test_profile_selection_asks_for_a_name_without_the_personal_info_flow() -> (
+    None
+):
+    service = MessagingService()
+    user = User(id=32, wa_id="255700000232", name="Teacher")
+    message = Message(
+        user_id=user.id,
+        role=enums.MessageRole.user,
+        content="Profile",
+    )
+
+    with (
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+        patch(
+            "app.services.messaging_service.flow_client.send_user_settings_flow",
+            AsyncMock(),
+        ) as mock_send_settings_flow,
+    ):
+        response = await service.handle_settings_selection(user, message)
+
+    assert response.status_code == 200
+    mock_send_message.assert_awaited_once_with(user.wa_id, "What should I call you?")
+    mock_persist_visible.assert_awaited_once_with(user, "What should I call you?")
+    mock_send_settings_flow.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_chat_reply_after_profile_prompt_updates_only_the_name() -> None:
+    service = MessagingService()
+    birthday = date(1990, 1, 1)
+    user = User(
+        id=33,
+        wa_id="255700000233",
+        name="Teacher",
+        onboarding_state=enums.OnboardingState.completed,
+        birthday=birthday,
+        region="Dar es Salaam",
+        school_name="Twiga School",
+    )
+    user_message = Message(
+        user_id=user.id,
+        role=enums.MessageRole.user,
+        content="  Neema  ",
+    )
+    profile_prompt = Message(
+        user_id=user.id,
+        role=enums.MessageRole.assistant,
+        content="What should I call you?",
+    )
+
+    with (
+        patch(
+            "app.services.messaging_service.db.get_latest_user_message_by_role",
+            AsyncMock(return_value=profile_prompt),
+        ),
+        patch(
+            "app.services.messaging_service.db.update_user",
+            AsyncMock(return_value=user),
+        ) as mock_update_user,
+        patch(
+            "app.services.messaging_service.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch.object(
+            service,
+            "_persist_visible_assistant_message",
+            AsyncMock(),
+        ) as mock_persist_visible,
+        patch(
+            "app.services.messaging_service.llm_client.generate_response",
+            AsyncMock(),
+        ) as mock_generate_response,
+    ):
+        response = await service.handle_chat_message(user, user_message)
+
+    assert response.status_code == 200
+    assert user.name == "Neema"
+    assert user.birthday == birthday
+    assert user.region == "Dar es Salaam"
+    assert user.school_name == "Twiga School"
+    assert user.onboarding_state == enums.OnboardingState.completed
+    mock_update_user.assert_awaited_once_with(user)
+    mock_send_message.assert_awaited_once_with(
+        user.wa_id, "Got it, I'll call you Neema."
+    )
+    mock_persist_visible.assert_awaited_once_with(user, "Got it, I'll call you Neema.")
+    mock_generate_response.assert_not_awaited()
 
 
 @pytest.mark.asyncio

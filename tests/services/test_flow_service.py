@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -801,6 +802,96 @@ async def test_update_user_profile_failure_persists_error_message() -> None:
 
     mock_send_message.assert_awaited_once_with(user.wa_id, "General error")
     mock_persist_visible.assert_awaited_once_with(user, "General error")
+
+
+@pytest.mark.asyncio
+async def test_update_user_profile_first_time_writes_only_the_name() -> None:
+    birthday = date(1990, 1, 1)
+    user = User(
+        id=56,
+        wa_id="255700000889",
+        name="Teacher",
+        onboarding_state=enums.OnboardingState.new,
+        birthday=birthday,
+        region="Dar es Salaam",
+        school_name="Twiga School",
+    )
+    service = FlowService()
+
+    with (
+        patch(
+            "app.services.flows.handlers.onboarding_flow_handler.db.update_user",
+            AsyncMock(return_value=user),
+        ) as mock_update_user,
+        patch.object(
+            service,
+            "send_subjects_classes_flow",
+            AsyncMock(),
+        ) as mock_send_subjects_flow,
+    ):
+        await service._onboarding_flow_handler.update_user_profile(
+            user,
+            data={
+                "full_name": "Amina",
+                "birthday": "2000-01-01",
+                "region": "Arusha",
+                "school_name": "Other School",
+            },
+            is_updating=False,
+        )
+
+    assert user.name == "Amina"
+    assert user.birthday == birthday
+    assert user.region == "Dar es Salaam"
+    assert user.school_name == "Twiga School"
+    assert user.onboarding_state == enums.OnboardingState.personal_info_submitted
+    mock_update_user.assert_awaited_once_with(user)
+    mock_send_subjects_flow.assert_awaited_once_with(user)
+
+
+@pytest.mark.asyncio
+async def test_update_user_profile_update_does_not_reset_onboarding_state() -> None:
+    birthday = date(1990, 1, 1)
+    user = User(
+        id=57,
+        wa_id="255700000890",
+        name="Teacher",
+        onboarding_state=enums.OnboardingState.completed,
+        birthday=birthday,
+        region="Dar es Salaam",
+        school_name="Twiga School",
+    )
+    service = FlowService()
+
+    with (
+        patch(
+            "app.services.flows.handlers.onboarding_flow_handler.db.update_user",
+            AsyncMock(return_value=user),
+        ) as mock_update_user,
+        patch.object(
+            service,
+            "send_subjects_classes_flow",
+            AsyncMock(),
+        ) as mock_send_subjects_flow,
+    ):
+        await service._onboarding_flow_handler.update_user_profile(
+            user,
+            data={
+                "update_full_name": "Neema",
+                "update_birthday": "2001-02-02",
+                "update_region": "Mwanza",
+                "update_school_name": "New School",
+            },
+            is_updating=True,
+        )
+
+    assert user.name == "Neema"
+    assert user.birthday == birthday
+    assert user.region == "Dar es Salaam"
+    assert user.school_name == "Twiga School"
+    assert user.onboarding_state == enums.OnboardingState.completed
+    mock_update_user.assert_awaited_once_with(user)
+    mock_send_subjects_flow.assert_not_awaited()
 
 
 @pytest.mark.asyncio
