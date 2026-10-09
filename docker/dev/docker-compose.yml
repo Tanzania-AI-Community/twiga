@@ -6,7 +6,7 @@ services:
       context: ./db
       dockerfile: Dockerfile
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - db:/var/lib/postgresql/data
     environment:
@@ -39,7 +39,7 @@ services:
       context: ../..
       dockerfile: docker/dev/app/Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ../../.:/app
       # Google ADC credentials from `gcloud auth application-default login`.
