@@ -11,10 +11,8 @@ import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
-from app.clients.client_base import BUFFERED_RESPONSE, ClientBase
-from app.clients.llm_client import llm_client
+from app.clients.client_base import BUFFERED_RESPONSE
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
-from app.config import llm_settings
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
     prepare_latex_body,
@@ -111,8 +109,7 @@ class MessagingService:
         self, user: models.User, user_message: models.Message
     ) -> JSONResponse:
 
-        llm_client: ClientBase = self._get_llm_client()
-        llm_responses = await llm_client.generate_response(
+        llm_responses = await agent_client.generate_response(
             user=user, message=user_message
         )
 
@@ -177,18 +174,6 @@ class MessagingService:
             record_messages_generated("chat_response")
 
         return JSONResponse(content={"status": "ok"}, status_code=200)
-
-    def _get_llm_client(self) -> ClientBase:
-        if llm_settings.agentic_mode:
-            self.logger.info(
-                "Agentic mode is enabled. Using AgentClient for response generation."
-            )
-            return agent_client
-
-        self.logger.info(
-            "Agentic mode is disabled. Using basic LLMClient for response generation."
-        )
-        return llm_client
 
     async def _handle_no_llm_response(self, user: models.User) -> None:
         err_message = strings.get_string(StringCategory.ERROR, "general")
