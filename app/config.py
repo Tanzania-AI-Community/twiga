@@ -45,7 +45,6 @@ class EmbeddingProvider(str, Enum):
 class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 
-    TWIGA_SYSTEM = "twiga_system"
     TWIGA_AGENT_SYSTEM = "twiga_agent_system"
 
 
@@ -166,10 +165,6 @@ class LLMSettings(BaseSettings):
     base_url: Optional[str] = yaml_config["llm"].get("base_url")
 
     # Agent settings
-    agentic_mode: bool = Field(
-        default=yaml_config["llm"]["agent"]["agentic_mode"],
-        validation_alias="agentic_mode_enabled",
-    )
     MAX_AGENT_ITERATIONS: int = yaml_config["llm"]["agent"]["max_agent_iterations"]
 
 

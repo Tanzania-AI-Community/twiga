@@ -25,7 +25,6 @@ llm:
     endpoint_url: "https://api.smith.langchain.com"
 
   agent:
-    agentic_mode: false
     max_agent_iterations: 8
 
 embedding:

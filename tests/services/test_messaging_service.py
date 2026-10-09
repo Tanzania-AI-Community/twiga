@@ -89,9 +89,8 @@ async def test_handle_chat_message_marks_final_response_as_hidden_and_persists_v
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[final_message]),
         ),
         patch(
@@ -140,9 +139,8 @@ async def test_handle_chat_message_persists_general_error_when_llm_returns_none(
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=None),
         ),
         patch(
@@ -188,9 +186,8 @@ async def test_handle_chat_message_does_not_send_error_when_message_is_buffered(
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=BUFFERED_RESPONSE),
         ),
         patch(
@@ -237,9 +234,8 @@ async def test_handle_chat_message_persists_tool_leakage_fallback_as_visible() -
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[leaked_message]),
         ),
         patch(
@@ -416,9 +412,8 @@ async def test_handle_chat_message_exam_delivery_sends_documents(
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=llm_responses),
         ),
         patch(
@@ -478,9 +473,8 @@ async def test_handle_chat_message_invalid_exam_marker_falls_back_to_clean_text(
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[final_message]),
         ),
         patch(
@@ -549,9 +543,8 @@ async def test_handle_chat_message_rewrites_citation_markers_for_user_output() -
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[final_message]),
         ),
         patch(
@@ -637,9 +630,8 @@ async def test_handle_chat_message_exam_marker_partial_failure_appends_notice() 
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[final_message]),
         ),
         patch(
@@ -703,9 +695,8 @@ async def test_handle_chat_message_marker_only_skips_text_send_after_documents()
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[final_message]),
         ),
         patch(
@@ -772,9 +763,8 @@ async def test_handle_chat_message_sends_lesson_plan_pdf_from_successful_tool() 
         rendered_paths.append(path)
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[tool_message, final_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
@@ -844,9 +834,8 @@ async def test_handle_chat_message_failed_lesson_plan_tool_does_not_send_pdf() -
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[tool_message, final_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
@@ -917,9 +906,8 @@ async def test_handle_chat_message_lesson_plan_pdf_render_failure_falls_back_to_
     expected_text = format_lesson_plan_as_text(SAMPLE_LESSON_PLAN)
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[tool_message, final_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
@@ -987,9 +975,8 @@ async def test_handle_chat_message_lesson_plan_pdf_send_failure_falls_back_to_te
         rendered_paths.append(path)
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[tool_message, final_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
