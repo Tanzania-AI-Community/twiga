@@ -65,7 +65,7 @@ Notes:
 
 Add tool usage guidance to the agent's system prompts:
 
-- `app/assets/prompts/twiga/agent/system/` - For the main agent
+- `app/assets/prompts/twiga/system/` - For the main agent
 
 Add appropriate instructions in the tool usage section describing when and how to use your tool.
 

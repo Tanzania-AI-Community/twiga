@@ -1,6 +1,6 @@
 prompts:
   twiga_agent_system:
-    path: twiga/agent/system
+    path: twiga/system
     active_version: v0.1
     versions:
       v0.0:
