@@ -66,7 +66,6 @@ Notes:
 Add tool usage guidance to the agent's system prompts:
 
 - `app/assets/prompts/twiga_agent_system` - For the main agent
-- `app/assets/prompts/twiga_system` - For the LLM service
 
 Add appropriate instructions in the tool usage section describing when and how to use your tool.
 

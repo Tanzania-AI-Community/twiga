@@ -213,9 +213,8 @@ async def test_handle_chat_message_falls_back_to_text_when_image_send_fails() ->
     )
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[llm_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
@@ -263,9 +262,8 @@ async def test_handle_chat_message_sends_all_latex_images_in_page_order() -> Non
     image_paths = ["/tmp/page_1.png", "/tmp/page_2.png"]
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[llm_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),
@@ -320,9 +318,8 @@ async def test_handle_chat_message_falls_back_to_text_after_page_send_failure(
         Path(image_path).write_bytes(b"image")
 
     with (
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=[llm_message]),
         ),
         patch("app.services.messaging_service.db.create_new_messages", AsyncMock()),

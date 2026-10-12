@@ -4,6 +4,7 @@ import pytest
 
 import app.database.enums as enums
 from app.clients.client_base import ClientBase
+from app.config import Prompt
 from app.database.models import Message, User
 
 
@@ -162,3 +163,50 @@ async def test_tool_call_notification_warns_for_unknown_tool() -> None:
 
     mock_send_message.assert_not_awaited()
     mock_create_message.assert_not_awaited()
+
+
+def test_format_messages_happy_path() -> None:
+    client = DummyClient()
+    user = User(id=1, name="Test User", wa_id="255700000001")
+
+    database_messages = [
+        Message(user_id=1, role=enums.MessageRole.user, content="hello"),
+        Message(user_id=1, role=enums.MessageRole.assistant, content="hi"),
+    ]
+    new_messages = [
+        Message(user_id=1, role=enums.MessageRole.user, content="new question")
+    ]
+
+    result = client._format_messages(
+        new_messages=new_messages,
+        database_messages=database_messages,
+        user=user,
+        prompt=Prompt.TWIGA_AGENT_SYSTEM,
+    )
+
+    assert result[0]["role"] == enums.MessageRole.system
+    assert isinstance(result[0]["content"], str)
+    assert result[0]["content"]
+    assert result[-1]["role"] == enums.MessageRole.user.value
+    assert result[-1]["content"] == "new question"
+
+
+def test_format_messages_raises_when_history_shorter_than_new_messages() -> None:
+    client = DummyClient()
+    user = User(id=1, name="Test User", wa_id="255700000001")
+
+    database_messages = [
+        Message(user_id=1, role=enums.MessageRole.user, content="only one")
+    ]
+    new_messages = [
+        Message(user_id=1, role=enums.MessageRole.user, content="first"),
+        Message(user_id=1, role=enums.MessageRole.assistant, content="second"),
+    ]
+
+    with pytest.raises(Exception, match="Unusual message count scenario detected"):
+        client._format_messages(
+            new_messages=new_messages,
+            database_messages=database_messages,
+            user=user,
+            prompt=Prompt.TWIGA_AGENT_SYSTEM,
+        )
