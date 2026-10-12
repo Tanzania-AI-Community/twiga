@@ -190,7 +190,7 @@ async def test_chat_reply_after_profile_prompt_updates_only_the_name() -> None:
             AsyncMock(),
         ) as mock_persist_visible,
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(),
         ) as mock_generate_response,
     ):
@@ -263,9 +263,8 @@ async def test_voice_note_during_profile_keeps_the_next_name_as_a_rename() -> No
             "_persist_visible_assistant_message",
             side_effect=persist,
         ),
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(),
         ) as mock_generate_response,
         patch("app.services.messaging_service.record_messages_generated"),
@@ -340,9 +339,8 @@ async def test_overlapping_profile_replies_save_only_the_first_name() -> None:
             "_persist_visible_assistant_message",
             side_effect=persist,
         ),
-        patch("app.services.messaging_service.llm_settings.agentic_mode", False),
         patch(
-            "app.services.messaging_service.llm_client.generate_response",
+            "app.services.messaging_service.agent_client.generate_response",
             AsyncMock(return_value=BUFFERED_RESPONSE),
         ) as mock_generate_response,
     ):
