@@ -14,6 +14,24 @@
 
 Twiga is a WhatsApp chatbot designed specifically for Tanzanian teachers, and is being built by the [Tanzania AI Community](https://ai.or.tz/) and open-source contributors. It aims to enhance the educational experience for educators by providing them with access to generative AI. Using retrieval-augmented generation (RAG), Twiga can communicate with teachers in a natural way yet combine the adaptive capabilities of LLMs with the knowledge provided in the curriculum and textbooks of the Tanzanian Institute of Education (TIE). We aim to build the bot to be used for a multitude of educational applications such as generating exams, writing lesson plans, searching for textbook info, and more.
 
+### Voice messages
+
+Twiga transcribes inbound WhatsApp voice messages before sending their text through the normal chat flow. ElevenLabs Scribe v2 is the default. Groq-hosted Whisper can be selected without changing the webhook code:
+
+```env
+# ElevenLabs (default)
+AUDIO_TRANSCRIPTION_PROVIDER=elevenlabs
+AUDIO_TRANSCRIPTION_MODEL=scribe_v2
+ELEVENLABS_API_KEY=your-key
+
+# Groq Whisper alternative
+AUDIO_TRANSCRIPTION_PROVIDER=groq
+AUDIO_TRANSCRIPTION_MODEL=whisper-large-v3-turbo
+GROQ_API_KEY=your-key
+```
+
+The selected provider key is only required when a voice message is received. Audio is downloaded from Meta's temporary media URL and is not stored by Twiga.
+
 This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/) for its use of Llama open source LLMs for social good. Read our [roadmap](https://docs.google.com/document/d/1zus2AFyglt1RJdLeqWeAJIT-uHQh6NeU9WuamzAd-0s/edit?usp=sharing) for further details on our development plans.
 
 ## 🩷 Sponsors

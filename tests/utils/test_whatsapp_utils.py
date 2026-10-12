@@ -1,12 +1,22 @@
-"""Tests for splitting outbound text to fit WhatsApp's message length limit."""
+"""Tests for WhatsApp message utilities."""
 
-from app.utils.whatsapp_utils import split_text_for_whatsapp
+from app.utils.whatsapp_utils import (
+    ValidMessageType,
+    get_valid_message_type,
+    split_text_for_whatsapp,
+)
 
 # Meta's documented limit for a text message body.
 WHATSAPP_TEXT_LIMIT = 4096
 
 # Small limit keeps the fixtures readable; the logic is independent of scale.
 LIMIT = 100
+
+
+def test_audio_is_routed_as_a_chat_message_after_transcription() -> None:
+    message_info = {"message": {"type": "audio", "audio": {"id": "media-123"}}}
+
+    assert get_valid_message_type(message_info) is ValidMessageType.CHAT
 
 
 def _visible(text: str) -> str:

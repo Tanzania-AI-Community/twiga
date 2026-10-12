@@ -42,6 +42,11 @@ class EmbeddingProvider(str, Enum):
     MODAL = BaseProviders.MODAL.value
 
 
+class AudioTranscriptionProvider(str, Enum):
+    ELEVENLABS = "elevenlabs"
+    GROQ = "groq"
+
+
 class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 
@@ -70,6 +75,15 @@ class Settings(BaseSettings):
 
     # WhatsApp mock
     mock_whatsapp: bool = False
+
+    # Inbound audio transcription
+    audio_transcription_provider: AudioTranscriptionProvider = (
+        AudioTranscriptionProvider.ELEVENLABS
+    )
+    audio_transcription_model: str = "scribe_v2"
+    audio_transcription_timeout_seconds: float = Field(default=60, gt=0)
+    elevenlabs_api_key: SecretStr | None = None
+    groq_api_key: SecretStr | None = None
 
     # Message limiting settings
     message_character_limit: int = 65000

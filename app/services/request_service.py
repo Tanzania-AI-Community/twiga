@@ -1,6 +1,7 @@
 import json
 import logging
 
+import httpx
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -8,6 +9,7 @@ import app.database.db as db
 import app.database.enums as enums
 from app.clients.whatsapp_client import whatsapp_client
 from app.monitoring.metrics import record_whatsapp_event
+from app.services.audio_transcription_service import audio_transcription_service
 from app.services.state_service import state_client
 from app.utils.whatsapp_utils import (
     RequestType,
@@ -65,7 +67,29 @@ async def handle_request(request: Request) -> JSONResponse:
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information
     message_info = extract_message_info(body)
-    message_content = extract_message(message_info.get("message") or {})
+    message = message_info.get("message") or {}
+    if message.get("type") == "audio":
+        media_id = message.get("audio", {}).get("id")
+        if not media_id:
+            return JSONResponse(
+                content={"status": "error", "message": "Invalid audio message"},
+                status_code=400,
+            )
+        try:
+            audio, mime_type = await whatsapp_client.download_media(media_id)
+            message_content = await audio_transcription_service.transcribe(
+                audio, mime_type
+            )
+        except (httpx.HTTPError, ValueError):
+            logger.exception("Failed to transcribe inbound WhatsApp audio")
+            await whatsapp_client.send_message(
+                message_info["wa_id"],
+                "Samahani, sikuweza kusoma ujumbe wako wa sauti. Tafadhali "
+                "jaribu tena au utume ujumbe wa maandishi.",
+            )
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+    else:
+        message_content = extract_message(message)
 
     if not message_content:
         logger.warning("Empty message received")

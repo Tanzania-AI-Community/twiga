@@ -85,6 +85,115 @@ async def test_handle_valid_message_routes_with_inbound_message_id() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handle_valid_message_transcribes_audio_before_routing() -> None:
+    wa_id = "255700000009"
+    body = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "contacts": [
+                                {"wa_id": wa_id, "profile": {"name": "Teacher"}}
+                            ],
+                            "messages": [
+                                {
+                                    "id": "wamid.AUDIO123",
+                                    "timestamp": "1710000000",
+                                    "type": "audio",
+                                    "audio": {
+                                        "id": "media-123",
+                                        "mime_type": "audio/ogg; codecs=opus",
+                                        "voice": True,
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    with (
+        patch(
+            "app.services.request_service.whatsapp_client.download_media",
+            AsyncMock(return_value=(b"audio bytes", "audio/ogg")),
+        ) as mock_download_media,
+        patch(
+            "app.services.request_service.audio_transcription_service.transcribe",
+            AsyncMock(return_value="Nisaidie kuelewa photosynthesis"),
+        ) as mock_transcribe,
+        patch(
+            "app.services.request_service.handle_chat_message",
+            AsyncMock(return_value=expected_response),
+        ) as mock_handle_chat_message,
+    ):
+        response = await request_service.handle_valid_message(body)
+
+    assert response is expected_response
+    mock_download_media.assert_awaited_once_with("media-123")
+    mock_transcribe.assert_awaited_once_with(b"audio bytes", "audio/ogg")
+    called_wa_id, called_message_info = mock_handle_chat_message.await_args.args
+    assert called_wa_id == wa_id
+    assert called_message_info["extracted_content"] == (
+        "Nisaidie kuelewa photosynthesis"
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_valid_message_acknowledges_audio_transcription_failure() -> None:
+    wa_id = "255700000009"
+    body = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "contacts": [
+                                {"wa_id": wa_id, "profile": {"name": "Teacher"}}
+                            ],
+                            "messages": [
+                                {
+                                    "id": "wamid.AUDIO123",
+                                    "timestamp": "1710000000",
+                                    "type": "audio",
+                                    "audio": {"id": "media-123"},
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    with (
+        patch(
+            "app.services.request_service.whatsapp_client.download_media",
+            AsyncMock(side_effect=ValueError("download failed")),
+        ),
+        patch(
+            "app.services.request_service.whatsapp_client.send_message",
+            AsyncMock(return_value=True),
+        ) as mock_send_message,
+        patch(
+            "app.services.request_service.handle_chat_message", AsyncMock()
+        ) as mock_handle_chat_message,
+    ):
+        response = await request_service.handle_valid_message(body)
+
+    assert response.status_code == 200
+    mock_send_message.assert_awaited_once_with(
+        wa_id,
+        "Samahani, sikuweza kusoma ujumbe wako wa sauti. Tafadhali jaribu tena "
+        "au utume ujumbe wa maandishi.",
+    )
+    mock_handle_chat_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_handle_chat_message_persists_inbound_message_and_routes_active() -> None:
     user = User(
         id=7,

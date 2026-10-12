@@ -340,7 +340,11 @@ def get_flow_payload(wa_id: str, flow: dict) -> dict:
 
 
 def is_other_message(message_info: dict) -> bool:
-    return message_info.get("message", {}).get("type") not in ["text", "interactive"]
+    return message_info.get("message", {}).get("type") not in [
+        "text",
+        "interactive",
+        "audio",
+    ]
 
 
 def get_valid_message_type(message_info: dict) -> ValidMessageType:
