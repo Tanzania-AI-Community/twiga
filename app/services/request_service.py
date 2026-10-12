@@ -1,3 +1,5 @@
+import base64
+import binascii
 import json
 import logging
 
@@ -8,6 +10,7 @@ from fastapi.responses import JSONResponse
 import app.database.db as db
 import app.database.enums as enums
 from app.clients.whatsapp_client import whatsapp_client
+from app.config import settings
 from app.monitoring.metrics import record_whatsapp_event
 from app.services.audio_transcription_service import audio_transcription_service
 from app.services.state_service import state_client
@@ -19,6 +22,20 @@ from app.utils.whatsapp_utils import (
 )
 
 logger = logging.getLogger(__name__)
+_MAX_MOCK_AUDIO_BYTES = 16 * 1024 * 1024
+
+
+def _decode_mock_audio(audio_data: str) -> bytes:
+    max_encoded_length = ((_MAX_MOCK_AUDIO_BYTES + 2) // 3) * 4
+    if len(audio_data) > max_encoded_length:
+        raise ValueError("Mock audio exceeds the 16 MB limit")
+    try:
+        audio = base64.b64decode(audio_data, validate=True)
+    except binascii.Error as exc:
+        raise ValueError("Mock audio is not valid base64") from exc
+    if len(audio) > _MAX_MOCK_AUDIO_BYTES:
+        raise ValueError("Mock audio exceeds the 16 MB limit")
+    return audio
 
 
 async def handle_request(request: Request) -> JSONResponse:
@@ -76,7 +93,13 @@ async def handle_valid_message(body: dict) -> JSONResponse:
                 status_code=400,
             )
         try:
-            audio, mime_type = await whatsapp_client.download_media(media_id)
+            audio_payload = message.get("audio", {})
+            inline_audio = audio_payload.get("data")
+            if settings.mock_whatsapp and inline_audio:
+                audio = _decode_mock_audio(inline_audio)
+                mime_type = audio_payload.get("mime_type") or "audio/ogg"
+            else:
+                audio, mime_type = await whatsapp_client.download_media(media_id)
             message_content = await audio_transcription_service.transcribe(
                 audio, mime_type
             )
