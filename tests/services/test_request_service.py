@@ -4,8 +4,10 @@ import pytest
 from fastapi.responses import JSONResponse
 
 import app.database.enums as enums
+from app.config import AudioTranscriptionProvider
 from app.database.models import Message, User
 from app.services import request_service
+from app.services.audio_transcription_service import TranscriptionResult
 from app.utils.whatsapp_utils import RequestType
 
 
@@ -123,7 +125,14 @@ async def test_handle_valid_message_transcribes_audio_before_routing() -> None:
         ) as mock_download_media,
         patch(
             "app.services.request_service.audio_transcription_service.transcribe",
-            AsyncMock(return_value="Nisaidie kuelewa photosynthesis"),
+            AsyncMock(
+                return_value=TranscriptionResult(
+                    "Nisaidie kuelewa photosynthesis",
+                    AudioTranscriptionProvider.ELEVENLABS,
+                    "scribe_v2",
+                    840,
+                )
+            ),
         ) as mock_transcribe,
         patch(
             "app.services.request_service.handle_chat_message",
@@ -134,7 +143,12 @@ async def test_handle_valid_message_transcribes_audio_before_routing() -> None:
 
     assert response is expected_response
     mock_download_media.assert_awaited_once_with("media-123")
-    mock_transcribe.assert_awaited_once_with(b"audio bytes", "audio/ogg")
+    mock_transcribe.assert_awaited_once_with(
+        b"audio bytes", "audio/ogg", provider=None, model=None
+    )
+    assert response.headers["X-Audio-Transcription-Provider"] == "elevenlabs"
+    assert response.headers["X-Audio-Transcription-Model"] == "scribe_v2"
+    assert response.headers["X-Audio-Transcription-Latency-Ms"] == "840"
     called_wa_id, called_message_info = mock_handle_chat_message.await_args.args
     assert called_wa_id == wa_id
     assert called_message_info["extracted_content"] == (
@@ -165,6 +179,8 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
                                         "id": "mock-media-123",
                                         "mime_type": "audio/mp4",
                                         "data": "YXVkaW8=",
+                                        "transcription_provider": "groq",
+                                        "transcription_model": "whisper-large-v3-turbo",
                                     },
                                 }
                             ],
@@ -178,13 +194,23 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
 
     with (
         patch.object(request_service.settings, "mock_whatsapp", True),
+        patch.object(
+            request_service.settings, "environment", request_service.Environment.LOCAL
+        ),
         patch(
             "app.services.request_service.whatsapp_client.download_media",
             AsyncMock(),
         ) as mock_download_media,
         patch(
             "app.services.request_service.audio_transcription_service.transcribe",
-            AsyncMock(return_value="Habari mwalimu"),
+            AsyncMock(
+                return_value=TranscriptionResult(
+                    "Habari mwalimu",
+                    AudioTranscriptionProvider.GROQ,
+                    "whisper-large-v3-turbo",
+                    325,
+                )
+            ),
         ) as mock_transcribe,
         patch(
             "app.services.request_service.handle_chat_message",
@@ -195,7 +221,13 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
 
     assert response is expected_response
     mock_download_media.assert_not_awaited()
-    mock_transcribe.assert_awaited_once_with(b"audio", "audio/mp4")
+    mock_transcribe.assert_awaited_once_with(
+        b"audio",
+        "audio/mp4",
+        provider="groq",
+        model="whisper-large-v3-turbo",
+    )
+    assert response.headers["X-Audio-Transcription-Provider"] == "groq"
     assert mock_handle_chat_message.await_args.args[1]["extracted_content"] == (
         "Habari mwalimu"
     )

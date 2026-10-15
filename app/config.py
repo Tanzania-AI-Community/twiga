@@ -47,6 +47,12 @@ class AudioTranscriptionProvider(str, Enum):
     GROQ = "groq"
 
 
+SUPPORTED_AUDIO_TRANSCRIPTION_MODELS = {
+    AudioTranscriptionProvider.ELEVENLABS: {"scribe_v2"},
+    AudioTranscriptionProvider.GROQ: {"whisper-large-v3-turbo"},
+}
+
+
 class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 

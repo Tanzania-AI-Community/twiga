@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 import app.database.db as db
 import app.database.enums as enums
 from app.clients.whatsapp_client import whatsapp_client
-from app.config import settings
+from app.config import Environment, settings
 from app.monitoring.metrics import record_whatsapp_event
 from app.services.audio_transcription_service import audio_transcription_service
 from app.services.state_service import state_client
@@ -100,9 +100,28 @@ async def handle_valid_message(body: dict) -> JSONResponse:
                 mime_type = audio_payload.get("mime_type") or "audio/ogg"
             else:
                 audio, mime_type = await whatsapp_client.download_media(media_id)
-            message_content = await audio_transcription_service.transcribe(
-                audio, mime_type
+            provider_override = audio_payload.get("transcription_provider")
+            model_override = audio_payload.get("transcription_model")
+            if (provider_override or model_override) and not (
+                settings.mock_whatsapp
+                and settings.environment in (Environment.LOCAL, Environment.DEVELOPMENT)
+            ):
+                raise ValueError(
+                    "Audio transcription overrides are only available in local "
+                    "mock WhatsApp mode"
+                )
+            transcription = await audio_transcription_service.transcribe(
+                audio,
+                mime_type,
+                provider=provider_override,
+                model=model_override,
             )
+            message_content = transcription.text
+            message_info["transcription_metadata"] = {
+                "provider": transcription.provider.value,
+                "model": transcription.model,
+                "latency_ms": transcription.latency_ms,
+            }
         except (httpx.HTTPError, ValueError):
             logger.exception("Failed to transcribe inbound WhatsApp audio")
             await whatsapp_client.send_message(
@@ -125,7 +144,19 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     message_info["extracted_content"] = message_content
 
     # Main message routing logic
-    return await handle_chat_message(message_info["wa_id"], message_info)
+    response = await handle_chat_message(message_info["wa_id"], message_info)
+    transcription_metadata = message_info.get("transcription_metadata")
+    if transcription_metadata:
+        response.headers["X-Audio-Transcription-Provider"] = transcription_metadata[
+            "provider"
+        ]
+        response.headers["X-Audio-Transcription-Model"] = transcription_metadata[
+            "model"
+        ]
+        response.headers["X-Audio-Transcription-Latency-Ms"] = str(
+            transcription_metadata["latency_ms"]
+        )
+    return response
 
 
 async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResponse:

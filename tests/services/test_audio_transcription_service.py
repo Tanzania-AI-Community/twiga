@@ -36,9 +36,12 @@ async def test_transcribe_with_elevenlabs() -> None:
             AsyncMock(return_value=_response({"text": "Habari mwalimu"})),
         ) as mock_post,
     ):
-        transcript = await service.transcribe(b"audio", "audio/ogg")
+        result = await service.transcribe(b"audio", "audio/ogg")
 
-    assert transcript == "Habari mwalimu"
+    assert result.text == "Habari mwalimu"
+    assert result.provider == AudioTranscriptionProvider.ELEVENLABS
+    assert result.model == "scribe_v2"
+    assert result.latency_ms >= 0
     assert mock_post.await_args.args[0].endswith("/v1/speech-to-text")
     assert mock_post.await_args.kwargs["headers"] == {"xi-api-key": "elevenlabs-key"}
     assert mock_post.await_args.kwargs["data"] == {"model_id": "scribe_v2"}
@@ -64,9 +67,11 @@ async def test_transcribe_with_groq_whisper() -> None:
             AsyncMock(return_value=_response({"text": "Hello teacher"})),
         ) as mock_post,
     ):
-        transcript = await service.transcribe(b"audio", "audio/mp4")
+        result = await service.transcribe(b"audio", "audio/mp4")
 
-    assert transcript == "Hello teacher"
+    assert result.text == "Hello teacher"
+    assert result.provider == AudioTranscriptionProvider.GROQ
+    assert result.model == "whisper-large-v3-turbo"
     assert mock_post.await_args.args[0].endswith("/audio/transcriptions")
     assert mock_post.await_args.kwargs["headers"] == {
         "Authorization": "Bearer groq-key"
@@ -95,3 +100,40 @@ async def test_transcribe_rejects_empty_provider_response() -> None:
         pytest.raises(ValueError, match="empty transcript"),
     ):
         await service.transcribe(b"audio", "audio/ogg")
+
+
+@pytest.mark.asyncio
+async def test_transcribe_accepts_a_supported_development_model_override() -> None:
+    service = AudioTranscriptionService()
+
+    with (
+        patch.object(service.settings, "groq_api_key", SecretStr("groq-key")),
+        patch(
+            "app.services.audio_transcription_service.time.perf_counter",
+            side_effect=[1.0, 1.125],
+        ),
+        patch.object(
+            service.client,
+            "post",
+            AsyncMock(return_value=_response({"text": "Habari"})),
+        ) as mock_post,
+    ):
+        result = await service.transcribe(
+            b"audio", "audio/ogg", provider="groq", model="whisper-large-v3-turbo"
+        )
+
+    assert result.text == "Habari"
+    assert result.provider == AudioTranscriptionProvider.GROQ
+    assert result.model == "whisper-large-v3-turbo"
+    assert result.latency_ms == 125
+    assert mock_post.await_args.kwargs["data"] == {"model": "whisper-large-v3-turbo"}
+
+
+@pytest.mark.asyncio
+async def test_transcribe_rejects_unsupported_provider_model_pair() -> None:
+    service = AudioTranscriptionService()
+
+    with pytest.raises(ValueError, match="Unsupported audio transcription model"):
+        await service.transcribe(
+            b"audio", "audio/ogg", provider="elevenlabs", model="whisper-large-v3"
+        )
