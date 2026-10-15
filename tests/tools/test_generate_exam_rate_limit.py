@@ -8,9 +8,11 @@ from app.tools.tool_code.generate_necta_style_exam import main
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("count", [5, 7])
+@pytest.mark.parametrize("count", [2, 4])
 async def test_rate_limited_before_retrieval_or_generation(count):
     with (
+        patch.object(main.settings, "exam_generation_limit", 2),
+        patch.object(main.settings, "exam_generation_window_days", 3),
         patch.object(
             main.db, "count_generated_exams_since", new=AsyncMock(return_value=count)
         ),
@@ -25,9 +27,9 @@ async def test_rate_limited_before_retrieval_or_generation(count):
 
     assert result == {
         "status": "rate_limited",
-        "message": "You have reached the limit of 5 generated exams in 7 days. Please try again later.",
-        "limit": 5,
-        "window_days": 7,
+        "message": "You have reached the limit of 2 generated exams in 3 days. Please try again later.",
+        "limit": 2,
+        "window_days": 3,
     }
     resources.assert_not_awaited()
     search.assert_not_awaited()

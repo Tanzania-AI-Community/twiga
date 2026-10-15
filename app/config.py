@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     # Message limiting settings
     message_character_limit: int = 65000
 
+    # Exam generation limiting settings
+    exam_generation_limit: int = Field(default=5, gt=0)
+    exam_generation_window_days: int = Field(default=7, gt=0)
+
     # Database settings
     database_url: SecretStr
 
