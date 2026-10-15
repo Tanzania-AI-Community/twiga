@@ -143,9 +143,7 @@ async def test_handle_valid_message_transcribes_audio_before_routing() -> None:
 
     assert response is expected_response
     mock_download_media.assert_awaited_once_with("media-123")
-    mock_transcribe.assert_awaited_once_with(
-        b"audio bytes", "audio/ogg", provider=None, model=None
-    )
+    mock_transcribe.assert_awaited_once_with(b"audio bytes", "audio/ogg")
     assert response.headers["X-Audio-Transcription-Provider"] == "elevenlabs"
     assert response.headers["X-Audio-Transcription-Model"] == "scribe_v2"
     assert response.headers["X-Audio-Transcription-Latency-Ms"] == "840"
@@ -179,8 +177,6 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
                                         "id": "mock-media-123",
                                         "mime_type": "audio/mp4",
                                         "data": "YXVkaW8=",
-                                        "transcription_provider": "groq",
-                                        "transcription_model": "whisper-large-v3-turbo",
                                     },
                                 }
                             ],
@@ -195,7 +191,14 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
     with (
         patch.object(request_service.settings, "mock_whatsapp", True),
         patch.object(
-            request_service.settings, "environment", request_service.Environment.LOCAL
+            request_service.audio_transcription_service.settings,
+            "audio_transcription_provider",
+            AudioTranscriptionProvider.GROQ,
+        ),
+        patch.object(
+            request_service.audio_transcription_service.settings,
+            "audio_transcription_model",
+            "whisper-large-v3-turbo",
         ),
         patch(
             "app.services.request_service.whatsapp_client.download_media",
@@ -221,12 +224,7 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
 
     assert response is expected_response
     mock_download_media.assert_not_awaited()
-    mock_transcribe.assert_awaited_once_with(
-        b"audio",
-        "audio/mp4",
-        provider="groq",
-        model="whisper-large-v3-turbo",
-    )
+    mock_transcribe.assert_awaited_once_with(b"audio", "audio/mp4")
     assert response.headers["X-Audio-Transcription-Provider"] == "groq"
     assert mock_handle_chat_message.await_args.args[1]["extracted_content"] == (
         "Habari mwalimu"

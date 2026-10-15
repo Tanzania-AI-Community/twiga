@@ -27,6 +27,10 @@ async def test_transcribe_with_elevenlabs() -> None:
             AudioTranscriptionProvider.ELEVENLABS,
         ),
         patch.object(service.settings, "audio_transcription_model", "scribe_v2"),
+        patch(
+            "app.services.audio_transcription_service.time.perf_counter",
+            side_effect=[1.0, 1.125],
+        ),
         patch.object(
             service.settings, "elevenlabs_api_key", SecretStr("elevenlabs-key")
         ),
@@ -41,7 +45,7 @@ async def test_transcribe_with_elevenlabs() -> None:
     assert result.text == "Habari mwalimu"
     assert result.provider == AudioTranscriptionProvider.ELEVENLABS
     assert result.model == "scribe_v2"
-    assert result.latency_ms >= 0
+    assert result.latency_ms == 125
     assert mock_post.await_args.args[0].endswith("/v1/speech-to-text")
     assert mock_post.await_args.kwargs["headers"] == {"xi-api-key": "elevenlabs-key"}
     assert mock_post.await_args.kwargs["data"] == {"model_id": "scribe_v2"}
@@ -103,37 +107,17 @@ async def test_transcribe_rejects_empty_provider_response() -> None:
 
 
 @pytest.mark.asyncio
-async def test_transcribe_accepts_a_supported_development_model_override() -> None:
-    service = AudioTranscriptionService()
-
-    with (
-        patch.object(service.settings, "groq_api_key", SecretStr("groq-key")),
-        patch(
-            "app.services.audio_transcription_service.time.perf_counter",
-            side_effect=[1.0, 1.125],
-        ),
-        patch.object(
-            service.client,
-            "post",
-            AsyncMock(return_value=_response({"text": "Habari"})),
-        ) as mock_post,
-    ):
-        result = await service.transcribe(
-            b"audio", "audio/ogg", provider="groq", model="whisper-large-v3-turbo"
-        )
-
-    assert result.text == "Habari"
-    assert result.provider == AudioTranscriptionProvider.GROQ
-    assert result.model == "whisper-large-v3-turbo"
-    assert result.latency_ms == 125
-    assert mock_post.await_args.kwargs["data"] == {"model": "whisper-large-v3-turbo"}
-
-
 @pytest.mark.asyncio
 async def test_transcribe_rejects_unsupported_provider_model_pair() -> None:
     service = AudioTranscriptionService()
 
-    with pytest.raises(ValueError, match="Unsupported audio transcription model"):
-        await service.transcribe(
-            b"audio", "audio/ogg", provider="elevenlabs", model="whisper-large-v3"
-        )
+    with (
+        patch.object(
+            service.settings,
+            "audio_transcription_provider",
+            AudioTranscriptionProvider.ELEVENLABS,
+        ),
+        patch.object(service.settings, "audio_transcription_model", "whisper-large-v3"),
+        pytest.raises(ValueError, match="Unsupported audio transcription model"),
+    ):
+        await service.transcribe(b"audio", "audio/ogg")

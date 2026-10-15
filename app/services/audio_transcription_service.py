@@ -26,17 +26,11 @@ class AudioTranscriptionService:
             timeout=service_settings.audio_transcription_timeout_seconds
         )
 
-    async def transcribe(
-        self,
-        audio: bytes,
-        mime_type: str,
-        provider: AudioTranscriptionProvider | str | None = None,
-        model: str | None = None,
-    ) -> TranscriptionResult:
+    async def transcribe(self, audio: bytes, mime_type: str) -> TranscriptionResult:
         provider = AudioTranscriptionProvider(
-            provider or self.settings.audio_transcription_provider
+            self.settings.audio_transcription_provider
         )
-        model = model or self.settings.audio_transcription_model
+        model = self.settings.audio_transcription_model
         if model not in SUPPORTED_AUDIO_TRANSCRIPTION_MODELS[provider]:
             raise ValueError(
                 f"Unsupported audio transcription model for {provider.value}: {model}"

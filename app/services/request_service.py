@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 import app.database.db as db
 import app.database.enums as enums
 from app.clients.whatsapp_client import whatsapp_client
-from app.config import Environment, settings
+from app.config import settings
 from app.monitoring.metrics import record_whatsapp_event
 from app.services.audio_transcription_service import audio_transcription_service
 from app.services.state_service import state_client
@@ -100,21 +100,8 @@ async def handle_valid_message(body: dict) -> JSONResponse:
                 mime_type = audio_payload.get("mime_type") or "audio/ogg"
             else:
                 audio, mime_type = await whatsapp_client.download_media(media_id)
-            provider_override = audio_payload.get("transcription_provider")
-            model_override = audio_payload.get("transcription_model")
-            if (provider_override or model_override) and not (
-                settings.mock_whatsapp
-                and settings.environment in (Environment.LOCAL, Environment.DEVELOPMENT)
-            ):
-                raise ValueError(
-                    "Audio transcription overrides are only available in local "
-                    "mock WhatsApp mode"
-                )
             transcription = await audio_transcription_service.transcribe(
-                audio,
-                mime_type,
-                provider=provider_override,
-                model=model_override,
+                audio, mime_type
             )
             message_content = transcription.text
             message_info["transcription_metadata"] = {

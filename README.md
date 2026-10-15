@@ -32,14 +32,12 @@ GROQ_API_KEY=your-key
 
 The selected provider key is only required when a voice message is received. Audio is downloaded from Meta's temporary media URL and is not stored by Twiga.
 
-When `MOCK_WHATSAPP=True` and `ENVIRONMENT=local` or `development`, mock audio
-messages may include `audio.transcription_provider` and
-`audio.transcription_model` to override the configured defaults for that
-message. Supported combinations are `elevenlabs` + `scribe_v2` and `groq` +
-`whisper-large-v3-turbo`. Twiga returns the selected provider, model, and
+The backend environment variables control the provider and model for all voice
+messages; the mock client cannot override them per message. Supported
+combinations are `elevenlabs` + `scribe_v2` and `groq` +
+`whisper-large-v3-turbo`. The webhook response includes the provider, model, and
 transcription latency in the `X-Audio-Transcription-Provider`,
-`X-Audio-Transcription-Model`, and `X-Audio-Transcription-Latency-Ms` response
-headers. Production WhatsApp messages always use the server configuration.
+`X-Audio-Transcription-Model`, and `X-Audio-Transcription-Latency-Ms` headers.
 
 This project was awarded the [Meta Llama Impact Grant Innovation Award 2024](https://ai.meta.com/blog/llama-impact-grant-innovation-award-winners-2024/) for its use of Llama open source LLMs for social good. Read our [roadmap](https://docs.google.com/document/d/1zus2AFyglt1RJdLeqWeAJIT-uHQh6NeU9WuamzAd-0s/edit?usp=sharing) for further details on our development plans.
 
