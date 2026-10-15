@@ -31,6 +31,11 @@ Start by creating a `.env` file in the main directory of Twiga and copy-paste th
 
 The remaining variables are pre-filled with default values suitable for mock WhatsApp development.
 
+To record and transcribe voice notes, you must also configure an audio provider
+and its API key. Follow [Audio input](./AUDIO_INPUT.md) for the supported
+ElevenLabs and Groq configurations. Text messages work without an audio
+provider key.
+
 ## 📊 LangSmith Tracing (Optional)
 
 For monitoring and debugging LLM interactions, you can optionally enable LangSmith tracing:
@@ -88,5 +93,8 @@ make run
 ## 🥳 Testing your setup
 
 Once the application is running, you can interact with Twiga through the mock WhatsApp interface. The mock interface simulates the WhatsApp API, allowing you to test your bot's functionality without needing a real WhatsApp account.
+
+For microphone recording, transcription, and provider comparison instructions,
+see [Audio input](./AUDIO_INPUT.md#test-with-mock-whatsapp).
 
 For any issues or questions, join our [Discord](https://discord.gg/bCe2HfZY2C) and write your question in `⚒-tech-support`.
