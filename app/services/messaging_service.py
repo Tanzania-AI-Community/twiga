@@ -13,12 +13,8 @@ import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
-<<<<<<< HEAD
 from app.clients.client_base import BUFFERED_RESPONSE, ClientBase
-=======
-from app.clients.client_base import ClientBase
 from app.clients.image_interpreter import image_interpreter
->>>>>>> 9458005 (feat: first MVP of image input)
 from app.clients.llm_client import llm_client
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.config import image_input_settings, llm_settings, settings
@@ -168,8 +164,7 @@ class MessagingService:
             record_messages_generated(error_key)
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
-        # Release image bytes before the (potentially long) agent/tool workflow.
-        del image
+        image = None
         return await self._generate_and_deliver(user, user_message, agent_client)
 
     async def _generate_and_deliver(
