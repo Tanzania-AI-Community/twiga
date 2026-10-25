@@ -393,6 +393,7 @@ class Resource(SQLModel, table=True):
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
+    table_of_contents: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     type: Optional[enums.ResourceType] = Field(max_length=30)
     authors: Optional[list[str]] = Field(sa_column=Column(ARRAY(String(50))))
     created_at: Optional[datetime] = Field(
@@ -406,9 +407,6 @@ class Resource(SQLModel, table=True):
     resource_classes: Optional[list["ClassResource"]] = Relationship(
         back_populates="resource_", cascade_delete=True
     )
-    # resource_sections: Optional[list["Section"]] = Relationship(
-    #     back_populates="resource_", cascade_delete=True
-    # )
     resource_chunks: Optional[list["Chunk"]] = Relationship(
         back_populates="resource_", cascade_delete=True
     )
@@ -443,18 +441,11 @@ class Chunk(SQLModel, table=True):
     """ FIELDS """
     id: Optional[int] = Field(default=None, primary_key=True)
     resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
-    # section_id: Optional[int] = Field(
-    #     foreign_key="sections.id", index=True, ondelete="CASCADE", default=None
-    # )
     content: str
     page_number: Optional[int] = Field(default=None)
-    # TODO: Define the different types of chunks in an enum
+    chapter_number: Optional[int] = Field(default=None)
+    subchapter_number: Optional[int] = Field(default=None)
     chunk_type: Optional[enums.ChunkType] = Field(max_length=30, default=None)
-    """
-    XXX: FILL IN THE EMBEDDING LENGTH FOR YOUR EMBEDDINGS
-    - Default is set to 1024 (for bge-large vectors)
-    - Replace with 1536 for text-embedding-3-small if using OpenAI's embedder
-    """
     embedding: Any = Field(sa_column=Column(Vector(1024)))
     top_level_section_index: Optional[str] = Field(max_length=10, default=None)
     top_level_section_title: Optional[str] = Field(max_length=100, default=None)
@@ -467,48 +458,3 @@ class Chunk(SQLModel, table=True):
 
     """ RELATIONSHIPS """
     resource_: Optional["Resource"] = Relationship(back_populates="resource_chunks")
-    # section_: Optional["Section"] = Relationship(back_populates="section_chunks")
-
-
-# class Section(SQLModel, table=True):
-#     __tablename__ = "sections"
-
-#     """ FIELDS """
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     resource_id: int = Field(foreign_key="resources.id", index=True, ondelete="CASCADE")
-#     parent_section_id: Optional[int] = Field(
-#         default=None, foreign_key="sections.id", nullable=True
-#     )
-#     section_index: Optional[str] = Field(max_length=20, default=None)
-#     section_title: Optional[str] = Field(max_length=100, default=None)
-#     section_type: Optional[str] = Field(max_length=15, default=None)
-#     section_order: int
-#     page_range: Optional[list[int]] = Field(sa_column=Column(ARRAY(Integer)))
-#     summary: Optional[str] = Field(default=None)
-#     created_at: Optional[datetime] = Field(
-#         default_factory=lambda: datetime.now(timezone.utc),
-#         sa_type=DateTime(timezone=True),  # type: ignore
-#         sa_column_kwargs={"server_default": sa.func.now()},
-#         nullable=False,
-#     )
-
-#     """ RELATIONSHIPS """
-#     resource_: Resource = Relationship(back_populates="resource_sections")
-#     parent: Optional["Section"] = Relationship(
-#         back_populates="children",
-#         sa_relationship_kwargs={
-#             "remote_side": "[Section.id]"  # Quote wrapped to handle forward references
-#         },
-#     )
-
-#     # Only part I'm not too sure about
-#     children: Optional[list["Section"]] = Relationship(
-#         back_populates="parent",
-#         cascade_delete=True,
-#         sa_relationship_kwargs={
-#             "single_parent": True,  # This ensures a child can only have one parent
-#         },
-#     )
-#     section_chunks: Optional[list["Chunk"]] = Relationship(
-#         back_populates="section_", cascade_delete=True
-#     )
