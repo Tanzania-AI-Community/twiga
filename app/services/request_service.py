@@ -1,13 +1,18 @@
+import base64
+import binascii
 import json
 import logging
 
+import httpx
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 import app.database.db as db
 import app.database.enums as enums
 from app.clients.whatsapp_client import whatsapp_client
+from app.config import settings
 from app.monitoring.metrics import record_whatsapp_event
+from app.services.audio_transcription_service import audio_transcription_service
 from app.services.state_service import state_client
 from app.utils.whatsapp_utils import (
     RequestType,
@@ -17,6 +22,20 @@ from app.utils.whatsapp_utils import (
 )
 
 logger = logging.getLogger(__name__)
+_MAX_MOCK_AUDIO_BYTES = 16 * 1024 * 1024
+
+
+def _decode_mock_audio(audio_data: str) -> bytes:
+    max_encoded_length = ((_MAX_MOCK_AUDIO_BYTES + 2) // 3) * 4
+    if len(audio_data) > max_encoded_length:
+        raise ValueError("Mock audio exceeds the 16 MB limit")
+    try:
+        audio = base64.b64decode(audio_data, validate=True)
+    except binascii.Error as exc:
+        raise ValueError("Mock audio is not valid base64") from exc
+    if len(audio) > _MAX_MOCK_AUDIO_BYTES:
+        raise ValueError("Mock audio exceeds the 16 MB limit")
+    return audio
 
 
 async def handle_request(request: Request) -> JSONResponse:
@@ -65,7 +84,52 @@ async def handle_request(request: Request) -> JSONResponse:
 async def handle_valid_message(body: dict) -> JSONResponse:
     # Extract message information
     message_info = extract_message_info(body)
-    message_content = extract_message(message_info.get("message") or {})
+    message = message_info.get("message") or {}
+    if message.get("type") == "audio":
+        user = await db.get_user_by_waid(message_info["wa_id"])
+        if user:
+            rate_limit_response = await state_client._handle_rate_limiting(
+                user, message_info["wa_id"]
+            )
+            if rate_limit_response:
+                return rate_limit_response
+            if user.state == enums.UserState.blocked:
+                return await state_client.handle_blocked(user)
+            message_info["prechecked_user"] = user
+
+        media_id = message.get("audio", {}).get("id")
+        if not media_id:
+            return JSONResponse(
+                content={"status": "error", "message": "Invalid audio message"},
+                status_code=400,
+            )
+        try:
+            audio_payload = message.get("audio", {})
+            inline_audio = audio_payload.get("data")
+            if settings.mock_whatsapp and inline_audio:
+                audio = _decode_mock_audio(inline_audio)
+                mime_type = audio_payload.get("mime_type") or "audio/ogg"
+            else:
+                audio, mime_type = await whatsapp_client.download_media(media_id)
+            transcription = await audio_transcription_service.transcribe(
+                audio, mime_type
+            )
+            message_content = transcription.text
+            message_info["transcription_metadata"] = {
+                "provider": transcription.provider.value,
+                "model": transcription.model,
+                "latency_ms": transcription.latency_ms,
+            }
+        except (httpx.HTTPError, ValueError):
+            logger.exception("Failed to transcribe inbound WhatsApp audio")
+            await whatsapp_client.send_message(
+                message_info["wa_id"],
+                "Samahani, sikuweza kusoma ujumbe wako wa sauti. Tafadhali "
+                "jaribu tena au utume ujumbe wa maandishi.",
+            )
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+    else:
+        message_content = extract_message(message)
 
     if not message_content:
         logger.warning("Empty message received")
@@ -78,7 +142,19 @@ async def handle_valid_message(body: dict) -> JSONResponse:
     message_info["extracted_content"] = message_content
 
     # Main message routing logic
-    return await handle_chat_message(message_info["wa_id"], message_info)
+    response = await handle_chat_message(message_info["wa_id"], message_info)
+    transcription_metadata = message_info.get("transcription_metadata")
+    if transcription_metadata:
+        response.headers["X-Audio-Transcription-Provider"] = transcription_metadata[
+            "provider"
+        ]
+        response.headers["X-Audio-Transcription-Model"] = transcription_metadata[
+            "model"
+        ]
+        response.headers["X-Audio-Transcription-Latency-Ms"] = str(
+            transcription_metadata["latency_ms"]
+        )
+    return response
 
 
 async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResponse:
@@ -89,7 +165,10 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
     """
 
     # Fetch user with FULL data (one method does everything)
-    user = await db.get_user_by_waid(phone_number)
+    user = message_info.pop("prechecked_user", None)
+    sender_was_prechecked = user is not None
+    if not user:
+        user = await db.get_user_by_waid(phone_number)
 
     if not user:
         # New user - start registration/onboarding flow
@@ -110,9 +189,12 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
     )
 
     # Handle rate limiting
-    rate_limit_response = await state_client._handle_rate_limiting(user, phone_number)
-    if rate_limit_response:
-        return rate_limit_response
+    if not sender_was_prechecked:
+        rate_limit_response = await state_client._handle_rate_limiting(
+            user, phone_number
+        )
+        if rate_limit_response:
+            return rate_limit_response
 
     # Route based on user state
     match user.state:

@@ -29,6 +29,10 @@ The dependencies should now be installed and your shell environment should be se
 
 Start by creating a `.env` file in the main directory of Twiga and copy-paste the contents of `.env.template` into it (or use `.env.template.simple` for a more streamlined setup). Remove the comments and whitespace. The template should be quite self-explanatory. The rest of this document will help you fill out the `.env` file with your own values to get a running version of Twiga.
 
+Voice notes require a speech-to-text provider in addition to the normal chat
+model configuration. Follow [Audio input](./AUDIO_INPUT.md) to configure
+ElevenLabs or Groq-hosted Whisper and understand how audio is handled.
+
 ## 👾 Setup Prerequisites
 
 > [!Note]

@@ -46,15 +46,42 @@ class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
     _MAX_DOCUMENT_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
     _MAX_TEXT_LENGTH_CHARS = 4096
+    _MAX_AUDIO_SIZE_BYTES = 16 * 1024 * 1024
 
     def __init__(self):
         self.headers = {
             "Content-type": "application/json",
             "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
         }
-        self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
+        self.api_version = settings.meta_api_version
+        self.url = f"https://graph.facebook.com/{self.api_version}/{settings.whatsapp_cloud_number_id}"
         self.logger = logging.getLogger(__name__)
         self.client = httpx.AsyncClient(base_url=self.url)
+
+    async def download_media(self, media_id: str) -> tuple[bytes, str]:
+        """Download inbound WhatsApp media after resolving its temporary URL."""
+        auth_headers = {"Authorization": self.headers["Authorization"]}
+        metadata_response = await self.client.get(
+            f"https://graph.facebook.com/{self.api_version}/{media_id}",
+            headers=auth_headers,
+        )
+        metadata_response.raise_for_status()
+        metadata = metadata_response.json()
+
+        media_url = metadata.get("url")
+        if not media_url:
+            raise ValueError("WhatsApp media response did not include a download URL")
+
+        file_size = int(metadata.get("file_size") or 0)
+        if file_size > self._MAX_AUDIO_SIZE_BYTES:
+            raise ValueError("WhatsApp audio exceeds the 16 MB limit")
+
+        media_response = await self.client.get(media_url, headers=auth_headers)
+        media_response.raise_for_status()
+        if len(media_response.content) > self._MAX_AUDIO_SIZE_BYTES:
+            raise ValueError("WhatsApp audio exceeds the 16 MB limit")
+
+        return media_response.content, metadata.get("mime_type") or "audio/ogg"
 
     async def send_message(
         self, wa_id: str, message: str, options: list[str] | None = None
