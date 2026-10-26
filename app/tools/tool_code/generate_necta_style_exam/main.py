@@ -1,13 +1,16 @@
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 import app.database.db as db
+from app.config import settings
 from app.database.db import create_new_exam
 from app.database.enums import ChunkType
 from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
     ExamGenerationError,
     exam_generator,
 )
+from app.utils.string_manager import StringCategory, strings
 
 NUM_CHUNKS_PER_TOPIC = 25
 logger = logging.getLogger(__name__)
@@ -31,6 +34,28 @@ async def generate_necta_style_exam(
         logger.info(
             f"Generating NECTA-style exam for user_id={user_id}, class_id={class_id}, subject={subject}, topics={topics}"
         )
+
+        window_start = datetime.now(timezone.utc) - timedelta(
+            days=settings.exam_generation_window_days
+        )
+        if (
+            await db.count_generated_exams_since(user_id, window_start)
+            >= settings.exam_generation_limit
+        ):
+            tool_strings = strings.get_category(StringCategory.TOOLS)
+            message = tool_strings["generate_necta_style_exam"]["rate_limited"].format(
+                limit=settings.exam_generation_limit,
+                window_days=settings.exam_generation_window_days,
+            )
+            return json.dumps(
+                {
+                    "status": "rate_limited",
+                    "message": message,
+                    "limit": settings.exam_generation_limit,
+                    "window_days": settings.exam_generation_window_days,
+                },
+                ensure_ascii=False,
+            )
 
         resource_ids = await db.get_class_resources(class_id)
         if not resource_ids:
