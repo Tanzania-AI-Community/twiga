@@ -16,7 +16,7 @@ class WhatsAppClient:
     """
     Standalone WhatsApp client for cron job operations.
 
-    Handles sending template messages to users via WhatsApp Business API.
+    Handles sending template and text messages to users via WhatsApp Business API.
     """
 
     def __init__(
@@ -156,6 +156,38 @@ class WhatsAppClient:
         except Exception as e:
             self.logger.error(f"Unexpected error sending template to {wa_id}: {e}")
             raise
+
+    async def send_message(self, wa_id: str, message: str) -> bool:
+        """Send a normal text message. A failed request is logged and returns False."""
+        if self.mock:
+            self.logger.info(f"MOCK: Would send text message to {wa_id}")
+            return True
+
+        try:
+            payload = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": wa_id,
+                "type": "text",
+                "text": {"body": message},
+            }
+            response = await self.client.post(
+                "/messages",
+                json=payload,
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            self.logger.info(f"Text message sent successfully to {wa_id}")
+            return True
+        except httpx.HTTPStatusError as e:
+            self.logger.error(
+                f"HTTP error sending message to {wa_id}: {e.response.status_code} - {e.response.text}"
+            )
+        except httpx.RequestError as e:
+            self.logger.error(f"Request error sending message to {wa_id}: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error sending message to {wa_id}: {e}")
+        return False
 
     async def close(self):
         """Close the HTTP client."""

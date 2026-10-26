@@ -17,10 +17,10 @@ class OnboardingFlowHandler:
     """
     Orchestrates the teacher onboarding profile flow.
 
-    The flow captures personal and school information, then triggers the
-    subjects/classes flow for first-time onboarding. In update mode, the same
-    screen is reused to edit existing profile fields without restarting onboarding.
-    Submissions are acknowledged immediately and persisted asynchronously.
+    A form already open on a phone saves only the teacher's name. First-time
+    onboarding then continues to the subjects and classes flow. An update does
+    not change birthday, region, school, or onboarding state. Submissions are
+    acknowledged immediately and persisted asynchronously.
     """
 
     def __init__(self, service: object):
@@ -62,14 +62,8 @@ class OnboardingFlowHandler:
         try:
             prefix = "update_" if is_updating else ""
             user.name = data.get(f"{prefix}full_name") or user.name
-            user.birthday = (
-                datetime.strptime(data[f"{prefix}birthday"], "%Y-%m-%d")
-                if data.get(f"{prefix}birthday")
-                else None if data.get(f"{prefix}birthday") else None
-            )
-            user.region = data.get(f"{prefix}region")
-            user.school_name = data.get(f"{prefix}school_name")
-            user.onboarding_state = enums.OnboardingState.personal_info_submitted
+            if not is_updating:
+                user.onboarding_state = enums.OnboardingState.personal_info_submitted
 
             user = await db.update_user(user)
 
