@@ -63,77 +63,72 @@ class WhatsAppClient:
         """Resolve a Meta media ID and stream its bytes, with one transient retry."""
         if settings.mock_whatsapp or not media_id.isascii() or not media_id.isdigit():
             raise ImageInputError()
+        with private_media_logging():
+            for attempt in range(2):
+                try:
+                    async with asyncio.timeout(30):
+                        url, mime_type = await self._get_image_download_info(media_id)
+                        data = await self._download_image_bytes(url)
+                        return await asyncio.to_thread(validate_image, data, mime_type)
+                except httpx.HTTPStatusError as exc:
+                    if attempt == 0 and (
+                        exc.response.status_code == 429
+                        or exc.response.status_code >= 500
+                    ):
+                        continue
+                    raise ImageInputError() from None
+                except (httpx.RequestError, TimeoutError):
+                    if attempt == 0:
+                        continue
+                    raise ImageInputError() from None
+                except (KeyError, TypeError, ValueError, httpx.InvalidURL):
+                    raise ImageInputError() from None
+        raise ImageInputError()
+
+    async def _get_image_download_info(self, media_id: str) -> tuple[httpx.URL, str]:
         metadata_url = (
             f"https://graph.facebook.com/{settings.meta_api_version}/{media_id}"
         )
-        for attempt in range(2):
-            try:
-                with private_media_logging():
-                    async with asyncio.timeout(30):
-                        response = await self.client.get(
-                            metadata_url,
-                            headers=self.headers,
-                            follow_redirects=False,
-                            timeout=30,
-                        )
-                        response.raise_for_status()
-                        metadata = response.json()
-                        if not isinstance(metadata, dict):
-                            raise ImageInputError()
-                        mime_type = metadata.get("mime_type")
-                        if mime_type not in SUPPORTED_IMAGE_TYPES.values():
-                            raise ImageInputError("image_invalid")
-                        if int(metadata.get("file_size", 0)) > MAX_IMAGE_BYTES:
-                            raise ImageInputError("image_invalid")
-                        url = httpx.URL(metadata["url"])
-                        # The bearer token must only be sent to Meta's media hosts.
-                        allowed_hosts = ("facebook.com", "fbcdn.net", "fbsbx.com")
-                        if (
-                            url.scheme != "https"
-                            or url.userinfo
-                            or url.port not in (None, 443)
-                            or not any(
-                                url.host == host or url.host.endswith("." + host)
-                                for host in allowed_hosts
-                            )
-                        ):
-                            raise ImageInputError()
-                        async with self.client.stream(
-                            "GET",
-                            url,
-                            headers=self.headers,
-                            follow_redirects=False,
-                            timeout=30,
-                        ) as download:
-                            download.raise_for_status()
-                            if (
-                                int(download.headers.get("content-length", 0))
-                                > MAX_IMAGE_BYTES
-                            ):
-                                raise ImageInputError("image_invalid")
-                            data = bytearray()
-                            async for chunk in download.aiter_bytes(
-                                chunk_size=64 * 1024
-                            ):
-                                data.extend(chunk)
-                                if len(data) > MAX_IMAGE_BYTES:
-                                    raise ImageInputError("image_invalid")
-                        return await asyncio.to_thread(
-                            validate_image, bytes(data), mime_type
-                        )
-            except httpx.HTTPStatusError as exc:
-                if attempt == 0 and (
-                    exc.response.status_code == 429 or exc.response.status_code >= 500
-                ):
-                    continue
-                raise ImageInputError() from None
-            except (httpx.RequestError, TimeoutError):
-                if attempt == 0:
-                    continue
-                raise ImageInputError() from None
-            except (KeyError, TypeError, ValueError, httpx.InvalidURL):
-                raise ImageInputError() from None
-        raise ImageInputError()
+        response = await self.client.get(
+            metadata_url, headers=self.headers, follow_redirects=False, timeout=30
+        )
+        response.raise_for_status()
+        metadata = response.json()
+        if not isinstance(metadata, dict):
+            raise ImageInputError()
+        mime_type = metadata.get("mime_type")
+        if mime_type not in SUPPORTED_IMAGE_TYPES.values():
+            raise ImageInputError("image_invalid")
+        if int(metadata.get("file_size", 0)) > MAX_IMAGE_BYTES:
+            raise ImageInputError("image_invalid")
+        return self._validate_image_download_url(metadata["url"]), mime_type
+
+    @staticmethod
+    def _validate_image_download_url(value: str) -> httpx.URL:
+        url = httpx.URL(value)
+        if url.scheme != "https" or url.userinfo or url.port not in (None, 443):
+            raise ImageInputError()
+        # Only send the access token to Meta's media hosts.
+        allowed_hosts = ("facebook.com", "fbcdn.net", "fbsbx.com")
+        if not any(
+            url.host == host or url.host.endswith("." + host) for host in allowed_hosts
+        ):
+            raise ImageInputError()
+        return url
+
+    async def _download_image_bytes(self, url: httpx.URL) -> bytes:
+        async with self.client.stream(
+            "GET", url, headers=self.headers, follow_redirects=False, timeout=30
+        ) as response:
+            response.raise_for_status()
+            if int(response.headers.get("content-length", 0)) > MAX_IMAGE_BYTES:
+                raise ImageInputError("image_invalid")
+            data = bytearray()
+            async for chunk in response.aiter_bytes(chunk_size=64 * 1024):
+                data.extend(chunk)
+                if len(data) > MAX_IMAGE_BYTES:
+                    raise ImageInputError("image_invalid")
+            return bytes(data)
 
     async def send_message(
         self, wa_id: str, message: str, options: list[str] | None = None

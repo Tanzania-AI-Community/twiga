@@ -58,14 +58,12 @@ class ImageInterpreter:
         self, image: DownloadedImage, caption: str, http_client: httpx.AsyncClient
     ) -> ImageInterpretation:
         config = image_input_settings
-        # Explicit settings keep vision independent of the main chat provider.
-        # Disable SDK retries: the loop below owns the single retry budget.
-        # Use the SDK directly: LangChain callbacks/caches must not receive photos.
+        # Vision can use a different endpoint and key from the chat model.
         client = AsyncOpenAI(
             base_url=config.vision_base_url,
             api_key=config.vision_api_key.get_secret_value(),
             timeout=config.vision_timeout_seconds,
-            max_retries=0,
+            max_retries=0,  # The loop below handles the one allowed retry.
             http_client=http_client,
         )
         encoded = base64.b64encode(image.data).decode("ascii")
@@ -95,7 +93,7 @@ class ImageInterpreter:
                 ],
             },
         ]
-        # Image payloads must not enter LangSmith or SDK diagnostic logs.
+        # Keep the photo out of LangSmith traces and SDK request logs.
         with tracing_context(enabled=False, parent=False), private_media_logging():
             for attempt in range(2):
                 try:

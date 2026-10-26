@@ -125,22 +125,19 @@ class MessagingService:
     async def handle_image_message(
         self, user: models.User, user_message: models.Message, image_payload: dict
     ) -> JSONResponse:
+        error_key = await self._prepare_image_message(user_message, image_payload)
+        if error_key:
+            return await self._send_image_error(user, error_key)
+        return await self._generate_and_deliver(user, user_message, agent_client)
+
+    async def _prepare_image_message(
+        self, user_message: models.Message, image_payload: dict
+    ) -> str | None:
+        """Save extracted text, or return the message key for a processing error."""
         error_key = None
         started = monotonic()
         try:
-            if not image_input_settings.image_input_enabled:
-                raise ImageInputError("image_disabled")
-            incoming = IncomingImage(
-                media_id=image_payload.get("id", ""),
-                caption=image_payload.get("caption") or "",
-            )
-            image = await whatsapp_client.download_image(incoming.media_id)
-            interpretation = await image_interpreter.interpret(image, incoming.caption)
-            if interpretation.readability != "clear":
-                raise ImageInputError("image_unreadable")
-            content = interpretation.to_request_text(incoming.caption)
-            if len(content) > settings.message_character_limit:
-                raise ImageInputError("image_too_complex")
+            content = await self._read_image_request(image_payload)
             await db.update_message_content(user_message, content)
         except ValidationError:
             error_key = "image_invalid"
@@ -156,16 +153,32 @@ class MessagingService:
                 error_key or "ready",
                 (monotonic() - started) * 1000,
             )
+        return error_key
 
-        if error_key:
-            text = strings.get_string(StringCategory.ERROR, error_key)
-            await self._persist_visible_assistant_message(user, text)
-            await whatsapp_client.send_message(user.wa_id, text)
-            record_messages_generated(error_key)
-            return JSONResponse(content={"status": "ok"}, status_code=200)
+    async def _read_image_request(self, image_payload: dict) -> str:
+        if not image_input_settings.image_input_enabled:
+            raise ImageInputError("image_disabled")
+        incoming = IncomingImage(
+            media_id=image_payload.get("id", ""),
+            caption=image_payload.get("caption") or "",
+        )
+        image = await whatsapp_client.download_image(incoming.media_id)
+        interpretation = await image_interpreter.interpret(image, incoming.caption)
+        if interpretation.readability != "clear":
+            raise ImageInputError("image_unreadable")
+        content = interpretation.to_request_text(incoming.caption)
+        if len(content) > settings.message_character_limit:
+            raise ImageInputError("image_too_complex")
+        return content
 
-        image = None
-        return await self._generate_and_deliver(user, user_message, agent_client)
+    async def _send_image_error(
+        self, user: models.User, error_key: str
+    ) -> JSONResponse:
+        text = strings.get_string(StringCategory.ERROR, error_key)
+        await self._persist_visible_assistant_message(user, text)
+        await whatsapp_client.send_message(user.wa_id, text)
+        record_messages_generated(error_key)
+        return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def _generate_and_deliver(
         self, user: models.User, user_message: models.Message, llm_client: ClientBase
