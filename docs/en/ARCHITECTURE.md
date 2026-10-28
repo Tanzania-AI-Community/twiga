@@ -16,6 +16,12 @@ We have designed Twiga's backend for simplicity and modularity.
 
 Everything used to run the Twiga application is within the `app` folder. Requests coming from the WhatsApp users (via the Meta API) are first received by the endpoints in the `app/main.py` file (the `webhooks` endpoint). Some WhatsApp signatures are controlled by the decorators in `app/security.py`and then the `handle_request` function in `app/services/request_service.py` routes the requests in the right direction depending on the type of request and the state of the user.
 
+Inbound voice notes follow the same webhook route. After user and rate-limit
+checks, Twiga downloads the media from Meta or decodes the Mock WhatsApp
+payload, transcribes it through the configured provider, and routes the
+transcript as message text. See [Audio input](./AUDIO_INPUT.md) for the complete
+flow, configuration, and data-handling behavior.
+
 All environment variables are fetched from `app/config.py`, so when using these in any way just import the settings to your file.
 
 > [!Note]
