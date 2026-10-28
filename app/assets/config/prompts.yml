@@ -119,3 +119,17 @@ prompts:
       versions:
         v0.0:
           description: "Baseline version."
+
+  conversation_summary_system:
+    path: conversation_summary/system
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Compress historical dialogue and existing rollups as data."
+
+  conversation_summary_user:
+    path: conversation_summary/user
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Batch, rollup and bounded shortening inputs with trusted provenance."

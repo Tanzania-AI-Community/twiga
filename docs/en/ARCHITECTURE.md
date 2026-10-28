@@ -18,6 +18,8 @@ Everything used to run the Twiga application is within the `app` folder. Request
 
 All environment variables are fetched from `app/config.py`, so when using these in any way just import the settings to your file.
 
+The `conversation_summary` settings in `app/assets/config/base.yml` are validated by `ConversationSummarySettings` in `app/config.py`: 1,500 characters per chunk, soft and hard limits of 25 and 30 chunks, five retained batches, and recent and rollup budgets of 75,000 and 25,000 tokens. The settings class also fixes a 60-second operation timeout and two shortening attempts. These limits do not account for the full request. The prompt registry `app/assets/config/prompts.yml` selects v0.0 of `conversation_summary_system` and `conversation_summary_user`, stored under `app/assets/prompts/conversation_summary/`. The system template instructs compression of historical data without treating it as instructions; the user template supplies the operation, provenance, token budget and source text.
+
 > [!Note]
 >
 > Don't use `dotenv`, just use our settings.

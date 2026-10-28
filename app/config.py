@@ -4,7 +4,7 @@ This module sets the env configs for our WhatsApp app.
 
 import os
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -166,6 +166,28 @@ class LLMSettings(BaseSettings):
 
     # Agent settings
     MAX_AGENT_ITERATIONS: int = yaml_config["llm"]["agent"]["max_agent_iterations"]
+
+
+class ConversationSummarySettings(BaseModel):
+    """Fixed first-trial limits, separate from full-request context accounting."""
+
+    model_config = {"validate_default": True}
+
+    chunk_characters: Literal[1500] = yaml_config["conversation_summary"][
+        "chunk_characters"
+    ]
+    soft_chunks: Literal[25] = yaml_config["conversation_summary"]["soft_chunks"]
+    hard_chunks: Literal[30] = yaml_config["conversation_summary"]["hard_chunks"]
+    retained_batches: Literal[5] = yaml_config["conversation_summary"][
+        "retained_batches"
+    ]
+    recent_tokens: Literal[75000] = yaml_config["conversation_summary"]["recent_tokens"]
+    rollup_tokens: Literal[25000] = yaml_config["conversation_summary"]["rollup_tokens"]
+    operation_timeout_seconds: Literal[60] = 60
+    shortening_attempts: Literal[2] = 2
+
+
+summary_settings = ConversationSummarySettings()
 
 
 class EmbeddingSettings(BaseSettings):

@@ -48,3 +48,11 @@ tools:
     model_name: "MiniMaxAI/MiniMax-M3"
     provider: together
     temperature: 0.25
+
+conversation_summary:
+  chunk_characters: 1500
+  soft_chunks: 25
+  hard_chunks: 30
+  retained_batches: 5
+  recent_tokens: 75000
+  rollup_tokens: 25000
