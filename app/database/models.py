@@ -368,6 +368,98 @@ class Message(SQLModel, table=True):
         return cls(**message_data)
 
 
+class ConversationSummaryState(SQLModel, table=True):
+    """Created with the first batch; an empty rollup has zero tokens and boundary 0."""
+
+    __tablename__ = "conversation_summary_state"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "token_count >= 0 AND token_count <= 25000", name="ck_summary_state_tokens"
+        ),
+        sa.CheckConstraint(
+            "compacted_through_batch >= 0", name="ck_summary_state_boundary"
+        ),
+        sa.CheckConstraint("version >= 0", name="ck_summary_state_version"),
+    )
+
+    user_id: int = Field(primary_key=True, foreign_key="users.id", ondelete="CASCADE")
+    older_history_summary: str = Field(
+        default="",
+        sa_type=sa.Text,
+        nullable=False,
+        sa_column_kwargs={"server_default": ""},
+    )
+    token_count: int = Field(
+        default=0, nullable=False, sa_column_kwargs={"server_default": "0"}
+    )
+    compacted_through_batch: int = Field(
+        default=0, nullable=False, sa_column_kwargs={"server_default": "0"}
+    )
+    version: int = Field(
+        default=0, nullable=False, sa_column_kwargs={"server_default": "0"}
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+        nullable=False,
+        sa_column_kwargs={"server_default": sa.func.now()},
+    )
+
+
+class ConversationSummaryBatch(SQLModel, table=True):
+    """Coverage survives compaction; endpoints are chronological, not ID watermarks."""
+
+    __tablename__ = "conversation_summary_batches"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "sequence_number", name="uq_summary_batch_sequence"
+        ),
+        sa.CheckConstraint("sequence_number > 0", name="ck_summary_batch_sequence"),
+        sa.CheckConstraint("token_count >= 0", name="ck_summary_batch_tokens"),
+        sa.CheckConstraint(
+            "first_message_id > 0 AND last_message_id > 0",
+            name="ck_summary_batch_endpoints",
+        ),
+        sa.CheckConstraint(
+            "first_message_at <= last_message_at", name="ck_summary_batch_times"
+        ),
+        sa.CheckConstraint(
+            "json_array_length(covered_message_ids) > 0",
+            name="ck_summary_batch_coverage",
+        ),
+        sa.CheckConstraint(
+            "NOT is_compacted OR (summary_text = '' AND token_count = 0)",
+            name="ck_summary_batch_archived",
+        ),
+        Index(
+            "ix_summary_batch_active_order",
+            "user_id",
+            "is_compacted",
+            "sequence_number",
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", ondelete="CASCADE")
+    sequence_number: int
+    first_message_id: int
+    last_message_id: int
+    first_message_at: datetime = Field(sa_type=DateTime(timezone=True), nullable=False)
+    last_message_at: datetime = Field(sa_type=DateTime(timezone=True), nullable=False)
+    covered_message_ids: list[int] = Field(sa_column=Column(JSON, nullable=False))
+    summary_text: str = Field(sa_type=sa.Text, nullable=False)
+    token_count: int
+    is_compacted: bool = Field(
+        default=False, nullable=False, sa_column_kwargs={"server_default": sa.false()}
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+        nullable=False,
+        sa_column_kwargs={"server_default": sa.func.now()},
+    )
+
+
 class GeneratedExam(SQLModel, table=True):
     __tablename__ = "generated_exams"  # type: ignore
     model_config = {"arbitrary_types_allowed": True}  # type: ignore

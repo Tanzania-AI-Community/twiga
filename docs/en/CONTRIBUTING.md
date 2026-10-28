@@ -31,7 +31,7 @@ To start contributing to Twiga, follow these steps:
 2. Checkout the `development` branch: `git checkout development`
 3. Create your feature branch from the `development` branch: `git checkout -b your-branch-name`
 4. Follow the steps in our [getting started](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/en/GETTING_STARTED.md) guide to get the project up and running locally
-5. (Not yet possible) Run the tests to ensure everything is working as expected
+5. Run the relevant tests; see the [conversation summary persistence checks](#conversation-summary-persistence-checks) for Issue #92.
 6. Commit your changes: `git commit -m "[type]: descriptive commit message"`
 7. Push to your remote branch: `git push origin your-branch-name`
 8. Submit a pull request to the `development` branch of the original repository
@@ -149,3 +149,16 @@ However, you may see `pre-commit` fail in the build pipeline upon submitting a P
 By contributing to Twiga, you agree that your contributions will be licensed under the [License](https://github.com/Tanzania-AI-Community/twiga/blob/main/LICENSE) of the project.
 
 Thank you for your interest in contributing to Twiga! We look forward to your contributions.
+
+## Conversation summary persistence checks
+
+Set `ISSUE92_TEST_DATABASE_URL` explicitly to a disposable PostgreSQL database
+whose name begins with `issue92_test`, with pgvector installed. The fixtures
+create and remove per-test schemas and never fall back to the application URL.
+
+```sh
+.venv/bin/python -m pytest tests/database/test_conversation_summary_db.py tests/database/test_conversation_summary_migrations.py -q
+```
+
+Without the explicit URL, PostgreSQL cases skip; the migration round trip also
+skips without pgvector. Skips leave required PostgreSQL validation outstanding.

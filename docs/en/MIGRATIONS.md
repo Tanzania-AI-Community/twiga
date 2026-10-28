@@ -24,3 +24,19 @@ uv run python -m scripts.database.seed --create --sample-data --vector-data chun
 ```
 
 This will remove all tables in the database if they exist, create new ones, install pgvector and inject sample data and vector data so that the database is ready to accept new users.
+
+## Conversation summary schema (Issue #92)
+
+Migration `b7e2c9a4f610` follows `a1f4c7e2d3b9` and adds
+`conversation_summary_state` and `conversation_summary_batches`. It performs no
+backfill and retains the original `messages` rows. Batch coverage is an exact
+list of source message IDs, including after a batch is archived by compaction.
+Downgrading this migration removes summary state and batches while retaining
+users and original messages. Apply it before using the summary persistence API
+in `app/database/db.py`; the schema migration alone does not enable summarization.
+
+Upgrade through the parent revision first. A fresh database must also satisfy the
+prerequisites of the earlier migration chain, including pgvector. The downgrade
+discards all stored summaries and coverage; restoring those requires a backup or
+rebuilding them from retained messages. See the [persistence guide](CONVERSATION_SUMMARY_PERSISTENCE.md)
+and [isolated test instructions](CONTRIBUTING.md#conversation-summary-persistence-checks).

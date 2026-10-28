@@ -22,7 +22,7 @@ Vigezo vyote vya mazingira vinachukuliwa kutoka `app/config.py`, kwa hivyo wakat
 >
 > Usitumie `dotenv`, tumia tu mipangilio yetu.
 
-Msimbo unaohusiana na AI hushughulikiwa zaidi katika `app/llm_service.py`. Kwa urahisi, ikiwa unapanga kuunda zana zozote mpya, unaweza kuziunda katika folda ya `app/tools/`. Fuata tu mwongozo tulioweka.
+Msimbo unaohusiana na AI hushughulikiwa zaidi katika `app/clients/agent_client.py`. Kwa urahisi, ikiwa unapanga kuunda zana zozote mpya, unaweza kuziunda katika folda ya `app/tools/`. Fuata tu mwongozo tulioweka.
 
 Tutakuachia ugundue mengine.
 
@@ -36,13 +36,11 @@ Ndani ya folda ya `scripts` tunahifadhi faili ambazo huendeshwa mara kwa mara ku
 
 ## `tests`
 
-> [!Kumbuka]
->
-> Bado hatujafanya vipimo lakini vipo katika mpango wa baadaye.
+Vipimo viko katika `tests/`. Kwa vipimo vya uhifadhi wa muhtasari wa mazungumzo, angalia [maelekezo ya Kiingereza](../en/CONTRIBUTING.md#conversation-summary-persistence-checks).
 
 # Muundo wa Hifadhidata
 
-Tunatumia [SQLModel](https://sqlmodel.tiangolo.com/) ya tiangolos kama [ORM](https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping) kuingiliana na hifadhidata ya Neon Postgres katika mradi huu. Badala ya kushiriki muundo wa hifadhidata kwa njia tuli (ambayo inaweza kubadilika kwa muda), tunakuelekeza kwenye faili ya `app/database/model.py` ambayo inapaswa kuwa na kila kitu unachohitaji kujua kuhusu meza zinazotumika katika Twiga. Pia tuna [mchoro wa uhusiano wa vitu](https://drive.google.com/file/d/10dKIW6I6_d-712rt0s-7KltTWTmBjRIP/view?usp=sharing) (ERD) unaoonyesha muhtasari wa mahusiano ya meza lakini haudumishwi kila wakati na unaweza kutolingana kabisa na toleo la sasa la hifadhidata.
+Tunatumia [SQLModel](https://sqlmodel.tiangolo.com/) ya tiangolos kama [ORM](https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping) kuingiliana na hifadhidata ya Neon Postgres katika mradi huu. Badala ya kushiriki muundo wa hifadhidata kwa njia tuli (ambayo inaweza kubadilika kwa muda), tunakuelekeza kwenye faili ya `app/database/models.py` ambayo inapaswa kuwa na kila kitu unachohitaji kujua kuhusu meza zinazotumika katika Twiga. Pia tuna [mchoro wa uhusiano wa vitu](https://drive.google.com/file/d/10dKIW6I6_d-712rt0s-7KltTWTmBjRIP/view?usp=sharing) (ERD) unaoonyesha muhtasari wa mahusiano ya meza lakini haudumishwi kila wakati na unaweza kutolingana kabisa na toleo la sasa la hifadhidata.
 
 ## `migrations`
 

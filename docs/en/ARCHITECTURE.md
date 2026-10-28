@@ -22,7 +22,7 @@ All environment variables are fetched from `app/config.py`, so when using these 
 >
 > Don't use `dotenv`, just use our settings.
 
-The AI-relevant code is mainly handled in the `app/llm_service.py`. Conveniently, if you're planning on creating any new tools, you can create it in the `app/tools/` folder. Just follow the convention we've set.
+The AI-relevant code is mainly handled in the `app/clients/agent_client.py`. Conveniently, if you're planning on creating any new tools, you can create it in the `app/tools/` folder. Just follow the convention we've set.
 
 We'll leave it up to you to explore the rest.
 
@@ -36,14 +36,15 @@ Within the `scripts` folder we keep files that are run intermittently from the d
 
 ## `tests`
 
-> [!Note]
->
-> We are yet to make tests but it's in the roadmap.
+Tests live in `tests/`. See [conversation summary persistence checks](CONTRIBUTING.md#conversation-summary-persistence-checks) for the PostgreSQL foundation.
 
 # Database schema
 
-We're using tiangolos [SQLModel](https://sqlmodel.tiangolo.com/) as an [ORM](https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping) to interact with the Neon Postgres database in this project. Instead of statically sharing the database schema here (which is likely to change over time) we refer you to the `app/database/model.py` file which should contain everything you need to know regarding what tables are used in Twiga. We also have an [entity-relationship diagram](https://drive.google.com/file/d/10dKIW6I6_d-712rt0s-7KltTWTmBjRIP/view?usp=sharing) (ERD) providing an overview of the table relations but it is not consistently maintained and may not match exactly with the current database version.
+We're using tiangolos [SQLModel](https://sqlmodel.tiangolo.com/) as an [ORM](https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping) to interact with the Neon Postgres database in this project. Instead of statically sharing the database schema here (which is likely to change over time) we refer you to the `app/database/models.py` file which should contain everything you need to know regarding what tables are used in Twiga. We also have an [entity-relationship diagram](https://drive.google.com/file/d/10dKIW6I6_d-712rt0s-7KltTWTmBjRIP/view?usp=sharing) (ERD) providing an overview of the table relations but it is not consistently maintained and may not match exactly with the current database version.
 
 ## `migrations`
 
 This folder keeps track of the database history. We use [_alembic_](https://medium.com/@kasperjuunge/how-to-get-started-with-alembic-and-sqlmodel-288700002543) migrations. Unless you want to use _alembic_ for your own copy of the database you can ignore this folder. If you're in the core team and have access to our Neon database, it might be good to know how it works and why we use it.
+
+Conversation summary persistence lives in `app/database/db.py` and the summary
+models in `app/database/models.py`; see the [persistence guide](CONVERSATION_SUMMARY_PERSISTENCE.md).
