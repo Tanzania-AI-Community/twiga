@@ -210,3 +210,33 @@ def test_format_messages_raises_when_history_shorter_than_new_messages() -> None
             user=user,
             prompt=Prompt.TWIGA_AGENT_SYSTEM,
         )
+
+
+def test_format_messages_excludes_duplicate_tail_from_database_history() -> None:
+    client = DummyClient()
+    user = User(id=1, name="Test User", wa_id="255700000001")
+
+    new_messages = [
+        Message(user_id=1, role=enums.MessageRole.user, content="latest question"),
+    ]
+    database_messages = [
+        Message(user_id=1, role=enums.MessageRole.user, content="older question"),
+        Message(user_id=1, role=enums.MessageRole.assistant, content="older answer"),
+        Message(user_id=1, role=enums.MessageRole.user, content="latest question"),
+    ]
+
+    result = client._format_messages(
+        new_messages=new_messages,
+        database_messages=database_messages,
+        user=user,
+        prompt=Prompt.TWIGA_AGENT_SYSTEM,
+    )
+
+    non_system = [
+        entry for entry in result if entry["role"] != enums.MessageRole.system
+    ]
+    assert [(entry["role"], entry["content"]) for entry in non_system] == [
+        (enums.MessageRole.user.value, "older question"),
+        (enums.MessageRole.assistant.value, "older answer"),
+        (enums.MessageRole.user.value, "latest question"),
+    ]
