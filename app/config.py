@@ -5,6 +5,7 @@ This module sets the env configs for our WhatsApp app.
 import os
 from enum import Enum
 from typing import Optional
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -56,6 +57,7 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
         env_nested_delimiter="__",
+        hide_input_in_errors=True,
     )
     """ REQUIRED SETTINGS """
     # Meta settings
@@ -70,6 +72,8 @@ class Settings(BaseSettings):
 
     # WhatsApp mock
     mock_whatsapp: bool = False
+    mock_whatsapp_api_url: Optional[str] = None
+    mock_whatsapp_token: Optional[SecretStr] = None
 
     # Message limiting settings
     message_character_limit: int = 65000
@@ -115,6 +119,32 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return v.lower() in ("true", "True")
         return False
+
+    @model_validator(mode="after")
+    def validate_mock_transport(self):
+        if not self.mock_whatsapp:
+            return self
+        if self.environment not in (Environment.LOCAL, Environment.DEVELOPMENT):
+            raise ValueError(
+                "Mock WhatsApp requires a local or development environment"
+            )
+        url = urlsplit(self.mock_whatsapp_api_url or "")
+        if (
+            url.scheme != "http"
+            or url.hostname
+            not in ("localhost", "127.0.0.1", "::1", "host.docker.internal")
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+        ):
+            raise ValueError("MOCK_WHATSAPP_API_URL must be a local HTTP URL")
+        if (
+            not self.mock_whatsapp_token
+            or not self.mock_whatsapp_token.get_secret_value().strip()
+        ):
+            raise ValueError("MOCK_WHATSAPP_TOKEN is required in mock mode")
+        return self
 
 
 class LLMSettings(BaseSettings):
