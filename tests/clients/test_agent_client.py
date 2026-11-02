@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.clients.agent_client import AgentClient
 from app.clients.client_base import BUFFERED_RESPONSE
+from app.config import settings
 from app.database import db
 from app.database.enums import MessageRole
 from app.database.models import Message, User
@@ -202,3 +204,212 @@ async def test_generate_response_requires_user_id() -> None:
             user=user,
             message=_make_user_message("hello"),
         )
+
+
+@pytest.mark.asyncio
+async def test_generate_response_returns_single_assistant_message_without_tools() -> (
+    None
+):
+    client = AgentClient()
+    user = _make_user()
+    incoming_message = _make_user_message("Explain fractions briefly.")
+
+    with (
+        patch(
+            "app.clients.client_base.get_user_message_history",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(return_value=AIMessage(content="Fractions represent parts.")),
+        ),
+    ):
+        response = await client.generate_response(user, incoming_message)
+
+    assert response is not None
+    assert len(response) == 1
+    assert response[0].role == MessageRole.assistant
+    assert response[0].content == "Fractions represent parts."
+
+
+@pytest.mark.asyncio
+async def test_generate_response_clears_assistant_content_when_tool_calls_present() -> (
+    None
+):
+    client = AgentClient()
+    user = _make_user()
+    incoming_message = _make_user_message("Create a quick quiz.")
+
+    tool_response = AIMessage(
+        content="I'll generate that for you.",
+        tool_calls=[
+            {
+                "name": "generate_exercise",
+                "args": {"query": "quiz", "class_id": 3},
+                "id": "call_tool_1",
+            }
+        ],
+    )
+    final_response = AIMessage(content="Here is your quiz.")
+
+    with (
+        patch(
+            "app.clients.client_base.get_user_message_history",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(side_effect=[tool_response, final_response]),
+        ),
+        patch.object(client, "_tool_call_notification", AsyncMock()),
+        patch.object(
+            client.tool_manager,
+            "process_tool_calls",
+            AsyncMock(
+                return_value=[
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.tool,
+                        content="Quiz content.",
+                        tool_call_id="call_tool_1",
+                        tool_name="generate_exercise",
+                    )
+                ]
+            ),
+        ),
+    ):
+        response = await client.generate_response(user, incoming_message)
+
+    assert response is not None
+    assert response[0].content is None
+    assert response[0].tool_calls is not None
+    assert response[-1].role == MessageRole.assistant
+    assert response[-1].content == "Here is your quiz."
+
+
+@pytest.mark.asyncio
+async def test_generate_response_recovers_malformed_tool_call_from_content() -> None:
+    client = AgentClient()
+    user = _make_user()
+    incoming_message = _make_user_message("Generate one algebra question.")
+
+    malformed_tool_payload = json.dumps(
+        {
+            "name": "generate_exercise",
+            "parameters": {"query": "algebra", "class_id": 2},
+        }
+    )
+
+    with (
+        patch(
+            "app.clients.client_base.get_user_message_history",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(
+                side_effect=[
+                    AIMessage(content=malformed_tool_payload),
+                    AIMessage(content="Done."),
+                ]
+            ),
+        ),
+        patch.object(client, "_tool_call_notification", AsyncMock()),
+        patch.object(
+            client.tool_manager,
+            "process_tool_calls",
+            AsyncMock(
+                return_value=[
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.tool,
+                        content="Question text.",
+                        tool_call_id="call_recovered",
+                        tool_name="generate_exercise",
+                    )
+                ]
+            ),
+        ) as mock_process_tool_calls,
+    ):
+        response = await client.generate_response(user, incoming_message)
+
+    assert response is not None
+    mock_process_tool_calls.assert_awaited_once()
+    assert mock_process_tool_calls.await_args.args[0][0]["function"]["name"] == (
+        "generate_exercise"
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_response_surfaces_tool_execution_errors() -> None:
+    client = AgentClient()
+    user = _make_user()
+    incoming_message = _make_user_message("Solve this equation.")
+
+    tool_response = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "solve_equation",
+                "args": {"equation": "x + 1 = 2"},
+                "id": "call_solve",
+            }
+        ],
+    )
+
+    with (
+        patch(
+            "app.clients.client_base.get_user_message_history",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(
+                side_effect=[tool_response, AIMessage(content="I could not solve it.")]
+            ),
+        ),
+        patch.object(client, "_tool_call_notification", AsyncMock()),
+        patch.object(
+            client.tool_manager,
+            "process_tool_calls",
+            AsyncMock(
+                return_value=[
+                    Message(
+                        user_id=user.id,
+                        role=MessageRole.tool,
+                        content=json.dumps({"error": "tool failed"}),
+                        tool_call_id="call_solve",
+                        tool_name="solve_equation",
+                    )
+                ]
+            ),
+        ),
+    ):
+        response = await client.generate_response(user, incoming_message)
+
+    assert response is not None
+    tool_messages = [
+        message for message in response if message.role == MessageRole.tool
+    ]
+    assert len(tool_messages) == 1
+    assert "error" in tool_messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_generate_response_returns_system_error_when_character_limit_exceeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "message_character_limit", 10)
+    client = AgentClient()
+    user = _make_user()
+    incoming_message = _make_user_message("This message is definitely too long.")
+
+    with patch(
+        "app.clients.client_base.get_user_message_history",
+        AsyncMock(return_value=[]),
+    ):
+        response = await client.generate_response(user, incoming_message)
+
+    assert response is not None
+    assert len(response) == 1
+    assert response[0].role == MessageRole.system
