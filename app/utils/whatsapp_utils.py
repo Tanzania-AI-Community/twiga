@@ -36,6 +36,7 @@ class ValidMessageType(Enum):
     SETTINGS_FLOW_SELECTION = auto()
     COMMAND = auto()
     CHAT = auto()
+    IMAGE = auto()
     OTHER = auto()
 
 
@@ -238,15 +239,44 @@ def is_status_update(body: dict) -> bool:
         return False
 
 
+def split_message_payloads(body: dict) -> list[dict]:
+    """Adapt batched webhooks to the existing single-message handlers."""
+    payloads = []
+    for entry in body.get("entry", []):
+        for change in entry.get("changes", []):
+            value = change.get("value", {})
+            messages = value.get("messages", [])
+            for message in messages or [None]:
+                single_value = dict(value)
+                if message is not None:
+                    single_value["messages"] = [message]
+                    single_value.pop("statuses", None)
+                payloads.append(
+                    {
+                        **body,
+                        "entry": [
+                            {**entry, "changes": [{**change, "value": single_value}]}
+                        ],
+                    }
+                )
+    return payloads if len(payloads) > 1 else [body]
+
+
 def extract_message_info(body: dict) -> dict:
     # logger.debug(f"Extracting message info from body: {body}")
     entry = body["entry"][0]["changes"][0]["value"]
+    message = entry["messages"][0]
+    contacts = entry.get("contacts", [])
+    sender = message.get("from")
+    contact = next((c for c in contacts if c.get("wa_id") == sender), None)
+    if contact is None:
+        contact = contacts[0] if contacts and not sender else {}
     return {
-        "message": entry["messages"][0],
-        "inbound_message_id": entry["messages"][0].get("id"),
-        "wa_id": entry["contacts"][0]["wa_id"],
-        "timestamp": int(entry["messages"][0].get("timestamp")),
-        "name": entry["contacts"][0]["profile"]["name"],
+        "message": message,
+        "inbound_message_id": message.get("id"),
+        "wa_id": sender or contact["wa_id"],
+        "timestamp": int(message.get("timestamp")),
+        "name": contact.get("profile", {}).get("name", ""),
     }
 
 
@@ -261,6 +291,9 @@ def extract_message(message: dict) -> str:
     message_type = message.get("type")
     if message_type == "text":
         return message["text"]["body"]
+    elif message_type == "image":
+        caption = (message.get("image") or {}).get("caption", "")
+        return f"Source: teacher image\nTeacher instruction: {caption or 'none'}\nImage not yet interpreted."
     elif message_type == "interactive":
         interactive_type = message["interactive"]["type"]
         if interactive_type == "button_reply":
@@ -340,11 +373,17 @@ def get_flow_payload(wa_id: str, flow: dict) -> dict:
 
 
 def is_other_message(message_info: dict) -> bool:
-    return message_info.get("message", {}).get("type") not in ["text", "interactive"]
+    return message_info.get("message", {}).get("type") not in [
+        "text",
+        "interactive",
+        "image",
+    ]
 
 
 def get_valid_message_type(message_info: dict) -> ValidMessageType:
 
+    if message_info.get("message", {}).get("type") == "image":
+        return ValidMessageType.IMAGE
     if is_interactive_message(message_info):
         return ValidMessageType.SETTINGS_FLOW_SELECTION
     if is_other_message(message_info):
