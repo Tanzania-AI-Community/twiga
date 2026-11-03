@@ -166,6 +166,45 @@ class LLMSettings(BaseSettings):
     llm_name: str = Field(
         default=yaml_config["llm"]["model_name"], validation_alias="llm_model_name"
     )
+    together_fallback_models: list[str] = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("fallback_models", []),
+        validation_alias="llm_fallback_models",
+        max_length=4,
+    )
+    together_attempt_timeout: float = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("attempt_timeout", 60),
+        validation_alias="llm_failover_attempt_timeout",
+        gt=0,
+        allow_inf_nan=False,
+    )
+    together_total_timeout: float = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("total_timeout", 180),
+        validation_alias="llm_failover_total_timeout",
+        gt=0,
+        allow_inf_nan=False,
+    )
+    together_cooldown_seconds: float = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("cooldown_seconds", 60),
+        validation_alias="llm_failover_cooldown_seconds",
+        ge=0,
+        allow_inf_nan=False,
+    )
+
+    @field_validator("llm_name", mode="before")
+    @classmethod
+    def fallback_blank_model_name(cls, value):
+        # Environment templates historically included LLM_MODEL_NAME=.
+        return (value.strip() if isinstance(value, str) else value) or yaml_config[
+            "llm"
+        ]["model_name"]
+
+    @field_validator("together_fallback_models")
+    @classmethod
+    def validate_fallback_models(cls, models):
+        models = [model.strip() for model in models]
+        if any(not model for model in models):
+            raise ValueError("Fallback model names must not be blank")
+        return list(dict.fromkeys(models))
 
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = yaml_config["llm"]["ollama"]["model_name"]
