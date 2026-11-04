@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import logging
 import os
 from typing import Optional, Union, cast
@@ -15,6 +16,9 @@ from pydantic import SecretStr
 
 from app.config import LLMProvider, llm_settings
 from app.monitoring.metrics import LLMCallTracker
+from app.utils.llm_failover import TogetherModelRouter
+
+together_router = TogetherModelRouter()
 
 
 # Resolve model names per provider, honoring provider-specific overrides.
@@ -154,6 +158,8 @@ def _create_llm_client(
         llm = ChatTogether(
             api_key=api_key,
             model=model_name,
+            max_retries=0,
+            **({"base_url": base_url} if base_url is not None else {}),
             **optional_params,
         )
 
@@ -240,6 +246,11 @@ def _check_correct_overriding(
     max_tries=7,
     max_time=45,
 )
+async def _request_with_retries(invoke):
+    """Retain the existing retry policy for providers without a fallback pool."""
+    return await invoke()
+
+
 async def async_llm_request(
     messages: list[BaseMessage],
     tools: Optional[list[dict]] = None,
@@ -254,7 +265,7 @@ async def async_llm_request(
     **kwargs,
 ) -> AIMessage:
     """
-    Make a request to LLM using LangChain with exponential backoff retry logic.
+    Make a request using ordered Together failover or provider-specific retries.
 
     Args:
         messages: List of LangChain message objects
@@ -273,66 +284,90 @@ async def async_llm_request(
         AIMessage: The response from the LLM as a LangChain AIMessage
 
     Raises:
-        Exception: If the LLM request fails after retries
+        Exception: If the pool is exhausted, the time budget expires, or the request is invalid
     """
-    try:
-        _check_correct_overriding(
-            has_model_name=model_name is not None,
-            has_provider=provider is not None,
-            has_api_key=api_key is not None,
+    _check_correct_overriding(
+        has_model_name=model_name is not None,
+        has_provider=provider is not None,
+        has_api_key=api_key is not None,
+    )
+    if model_name is not None:
+        if not model_name.strip():
+            raise ValueError("An explicit model override must not be blank")
+        effective_provider = provider
+        effective_model = model_name.strip()
+        effective_api_key = api_key
+    else:
+        effective_provider = llm_settings.provider
+        effective_model = _resolve_model_name()
+        effective_api_key = llm_settings.api_key
+
+    if effective_provider == LLMProvider.OLLAMA:
+        effective_base_url = llm_settings.ollama_base_url
+    elif effective_provider == LLMProvider.MODAL:
+        effective_base_url = (
+            llm_settings.modal_base_url.get_secret_value()
+            if llm_settings.modal_base_url
+            else None
         )
+    else:
+        effective_base_url = llm_settings.base_url
 
-        if model_name and provider and api_key:
-            effective_provider = provider
-            effective_model = model_name
-            effective_api_key = api_key
-        else:
-            # Use default settings (provides backward compatibility for existing calls that don't specify these parameters)
-            effective_provider = llm_settings.provider
-            effective_model = _resolve_model_name()
-            effective_api_key = llm_settings.api_key
+    requested_timeout = timeout if timeout is not None else llm_settings.timeout
+    if requested_timeout is not None and requested_timeout <= 0:
+        raise ValueError("LLM request timeout must be positive")
 
-        if effective_provider == LLMProvider.OLLAMA:
-            effective_base_url = llm_settings.ollama_base_url
-        elif effective_provider == LLMProvider.MODAL:
-            effective_base_url = llm_settings.modal_base_url.get_secret_value()
-        else:
-            effective_base_url = llm_settings.base_url
+    if verbose:
+        logger.debug("Messages sent to LLM API:\n%s", messages)
 
-        llm = _create_llm_client(
-            provider=effective_provider,
-            model_name=effective_model,
-            api_key=effective_api_key,
-            base_url=effective_base_url,
-            tools=tools,
-            tool_choice=tool_choice,
-            temperature=llm_settings.temperature,
-            max_tokens=llm_settings.max_tokens,
-            timeout=timeout if timeout is not None else llm_settings.timeout,
-            reasoning_effort=llm_settings.reasoning_effort,
-        )
-
-        if verbose:
-            logger.debug(f"Messages sent to LLM API:\n{messages}")
-
-        # Prepare kwargs for LangSmith tracing and additional parameters
-        invoke_kwargs = {}
-        if llm_settings.langsmith_tracing and (run_name or metadata):
-            config = {}
+    async def invoke(candidate: str, attempt_timeout: Optional[float]) -> AIMessage:
+        invoke_kwargs = dict(kwargs)
+        if llm_settings.langsmith_tracing:
+            config = dict(invoke_kwargs.get("config") or {})
             if run_name:
                 config["run_name"] = run_name
-            if metadata:
-                config["metadata"] = metadata
+            config["metadata"] = {
+                **(metadata or {}),
+                **(config.get("metadata") or {}),
+                "llm_provider": effective_provider.value,
+                "llm_model": candidate,
+            }
             invoke_kwargs["config"] = config
 
-        # Merge any additional kwargs (like temperature, max_tokens, etc.) otherwise they dont get passed to the LLM call
-        invoke_kwargs.update(kwargs)
+        with LLMCallTracker(effective_provider.value, candidate):
+            llm = _create_llm_client(
+                provider=effective_provider,
+                model_name=candidate,
+                api_key=effective_api_key,
+                base_url=effective_base_url,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=llm_settings.temperature,
+                max_tokens=llm_settings.max_tokens,
+                timeout=attempt_timeout,
+                reasoning_effort=llm_settings.reasoning_effort,
+            )
+            return cast(AIMessage, await llm.ainvoke(messages, **invoke_kwargs))
 
-        # Make the async call while tracking metrics
-        with LLMCallTracker(effective_provider.value, effective_model):
-            response = await llm.ainvoke(messages, **invoke_kwargs)
-            return cast(AIMessage, response)
+    if effective_provider == LLMProvider.TOGETHER:
+        if not effective_api_key:
+            raise ValueError("Together provider requires API_KEY.")
+        # Never share health state between credentials or store a raw key in it.
+        credential_hash = hashlib.sha256(
+            effective_api_key.get_secret_value().encode()
+        ).hexdigest()
+        attempt_timeout = llm_settings.together_attempt_timeout
+        if requested_timeout is not None:
+            attempt_timeout = min(attempt_timeout, requested_timeout)
+        return await together_router.request(
+            [effective_model, *llm_settings.together_fallback_models],
+            invoke,
+            scope=(effective_base_url or "together-default", credential_hash),
+            attempt_timeout=attempt_timeout,
+            total_timeout=llm_settings.together_total_timeout,
+            cooldown_seconds=llm_settings.together_cooldown_seconds,
+        )
 
-    except Exception as e:
-        logger.error(f"LLM request failed: {str(e)}")
-        raise
+    return await _request_with_retries(
+        lambda: invoke(effective_model, requested_timeout)
+    )
