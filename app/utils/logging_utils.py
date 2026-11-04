@@ -4,6 +4,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Meta's documented error fields; raw bodies can echo user data
+META_ERROR_FIELDS = ("message", "type", "code", "error_subcode", "fbtrace_id")
+
 
 def log_httpx_response(response: httpx.Response) -> None:
     # ANSI escape code mapping
@@ -19,7 +22,6 @@ def log_httpx_response(response: httpx.Response) -> None:
     # Extracting necessary details from the response
     url = response.url
     status_code = response.status_code
-    body = response.text
 
     # Color formatting based on the status code
     if 200 <= status_code < 300:
@@ -34,16 +36,13 @@ def log_httpx_response(response: httpx.Response) -> None:
     else:
         status_color = ANSI_COLOR_CODES["red"]
         log_method = logger.error
-    from app.config import settings
-
-    if log_method != logger.info:
-        log_method(f"Current app ID: {settings.meta_app_id}")
-        log_method(f"Current api version: {settings.meta_api_version}")
-        log_method(f"Current cloud number ID: {settings.whatsapp_cloud_number_id}")
-        log_method(
-            f"Current whatsapp api token: {settings.whatsapp_api_token.get_secret_value()}"
-        )
-        log_method(f"Current app secret: {settings.meta_app_secret.get_secret_value()}")
-    log_method(f"Response URL: {url}")
+    log_method(f"Response URL: {url.copy_with(query=None, userinfo=b'')}")
     log_method(f"Response Status: \033[{status_color}m{status_code}\033[0m")
-    log_method(f"Response Body: \033[35m{body}\033[0m")
+
+    if status_code >= 400:
+        try:
+            error = response.json()["error"]
+            details = {key: error[key] for key in META_ERROR_FIELDS if key in error}
+        except (ValueError, KeyError, TypeError):
+            details = "unavailable"
+        log_method(f"Response Error: {details or 'unavailable'}")
