@@ -144,6 +144,29 @@ async def get_exam_by_id(exam_id: str) -> GeneratedExam | None:
             raise Exception(f"Failed to retrieve exam: {str(e)}")
 
 
+async def count_generated_exams_since(user_id: int, since: datetime) -> int:
+    if not isinstance(user_id, int):
+        raise ValueError("user_id must be an integer.")
+    if since.tzinfo is None or since.utcoffset() is None:
+        raise ValueError("since must be timezone-aware.")
+
+    async with get_session() as session:
+        try:
+            statement = (
+                select(func.count())
+                .select_from(GeneratedExam)
+                .where(
+                    GeneratedExam.user_id == user_id,
+                    GeneratedExam.generated_at_utc >= since,
+                )
+            )
+            result = await session.execute(statement)
+            return result.scalar_one()
+        except Exception as e:
+            logger.error("Failed to count generated exams for user %s: %s", user_id, e)
+            raise Exception(f"Failed to count generated exams: {str(e)}")
+
+
 async def get_user_by_waid(wa_id: str) -> User | None:
     """
     Get user by WhatsApp ID with FULL class hierarchy loaded.
