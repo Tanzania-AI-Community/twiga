@@ -1,6 +1,6 @@
 
 llm:
-  model_name: "MiniMaxAI/MiniMax-M3"
+  model_name: "zai-org/GLM-5.3-Flash"
   timeout: 60
   max_tokens: null
   temperature: 0.25
@@ -17,7 +17,12 @@ llm:
     request_timeout: 30
 
   together:
-
+    # Tried in order after model_name, including Together-backed tool overrides.
+    fallback_models:
+      - "deepseek-ai/DeepSeek-V4.1-Flash"
+    attempt_timeout: 60
+    total_timeout: 180
+    cooldown_seconds: 60
 
   langsmith:
     project_name: "twiga-whatsapp-chatbot"
@@ -25,12 +30,11 @@ llm:
     endpoint_url: "https://api.smith.langchain.com"
 
   agent:
-    agentic_mode: false
     max_agent_iterations: 8
 
 embedding:
 
-  model_name: "intfloat/multilingual-e5-large-instruct"
+  model_name: "gemini-embedding-001"
 
   ollama:
     model_name: "mxbai-embed-large"
@@ -46,6 +50,6 @@ tools:
     n_results: 15
 
   solve_equation:
-    model_name: "MiniMaxAI/MiniMax-M3"
+    model_name: "zai-org/GLM-5.3-Flash"
     provider: together
     temperature: 0.25

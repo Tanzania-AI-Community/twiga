@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from scripts.database.promote_reembedded_chunks import promote_embeddings
@@ -13,6 +14,7 @@ from scripts.database.reembed_chunks_in_db import (
     normalize_database_url,
     reembed_chunks_in_database,
 )
+from scripts.database.transfer_reembedded_chunks import transfer_embeddings
 
 
 class FakeEmbedder:
@@ -269,3 +271,221 @@ async def test_prefix_report_preserves_source_text(corpus):
     client.document_max_bytes = 1024
     with pytest.raises(ValueError, match="configuration differs"):
         await run(corpus, client)
+
+
+@pytest_asyncio.fixture
+async def transfer_destination(corpus):
+    """A separate disposable database exercises real cross-database serialization."""
+    url, _, source, _, _ = corpus
+    normalized = make_url(normalize_database_url(url))
+    database = "transfer_test_" + uuid4().hex[:10]
+    admin = create_async_engine(normalized, isolation_level="AUTOCOMMIT")
+    destination_url = normalized.set(database=database).render_as_string(
+        hide_password=False
+    )
+    destination = create_async_engine(destination_url)
+    async with admin.connect() as conn:
+        await conn.execute(text(f'CREATE DATABASE "{database}"'))
+    try:
+        async with destination.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION vector"))
+            await conn.execute(
+                text(
+                    f"CREATE TABLE {source} (id integer PRIMARY KEY, resource_id integer, "
+                    "content text NOT NULL, page_number integer, embedding vector(1024))"
+                )
+            )
+            for id_, content in [(2, "first"), (7, "second"), (40, "third")]:
+                await conn.execute(
+                    text(
+                        f"INSERT INTO {source} VALUES (:id, 1, :content, 3, CAST(:embedding AS vector))"
+                    ),
+                    {"id": id_, "content": content, "embedding": str([1.0] * 1024)},
+                )
+        yield destination_url, destination, "google_transfer_stage"
+    finally:
+        await destination.dispose()
+        async with admin.connect() as conn:
+            await conn.execute(text(f'DROP DATABASE "{database}" WITH (FORCE)'))
+        await admin.dispose()
+
+
+async def transfer(corpus, transfer_destination, **kwargs):
+    url, _, live, snapshot, _ = corpus
+    destination_url, _, target = transfer_destination
+    return await transfer_embeddings(
+        url,
+        destination_url,
+        source_table=snapshot,
+        target_table=target,
+        live_table=live,
+        batch_size=1,
+        **kwargs,
+    )
+
+
+async def test_transfer_between_databases_preserves_values_and_supports_promotion(
+    corpus, transfer_destination
+):
+    _, source_engine, live, snapshot, _ = corpus
+    destination_url, destination, target = transfer_destination
+    content = "Mimea ya kijani 🌱 — farmer's text\n" + "é" * 4000
+    for engine in (source_engine, destination):
+        async with engine.begin() as conn:
+            await conn.execute(text(f"ALTER TABLE {live} ADD COLUMN metadata jsonb"))
+            await conn.execute(
+                text(
+                    f"UPDATE {live} SET content=:content, page_number=NULL, "
+                    "metadata=CAST(:metadata AS jsonb) WHERE id=2"
+                ),
+                {
+                    "content": content,
+                    "metadata": '{"title":"mmea", "tags":[1,null,"🌱"]}',
+                },
+            )
+    await run(corpus)
+    async with source_engine.begin() as conn:
+        await conn.execute(
+            text(f"UPDATE {snapshot} SET embedding=CAST(:v AS vector) WHERE id=2"),
+            {"v": str([0.123456789, -0.987654321] * 512)},
+        )
+    assert await transfer(corpus, transfer_destination) == 3
+    assert (
+        await scalar(
+            destination,
+            f"SELECT count(*) FROM {live} WHERE embedding::text LIKE '[1,1,%'",
+        )
+        == 3
+    )
+    assert await scalar(
+        destination, f"SELECT to_jsonb(t)::text FROM {target} t WHERE id=2"
+    ) == await scalar(
+        source_engine, f"SELECT to_jsonb(t)::text FROM {snapshot} t WHERE id=2"
+    )
+    assert (
+        await promote_embeddings(
+            destination_url, target, source_table=live, backup_table="old_vectors"
+        )
+        == 3
+    )
+    assert (
+        await promote_embeddings(
+            destination_url,
+            target,
+            source_table=live,
+            backup_table="old_vectors",
+            apply=True,
+        )
+        == 3
+    )
+    assert (
+        await scalar(
+            destination,
+            "SELECT count(*) FROM old_vectors WHERE embedding::text LIKE '[1,1,%'",
+        )
+        == 3
+    )
+
+
+@pytest.mark.parametrize("change", ["content", "missing", "extra"])
+async def test_transfer_rolls_back_on_production_drift(
+    corpus, transfer_destination, change
+):
+    _, _, live, _, _ = corpus
+    _, destination, target = transfer_destination
+    await run(corpus)
+    async with destination.begin() as conn:
+        if change == "content":
+            await conn.execute(text(f"UPDATE {live} SET content='changed' WHERE id=7"))
+        elif change == "missing":
+            await conn.execute(text(f"DELETE FROM {live} WHERE id=7"))
+        else:
+            await conn.execute(
+                text(
+                    f"INSERT INTO {live} SELECT 99, resource_id, content, page_number, embedding FROM {live} WHERE id=7"
+                )
+            )
+    with pytest.raises(ValueError, match="missing or changed"):
+        await transfer(corpus, transfer_destination)
+    assert await scalar(destination, f"SELECT to_regclass('{target}')") is None
+    assert (
+        await scalar(
+            destination,
+            f"SELECT count(*) FROM {live} WHERE embedding::text NOT LIKE '[1,1,%'",
+        )
+        == 0
+    )
+
+
+async def test_transfer_refuses_existing_target(corpus, transfer_destination):
+    _, destination, target = transfer_destination
+    await run(corpus)
+    assert await transfer(corpus, transfer_destination) == 3
+    with pytest.raises(ValueError, match="already exists"):
+        await transfer(corpus, transfer_destination)
+    assert await scalar(destination, f"SELECT count(*) FROM {target}") == 3
+
+
+@pytest.mark.parametrize("invalid", ["manifest", "incomplete", "zero"])
+async def test_transfer_rejects_unusable_source(corpus, transfer_destination, invalid):
+    _, engine, _, snapshot, _ = corpus
+    _, destination, target = transfer_destination
+    await run(corpus)
+    async with engine.begin() as conn:
+        if invalid == "manifest":
+            await conn.execute(text(f"COMMENT ON TABLE {snapshot} IS '{{}}'"))
+        elif invalid == "incomplete":
+            await conn.execute(text(f"UPDATE {snapshot} SET embedding=NULL WHERE id=7"))
+        else:
+            await conn.execute(
+                text(f"UPDATE {snapshot} SET embedding=CAST(:v AS vector) WHERE id=7"),
+                {"v": str([0.0] * 1024)},
+            )
+    with pytest.raises(ValueError, match="manifest|invalid/incomplete"):
+        await transfer(corpus, transfer_destination)
+    assert await scalar(destination, f"SELECT to_regclass('{target}')") is None
+
+
+async def test_transfer_interruption_rolls_back_and_can_retry(
+    corpus, transfer_destination, monkeypatch
+):
+    from sqlalchemy.ext.asyncio import AsyncConnection
+
+    _, destination, target = transfer_destination
+    await run(corpus)
+    original = AsyncConnection.execute
+    inserted = 0
+
+    async def interrupted(self, statement, *args, **kwargs):
+        nonlocal inserted
+        if str(statement).startswith(f'INSERT INTO "{target}"'):
+            inserted += 1
+            if inserted == 2:
+                raise RuntimeError("simulated lost connection")
+        return await original(self, statement, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(AsyncConnection, "execute", interrupted)
+        with pytest.raises(RuntimeError, match="lost connection"):
+            await transfer(corpus, transfer_destination)
+    assert await scalar(destination, f"SELECT to_regclass('{target}')") is None
+    assert await transfer(corpus, transfer_destination) == 3
+
+
+async def test_transfer_detects_copy_coercion(corpus, transfer_destination):
+    _, _, live, _, _ = corpus
+    _, destination, target = transfer_destination
+    await run(corpus)
+    # A mismatched destination schema must not silently drop source fields.
+    async with destination.begin() as conn:
+        await conn.execute(text(f"ALTER TABLE {live} DROP COLUMN page_number"))
+    with pytest.raises(ValueError, match="differs from the source"):
+        await transfer(corpus, transfer_destination)
+    assert await scalar(destination, f"SELECT to_regclass('{target}')") is None
+
+
+async def test_transfer_rejects_live_target_before_connecting():
+    with pytest.raises(ValueError, match="new staging"):
+        await transfer_embeddings(
+            "unused", "unused", source_table="snapshot", target_table="chunks"
+        )

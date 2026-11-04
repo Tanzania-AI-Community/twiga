@@ -110,7 +110,7 @@ class ClientBase(ABC):
         self,
         user: User,
         processor: MessageProcessor,
-        prompt: Prompt = Prompt.TWIGA_SYSTEM,
+        prompt: Prompt = Prompt.TWIGA_AGENT_SYSTEM,
     ) -> tuple[Optional[list[BaseMessage]], Optional[list[Message]]]:
         """
         Preprocess messages: validate, build API messages, check character limits.
@@ -163,7 +163,7 @@ class ClientBase(ABC):
         self,
         user: User,
         messages_to_process: list[Message],
-        prompt: Prompt = Prompt.TWIGA_SYSTEM,
+        prompt: Prompt = Prompt.TWIGA_AGENT_SYSTEM,
     ) -> list[BaseMessage]:
         """Build the API messages from DB history + new messages"""
 

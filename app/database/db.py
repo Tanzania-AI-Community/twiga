@@ -25,6 +25,10 @@ from app.utils import embedder
 
 logger = logging.getLogger(__name__)
 
+# Bounds each retrieved chunk before it reaches an LLM prompt; a few badly
+# parsed chunks hold whole chapters (over 1 MB of text).
+MAX_CHUNK_CONTENT_CHARS = 8000
+
 # TODO: Add custom Exceptions for better error handling
 
 
@@ -349,10 +353,17 @@ async def vector_search(query: str, n_results: int, where: dict) -> list[Chunk]:
                 .order_by(Chunk.embedding.cosine_distance(query_vector))
                 .limit(n_results)
             )
-            return list(result.scalars().all())
+            chunks = list(result.scalars().all())
         except Exception as e:
             logger.error(f"Failed to search for knowledge: {str(e)}")
             raise Exception(f"Failed to search for knowledge: {str(e)}")
+
+    # Truncate only after get_session() has committed and closed, so the
+    # shortened text can never be flushed back to the chunks table.
+    for chunk in chunks:
+        if chunk.content and len(chunk.content) > MAX_CHUNK_CONTENT_CHARS:
+            chunk.content = chunk.content[:MAX_CHUNK_CONTENT_CHARS]
+    return chunks
 
 
 async def read_subjects() -> list[Subject] | None:

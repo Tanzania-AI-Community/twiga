@@ -5,6 +5,7 @@ This module sets the env configs for our WhatsApp app.
 import os
 from enum import Enum
 from typing import Optional
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -45,7 +46,6 @@ class EmbeddingProvider(str, Enum):
 class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 
-    TWIGA_SYSTEM = "twiga_system"
     TWIGA_AGENT_SYSTEM = "twiga_agent_system"
 
 
@@ -57,6 +57,7 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
         env_nested_delimiter="__",
+        hide_input_in_errors=True,
     )
     """ REQUIRED SETTINGS """
     # Meta settings
@@ -71,6 +72,8 @@ class Settings(BaseSettings):
 
     # WhatsApp mock
     mock_whatsapp: bool = False
+    mock_whatsapp_api_url: Optional[str] = None
+    mock_whatsapp_token: Optional[SecretStr] = None
 
     # Message limiting settings
     message_character_limit: int = 65000
@@ -117,6 +120,32 @@ class Settings(BaseSettings):
             return v.lower() in ("true", "True")
         return False
 
+    @model_validator(mode="after")
+    def validate_mock_transport(self):
+        if not self.mock_whatsapp:
+            return self
+        if self.environment not in (Environment.LOCAL, Environment.DEVELOPMENT):
+            raise ValueError(
+                "Mock WhatsApp requires a local or development environment"
+            )
+        url = urlsplit(self.mock_whatsapp_api_url or "")
+        if (
+            url.scheme != "http"
+            or url.hostname
+            not in ("localhost", "127.0.0.1", "::1", "host.docker.internal")
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+        ):
+            raise ValueError("MOCK_WHATSAPP_API_URL must be a local HTTP URL")
+        if (
+            not self.mock_whatsapp_token
+            or not self.mock_whatsapp_token.get_secret_value().strip()
+        ):
+            raise ValueError("MOCK_WHATSAPP_TOKEN is required in mock mode")
+        return self
+
 
 class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -137,6 +166,45 @@ class LLMSettings(BaseSettings):
     llm_name: str = Field(
         default=yaml_config["llm"]["model_name"], validation_alias="llm_model_name"
     )
+    together_fallback_models: list[str] = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("fallback_models", []),
+        validation_alias="llm_fallback_models",
+        max_length=4,
+    )
+    together_attempt_timeout: float = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("attempt_timeout", 60),
+        validation_alias="llm_failover_attempt_timeout",
+        gt=0,
+        allow_inf_nan=False,
+    )
+    together_total_timeout: float = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("total_timeout", 180),
+        validation_alias="llm_failover_total_timeout",
+        gt=0,
+        allow_inf_nan=False,
+    )
+    together_cooldown_seconds: float = Field(
+        default=(yaml_config["llm"].get("together") or {}).get("cooldown_seconds", 60),
+        validation_alias="llm_failover_cooldown_seconds",
+        ge=0,
+        allow_inf_nan=False,
+    )
+
+    @field_validator("llm_name", mode="before")
+    @classmethod
+    def fallback_blank_model_name(cls, value):
+        # Environment templates historically included LLM_MODEL_NAME=.
+        return (value.strip() if isinstance(value, str) else value) or yaml_config[
+            "llm"
+        ]["model_name"]
+
+    @field_validator("together_fallback_models")
+    @classmethod
+    def validate_fallback_models(cls, models):
+        models = [model.strip() for model in models]
+        if any(not model for model in models):
+            raise ValueError("Fallback model names must not be blank")
+        return list(dict.fromkeys(models))
 
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     ollama_model_name: Optional[str] = yaml_config["llm"]["ollama"]["model_name"]
@@ -166,10 +234,6 @@ class LLMSettings(BaseSettings):
     base_url: Optional[str] = yaml_config["llm"].get("base_url")
 
     # Agent settings
-    agentic_mode: bool = Field(
-        default=yaml_config["llm"]["agent"]["agentic_mode"],
-        validation_alias="agentic_mode_enabled",
-    )
     MAX_AGENT_ITERATIONS: int = yaml_config["llm"]["agent"]["max_agent_iterations"]
 
 
@@ -223,6 +287,12 @@ class EmbeddingSettings(BaseSettings):
         default=yaml_config["embedding"]["modal"]["request_timeout"],
         validation_alias="modal_embedding_request_timeout",
     )
+
+    @field_validator("embedder_name", mode="before")
+    @classmethod
+    def fallback_blank_embedder_name(cls, v):
+        # A blank EMBEDDING_MODEL= would otherwise reach the provider as "".
+        return v or yaml_config["embedding"]["model_name"]
 
 
 class ToolLLMConfig(BaseModel):

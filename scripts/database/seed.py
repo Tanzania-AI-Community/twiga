@@ -231,7 +231,7 @@ async def main():
     parser.add_argument(
         "--vector-data",
         type=str,
-        help="Vector database chunks file (chunks_OPENAI.json, chunks_BAAI.json or chunks_multilingual.json)",
+        help="Vector database chunks file (chunks_gemini.json)",
     )
 
     # Parse arguments

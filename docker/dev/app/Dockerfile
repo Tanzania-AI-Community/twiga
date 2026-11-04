@@ -27,6 +27,10 @@ COPY . .
 # Fastapi port
 EXPOSE 8000
 
+# /app is the host repo mounted by docker-compose. Keep uv on the environment
+# built above, so it never replaces the host's .venv with a root-owned one.
+ENV UV_PROJECT_ENVIRONMENT=/src/.venv
+
 WORKDIR /app
 
 # Run the application

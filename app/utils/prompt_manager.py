@@ -56,7 +56,7 @@ class PromptManager:
             # Load every version listed under "versions:" so eval/test code can
             # use explicit overrides without touching YAML.
             for version in versions:
-                prompt_path = paths.PROMPTS / name / version
+                prompt_path = paths.PROMPTS / config["path"] / version
                 if not prompt_path.exists():
                     raise FileNotFoundError(
                         f"Prompt file missing for '{name}' version '{version}': {prompt_path}"

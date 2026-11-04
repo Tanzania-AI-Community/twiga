@@ -190,3 +190,15 @@ async def test_generate_response_returns_buffered_when_processor_is_locked() -> 
         agent_client._cleanup_processor(user.id)
 
     assert response is BUFFERED_RESPONSE
+
+
+@pytest.mark.asyncio
+async def test_generate_response_requires_user_id() -> None:
+    agent_client = AgentClient()
+    user = User(name="No ID User", wa_id="255700000002")
+
+    with pytest.raises(ValueError, match="must have an ID"):
+        await agent_client.generate_response(
+            user=user,
+            message=_make_user_message("hello"),
+        )
