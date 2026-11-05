@@ -1,12 +1,14 @@
 prompts:
   twiga_agent_system:
     path: twiga/system
-    active_version: v0.1
+    active_version: v0.2
     versions:
       v0.0:
         description: "Baseline version."
       v0.1:
         description: "Search course material first for curriculum content and accept multilingual input while responding in English."
+      v0.2:
+        description: "Ask one clarifying question before any tool call when the request is too vague, and limit lookups to two per topic per turn to stop search loops."
 
   equation_solver_system:
     path: equation_solver/standard/system
