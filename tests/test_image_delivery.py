@@ -20,6 +20,15 @@ from app.latex.latex_artifact_generator import (
 from app.services.messaging_service import MessagingService
 
 
+@pytest.fixture(autouse=True)
+def _no_pending_profile_name():
+    with patch(
+        "app.services.messaging_service.db.get_latest_user_message_by_role",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_send_image_message_returns_true_on_success(
     monkeypatch, tmp_path
