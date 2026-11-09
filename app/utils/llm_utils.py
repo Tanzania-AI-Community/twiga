@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import logging
+import math
 import os
 from typing import Optional, Union, cast
 
@@ -262,6 +263,8 @@ async def async_llm_request(
     run_name: Optional[str] = None,
     metadata: Optional[dict] = None,
     timeout: Optional[float] = None,
+    failover_attempt_timeout: Optional[float] = None,
+    failover_total_timeout: Optional[float] = None,
     **kwargs,
 ) -> AIMessage:
     """
@@ -278,6 +281,8 @@ async def async_llm_request(
         run_name: Optional name for LangSmith trace run
         metadata: Optional metadata for LangSmith tracing
         timeout: Optional request timeout in seconds (defaults to llm settings)
+        failover_attempt_timeout: Optional Together per-attempt ceiling.
+        failover_total_timeout: Optional Together pool time ceiling.
         **kwargs: Additional keyword arguments for the LLM call
 
     Returns:
@@ -316,6 +321,11 @@ async def async_llm_request(
     requested_timeout = timeout if timeout is not None else llm_settings.timeout
     if requested_timeout is not None and requested_timeout <= 0:
         raise ValueError("LLM request timeout must be positive")
+    if any(
+        value is not None and (not math.isfinite(value) or value <= 0)
+        for value in (failover_attempt_timeout, failover_total_timeout)
+    ):
+        raise ValueError("Failover timeouts must be positive")
 
     if verbose:
         logger.debug("Messages sent to LLM API:\n%s", messages)
@@ -357,6 +367,8 @@ async def async_llm_request(
             effective_api_key.get_secret_value().encode()
         ).hexdigest()
         attempt_timeout = llm_settings.together_attempt_timeout
+        if failover_attempt_timeout is not None:
+            attempt_timeout = min(attempt_timeout, failover_attempt_timeout)
         if requested_timeout is not None:
             attempt_timeout = min(attempt_timeout, requested_timeout)
         return await together_router.request(
@@ -364,7 +376,11 @@ async def async_llm_request(
             invoke,
             scope=(effective_base_url or "together-default", credential_hash),
             attempt_timeout=attempt_timeout,
-            total_timeout=llm_settings.together_total_timeout,
+            total_timeout=min(
+                llm_settings.together_total_timeout, failover_total_timeout
+            )
+            if failover_total_timeout is not None
+            else llm_settings.together_total_timeout,
             cooldown_seconds=llm_settings.together_cooldown_seconds,
         )
 
