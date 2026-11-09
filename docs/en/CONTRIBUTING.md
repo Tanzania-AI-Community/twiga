@@ -31,10 +31,14 @@ To start contributing to Twiga, follow these steps:
 2. Checkout the `development` branch: `git checkout development`
 3. Create your feature branch from the `development` branch: `git checkout -b your-branch-name`
 4. Follow the steps in our [getting started](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/en/GETTING_STARTED.md) guide to get the project up and running locally
-5. (Not yet possible) Run the tests to ensure everything is working as expected
+5. Run the relevant tests; see the [conversation summary checks](CONVERSATION_SUMMARIES.md#tests) for Issue #92.
 6. Commit your changes: `git commit -m "[type]: descriptive commit message"`
 7. Push to your remote branch: `git push origin your-branch-name`
 8. Submit a pull request to the `development` branch of the original repository
+
+## Large Generated Assets
+
+For large generated assets such as tokenizer JSON files, add explicit paths to the root `.gitattributes` with `-diff linguist-generated=true` to suppress Git line counts and hide GitHub diffs by default.
 
 ## Code Formatting and Linting
 

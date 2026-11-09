@@ -24,3 +24,9 @@ uv run python -m scripts.database.seed --create --sample-data --vector-data chun
 ```
 
 Hii itaondoa meza zote zilizopo kwenye hifadhidata, kuunda mpya, kusakinisha pgvector na kuingiza data ya sampuli na data ya vekta ili hifadhidata iwe tayari kukubali watumiaji wapya.
+
+## Schema ya muhtasari wa mazungumzo (Issue #92)
+
+Migration `b7e2c9a4f610` inafuata `a1f4c7e2d3b9` na huongeza `conversation_summary_state` na `conversation_summary_batches`. Haifanyi backfill na huhifadhi rows asilia za `messages`. Coverage ni ID halisi hata batch ikiunganishwa. Downgrade huondoa summary state na batches, lakini huhifadhi users na messages. Tekeleza migration kabla ya kutumia API katika `app/database/db.py`; schema peke yake haiwashi summarization.
+
+Upgrade kupitia parent kwanza. Hifadhidata mpya lazima itimize mahitaji ya migration chain ya awali, ikiwemo pgvector. Downgrade hufuta summaries na coverage; kuzirejesha kunahitaji backup au kuzitengeneza upya kutoka ujumbe uliobaki. Tazama [uhifadhi](UHIFADHI_WA_MUHTASARI.md) na [vipimo](MUHTASARI_WA_MAZUNGUMZO.md#vipimo).

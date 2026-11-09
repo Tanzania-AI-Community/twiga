@@ -1,8 +1,11 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 
-from sqlalchemy import func, text
+from sqlalchemy import JSON, Integer, cast, func, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 from sqlmodel import and_, delete, desc, exists, insert, or_, select
 from sqlmodel.sql.expression import SelectOfScalar
@@ -14,6 +17,8 @@ from app.database.models import (
     Chunk,
     Class,
     ClassResource,
+    ConversationSummaryBatch,
+    ConversationSummaryState,
     GeneratedExam,
     Message,
     Resource,
@@ -28,6 +33,309 @@ logger = logging.getLogger(__name__)
 # Bounds each retrieved chunk before it reaches an LLM prompt; a few badly
 # parsed chunks hold whole chapters (over 1 MB of text).
 MAX_CHUNK_CONTENT_CHARS = 8000
+
+
+@dataclass(frozen=True)
+class SummarySource:
+    id: int
+    role: enums.MessageRole
+    content: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class SummaryBatch:
+    id: int
+    sequence_number: int
+    covered_message_ids: tuple[int, ...]
+    first_message_at: datetime
+    last_message_at: datetime
+    summary_text: str
+    token_count: int
+
+
+@dataclass(frozen=True)
+class ConversationSummarySnapshot:
+    user_id: int
+    version: int | None
+    next_sequence_number: int
+    older_history_summary: str
+    token_count: int
+    compacted_through_batch: int
+    active_batches: tuple[SummaryBatch, ...]
+    covered_message_ids: frozenset[int]
+    pending_sources: tuple[SummarySource, ...]
+
+
+@dataclass(frozen=True)
+class RollupUpdate:
+    compacted_sequences: tuple[int, ...]
+    summary_text: str
+    token_count: int
+
+
+@dataclass(frozen=True)
+class SummaryUpdate:
+    user_id: int
+    expected_version: int | None
+    next_sequence_number: int
+    covered_message_ids: tuple[int, ...]
+    summary_text: str
+    token_count: int
+    rollup: RollupUpdate | None = None
+
+
+class SummaryWriteResult(str, Enum):
+    COMMITTED = "committed"
+    STALE = "stale"
+
+
+def is_summary_source_eligible(message: Message) -> bool:
+    """Shared text-history contract for summary counting, selection and rendering."""
+    return (
+        message.is_present_in_conversation
+        and message.role
+        in (
+            enums.MessageRole.system,
+            enums.MessageRole.user,
+            enums.MessageRole.assistant,
+        )
+        and not (message.role == enums.MessageRole.assistant and message.tool_calls)
+        and not (message.content or "").startswith(("[FLOW_SENT]", "[FLOW_COMPLETED]"))
+    )
+
+
+async def get_conversation_summary_snapshot(
+    user_id: int,
+) -> ConversationSummarySnapshot:
+    """Read detached context in one short PostgreSQL repeatable-read snapshot.
+
+    Coverage is exact, including compacted batches. No session or ORM objects are
+    returned, and the legacy ten-row history helper keeps its existing contract.
+    """
+    async with get_session() as session:
+        await session.execute(
+            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        )
+        state = (
+            await session.execute(
+                select(ConversationSummaryState).where(
+                    ConversationSummaryState.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+        batches = list(
+            (
+                await session.execute(
+                    select(ConversationSummaryBatch)
+                    .where(ConversationSummaryBatch.user_id == user_id)
+                    .order_by(ConversationSummaryBatch.sequence_number)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # Expand JSON on the server rather than creating one bind parameter for
+        # every archived message. Ranges/maximum IDs cannot account for gaps.
+        covered = select(
+            cast(
+                func.json_array_elements_text(
+                    ConversationSummaryBatch.covered_message_ids
+                ),
+                Integer,
+            )
+        ).where(ConversationSummaryBatch.user_id == user_id)
+        messages = (
+            (
+                await session.execute(
+                    select(Message)
+                    .where(
+                        Message.user_id == user_id,
+                        Message.is_present_in_conversation.is_(True),
+                        Message.id.not_in(covered),
+                    )
+                    .order_by(Message.created_at, Message.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return ConversationSummarySnapshot(
+            user_id=user_id,
+            version=state.version if state else None,
+            next_sequence_number=batches[-1].sequence_number + 1 if batches else 1,
+            older_history_summary=state.older_history_summary if state else "",
+            token_count=state.token_count if state else 0,
+            compacted_through_batch=state.compacted_through_batch if state else 0,
+            active_batches=tuple(
+                SummaryBatch(
+                    id=batch.id,
+                    sequence_number=batch.sequence_number,
+                    covered_message_ids=tuple(batch.covered_message_ids),
+                    first_message_at=batch.first_message_at,
+                    last_message_at=batch.last_message_at,
+                    summary_text=batch.summary_text,
+                    token_count=batch.token_count,
+                )
+                for batch in batches
+                if not batch.is_compacted
+            ),
+            covered_message_ids=frozenset(
+                i for batch in batches for i in batch.covered_message_ids
+            ),
+            pending_sources=tuple(
+                SummarySource(
+                    id=message.id,
+                    role=message.role,
+                    content=message.content or "",
+                    created_at=message.created_at,
+                )
+                for message in messages
+                if is_summary_source_eligible(message)
+            ),
+        )
+
+
+async def commit_conversation_summary(candidate: SummaryUpdate) -> SummaryWriteResult:
+    """CAS append and optional prefix compaction in one transaction; no LLM calls.
+
+    Invalid plans raise ValueError; database failures propagate after rollback.
+    Only an expected-version conflict returns STALE. Token counts must have been
+    computed on the complete final text by the model-compatible service counter.
+    """
+    ids = candidate.covered_message_ids
+    if (
+        not ids
+        or len(set(ids)) != len(ids)
+        or any(type(i) is not int or i <= 0 for i in ids)
+    ):
+        raise ValueError("Coverage must contain distinct positive message IDs")
+    if not candidate.summary_text.strip() or not 0 <= candidate.token_count <= 75000:
+        raise ValueError("Invalid batch text or token budget")
+    rollup = candidate.rollup
+    if rollup and (
+        not rollup.compacted_sequences
+        or not rollup.summary_text.strip()
+        or not 0 <= rollup.token_count <= 25000
+    ):
+        raise ValueError("Invalid rollup text, prefix or token budget")
+
+    async with get_session() as session:
+        # ON CONFLICT waits for a competing first writer, then returns no row.
+        # A failed first append rolls this insertion back along with its batch.
+        if candidate.expected_version is None:
+            statement = (
+                pg_insert(ConversationSummaryState)
+                .values(user_id=candidate.user_id, version=1)
+                .on_conflict_do_nothing(index_elements=["user_id"])
+                .returning(ConversationSummaryState.user_id)
+            )
+        else:
+            statement = (
+                update(ConversationSummaryState)
+                .where(
+                    ConversationSummaryState.user_id == candidate.user_id,
+                    ConversationSummaryState.version == candidate.expected_version,
+                )
+                .values(
+                    version=ConversationSummaryState.version + 1,
+                    updated_at=datetime.now(timezone.utc),
+                )
+                .returning(ConversationSummaryState.user_id)
+            )
+        if (await session.execute(statement)).scalar_one_or_none() is None:
+            return SummaryWriteResult.STALE
+
+        batches = list(
+            (
+                await session.execute(
+                    select(ConversationSummaryBatch)
+                    .where(ConversationSummaryBatch.user_id == candidate.user_id)
+                    .order_by(ConversationSummaryBatch.sequence_number)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        next_sequence = batches[-1].sequence_number + 1 if batches else 1
+        if candidate.next_sequence_number != next_sequence:
+            raise ValueError("Batch sequence does not match the locked state")
+        covered = {i for batch in batches for i in batch.covered_message_ids}
+        if covered.intersection(ids):
+            raise ValueError("Source coverage overlaps a committed batch")
+        # Pass coverage as one JSON value to avoid an unbounded expanding bind.
+        selected_ids = select(
+            cast(func.json_array_elements_text(cast(list(ids), JSON)), Integer)
+        )
+        messages = list(
+            (
+                await session.execute(
+                    select(Message)
+                    .where(
+                        Message.user_id == candidate.user_id,
+                        Message.id.in_(selected_ids),
+                    )
+                    .order_by(Message.created_at, Message.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if tuple(message.id for message in messages) != ids or not all(
+            is_summary_source_eligible(message) for message in messages
+        ):
+            raise ValueError("Coverage must be eligible sources in timestamp/ID order")
+
+        active = [batch for batch in batches if not batch.is_compacted]
+        prefix = []
+        if rollup:
+            prefix = active[: len(rollup.compacted_sequences)]
+            if tuple(
+                batch.sequence_number for batch in prefix
+            ) != rollup.compacted_sequences or len(prefix) > max(
+                0, len(active) + 1 - 5
+            ):
+                raise ValueError(
+                    "Compaction must be an older prefix retaining the latest five batches"
+                )
+        if (
+            sum(batch.token_count for batch in active[len(prefix) :])
+            + candidate.token_count
+            > 75000
+        ):
+            raise ValueError("Active recent summary budget exceeded")
+
+        for batch in prefix:
+            batch.is_compacted = True
+            batch.summary_text = ""
+            batch.token_count = 0
+        if rollup:
+            await session.execute(
+                update(ConversationSummaryState)
+                .where(ConversationSummaryState.user_id == candidate.user_id)
+                .values(
+                    older_history_summary=rollup.summary_text,
+                    token_count=rollup.token_count,
+                    compacted_through_batch=prefix[-1].sequence_number,
+                )
+            )
+        first, last = messages[0], messages[-1]
+        session.add(
+            ConversationSummaryBatch(
+                user_id=candidate.user_id,
+                sequence_number=next_sequence,
+                first_message_id=first.id,
+                last_message_id=last.id,
+                first_message_at=first.created_at,
+                last_message_at=last.created_at,
+                covered_message_ids=list(ids),
+                summary_text=candidate.summary_text,
+                token_count=candidate.token_count,
+            )
+        )
+        await session.flush()
+    return SummaryWriteResult.COMMITTED
+
 
 # TODO: Add custom Exceptions for better error handling
 

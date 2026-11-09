@@ -1,6 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Optional
 
 from langchain_core.messages import (
@@ -11,10 +12,16 @@ from langchain_core.messages import (
 from langchain_core.messages.base import BaseMessage
 
 from app.clients.whatsapp_client import whatsapp_client
-from app.config import Prompt, settings
-from app.database.db import create_new_message_by_fields, get_user_message_history
+from app.config import Prompt
+from app.database.db import create_new_message_by_fields, is_summary_source_eligible
 from app.database.enums import MessageRole
 from app.database.models import Message, User
+from app.services.conversation_summary_runtime import conversation_summary_service
+from app.services.conversation_summary_service import (
+    PreparedConversation,
+    SummaryRequestContext,
+    ensure_uncovered,
+)
 from app.tools.registry import ToolName
 from app.tools.tool_manager import ToolManager
 from app.utils.message_processor import MessageProcessor
@@ -31,9 +38,14 @@ class BufferedResponse:
 
 BUFFERED_RESPONSE = BufferedResponse()
 
-GenerateResponseResult = list[Message] | BufferedResponse | None
 
-_FLOW_MARKER_PREFIXES = ("[FLOW_SENT]", "[FLOW_COMPLETED]")
+@dataclass(frozen=True)
+class GeneratedResponse:
+    messages: list[Message]
+    summary_context: SummaryRequestContext
+
+
+GenerateResponseResult = GeneratedResponse | BufferedResponse | None
 
 
 class ClientBase(ABC):
@@ -109,69 +121,26 @@ class ClientBase(ABC):
     async def _preprocess_messages(
         self,
         user: User,
-        processor: MessageProcessor,
+        messages_to_process: tuple[Message, ...],
         prompt: Prompt = Prompt.TWIGA_AGENT_SYSTEM,
-    ) -> tuple[Optional[list[BaseMessage]], Optional[list[Message]]]:
-        """
-        Preprocess messages: validate, build API messages, check character limits.
-
-        Args:
-            user: User object for context
-            processor: MessageProcessor with pending messages
-            prompt: Prompt to use for system message
-
-        Returns:
-            Tuple of (api_messages, None) if successful
-            Tuple of (None, error_messages) if validation failed
-        """
-        messages_to_process = processor.get_pending_messages()
-
+    ) -> tuple[list[BaseMessage] | None, SummaryRequestContext | None]:
         if not messages_to_process:
-            self.logger.warning(f"No messages to process for user.id={user.id}.")
             return None, None
-
-        # Build API messages
-        api_messages = await self._build_api_messages(
-            user=user,
-            messages_to_process=messages_to_process,
-            prompt=prompt,
-        )
-
-        # Check character limits
-        message_lengths = [
-            0 if msg.content is None else len(msg.content) for msg in api_messages
-        ]
-        self.logger.debug(f"Total characters in API messages: {sum(message_lengths)}")
-
-        # TODO: Issue #92: Optimizing chat history usage & context window input
-        if message_lengths[-1] > settings.message_character_limit:
-            self.logger.error(
-                f"User {user.wa_id}: {strings.get_string(StringCategory.ERROR, 'character_limit_exceeded')}"
-            )
-            error_message = Message(
-                user_id=user.id,
-                role=MessageRole.system,
-                content=strings.get_string(
-                    StringCategory.ERROR, "character_limit_exceeded"
-                ),
-            )
-            return None, [error_message]
-
-        return api_messages, None
+        # The full current interaction stays raw, including inputs above the old
+        # character limit. The hard summary service reduces older context first.
+        return await self._build_api_messages(user, messages_to_process, prompt)
 
     async def _build_api_messages(
         self,
         user: User,
-        messages_to_process: list[Message],
+        messages_to_process: tuple[Message, ...],
         prompt: Prompt = Prompt.TWIGA_AGENT_SYSTEM,
-    ) -> list[BaseMessage]:
-        """Build the API messages from DB history + new messages"""
-
-        self.logger.debug("Retrieving user message history")
-        history = await get_user_message_history(user.id)
-
+    ) -> tuple[list[BaseMessage], SummaryRequestContext]:
+        prepared = await conversation_summary_service.prepare(
+            user.id, messages_to_process
+        )
         formatted_messages = self._format_messages(
-            messages_to_process, history, user, prompt
+            list(messages_to_process), None, user, prompt, prepared=prepared
         )
 
         # Convert to LangChain BaseMessage objects
@@ -197,7 +166,7 @@ class ClientBase(ABC):
                 # Fallback to system message
                 api_messages.append(SystemMessage(content=content))
 
-        return api_messages
+        return api_messages, prepared.request
 
     def _llm_response_to_message(
         self, llm_response: AIMessage, user_id: int
@@ -265,6 +234,7 @@ class ClientBase(ABC):
         database_messages: Optional[list[Message]],
         user: User,
         prompt: Prompt,
+        prepared: PreparedConversation | None = None,
     ) -> list[dict]:
         """
         Format messages for the API, removing duplicates between new messages and database history.
@@ -281,32 +251,59 @@ class ClientBase(ABC):
             }
         ]
 
-        # Add history messages
-        if database_messages:
-            # Exclude potential duplicates
-            message_count = len(new_messages)
-            db_message_count = len(database_messages)
-
-            # Safety check: ensure we don't slice more messages than we have
-            if db_message_count < message_count:
-                raise Exception(
-                    f"Unusual message count scenario detected: There are {message_count} new messages but only {db_message_count} messages in the database."
+        if prepared:
+            state = prepared.snapshot
+            # Inject exactly the persisted/countable text as historical assistant
+            # context. It never becomes a new system instruction or user turn.
+            if state.older_history_summary:
+                formatted_messages.append(
+                    {"role": "assistant", "content": state.older_history_summary}
                 )
-
-            old_messages = (
-                database_messages[:-message_count]
-                if message_count > 0
-                else database_messages
-            )
-            # Bug fix: Avoid LLM reading flow bookkeeping from history
             formatted_messages.extend(
-                msg.to_api_format()
-                for msg in old_messages
-                if not (msg.content or "").startswith(_FLOW_MARKER_PREFIXES)
+                {"role": "assistant", "content": batch.summary_text}
+                for batch in state.active_batches
             )
+            database_messages = [
+                Message(
+                    id=source.id,
+                    user_id=user.id,
+                    role=source.role,
+                    content=source.content,
+                    created_at=source.created_at,
+                    is_present_in_conversation=True,
+                )
+                for source in state.pending_sources
+            ]
 
-        # Add new messages
-        formatted_messages.extend(msg.to_api_format() for msg in new_messages)
+        merged = {}
+        for index, message in enumerate((database_messages or []) + new_messages):
+            # Unsaved objects remain usable in focused formatter tests; production
+            # accepted messages are persisted/validated by the summary service.
+            eligible = (
+                message
+                if message.id is not None
+                else message.model_copy(update={"is_present_in_conversation": True})
+            )
+            if not is_summary_source_eligible(eligible):
+                continue
+            key = ("id", message.id) if message.id is not None else ("unsaved", index)
+            merged[key] = message
+        ordered = sorted(
+            merged.values(),
+            key=lambda m: (
+                m.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                m.id if m.id is not None else 0,
+            ),
+        )
+        if prepared:
+            ensure_uncovered(
+                prepared.snapshot,
+                frozenset(prepared.request.current_user_message_ids)
+                | frozenset(
+                    message.id for message in ordered if message.id is not None
+                ),
+            )
+        formatted_messages.extend(message.to_api_format() for message in ordered)
 
         return formatted_messages
 

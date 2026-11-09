@@ -1,0 +1,5 @@
+# Tokenizer JSON files are large machine-generated assets. Disable text diffs so
+# Git does not count their added/deleted lines; mark them as generated so GitHub
+# hides their diffs by default and excludes them from language statistics.
+app/assets/tokenizers/glm_5_3_flash.json -diff linguist-generated=true
+app/assets/tokenizers/deepseek_v4_1_flash.json -diff linguist-generated=true

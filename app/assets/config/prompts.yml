@@ -119,3 +119,24 @@ prompts:
       versions:
         v0.0:
           description: "Baseline version."
+
+  conversation_summary_batch_system:
+    path: conversation_summary/batch/system
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Summarize original messages as a batch."
+
+  conversation_summary_rollup_system:
+    path: conversation_summary/rollup/system
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Summarize selected batches as a replacement rollup."
+
+  conversation_summary_user:
+    path: conversation_summary/user
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Batch, rollup and bounded shortening inputs with trusted provenance."

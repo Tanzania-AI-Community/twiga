@@ -267,3 +267,6 @@ If you filled the `.env` correctly you should get a success in the logs and some
 ## 🥳 Congratulations!
 
 If you made it this far without issues, you should now have a running server for Twiga that you can text directly from your WhatsApp account. If you're encountering issues at this point still join our [Discord](https://discord.gg/bCe2HfZY2C) and write your question in `⚒-tech-support`.
+
+For conversation-summary runtime requirements and validation, see the
+[conversation summaries guide](CONVERSATION_SUMMARIES.md).
