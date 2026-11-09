@@ -19,8 +19,12 @@ Sera ya sasa hutumia chunk za herufi 1,500, soft summarization zaidi ya chunk 25
 zinazosubiri na hard preparation zaidi ya 30. Hizi si mipaka ya idadi ya rows za
 ujumbe. Bajeti ya batch hai kwa pamoja ni tokeni 75,000; rollup ni 25,000.
 Compaction huhifadhi batch tano za mwisho, ujumbe asilia na rekodi za coverage ya
-batch zilizowekwa kumbukumbu. Rollup mpya hujengwa kwa kutumia rollup ya awali na
-batch za zamani zinazoongezwa.
+batch zilizowekwa kumbukumbu. Kila compaction hubadilisha rollup kwa kutumia
+muhtasari wa batch zilizochaguliwa pekee. Taarifa za rollup ya awali huondoka
+kwenye muktadha kwa makusudi; ujumbe asilia hautumiwi kuzijenga upya. Coverage
+iliyohifadhiwa bado huzuia ujumbe huo kurudi kama historia raw inayosubiri.
+Mpaka wa `compacted_through_batch` huonyesha batch zilizochakatwa kwa jumla,
+si taarifa zilizobaki kwenye rollup.
 
 ## Kuandaa muktadha wa model
 

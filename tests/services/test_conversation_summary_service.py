@@ -286,7 +286,7 @@ async def test_recent_budget_boundary_keeps_latest_five(
 
 
 @pytest.mark.asyncio
-async def test_rollup_shortens_before_write_and_includes_existing_rollup(calls):
+async def test_rollup_shortens_without_previous_rollup(calls):
     calls.side_effect = [
         AIMessage(content="COUNT:1"),
         AIMessage(content="COUNT:25001"),
@@ -298,11 +298,48 @@ async def test_rollup_shortens_before_write_and_includes_existing_rollup(calls):
         (source(6),),
     )
     assert update.rollup.token_count == 25000
-    assert "existing older" in calls.await_args_list[1].kwargs["messages"][1].content
+    rollup_prompt = calls.await_args_list[1].kwargs["messages"][1].content
+    assert "<historical_data>\nbatch-1\n</historical_data>" in rollup_prompt
+    assert "existing older" not in rollup_prompt
+    assert "prior rollup" not in rollup_prompt
+    assert "batches 1..1; messages 1..1; times" in rollup_prompt
     assert (
         "Operation: shortening"
         in calls.await_args_list[2].kwargs["messages"][1].content
     )
+    assert (
+        "existing older" not in calls.await_args_list[2].kwargs["messages"][1].content
+    )
+
+
+@pytest.mark.asyncio
+async def test_consecutive_rollups_only_use_newly_selected_batches(calls):
+    calls.side_effect = [
+        AIMessage(content="COUNT:15000 NEW-BATCH-6"),
+        AIMessage(content="COUNT:20 FIRST-ROLLUP"),
+        AIMessage(content="COUNT:15000 NEW-BATCH-7"),
+        AIMessage(content="COUNT:20 SECOND-ROLLUP"),
+    ]
+    service = mod.ConversationSummaryService(counter=fake_counter)
+    active = tuple(batch(i) for i in range(1, 6))
+    first = await service._candidate(snapshot(batches=active, version=5), (source(6),))
+    assert first.rollup.compacted_sequences == (1,)
+    next_active = (*active[1:], replace(batch(6), summary_text=first.summary_text))
+    second = await service._candidate(
+        snapshot(
+            batches=next_active, version=6, rollup=first.rollup.summary_text, boundary=1
+        ),
+        (source(7),),
+    )
+    assert second.rollup.compacted_sequences == (2,)
+    assert "SECOND-ROLLUP" in second.rollup.summary_text
+    assert "FIRST-ROLLUP" not in second.rollup.summary_text
+    first_prompt = calls.await_args_list[1].kwargs["messages"][1].content
+    second_prompt = calls.await_args_list[3].kwargs["messages"][1].content
+    assert "<historical_data>\nbatch-1\n</historical_data>" in first_prompt
+    assert "<historical_data>\nbatch-2\n</historical_data>" in second_prompt
+    assert "FIRST-ROLLUP" not in second_prompt
+    assert "batches 2..2; messages 2..2; times" in second_prompt
 
 
 @pytest.mark.asyncio
@@ -477,6 +514,11 @@ async def test_many_batches_compacts_sufficient_oldest_prefix(calls):
     )
     assert update.rollup.compacted_sequences == (1, 2, 3, 4)
     assert sum(b.token_count for b in active[4:]) + update.token_count == 75000
+    rollup_prompt = calls.await_args_list[1].kwargs["messages"][1].content
+    assert (
+        "<historical_data>\nbatch-1\n\nbatch-2\n\nbatch-3\n\nbatch-4\n</historical_data>"
+        in rollup_prompt
+    )
 
 
 @pytest.mark.asyncio

@@ -119,7 +119,7 @@ def _ordered(sources) -> tuple[db.SummarySource, ...]:
 def ensure_uncovered(
     snapshot: db.ConversationSummarySnapshot, source_ids: frozenset[int]
 ) -> None:
-    # This exact coverage includes compacted batches represented by the rollup.
+    # Exact coverage includes every compacted batch, even after its facts are forgotten.
     # A mixed summary cannot safely be removed/edited to recover current input:
     # reject the preparation rather than dropping its required raw representation.
     if snapshot.covered_message_ids.intersection(source_ids):
@@ -231,15 +231,11 @@ class ConversationSummaryService:
         rollup = None
         if prefix:
             rollup_provenance = (
-                f"older history through batch {prefix[-1].sequence_number}; "
-                f"prior rollup through batch {snapshot.compacted_through_batch}; "
-                f"added messages {prefix[0].covered_message_ids[0]}..{prefix[-1].covered_message_ids[-1]}; "
-                f"added times {prefix[0].first_message_at.isoformat()}..{prefix[-1].last_message_at.isoformat()}"
+                f"batches {prefix[0].sequence_number}..{prefix[-1].sequence_number}; "
+                f"messages {prefix[0].covered_message_ids[0]}..{prefix[-1].covered_message_ids[-1]}; "
+                f"times {prefix[0].first_message_at.isoformat()}..{prefix[-1].last_message_at.isoformat()}"
             )
-            text = "[Existing compressed rollup]\n" + snapshot.older_history_summary
-            text += "\n[Older compressed batches]\n" + "\n\n".join(
-                b.summary_text for b in prefix
-            )
+            text = "\n\n".join(b.summary_text for b in prefix)
             older = await self._generate(
                 "rollup", text, rollup_provenance, summary_settings.rollup_tokens
             )

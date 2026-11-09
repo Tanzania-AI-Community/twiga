@@ -20,7 +20,11 @@ pending chunks and hard preparation above 30. These are chunk counts, not messag
 row limits. Stored active batch summaries have a combined 75,000-token budget;
 the older-history rollup has a 25,000-token budget. Compaction preserves the latest
 five batches and retains original messages and archived exact coverage records.
-A new rollup combines the previous rollup with the selected older batches.
+Each compaction replaces the rollup using only the selected batch summaries.
+Facts from the previous rollup intentionally leave model context; original
+messages are not used to reconstruct them. Archived coverage still prevents
+those messages from returning as pending raw history. The cumulative
+`compacted_through_batch` boundary tracks processing, not facts retained.
 
 ## Preparing the model context
 

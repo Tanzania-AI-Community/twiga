@@ -48,8 +48,10 @@ prefix isiyo tupu ya batch hai kwa mpangilio wa sequence. Lazima batch tano za
 mwisho zibaki hai ikihesabiwa batch mpya. API hukagua namba na mipaka iliyotolewa;
 haiamui wakati wa kufupisha, haihesabu tokeni wala haiiti model.
 
-Compaction hubadilisha rollup na kuashiria prefix imeunganishwa, ikifuta maandishi
+Compaction hubadilisha rollup na kuashiria prefix imefanyiwa compaction, ikifuta maandishi
 na idadi ya tokeni za batch hizo huku ikihifadhi endpoints na coverage kamili.
+Mpaka wa `compacted_through_batch` huonyesha batch zote zilizochakatwa, si
+kwamba taarifa zake zote zimebaki kwenye rollup mpya.
 Batch mpya, rollup, archival na toleo huandikwa pamoja. Ujumbe asilia na shughuli
 za mtumiaji hazibadilishwi. Tengeneza na hesabu maandishi nje ya miamala hiyo;
 baada ya `STALE`, mpigaji anahitaji snapshot mpya kabla ya kuamua kuandika.

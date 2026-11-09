@@ -55,6 +55,8 @@ summarize or compact, calculate token counts, or call a model.
 
 Compaction replaces the older rollup and marks that prefix compacted, clearing
 its summary text and count while retaining its exact coverage and endpoints.
+The cumulative `compacted_through_batch` boundary records processed batches;
+it does not mean their facts remain in the replacement rollup.
 The new batch, rollup, archival changes and version update commit atomically.
 Original message rows and user activity are unchanged. Generate and count
 candidate text outside these persistence transactions; after a stale result,

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
@@ -217,6 +218,99 @@ async def test_many_appends_compact_and_next_prompt_uses_rollup(summary_pg, runt
         *(b.summary_text for b in state.active_batches),
     ]
     assert payload[-1].content == "follow-up"
+    await assert_archive(factory, rows)
+
+
+async def test_successive_replacements_forget_old_rollup_but_keep_coverage(
+    summary_pg, runtime
+):
+    factory, _ = summary_pg
+    user, rows = await seed(factory, 30)
+    service, _, think, summary_call, _, messaging = runtime
+    service.counter = lambda text: 15000 if "NEW-BATCH" in text else len(text)
+    for i in range(1, 6):
+        marker = f"BATCH-{i}-"
+        text = marker + "a" * (15000 - len(marker))
+        assert (
+            await db.commit_conversation_summary(
+                db.SummaryUpdate(
+                    1, i - 1 if i > 1 else None, i, (rows[i - 1].id,), text, 15000
+                )
+            )
+            is db.SummaryWriteResult.COMMITTED
+        )
+
+    rollup_calls = []
+    batch_number = 0
+
+    async def generate(**kwargs):
+        nonlocal batch_number
+        if kwargs["run_name"] == "conversation_summary_rollup":
+            rollup_calls.append(kwargs["messages"][1].content)
+            return AIMessage(content=f"ROLLUP-{len(rollup_calls)}")
+        assert kwargs["run_name"] == "conversation_summary_batch"
+        batch_number += 1
+        return AIMessage(content=f"NEW-BATCH-{batch_number}")
+
+    summary_call.side_effect = generate
+    before = await db.get_conversation_summary_snapshot(1)
+    first_source = next(s for s in before.pending_sources if s.id == rows[5].id)
+    first = await service._candidate(before, (first_source,))
+    assert first.rollup.compacted_sequences == (1,)
+    assert (
+        await db.commit_conversation_summary(first) is db.SummaryWriteResult.COMMITTED
+    )
+    after_first = await db.get_conversation_summary_snapshot(1)
+    assert "ROLLUP-1" in after_first.older_history_summary
+    assert await db.commit_conversation_summary(first) is db.SummaryWriteResult.STALE
+    assert await db.get_conversation_summary_snapshot(1) == after_first
+
+    second_source = next(s for s in after_first.pending_sources if s.id == rows[6].id)
+    second = await service._candidate(after_first, (second_source,))
+    assert second.rollup.compacted_sequences == (2,)
+    bad = replace(second, rollup=replace(second.rollup, compacted_sequences=(99,)))
+    with pytest.raises(ValueError, match="older prefix"):
+        await db.commit_conversation_summary(bad)
+    assert await db.get_conversation_summary_snapshot(1) == after_first
+    assert (
+        await db.commit_conversation_summary(second) is db.SummaryWriteResult.COMMITTED
+    )
+    state = await db.get_conversation_summary_snapshot(1)
+
+    assert "BATCH-1-" in rollup_calls[0] and "BATCH-2-" not in rollup_calls[0]
+    assert "BATCH-2-" in rollup_calls[1] and "BATCH-1-" not in rollup_calls[1]
+    assert "ROLLUP-1" not in rollup_calls[1]
+    assert "ROLLUP-2" in state.older_history_summary
+    assert "ROLLUP-1" not in state.older_history_summary
+    assert state.compacted_through_batch == 2
+    assert [b.sequence_number for b in state.active_batches] == [3, 4, 5, 6, 7]
+    assert sum(b.token_count for b in state.active_batches) == 75000
+    assert state.token_count <= 25000
+    assert state.covered_message_ids == frozenset(row.id for row in rows[:7])
+    assert not state.covered_message_ids.intersection(
+        s.id for s in state.pending_sources
+    )
+    async with factory() as session:
+        batches = (
+            (
+                await session.execute(
+                    select(ConversationSummaryBatch).order_by(
+                        ConversationSummaryBatch.sequence_number
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert [(b.is_compacted, b.covered_message_ids) for b in batches[:2]] == [
+        (True, [rows[0].id]),
+        (True, [rows[1].id]),
+    ]
+    await messaging.handle_chat_message(user, rows[-1])
+    payload = think.await_args.kwargs["api_messages"]
+    assert state.older_history_summary in [m.content for m in payload]
+    assert all("ROLLUP-1" not in m.content for m in payload)
+    assert all(m.content not in {rows[0].content, rows[1].content} for m in payload)
     await assert_archive(factory, rows)
 
 
