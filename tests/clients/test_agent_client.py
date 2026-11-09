@@ -7,11 +7,13 @@ from langchain_core.messages import AIMessage
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from app.clients import client_base
 from app.clients.agent_client import AgentClient
 from app.clients.client_base import BUFFERED_RESPONSE, GeneratedResponse
 from app.database import db
 from app.database.enums import MessageRole
 from app.database.models import Message, User
+from app.services.conversation_summary_service import ConversationSummaryService
 from tests.database import conversation_summary_fixtures as summary_fixtures
 
 
@@ -49,6 +51,11 @@ def message_history_session(monkeypatch):
 
             monkeypatch.setattr(
                 db, "get_conversation_summary_snapshot", summary_snapshot
+            )
+            monkeypatch.setattr(
+                client_base,
+                "conversation_summary_service",
+                ConversationSummaryService(counter=len),
             )
             yield session
     finally:
