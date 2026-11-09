@@ -143,6 +143,9 @@ async def test_mock_mode_fails_closed_for_any_other_destination(monkeypatch, url
 
 
 async def test_production_media_routing_is_unchanged(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "meta_api_version", "v22.0")
+    monkeypatch.setattr(settings, "whatsapp_cloud_number_id", "123456789")
+    monkeypatch.setattr(settings, "whatsapp_api_token", SecretStr("meta-token"))
     requests = []
     client = use_mock(monkeypatch, mock_meta(requests), enabled=False)
     image = tmp_path / "image.png"
@@ -151,17 +154,12 @@ async def test_production_media_routing_is_unchanged(monkeypatch, tmp_path):
     assert client.client.event_hooks["request"] == []
     assert await client.send_image_message("1", str(image), ImageType.PNG)
 
-    version = settings.meta_api_version
-    number = settings.whatsapp_cloud_number_id
     assert [(r.method, str(r.url)) for r in requests] == [
-        ("POST", f"https://graph.facebook.com/{version}/{number}/media"),
-        ("POST", f"https://graph.facebook.com/{version}/{number}/messages"),
-        ("DELETE", f"https://graph.facebook.com/{version}/1000000000000001"),
+        ("POST", "https://graph.facebook.com/v22.0/123456789/media"),
+        ("POST", "https://graph.facebook.com/v22.0/123456789/messages"),
+        ("DELETE", "https://graph.facebook.com/v22.0/1000000000000001"),
     ]
-    assert (
-        requests[0].headers["authorization"]
-        == f"Bearer {settings.whatsapp_api_token.get_secret_value()}"
-    )
+    assert requests[0].headers["authorization"] == "Bearer meta-token"
 
 
 async def test_mock_requests_ignore_environment_proxy(monkeypatch):
