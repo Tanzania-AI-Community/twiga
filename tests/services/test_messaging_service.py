@@ -1095,7 +1095,11 @@ async def test_handle_chat_message_sends_lesson_plan_pdf_from_successful_tool() 
     assert send_document_kwargs["filename"] == "lesson_plan.pdf"
     mock_send_image.assert_not_awaited()
     mock_send_message.assert_not_awaited()
-    mock_persist_visible.assert_not_awaited()
+    mock_persist_visible.assert_awaited_once_with(
+        user=user,
+        content=format_lesson_plan_as_text(SAMPLE_LESSON_PLAN),
+        source_chunk_ids=None,
+    )
     mock_record_messages.assert_any_call("lesson_plan_pdf_sent")
     assert rendered_paths
     assert not rendered_paths[0].exists()
@@ -1229,7 +1233,9 @@ async def test_handle_chat_message_lesson_plan_pdf_render_failure_falls_back_to_
     assert response.status_code == 200
     mock_send_document.assert_not_awaited()
     mock_send_message.assert_awaited_once_with(user.wa_id, expected_text)
-    mock_persist_visible.assert_awaited_once_with(user=user, content=expected_text)
+    mock_persist_visible.assert_awaited_once_with(
+        user=user, content=expected_text, source_chunk_ids=None
+    )
     mock_record_messages.assert_any_call("lesson_plan_pdf_render_failed")
 
 
@@ -1298,7 +1304,314 @@ async def test_handle_chat_message_lesson_plan_pdf_send_failure_falls_back_to_te
     assert response.status_code == 200
     mock_send_document.assert_awaited_once()
     mock_send_message.assert_awaited_once_with(user.wa_id, expected_text)
-    mock_persist_visible.assert_awaited_once_with(user=user, content=expected_text)
+    mock_persist_visible.assert_awaited_once_with(
+        user=user, content=expected_text, source_chunk_ids=None
+    )
     mock_record_messages.assert_any_call("lesson_plan_pdf_send_failed")
     assert rendered_paths
     assert not rendered_paths[0].exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "text",
+        "citation",
+        "latex_render_failure",
+        "latex_image_failure",
+        "exam",
+        "exam_marker_only",
+        "invalid_exam",
+        "lesson_pdf",
+        "lesson_render_failure",
+        "lesson_send_failure",
+    ],
+)
+async def test_accepted_response_persist_summary_send_order(
+    monkeypatch, tmp_path, kind
+):
+    from app.clients.client_base import GeneratedResponse
+    from app.services import messaging_service as mod
+    from app.services.conversation_summary_service import (
+        SummaryOutcome,
+        SummaryRequestContext,
+    )
+
+    service = MessagingService()
+    user = User(id=1, wa_id="one", name="Teacher")
+    incoming = Message(
+        id=1,
+        user_id=1,
+        role=enums.MessageRole.user,
+        content="request",
+        is_present_in_conversation=True,
+    )
+    context = SummaryRequestContext(1, (1,), (1,))
+    events = []
+    visible = []
+    exam_id = "b1740ac9-bfea-415f-8b3a-c7f06ee8c353"
+    text = "Visible answer"
+    if kind == "citation":
+        text = "Answer {{TWIGA_CITATION:123}}"
+    if kind.startswith("latex"):
+        text = "A formula $x=3$."
+    if kind == "exam":
+        text = 'Generated result. {{TWIGA_EXAM_DELIVERY:{"exam_id":"' + exam_id + '"}}}'
+    if kind == "exam_marker_only":
+        text = '{{TWIGA_EXAM_DELIVERY:{"exam_id":"' + exam_id + '"}}}'
+    if kind == "invalid_exam":
+        text = 'Clean fallback {{TWIGA_EXAM_DELIVERY:{"exam_id":"invalid"}}}'
+    output = [
+        Message(
+            user_id=1,
+            role=enums.MessageRole.assistant,
+            content=text,
+            source_chunk_ids=[123],
+        )
+    ]
+    if kind.startswith("lesson"):
+        output.insert(
+            0,
+            Message(
+                user_id=1,
+                role=enums.MessageRole.tool,
+                tool_name="create_lesson_plan",
+                content=json.dumps(SAMPLE_LESSON_PLAN),
+            ),
+        )
+    monkeypatch.setattr(
+        mod.agent_client,
+        "generate_response",
+        AsyncMock(return_value=GeneratedResponse(output, context)),
+    )
+    monkeypatch.setattr(mod.db, "create_new_messages", AsyncMock())
+
+    async def persist(**kwargs):
+        events.append("persist")
+        visible.append(kwargs)
+        return Message(
+            id=100 + len(visible) - 1,
+            user_id=1,
+            role=enums.MessageRole.assistant,
+            content=kwargs["content"],
+            is_present_in_conversation=True,
+        )
+
+    async def summarize(request, result_ids):
+        events.append("summary")
+        assert request is context and result_ids == (100,)
+        return SummaryOutcome.COMMITTED
+
+    async def send_text(*args, **kwargs):
+        events.append("text")
+        return True
+
+    async def send_document(**kwargs):
+        events.append("document")
+        return kind != "lesson_send_failure"
+
+    async def send_image(**kwargs):
+        events.append("image")
+        return False
+
+    monkeypatch.setattr(service, "_persist_visible_assistant_message", persist)
+    hook = AsyncMock(side_effect=summarize)
+    monkeypatch.setattr(mod.conversation_summary_service, "finalize", hook)
+    monkeypatch.setattr(mod.whatsapp_client, "send_message", send_text)
+    monkeypatch.setattr(mod.whatsapp_client, "send_document_message", send_document)
+    monkeypatch.setattr(mod.whatsapp_client, "send_image_message", send_image)
+    monkeypatch.setattr(
+        service,
+        "_handle_citations",
+        AsyncMock(
+            side_effect=lambda content=None, llm_content=None: (
+                "Answer [1]"
+                if kind == "citation"
+                else (content if content is not None else llm_content)
+            )
+        ),
+    )
+    monkeypatch.setattr(mod, "prepare_latex_body", lambda text: text)
+    image_path = tmp_path / "image.png"
+    monkeypatch.setattr(
+        mod,
+        "text_to_images",
+        lambda text: [str(image_path)] if kind == "latex_image_failure" else None,
+    )
+
+    def render(*args):
+        return None
+
+    if kind == "lesson_render_failure":
+
+        def render(*args):
+            raise RuntimeError("render failed")
+
+    monkeypatch.setattr(mod, "render_lesson_plan_pdf", render)
+    details = ExamPDFDeliveryDetails(
+        exam_id,
+        tmp_path / "exam.pdf",
+        tmp_path / "solution.pdf",
+        True,
+        True,
+        "Geography",
+        ["Climate"],
+    )
+    monkeypatch.setattr(
+        mod.exam_delivery_service,
+        "get_exam_delivery_details",
+        AsyncMock(return_value=details),
+    )
+    result = await service.handle_chat_message(user, incoming)
+    assert result.status_code == 200
+    assert events[:2] == ["persist", "summary"]
+    assert any(e in ("text", "image", "document") for e in events[2:])
+    assert hook.await_count == 1
+    assert output[-1].is_present_in_conversation is False
+    if kind.startswith("lesson"):
+        assert len(visible) == 1
+        assert visible[0]["content"] == format_lesson_plan_as_text(SAMPLE_LESSON_PLAN)
+    elif kind in ("exam", "exam_marker_only"):
+        assert len(visible) == 2  # Pre-send result, then actual post-send status.
+        assert "TWIGA_EXAM_DELIVERY" not in visible[0]["content"]
+        assert "Here is your practice exam" not in visible[0]["content"]
+        assert events.index("document") < len(events) - 1
+        if kind == "exam_marker_only":
+            assert (
+                exam_id in visible[0]["content"]
+                and "Geography" in visible[0]["content"]
+            )
+    elif kind == "citation":
+        assert visible[0]["content"] == "Answer [1]" and visible[0][
+            "source_chunk_ids"
+        ] == [123]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure",
+    [
+        TimeoutError("timeout"),
+        RuntimeError("model failure"),
+        ValueError("tokenizer mapping"),
+        RuntimeError("stale retry exhausted"),
+        RuntimeError("db write failed"),
+    ],
+)
+async def test_summary_hook_failure_never_blocks_already_persisted_reply(
+    monkeypatch, failure
+):
+    from app.clients.client_base import GeneratedResponse
+    from app.services import messaging_service as mod
+    from app.services.conversation_summary_service import SummaryRequestContext
+
+    service = MessagingService()
+    user = User(id=1, wa_id="one", name="Teacher")
+    incoming = Message(id=1, user_id=1, role=enums.MessageRole.user, content="request")
+    final = Message(
+        user_id=1, role=enums.MessageRole.assistant, content="Unchanged answer"
+    )
+    context = SummaryRequestContext(1, (1,), (1,))
+    monkeypatch.setattr(
+        mod.agent_client,
+        "generate_response",
+        AsyncMock(return_value=GeneratedResponse([final], context)),
+    )
+    monkeypatch.setattr(mod.db, "create_new_messages", AsyncMock())
+    monkeypatch.setattr(
+        service,
+        "_persist_visible_assistant_message",
+        AsyncMock(
+            return_value=Message(id=100, user_id=1, role=enums.MessageRole.assistant)
+        ),
+    )
+    monkeypatch.setattr(
+        mod.conversation_summary_service, "finalize", AsyncMock(side_effect=failure)
+    )
+    send = AsyncMock(return_value=True)
+    monkeypatch.setattr(mod.whatsapp_client, "send_message", send)
+    result = await service.handle_chat_message(user, incoming)
+    assert result.status_code == 200
+    send.assert_awaited_once_with(user.wa_id, "Unchanged answer")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("response", [None, BUFFERED_RESPONSE, []])
+async def test_unaccepted_outputs_never_run_summary_hook(monkeypatch, response):
+    from app.services import messaging_service as mod
+
+    service = MessagingService()
+    user = User(id=1, wa_id="one", name="Teacher")
+    monkeypatch.setattr(
+        mod.agent_client, "generate_response", AsyncMock(return_value=response)
+    )
+    monkeypatch.setattr(service, "_persist_visible_assistant_message", AsyncMock())
+    monkeypatch.setattr(mod.whatsapp_client, "send_message", AsyncMock())
+    hook = AsyncMock()
+    monkeypatch.setattr(mod.conversation_summary_service, "finalize", hook)
+    await service.handle_chat_message(
+        user, Message(user_id=1, role=enums.MessageRole.user, content="request")
+    )
+    hook.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["command", "tool_leakage", "missing_assistant"])
+async def test_unrelated_or_rejected_results_do_not_run_summary(monkeypatch, case):
+    from app.clients.client_base import GeneratedResponse
+    from app.services import messaging_service as mod
+    from app.services.conversation_summary_service import SummaryRequestContext
+
+    service = MessagingService()
+    user = User(id=1, wa_id="one", name="Teacher")
+    hook = AsyncMock()
+    monkeypatch.setattr(mod.conversation_summary_service, "finalize", hook)
+    monkeypatch.setattr(mod.whatsapp_client, "send_message", AsyncMock())
+    monkeypatch.setattr(service, "_persist_visible_assistant_message", AsyncMock())
+    monkeypatch.setattr(mod.db, "create_new_messages", AsyncMock())
+    if case == "command":
+        await service._command_help(user)
+    else:
+        messages = (
+            [
+                Message(
+                    user_id=1,
+                    role=enums.MessageRole.assistant,
+                    content="I will use create_lesson_plan now",
+                )
+            ]
+            if case == "tool_leakage"
+            else []
+        )
+        monkeypatch.setattr(
+            mod.agent_client,
+            "generate_response",
+            AsyncMock(
+                return_value=GeneratedResponse(
+                    messages, SummaryRequestContext(1, (1,), (1,))
+                )
+            ),
+        )
+        await service.handle_chat_message(
+            user, Message(user_id=1, role=enums.MessageRole.user, content="request")
+        )
+    hook.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_visible_persistence_returns_the_durable_source_row(monkeypatch):
+    from app.services import messaging_service as mod
+
+    row = Message(
+        id=123, user_id=1, role=enums.MessageRole.assistant, content="visible"
+    )
+    monkeypatch.setattr(
+        mod.db, "create_new_message_by_fields", AsyncMock(return_value=row)
+    )
+    assert (
+        await MessagingService()._persist_visible_assistant_message(
+            User(id=1, wa_id="one"), "visible"
+        )
+        is row
+    )

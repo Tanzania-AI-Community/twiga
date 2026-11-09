@@ -12,7 +12,7 @@ import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
-from app.clients.client_base import BUFFERED_RESPONSE
+from app.clients.client_base import BUFFERED_RESPONSE, GeneratedResponse
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
@@ -21,6 +21,8 @@ from app.latex.latex_artifact_generator import (
 )
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.citation_service import CitationRenderResult, citation_service
+from app.services.conversation_summary_runtime import conversation_summary_service
+from app.services.conversation_summary_service import SummaryRequestContext
 from app.services.exam_delivery_service import (
     ExamDeliveryMarker,
     ExamPDFDeliveryDetails,
@@ -184,6 +186,11 @@ class MessagingService:
             await self._handle_no_llm_response(user)
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
+        summary_context = None
+        if isinstance(llm_responses, GeneratedResponse):
+            summary_context = llm_responses.summary_context
+            llm_responses = llm_responses.messages
+
         last_assistant_message = self._get_last_assistant_message(llm_responses)
 
         if not last_assistant_message:
@@ -204,13 +211,16 @@ class MessagingService:
         await db.create_new_messages(llm_responses)
 
         if self._should_handle_exam_delivery(llm_responses, llm_content):
-            await self._handle_exam_delivery(user, llm_content, llm_responses)
+            await self._handle_exam_delivery(
+                user, llm_content, llm_responses, summary_context=summary_context
+            )
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         if self._should_handle_lesson_plan_delivery(llm_responses):
             await self._handle_lesson_plan_delivery(
                 user=user,
                 llm_responses=llm_responses,
+                summary_context=summary_context,
             )
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
@@ -223,14 +233,16 @@ class MessagingService:
                 user=user,
                 llm_content=llm_content,
                 source_chunk_ids=last_assistant_message.source_chunk_ids,
+                summary_context=summary_context,
             )
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         self.logger.debug(f"Sending message to {user.wa_id}: {llm_content}")
-        await self._persist_visible_assistant_message(
+        await self._finalize_visible_response(
             user=user,
             content=llm_content,
             source_chunk_ids=last_assistant_message.source_chunk_ids,
+            summary_context=summary_context,
         )
 
         sent = await whatsapp_client.send_message(user.wa_id, llm_content)
@@ -307,13 +319,15 @@ class MessagingService:
         user: models.User,
         llm_content: str,
         source_chunk_ids: list[int] | None = None,
+        summary_context: SummaryRequestContext | None = None,
     ) -> None:
         self.logger.debug(f"Sending LaTeX response to {user.wa_id}: {llm_content}")
 
-        await self._persist_visible_assistant_message(
+        await self._finalize_visible_response(
             user=user,
             content=llm_content,
             source_chunk_ids=source_chunk_ids,
+            summary_context=summary_context,
         )
 
         prepared_latex_content = prepare_latex_body(llm_content)
@@ -424,20 +438,48 @@ class MessagingService:
         user: models.User,
         content: str,
         source_chunk_ids: list[int] | None = None,
-    ) -> None:
+    ) -> models.Message | None:
         if user.id is None:
             self.logger.warning(
                 "Skipping assistant message persistence for user without ID."
             )
             return
 
-        await db.create_new_message_by_fields(
+        return await db.create_new_message_by_fields(
             user_id=user.id,
             role=enums.MessageRole.assistant,
             content=content,
             source_chunk_ids=source_chunk_ids,
             is_present_in_conversation=True,
         )
+
+    async def _finalize_visible_response(
+        self,
+        user: models.User,
+        content: str,
+        source_chunk_ids: list[int] | None = None,
+        summary_context: SummaryRequestContext | None = None,
+    ) -> models.Message | None:
+        visible = await self._persist_visible_assistant_message(
+            user=user,
+            content=content,
+            source_chunk_ids=source_chunk_ids,
+        )
+        if (
+            summary_context is not None
+            and visible is not None
+            and visible.id is not None
+        ):
+            try:
+                await conversation_summary_service.finalize(
+                    summary_context, (visible.id,)
+                )
+            except Exception:
+                # Also defend the delivery boundary against unexpected adapter errors.
+                self.logger.exception(
+                    "Soft summary hook failed user=%s; continuing delivery", user.id
+                )
+        return visible
 
     def _should_handle_exam_delivery(
         self, llm_responses: list[models.Message], llm_content: str
@@ -489,6 +531,7 @@ class MessagingService:
         self,
         user: models.User,
         llm_responses: list[models.Message],
+        summary_context: SummaryRequestContext | None = None,
     ) -> None:
         lesson_plan = self._get_successful_lesson_plan(llm_responses)
         if lesson_plan is None:
@@ -496,6 +539,11 @@ class MessagingService:
                 "Lesson plan delivery requested, but no successful tool result was found."
             )
             return
+
+        plan_text = format_lesson_plan_as_text(lesson_plan)
+        await self._finalize_visible_response(
+            user=user, content=plan_text, summary_context=summary_context
+        )
 
         pdf_file_descriptor, pdf_path = tempfile.mkstemp(
             prefix="twiga_lesson_plan_", suffix=".pdf"
@@ -533,14 +581,16 @@ class MessagingService:
             record_messages_generated("chat_response")
             return
 
-        plan_text = format_lesson_plan_as_text(lesson_plan)
-        await self._persist_visible_assistant_message(user=user, content=plan_text)
         sent = await whatsapp_client.send_message(user.wa_id, plan_text)
         if sent:
             record_messages_generated("chat_response")
 
     async def _handle_exam_delivery(
-        self, user: models.User, llm_content: str, llm_responses: list[models.Message]
+        self,
+        user: models.User,
+        llm_content: str,
+        llm_responses: list[models.Message],
+        summary_context: SummaryRequestContext | None = None,
     ) -> None:
         delivery_marker: ExamDeliveryMarker = (
             exam_delivery_service.resolve_delivery_marker(llm_content, llm_responses)
@@ -562,11 +612,13 @@ class MessagingService:
             )
 
             if self._is_response_in_latex(llm_content):
-                await self._send_latex_response(user=user, llm_content=llm_content)
+                await self._send_latex_response(
+                    user=user, llm_content=llm_content, summary_context=summary_context
+                )
                 return
 
-            await self._persist_visible_assistant_message(
-                user=user, content=llm_content
+            await self._finalize_visible_response(
+                user=user, content=llm_content, summary_context=summary_context
             )
             await whatsapp_client.send_message(user.wa_id, llm_content)
             record_messages_generated("chat_response")
@@ -586,11 +638,13 @@ class MessagingService:
             )
 
             if self._is_response_in_latex(llm_content):
-                await self._send_latex_response(user=user, llm_content=llm_content)
+                await self._send_latex_response(
+                    user=user, llm_content=llm_content, summary_context=summary_context
+                )
                 return
 
-            await self._persist_visible_assistant_message(
-                user=user, content=llm_content
+            await self._finalize_visible_response(
+                user=user, content=llm_content, summary_context=summary_context
             )
             await whatsapp_client.send_message(user.wa_id, llm_content)
             record_messages_generated("chat_response")
@@ -615,6 +669,19 @@ class MessagingService:
                     f"Exam artifact preparation issues for exam_id={delivery_marker.exam_id}: "
                     f"{' | '.join(exam_details.errors)}"
                 )
+
+            result_text = await self._handle_citations(llm_content)
+            if not result_text.strip():
+                result_text = (
+                    f"Generated exam {delivery_marker.exam_id}; "
+                    f"subject: {exam_subject or 'unspecified'}; "
+                    f"topics: {', '.join(exam_topics) or 'unspecified'}."
+                )
+            await self._finalize_visible_response(
+                user=user,
+                content=result_text,
+                summary_context=summary_context,
+            )
 
             if exam_details.exam_pdf_ready:
                 exam_sent = await whatsapp_client.send_document_message(
@@ -661,6 +728,11 @@ class MessagingService:
             self.logger.warning("Exam delivery marker is valid but exam_id is missing.")
             exam_send_failed = True
             solution_send_failed = True
+            await self._finalize_visible_response(
+                user=user,
+                content=llm_content or "Exam generation returned no valid exam ID.",
+                summary_context=summary_context,
+            )
 
         exam_delivery_message = self._build_exam_delivery_message(
             subject=exam_subject,

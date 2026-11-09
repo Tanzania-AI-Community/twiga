@@ -191,7 +191,7 @@ def test_format_messages_happy_path() -> None:
     assert result[-1]["content"] == "new question"
 
 
-def test_format_messages_raises_when_history_shorter_than_new_messages() -> None:
+def test_format_messages_keeps_short_history_and_unsaved_inputs() -> None:
     client = DummyClient()
     user = User(id=1, name="Test User", wa_id="255700000001")
 
@@ -203,10 +203,98 @@ def test_format_messages_raises_when_history_shorter_than_new_messages() -> None
         Message(user_id=1, role=enums.MessageRole.assistant, content="second"),
     ]
 
-    with pytest.raises(Exception, match="Unusual message count scenario detected"):
-        client._format_messages(
-            new_messages=new_messages,
-            database_messages=database_messages,
-            user=user,
-            prompt=Prompt.TWIGA_AGENT_SYSTEM,
+    result = client._format_messages(
+        new_messages=new_messages,
+        database_messages=database_messages,
+        user=user,
+        prompt=Prompt.TWIGA_AGENT_SYSTEM,
+    )
+    assert [m["content"] for m in result[1:]] == ["only one", "first", "second"]
+
+
+@pytest.mark.parametrize(
+    "rollup,batches", [(False, False), (True, False), (False, True), (True, True)]
+)
+def test_summary_order_identity_and_visibility(rollup, batches):
+    from app.services.conversation_summary_service import (
+        PreparedConversation,
+        SummaryRequestContext,
+    )
+    from tests.services.test_conversation_summary_service import (
+        batch,
+        current,
+        snapshot,
+        source,
+    )
+
+    user = User(id=1, name="Teacher", wa_id="one")
+    first, second = source(10, "same text"), source(11, "same text")
+    prepared = PreparedConversation(
+        snapshot(
+            (first, second),
+            (batch(1), batch(2)) if batches else (),
+            rollup="older rollup" if rollup else "",
+            covered=(9,) if rollup else (),
+        ),
+        SummaryRequestContext(1, (10, 11), (11,)),
+    )
+    result = DummyClient._format_messages(
+        [current(second)], None, user, Prompt.TWIGA_AGENT_SYSTEM, prepared
+    )
+    contents = [m["content"] for m in result[1:]]
+    assert contents == (["older rollup"] if rollup else []) + (
+        ["batch-1", "batch-2"] if batches else []
+    ) + ["same text", "same text"]
+    hidden = current(source(3, "hidden"))
+    hidden.is_present_in_conversation = False
+    flow = current(source(4, "[FLOW_SENT] form"))
+    tool = current(source(5, "tool", enums.MessageRole.tool))
+    scaffold = current(source(6, "scaffold", enums.MessageRole.assistant))
+    scaffold.tool_calls = [{"id": "call"}]
+    result = DummyClient._format_messages(
+        [current(second)],
+        [current(first), hidden, flow, tool, scaffold],
+        user,
+        Prompt.TWIGA_AGENT_SYSTEM,
+    )
+    assert [m["content"] for m in result[1:]] == ["same text", "same text"]
+
+
+@pytest.mark.parametrize("covered_id", [1, 2])
+def test_formatter_rejects_summary_overlap_with_any_raw_or_current_source(covered_id):
+    from app.services.conversation_summary_service import (
+        PreparedConversation,
+        SummaryError,
+        SummaryRequestContext,
+    )
+    from tests.services.test_conversation_summary_service import (
+        current,
+        snapshot,
+        source,
+    )
+
+    prepared = PreparedConversation(
+        snapshot(
+            (source(1), source(2)), version=1, rollup="older", covered=(covered_id,)
+        ),
+        SummaryRequestContext(1, (1, 2), (2,)),
+    )
+    with pytest.raises(SummaryError, match="already covered"):
+        DummyClient._format_messages(
+            [current(source(2))],
+            None,
+            User(id=1, name="Teacher", wa_id="one"),
+            Prompt.TWIGA_AGENT_SYSTEM,
+            prepared,
         )
+
+
+@pytest.mark.asyncio
+async def test_preprocess_requires_snapshot_and_preserves_explicit_empty():
+    client = DummyClient()
+    user = User(id=11, wa_id="255700000000", name="Teacher")
+    with patch.object(client, "_build_api_messages", new_callable=AsyncMock) as build:
+        assert await client._preprocess_messages(user, ()) == (None, None)
+        build.assert_not_awaited()
+        with pytest.raises(TypeError):
+            await client._preprocess_messages(user)
