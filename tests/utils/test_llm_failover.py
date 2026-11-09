@@ -9,6 +9,7 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError
 from pydantic import SecretStr, ValidationError
 
 from app.config import LLMProvider, LLMSettings
+from app.services.conversation_summary_service import SummaryKind
 from app.utils import llm_utils
 from app.utils.llm_failover import (
     ModelsCoolingDownError,
@@ -422,9 +423,17 @@ def test_invalid_failover_settings_are_rejected(kwargs):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["batch", "rollup", "shortening"])
+@pytest.mark.parametrize(
+    "operation,kind",
+    [
+        ("batch", SummaryKind.BATCH),
+        ("rollup", SummaryKind.ROLLUP),
+        ("shortening", SummaryKind.BATCH),
+        ("shortening", SummaryKind.ROLLUP),
+    ],
+)
 async def test_summary_routes_with_shorter_attempt_and_pool_deadlines(
-    together_settings, monkeypatch, operation
+    together_settings, monkeypatch, operation, kind
 ):
     from app.services import conversation_summary_service as summaries
 
@@ -438,7 +447,7 @@ async def test_summary_routes_with_shorter_attempt_and_pool_deadlines(
     factory = MagicMock(side_effect=clients)
     monkeypatch.setattr(llm_utils, "_create_llm_client", factory)
     result = await summaries.ConversationSummaryService(counter=len)._generate(
-        operation, "source", "test", 100
+        operation, "source", "test", 100, kind=kind
     )
     assert result.tokens == len(result.text)
     assert [call.kwargs["model_name"] for call in factory.call_args_list] == [
@@ -489,7 +498,9 @@ async def test_summary_router_paths(together_settings, monkeypatch, scenario):
     monkeypatch.setattr(llm_utils, "_create_llm_client", factory)
     service = summaries.ConversationSummaryService(counter=len)
     if scenario == "cancel":
-        task = asyncio.create_task(service._generate("batch", "source", "test", 100))
+        task = asyncio.create_task(
+            service._generate("batch", "source", "test", 100, kind=SummaryKind.BATCH)
+        )
         await started.wait()
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -498,10 +509,12 @@ async def test_summary_router_paths(together_settings, monkeypatch, scenario):
         return
     if scenario == "exhausted":
         with pytest.raises(APIStatusError):
-            await service._generate("batch", "source", "test", 100)
+            await service._generate(
+                "batch", "source", "test", 100, kind=SummaryKind.BATCH
+            )
         assert calls == ["primary", "backup"]
         return
-    await service._generate("batch", "source", "test", 100)
+    await service._generate("batch", "source", "test", 100, kind=SummaryKind.BATCH)
     if scenario == "success":
         assert calls == ["primary"]
     else:
@@ -510,5 +523,5 @@ async def test_summary_router_paths(together_settings, monkeypatch, scenario):
         assert cancelled.is_set()
     if scenario == "cooldown":
         calls.clear()
-        await service._generate("batch", "source", "test", 100)
+        await service._generate("batch", "source", "test", 100, kind=SummaryKind.BATCH)
         assert calls == ["backup"]

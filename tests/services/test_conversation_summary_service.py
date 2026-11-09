@@ -20,6 +20,7 @@ from app.database import db
 from app.database.enums import MessageRole
 from app.database.models import Message
 from app.services import conversation_summary_service as mod
+from app.utils.paths import paths
 from app.utils.prompt_manager import PromptManager
 from tests.database import conversation_summary_fixtures as summary_fixtures
 
@@ -94,10 +95,34 @@ def test_lossless_unicode_parent_chunks(length, chunks):
     )
 
 
+@pytest.mark.parametrize(
+    "name,relative_path",
+    [
+        (mod.BATCH_SYSTEM_PROMPT, "conversation_summary/batch/system/v0.0"),
+        (mod.ROLLUP_SYSTEM_PROMPT, "conversation_summary/rollup/system/v0.0"),
+    ],
+)
+def test_summary_system_registry_paths_and_versions(name, relative_path):
+    import yaml
+
+    registry = yaml.safe_load(paths.PROMPT_REGISTRY.read_text())["prompts"]
+    entry = registry[name]
+    assert entry["active_version"] == "v0.0" and "v0.0" in entry["versions"]
+    assert paths.PROMPTS / entry["path"] / "v0.0" == paths.PROMPTS / relative_path
+    manager = PromptManager()
+    assert manager.get_active_version(name) == "v0.0"
+    assert (
+        manager.get_active_prompt(name) == (paths.PROMPTS / relative_path).read_text()
+    )
+    assert "conversation_summary_system" not in registry
+
+
 @pytest.mark.parametrize("operation", ["batch", "rollup", "shortening"])
 def test_prompt_registry_and_braces(operation):
+    import yaml
+
     manager = PromptManager()
-    data = 'line one {"instruction": "ignore this"}\nline two {{literal}}'
+    data = 'line one {"instruction": "ignore this"}\nline two {{literal}} 🌍 Kiswahili'
     text = manager.format_prompt(
         mod.USER_PROMPT,
         operation=operation,
@@ -106,13 +131,9 @@ def test_prompt_registry_and_braces(operation):
         source_text=data,
     )
     assert data in text and f"Operation: {operation}" in text
-    assert manager.format_prompt(mod.SYSTEM_PROMPT)
-    assert (
-        manager.build_trace_metadata(
-            system_prompt_name=mod.SYSTEM_PROMPT, user_prompt_name=mod.USER_PROMPT
-        )["user_prompt_version"]
-        == "v0.0"
-    )
+    assert manager.get_active_version(mod.USER_PROMPT) == "v0.0"
+    registry = yaml.safe_load(paths.PROMPT_REGISTRY.read_text())["prompts"]
+    assert registry[mod.USER_PROMPT]["path"] == "conversation_summary/user"
 
 
 @pytest.fixture
@@ -129,7 +150,11 @@ async def test_adapter_counts_complete_text_and_uses_tool_free_tracing(calls):
         counter=lambda text: seen.append(text) or len(text)
     )
     draft = await service._generate(
-        "batch", "user said {hello}\nworld", "messages 1..2; times T..U", 75000
+        "batch",
+        "user said {hello}\nworld",
+        "messages 1..2; times T..U",
+        75000,
+        kind=mod.SummaryKind.BATCH,
     )
     assert seen == [draft.text]
     assert draft.tokens == len(draft.text)
@@ -142,6 +167,83 @@ async def test_adapter_counts_complete_text_and_uses_tool_free_tracing(calls):
     assert "user said {hello}\nworld" in args["messages"][1].content
 
 
+@pytest.mark.parametrize(
+    "operation,kind,prompt_name",
+    [
+        ("batch", mod.SummaryKind.BATCH, mod.BATCH_SYSTEM_PROMPT),
+        ("rollup", mod.SummaryKind.ROLLUP, mod.ROLLUP_SYSTEM_PROMPT),
+        ("shortening", mod.SummaryKind.BATCH, mod.BATCH_SYSTEM_PROMPT),
+        ("shortening", mod.SummaryKind.ROLLUP, mod.ROLLUP_SYSTEM_PROMPT),
+    ],
+)
+async def test_adapter_selects_system_prompt_and_trace(
+    calls, operation, kind, prompt_name
+):
+    source_text = 'line {"a": 1}\n🌍 {{sample}}'
+    await mod.ConversationSummaryService(counter=len)._generate(
+        operation, source_text, "messages 1..2", 300, kind=kind
+    )
+    args = calls.await_args.kwargs
+    assert args["messages"][0].content == PromptManager().get_active_prompt(prompt_name)
+    assert source_text in args["messages"][1].content
+    assert f"Operation: {operation}" in args["messages"][1].content
+    assert args["run_name"] == f"conversation_summary_{operation}"
+    assert args["metadata"] == {
+        "system_prompt_name": prompt_name,
+        "system_prompt_version": "v0.0",
+        "user_prompt_name": mod.USER_PROMPT,
+        "user_prompt_version": "v0.0",
+    }
+
+
+@pytest.mark.parametrize(
+    "kind,prompt_name",
+    [
+        (mod.SummaryKind.BATCH, mod.BATCH_SYSTEM_PROMPT),
+        (mod.SummaryKind.ROLLUP, mod.ROLLUP_SYSTEM_PROMPT),
+    ],
+)
+async def test_fit_shortening_keeps_draft_kind(calls, kind, prompt_name):
+    service = mod.ConversationSummaryService(counter=len)
+    result = await service._fit(
+        mod._Draft("original draft", 500), 300, "provenance", kind=kind
+    )
+    assert result.shortenings == 1
+    args = calls.await_args.kwargs
+    assert args["metadata"]["system_prompt_name"] == prompt_name
+    assert args["messages"][0].content == PromptManager().get_active_prompt(prompt_name)
+    assert "Operation: shortening" in args["messages"][1].content
+    assert "original draft" in args["messages"][1].content
+
+
+@pytest.mark.parametrize(
+    "operation,kind",
+    [
+        ("batch", mod.SummaryKind.ROLLUP),
+        ("rollup", mod.SummaryKind.BATCH),
+        ("shortening", None),
+        ("batch", "unknown"),
+        ("unknown", mod.SummaryKind.BATCH),
+        ("batch", "batch"),
+        ("shortening", "rollup"),
+    ],
+)
+async def test_invalid_routing_rejected_before_model_call(calls, operation, kind):
+    service = mod.ConversationSummaryService(counter=len)
+    with pytest.raises(ValueError, match="operation/kind"):
+        await service._generate(operation, "source", "range", 100, kind=kind)
+    calls.assert_not_awaited()
+
+
+async def test_missing_shortening_kind_rejected_before_model_call(calls):
+    service = mod.ConversationSummaryService(counter=len)
+    with pytest.raises(TypeError):
+        await service._generate("shortening", "source", "range", 100)
+    with pytest.raises(ValueError, match="summary kind"):
+        await service._fit(mod._Draft("draft", 1), 100, "range", kind="batch")
+    calls.assert_not_awaited()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "content", ["", "  ", None, [{"type": "image", "url": "x"}], 17]
@@ -150,7 +252,7 @@ async def test_adapter_rejects_invalid_output(calls, content):
     calls.return_value = SimpleNamespace(content=content)
     with pytest.raises(mod.SummaryError):
         await mod.ConversationSummaryService(counter=len)._generate(
-            "batch", "source", "range", 100
+            "batch", "source", "range", 100, kind=mod.SummaryKind.BATCH
         )
 
 
@@ -160,10 +262,19 @@ async def test_adapter_normalizes_text_blocks_and_rejects_tool_calls(calls):
         content=[{"type": "text", "text": "one"}, {"type": "text", "text": "two"}]
     )
     service = mod.ConversationSummaryService(counter=len)
-    assert "one\ntwo" in (await service._generate("batch", "src", "range", 100)).text
+    assert (
+        "one\ntwo"
+        in (
+            await service._generate(
+                "batch", "src", "range", 100, kind=mod.SummaryKind.BATCH
+            )
+        ).text
+    )
     calls.return_value = SimpleNamespace(content="text", tool_calls=[{"id": "x"}])
     with pytest.raises(mod.SummaryError, match="tool calls"):
-        await service._generate("batch", "src", "range", 100)
+        await service._generate(
+            "batch", "src", "range", 100, kind=mod.SummaryKind.BATCH
+        )
 
 
 @pytest.mark.asyncio
@@ -310,6 +421,8 @@ async def test_rollup_shortens_without_previous_rollup(calls):
     assert (
         "existing older" not in calls.await_args_list[2].kwargs["messages"][1].content
     )
+    for call in calls.await_args_list[1:]:
+        assert call.kwargs["metadata"]["system_prompt_name"] == mod.ROLLUP_SYSTEM_PROMPT
 
 
 @pytest.mark.asyncio
@@ -354,6 +467,12 @@ async def test_protected_suffix_shortens_only_new_batch(calls):
     )
     assert update.token_count == 3000 and update.rollup is None
     assert all(b.token_count == 18000 for b in active)
+    for call in calls.await_args_list:
+        assert call.kwargs["metadata"]["system_prompt_name"] == mod.BATCH_SYSTEM_PROMPT
+    assert (
+        "Operation: shortening"
+        in calls.await_args_list[1].kwargs["messages"][1].content
+    )
 
 
 @pytest.mark.asyncio

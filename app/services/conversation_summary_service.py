@@ -21,7 +21,8 @@ from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
-SYSTEM_PROMPT = "conversation_summary_system"
+BATCH_SYSTEM_PROMPT = "conversation_summary_batch_system"
+ROLLUP_SYSTEM_PROMPT = "conversation_summary_rollup_system"
 USER_PROMPT = "conversation_summary_user"
 
 
@@ -86,6 +87,11 @@ class SummaryOutcome(StrEnum):
     FAILED = "failed"
 
 
+class SummaryKind(StrEnum):
+    BATCH = "batch"
+    ROLLUP = "rollup"
+
+
 @dataclass(frozen=True)
 class _Draft:
     text: str
@@ -145,11 +151,25 @@ class ConversationSummaryService:
         return snapshot
 
     async def _generate(
-        self, operation: str, source_text: str, provenance: str, budget: int
+        self,
+        operation: str,
+        source_text: str,
+        provenance: str,
+        budget: int,
+        *,
+        kind: SummaryKind,
     ) -> _Draft:
+        if not isinstance(kind, SummaryKind) or operation not in (
+            kind.value,
+            "shortening",
+        ):
+            raise ValueError(f"Invalid summary operation/kind: {operation!r}/{kind!r}")
+        system_prompt = (
+            BATCH_SYSTEM_PROMPT if kind is SummaryKind.BATCH else ROLLUP_SYSTEM_PROMPT
+        )
         response = await async_llm_request(
             messages=[
-                SystemMessage(content=prompt_manager.format_prompt(SYSTEM_PROMPT)),
+                SystemMessage(content=prompt_manager.format_prompt(system_prompt)),
                 HumanMessage(
                     content=prompt_manager.format_prompt(
                         USER_PROMPT,
@@ -167,7 +187,7 @@ class ConversationSummaryService:
             failover_total_timeout=summary_settings.operation_timeout_seconds * 5 / 6,
             run_name=f"conversation_summary_{operation}",
             metadata=prompt_manager.build_trace_metadata(
-                system_prompt_name=SYSTEM_PROMPT,
+                system_prompt_name=system_prompt,
                 user_prompt_name=USER_PROMPT,
             ),
         )
@@ -190,13 +210,24 @@ class ConversationSummaryService:
         text = _wrap(content.strip(), provenance)
         return _Draft(text, self.counter(text))
 
-    async def _fit(self, draft: _Draft, budget: int, provenance: str) -> _Draft:
+    async def _fit(
+        self,
+        draft: _Draft,
+        budget: int,
+        provenance: str,
+        *,
+        kind: SummaryKind,
+    ) -> _Draft:
+        if not isinstance(kind, SummaryKind):
+            raise ValueError(f"Invalid summary kind: {kind!r}")
         while draft.tokens > budget:
             if budget <= 0 or draft.shortenings >= summary_settings.shortening_attempts:
                 raise SummaryError(
                     "Summary cannot fit the fixed budget within shortening limit"
                 )
-            shorter = await self._generate("shortening", draft.text, provenance, budget)
+            shorter = await self._generate(
+                "shortening", draft.text, provenance, budget, kind=kind
+            )
             draft = replace(shorter, shortenings=draft.shortenings + 1)
         return draft
 
@@ -207,16 +238,22 @@ class ConversationSummaryService:
     ) -> db.SummaryUpdate:
         provenance = _source_provenance(sources)
         draft = await self._generate(
-            "batch", _source_text(sources), provenance, summary_settings.recent_tokens
+            "batch",
+            _source_text(sources),
+            provenance,
+            summary_settings.recent_tokens,
+            kind=SummaryKind.BATCH,
         )
-        draft = await self._fit(draft, summary_settings.recent_tokens, provenance)
+        draft = await self._fit(
+            draft, summary_settings.recent_tokens, provenance, kind=SummaryKind.BATCH
+        )
         active = snapshot.active_batches
         # The new batch is part of the latest five. Never rewrite the preceding four.
         protected_existing = active[-(summary_settings.retained_batches - 1) :]
         available = summary_settings.recent_tokens - sum(
             b.token_count for b in protected_existing
         )
-        draft = await self._fit(draft, available, provenance)
+        draft = await self._fit(draft, available, provenance, kind=SummaryKind.BATCH)
         total = sum(b.token_count for b in active) + draft.tokens
         prefix = []
         for batch in active[
@@ -237,10 +274,17 @@ class ConversationSummaryService:
             )
             text = "\n\n".join(b.summary_text for b in prefix)
             older = await self._generate(
-                "rollup", text, rollup_provenance, summary_settings.rollup_tokens
+                "rollup",
+                text,
+                rollup_provenance,
+                summary_settings.rollup_tokens,
+                kind=SummaryKind.ROLLUP,
             )
             older = await self._fit(
-                older, summary_settings.rollup_tokens, rollup_provenance
+                older,
+                summary_settings.rollup_tokens,
+                rollup_provenance,
+                kind=SummaryKind.ROLLUP,
             )
             rollup = db.RollupUpdate(
                 tuple(b.sequence_number for b in prefix), older.text, older.tokens
