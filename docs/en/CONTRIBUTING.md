@@ -36,6 +36,10 @@ To start contributing to Twiga, follow these steps:
 7. Push to your remote branch: `git push origin your-branch-name`
 8. Submit a pull request to the `development` branch of the original repository
 
+## Large Generated Assets
+
+For large generated assets such as tokenizer JSON files, add explicit paths to the root `.gitattributes` with `-diff linguist-generated=true` to suppress Git line counts and hide GitHub diffs by default.
+
 ## Code Formatting and Linting
 
 Make sure to follow the established coding style guidelines in this project. We believe consistent formatting of the code makes it easier to understand and debug. Therefore, we enforce good formatting conventions using [_pre-commit_](https://pre-commit.com/) in order to automatically run the Python [_black_](https://github.com/psf/black) and [_ruff_](https://docs.astral.sh/ruff/) formatters on every commit.
