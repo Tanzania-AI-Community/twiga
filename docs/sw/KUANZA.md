@@ -60,7 +60,7 @@ Anza kwa kutengeneza faili la `.env` kwenye folda kuu ya Twiga, kisha nakili na 
 
 > [!Kumbuka]
 >
-> > Hatua nyingi zilizo katika [mahitaji ya usanidi](#-setup-prerequisites) zinatokana na [mafunzo](https://github.com/daveebbelaar/python-whatsapp-bot) yaliyoandaliwa na Dave Ebbelaar.
+> > Hatua nyingi zilizo katika [mahitaji ya usanidi](#-maandalizi-ya-usanidi) zinatokana na [mafunzo](https://github.com/daveebbelaar/python-whatsapp-bot) yaliyoandaliwa na Dave Ebbelaar.
 
 Katika faili [`architecture.md`](https://github.com/Tanzania-AI-Community/twiga/blob/main/docs/en/ARCHITECTURE.md), unaweza kuona vipengele vikuu vya miundombinu inayotumika kuendesha Twiga. Hata hivyo, si lazima kutumia Neon na Render, kwani unaweza kuzibadilisha na toleo la 'local'. Lakini, unaweza kuzijaribu ikiwa unapenda, kwani zinatoa matoleo ya bure yenye ukarimu mkubwa.
 
@@ -190,6 +190,17 @@ Usanidi wa Docker huunganisha (mount) `~/.config/gcloud/` ndani ya kontena la pr
 >
 > Data ya mfano inayopakiwa na `make setup-env` imetengenezwa kwa `gemini-embedding-001`. Ukibadilisha kwenda mfano mwingine wa embedding wenye ukubwa sawa wa vekta (kama ule wa msingi wa Ollama), hutapata hitilafu yoyote, ila matokeo ya utafutaji hayatahusiana na swali.
 
+## 🦙 Sanidi Ollama kwa LLM na embeddings za ndani
+
+Unaweza kuendesha model za chat na embedding kwa [Ollama](https://ollama.com/). Sakinisha Ollama, kisha pakua model zinazolingana na `.env.template`:
+
+```bash
+ollama pull llama3.2
+ollama pull mxbai-embed-large
+```
+
+API inayolingana na OpenAI hupatikana kwenye `http://localhost:11434/v1`; kwa ufikiaji wa nje tumia tunnel kama `ngrok http 11434`. Anzisha upya FastAPI (`make run` au `docker-compose … up`) baada ya kusanidi. Embeddings za Ollama hazitalingana na data ya sampuli iliyotengenezwa kwa Google; tazama [usanidi wa Google Cloud](#-sanidi-google-cloud-kwa-ajili-ya-embedding). Ukiweka `LLM_API_KEY`, unaweza kubadilisha `LLM_PROVIDER` tena. Kwa mahitaji maalum ya runtime ya summary, ikiwemo providers zinazotumika, tazama [mwongozo wa muhtasari](MUHTASARI_WA_MAZUNGUMZO.md).
+
 ## 🧠 Sanidi hifadhidata yako ya Postgres kwenye kompyuta yako.
 
 Kama vile inavyofaa kwa chatbot yoyote, Twiga inafuata historia za mazungumzo, watumiaji, madarasa, rasilimali (yaani, nyaraka zinazohusiana na madarasa), hifadhidata ya vector, n.k. Kwa bahati nzuri, kila kitu (ikiwemo hifadhidata ya vector) kinahifadhiwa katika meza za hifadhidata ya Postgres. Tunatumia Neon kuhudumia hifadhidata yetu, lakini kwa ajili ya maendeleo ya ndani tunatumia PostgreSQL.
@@ -238,7 +249,7 @@ WHATSAPP_VERIFY_TOKEN=$YOUR_RANDOM_VERIFY_TOKEN
 ```
 
 Sasa, hakikisha kuwa endpoint yako ya Ngrok inafanya kazi kwenye laini ya amri (terminal) na anzisha upya programu ya FastAPI kwenye laini nyingine ya amri ili itambue faili ya `.env` iliyobadilika. Jinsi ya kuendesha haya ilielezewa kwenye sehemu za Sanidi webhooks na Ngrok na Sanidi programu ya FastAPI.
-[Sanidi webhooks na Ngrok](#-configure-webhooks-with-ngrok) na [ Sanidi programu ya FastAPI](#️-set-up-the-fastapi-application).
+[Sanidi webhooks na Ngrok](#-sanidi-webhooks-kwa-kutumia-ngrok) na [ Sanidi programu ya FastAPI](#️-sanidi-programu-ya-fastapi).
 
 Sasa, kwenye Dashibodi yako ya Meta App, nenda kwenye **WhatsApp > Configuration**. Katika sehemu ya Webhook, jaza maadili ya **Callback URL** na **Verify Token**.
 
@@ -255,3 +266,5 @@ Ikiwa ulijaza faili la `.env` kwa usahihi, unapaswa kuona mafanikio kwenye maand
 ## 🥳 Hongera!
 
 Ikiwa umefikia hapa bila matatizo, sasa unapaswa kuwa na seva inayofanya kazi kwa Twiga ambayo unaweza kutuma ujumbe moja kwa moja kutoka kwa akaunti yako ya WhatsApp. Ikiwa unakutana na matatizo hadi hatua hii, jiunge na [Discord](https://discord.gg/bCe2HfZY2C) yetu na andika swali lako katika `⚒-tech-support`.
+
+Kwa mahitaji ya runtime na vipimo vya summary, tazama [muhtasari wa mazungumzo](MUHTASARI_WA_MAZUNGUMZO.md).

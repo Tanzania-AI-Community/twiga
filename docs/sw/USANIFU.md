@@ -30,13 +30,15 @@ Tutakuachia ugundue mengine.
 >
 > Ikiwa chochote hapa kinaonekana sio sahihi, kinaweza kuwa hakijasasishwa. Tujulishe 😁
 
+Usanidi wa summary hukaguliwa katika `app/config.py` na prompt templates husajiliwa katika `app/assets/config/prompts.yml`; tazama [mwongozo wa muhtasari](MUHTASARI_WA_MAZUNGUMZO.md).
+
 ## `scripts`
 
 Ndani ya folda ya `scripts` tunahifadhi faili ambazo huendeshwa mara kwa mara kutoka upande wa msanidi programu. Angalia ndani yake ikiwa unataka kujaza toleo lako la hifadhidata na data ya vitabu.
 
 ## `tests`
 
-Vipimo viko katika `tests/`. Kwa vipimo vya uhifadhi wa muhtasari wa mazungumzo, angalia [maelekezo ya Kiingereza](../en/CONVERSATION_SUMMARIES.md#tests).
+Vipimo viko katika `tests/`. Kwa vipimo vya uhifadhi wa muhtasari wa mazungumzo, angalia [maelekezo ya muhtasari](MUHTASARI_WA_MAZUNGUMZO.md#vipimo).
 
 # Muundo wa Hifadhidata
 
@@ -45,3 +47,5 @@ Tunatumia [SQLModel](https://sqlmodel.tiangolo.com/) ya tiangolos kama [ORM](htt
 ## `migrations`
 
 Folda hii inaweka rekodi ya historia ya hifadhidata. Tunatumia uhamishaji wa [_alembic_](https://medium.com/@kasperjuunge/how-to-get-started-with-alembic-and-sqlmodel-288700002543). Isipokuwa unataka kutumia _alembic_ kwa nakala yako ya hifadhidata unaweza kupuuza folda hii. Ikiwa uko katika timu kuu na una ufikiaji wa hifadhidata yetu ya Neon, inaweza kuwa vizuri kujua jinsi inavyofanya kazi na kwa nini tunatumia.
+
+Uhifadhi wa muhtasari uko katika `app/database/db.py` na models katika `app/database/models.py`; tazama [mwongozo wa uhifadhi](UHIFADHI_WA_MUHTASARI.md).

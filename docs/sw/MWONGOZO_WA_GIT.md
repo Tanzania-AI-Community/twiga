@@ -200,3 +200,12 @@ Mradi huu unatumia mchanganyiko wa kupangilia upya na kuunganisha ili kudumisha 
 5. **Upimaji**:
    - Hakikisha vipimo vyote vinapita kabla ya kuwasilisha PR.
    - Jumuisha vipimo vipya kwa vipengele vilivyoongezwa.
+
+
+6. **Nyaraka**:
+   - Sasisha nyaraka zinazohusika pamoja na mabadiliko yako.
+   - Ongeza maoni ya ndani ya msimbo kwa mantiki tata.
+
+### Mchakato wa CI/CD
+
+Pipeline ya CI/CD huendesha linting (ruff), formatting (black) na unit tests rahisi. Baada ya idhini ya mtu, merge kwenye `development` husababisha deployment ya staging na merge kwenye `main` husababisha deployment ya production.

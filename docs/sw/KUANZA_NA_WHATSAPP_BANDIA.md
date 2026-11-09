@@ -81,6 +81,34 @@ Hatua inayofuata, wacha tujenge picha zote za Docker na data za ndani, ambazo zi
 make setup-env
 ```
 
+## 📱 Sanidi WhatsApp bandia
+
+1. Nakili hifadhi ya mock na ufuate README yake kusakinisha utegemezi na kuanzisha server:
+
+```bash
+git clone https://github.com/Tanzania-AI-Community/mock-whatsapp.git
+```
+
+2. Weka receiver ya ujumbe unaotoka katika `.env` ya Twiga:
+
+```dotenv
+MOCK_WHATSAPP=True
+MOCK_WHATSAPP_API_URL=http://127.0.0.1:3000/api/whatsapp
+MOCK_WHATSAPP_TOKEN=change-me-local-token
+```
+
+Weka tokeni hiyo hiyo katika mazingira ya mock pamoja na `CHATBOT_CALLBACK_URL=http://127.0.0.1:8000/devhooks`. Acha thamani za mfano za Meta kutoka `.env.template.simple`; credentials halisi za Meta hazihitajiki. Mock huonyesha maandishi yaliyokubaliwa, chunks, taarifa za maendeleo, read receipts na typing; event log ya ndani hudumu baada ya restart. Media na interactive messages bado hazitumiki. Observer mode ni mwonekano tofauti wa kusoma hifadhidata tu.
+
+Twiga ikiwa kwenye Docker, jaribu `http://host.docker.internal:3000/api/whatsapp` kwa receiver. Ufikiaji wa host loopback hutegemea jukwaa la Docker; hakikisha kontena linafikia mock bila kufungua listener kwa umma.
+
+Kwa jaribio la transport, anzisha mock na event directory ya muda na `CHATBOT_CALLBACK_URL=http://127.0.0.1:1/devhooks`, kisha endesha:
+
+```sh
+MOCK_WHATSAPP_TEST_URL=http://127.0.0.1:3000 uv run pytest tests/integration/test_mock_whatsapp_transport.py
+```
+
+Jaribio hutumia WhatsApp client na mock receiver halisi bila model calls au maswali ya hifadhidata.
+
 ## 🖥️ Sanidi programu ya FastAPI
 
 Endesha amri ifuatayo ili kuendesha mradi:
