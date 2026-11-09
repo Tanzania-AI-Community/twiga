@@ -43,6 +43,10 @@ def _extract_statuses(body: dict) -> list[dict]:
     return value.get("statuses") or []
 
 
+class MockRoutingError(httpx.RequestError):
+    """A mock-mode request that would leave the local WhatsApp simulator."""
+
+
 class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
     _MAX_DOCUMENT_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
@@ -51,16 +55,40 @@ class WhatsAppClient:
     def __init__(self):
         token = settings.whatsapp_api_token.get_secret_value()
         self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
+        self.graph_url = f"https://graph.facebook.com/{settings.meta_api_version}"
+        event_hooks = {}
         if settings.mock_whatsapp:
             assert settings.mock_whatsapp_api_url and settings.mock_whatsapp_token
             self.url = settings.mock_whatsapp_api_url.rstrip("/")
+            # The simulator serves media IDs next to its messages endpoint
+            self.graph_url = self.url
             token = settings.mock_whatsapp_token.get_secret_value()
+            event_hooks = {"request": [self._require_mock_destination]}
         self.headers = {
             "Content-type": "application/json",
             "Authorization": f"Bearer {token}",
         }
         self.logger = logging.getLogger(__name__)
-        self.client = httpx.AsyncClient(base_url=self.url)
+        self.client = httpx.AsyncClient(
+            base_url=self.url,
+            event_hooks=event_hooks,
+            trust_env=not settings.mock_whatsapp,
+        )
+
+    async def _require_mock_destination(self, request: httpx.Request) -> None:
+        mock = httpx.URL(self.url)
+        if (request.url.scheme, request.url.host, request.url.port) != (
+            mock.scheme,
+            mock.host,
+            mock.port,
+        ):
+            raise MockRoutingError(
+                f"Mock WhatsApp blocked a request to {request.url.host}",
+                request=request,
+            )
+
+    def media_url(self, media_id: str) -> str:
+        return f"{self.graph_url}/{media_id}"
 
     async def send_message(
         self, wa_id: str, message: str, options: list[str] | None = None
@@ -151,9 +179,6 @@ class WhatsAppClient:
         flow_cta: str,
         mode: str = "published",
     ) -> None:
-        if settings.mock_whatsapp:
-            return
-
         flow_token = flow_utils.encrypt_flow_token(user.wa_id, flow_id)
 
         payload = {
@@ -207,12 +232,6 @@ class WhatsAppClient:
         img_type: ImageType,
         caption: str | None = None,
     ) -> bool:
-        if settings.mock_whatsapp:
-            self.logger.info(
-                f"Mock send_image_message called for {wa_id} with image {image_path}"
-            )
-            return True
-
         media_id: str | None = None
 
         try:
@@ -268,12 +287,6 @@ class WhatsAppClient:
         caption: Optional[str] = None,
         delete_local_file: bool = False,
     ) -> bool:
-        if settings.mock_whatsapp:
-            self.logger.info(
-                f"Mock send_document_message called for {wa_id} with document {document_path}"
-            )
-            return True
-
         media_id: Optional[str] = None
 
         try:
@@ -326,15 +339,13 @@ class WhatsAppClient:
         self, media_id: str, image_path: str, delete_local_file: bool = True
     ) -> None:
         """Delete upload media from WhatsApp and locally"""
-        if settings.mock_whatsapp:
-            return
-
         try:
             headers = {
                 "Authorization": self.headers["Authorization"],
             }
-            url = f"https://graph.facebook.com/{settings.meta_api_version}/{media_id}"
-            response = await self.client.delete(url, headers=headers)
+            response = await self.client.delete(
+                self.media_url(media_id), headers=headers
+            )
             log_httpx_response(response)
             response.raise_for_status()
         except httpx.RequestError as e:
@@ -361,9 +372,6 @@ class WhatsAppClient:
         max_size_bytes: int,
     ) -> Optional[str]:
         """Upload media to WhatsApp and return the media ID."""
-
-        if settings.mock_whatsapp:
-            return None
 
         file_path = Path(path)
 
