@@ -38,7 +38,7 @@ Within the `scripts` folder we keep files that are run intermittently from the d
 
 ## `tests`
 
-Tests live in `tests/`. See [conversation summary persistence checks](CONTRIBUTING.md#conversation-summary-persistence-checks) for the PostgreSQL foundation.
+Tests live in `tests/`. See [conversation summary persistence checks](CONVERSATION_SUMMARIES.md#tests) for the PostgreSQL foundation.
 
 # Database schema
 

@@ -36,7 +36,7 @@ Ndani ya folda ya `scripts` tunahifadhi faili ambazo huendeshwa mara kwa mara ku
 
 ## `tests`
 
-Vipimo viko katika `tests/`. Kwa vipimo vya uhifadhi wa muhtasari wa mazungumzo, angalia [maelekezo ya Kiingereza](../en/CONTRIBUTING.md#conversation-summary-persistence-checks).
+Vipimo viko katika `tests/`. Kwa vipimo vya uhifadhi wa muhtasari wa mazungumzo, angalia [maelekezo ya Kiingereza](../en/CONVERSATION_SUMMARIES.md#tests).
 
 # Muundo wa Hifadhidata
 

@@ -39,4 +39,4 @@ Upgrade through the parent revision first. A fresh database must also satisfy th
 prerequisites of the earlier migration chain, including pgvector. The downgrade
 discards all stored summaries and coverage; restoring those requires a backup or
 rebuilding them from retained messages. See the [persistence guide](CONVERSATION_SUMMARY_PERSISTENCE.md)
-and [isolated test instructions](CONTRIBUTING.md#conversation-summary-persistence-checks).
+and [isolated test instructions](CONVERSATION_SUMMARIES.md#tests).

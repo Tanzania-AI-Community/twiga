@@ -63,7 +63,7 @@ a caller needs a fresh snapshot before deciding what to write.
 ## Migration and checks
 
 See [migration guidance](MIGRATIONS.md#conversation-summary-schema-issue-92)
-for prerequisites and downgrade effects, and the [test command](CONTRIBUTING.md#conversation-summary-persistence-checks)
+for prerequisites and downgrade effects, and the [test command](CONVERSATION_SUMMARIES.md#tests)
 for the disposable database setup.
 
 `test_conversation_summary_db.py` checks model defaults and constraints,
