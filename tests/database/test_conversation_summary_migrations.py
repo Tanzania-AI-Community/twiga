@@ -84,9 +84,11 @@ def test_migration_matches_model_schema_and_source_parent(monkeypatch):
                 return {
                     (
                         c.name,
-                        str(c.sqltext)
-                        if isinstance(c, CheckConstraint)
-                        else tuple(c.columns.keys()),
+                        (
+                            str(c.sqltext)
+                            if isinstance(c, CheckConstraint)
+                            else tuple(c.columns.keys())
+                        ),
                     )
                     for c in table.constraints
                     if isinstance(c, cls)

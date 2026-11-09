@@ -5,7 +5,6 @@ This module sets the env configs for our WhatsApp app.
 import os
 from enum import Enum
 from typing import Literal, Optional
-from typing import Optional
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator

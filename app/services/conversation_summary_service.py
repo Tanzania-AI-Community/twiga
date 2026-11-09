@@ -138,8 +138,9 @@ class ConversationSummaryService:
     def __init__(
         self,
         counter: Callable[[str], int],
-        snapshot_validator: Callable[[db.ConversationSummarySnapshot], None]
-        | None = None,
+        snapshot_validator: (
+            Callable[[db.ConversationSummarySnapshot], None] | None
+        ) = None,
     ):
         self.counter = counter
         self.snapshot_validator = snapshot_validator
@@ -336,9 +337,10 @@ class ConversationSummaryService:
                     candidate.token_count,
                     snapshot.version,
                 )
-                return await self._load_snapshot(
-                    snapshot.user_id
-                ), SummaryOutcome.COMMITTED
+                return (
+                    await self._load_snapshot(snapshot.user_id),
+                    SummaryOutcome.COMMITTED,
+                )
             logger.info(
                 "Discarding stale summary user=%s version=%s attempt=%s",
                 snapshot.user_id,

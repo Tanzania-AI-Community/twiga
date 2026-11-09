@@ -376,11 +376,11 @@ async def async_llm_request(
             invoke,
             scope=(effective_base_url or "together-default", credential_hash),
             attempt_timeout=attempt_timeout,
-            total_timeout=min(
-                llm_settings.together_total_timeout, failover_total_timeout
-            )
-            if failover_total_timeout is not None
-            else llm_settings.together_total_timeout,
+            total_timeout=(
+                min(llm_settings.together_total_timeout, failover_total_timeout)
+                if failover_total_timeout is not None
+                else llm_settings.together_total_timeout
+            ),
             cooldown_seconds=llm_settings.together_cooldown_seconds,
         )
 

@@ -24,4 +24,5 @@ repos:
       - id: check-yaml
       - id: detect-private-key
       - id: end-of-file-fixer
+        exclude: ^app/assets/tokenizers/glm_5_3_flash\.json$
       - id: trailing-whitespace

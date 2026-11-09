@@ -743,7 +743,8 @@ def test_generic_import_and_preparation_without_runtime_dependencies():
     # A fresh interpreter prevents an already cached import from hiding coupling.
     # Run with real C1/C2 modules, but forbid both runtime construction and the
     # package/assets that the generic service is being separated from.
-    script = textwrap.dedent("""
+    script = textwrap.dedent(
+        """
         import asyncio
         import importlib.abc
         import sys
@@ -783,7 +784,8 @@ def test_generic_import_and_preparation_without_runtime_dependencies():
         assert result.snapshot.pending_sources == (source,)
         assert result.request.current_user_message_ids == (1,)
         generic.async_llm_request.assert_not_awaited()
-    """)
+    """
+    )
     result = subprocess.run(
         [sys.executable, "-c", script],
         cwd=Path(__file__).resolve().parents[2],
