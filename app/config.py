@@ -319,6 +319,21 @@ class ToolSettings(BaseSettings):
     search_knowledge_n_results: int = yaml_config["tools"]["search_knowledge"][
         "n_results"
     ]
+    search_knowledge_rerank_enabled: bool = yaml_config["tools"]["search_knowledge"][
+        "rerank"
+    ]["enabled"]
+    search_knowledge_rerank_candidate_pool: int = yaml_config["tools"][
+        "search_knowledge"
+    ]["rerank"]["candidate_pool"]
+    search_knowledge_rerank_provider: str = yaml_config["tools"]["search_knowledge"][
+        "rerank"
+    ]["provider"]
+    search_knowledge_rerank_model: str = yaml_config["tools"]["search_knowledge"][
+        "rerank"
+    ]["model"]
+    search_knowledge_rerank_timeout: float = yaml_config["tools"]["search_knowledge"][
+        "rerank"
+    ]["timeout"]
 
     solve_equation_api_key: Optional[SecretStr] = Field(
         default=None, validation_alias="llm_api_key"
