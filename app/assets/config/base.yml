@@ -43,6 +43,13 @@ embedding:
 tools:
   search_knowledge:
     n_results: 15
+    rerank:
+      enabled: false
+      # Chunks fetched by vector search before reranking down to n_results.
+      candidate_pool: 50
+      provider: vertex
+      model: "semantic-ranker-default@latest"
+      timeout: 3
 
   solve_equation:
     model_name: "MiniMaxAI/MiniMax-M3"
