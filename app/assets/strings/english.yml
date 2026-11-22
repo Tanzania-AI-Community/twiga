@@ -15,7 +15,7 @@ error:
   tool_leakage: "Sorry, I can't help with that request. If you have another question or need help with a different topic, I'm happy to assist."
 
 info:
-  help: "You can type 'settings' to update your personal and school info. Or just talk to me like a colleague."
+  help: "You can type 'settings' to change your name or your classes and subjects. Or just talk to me like a colleague."
   image_help: "You can also send a clear photo of an exercise or textbook question. Add a caption to tell me what you need help with."
 
 onboarding:
