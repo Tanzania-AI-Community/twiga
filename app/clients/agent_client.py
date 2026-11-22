@@ -7,6 +7,8 @@ from app.clients.client_base import (
     BUFFERED_RESPONSE,
     ClientBase,
     GenerateResponseResult,
+    Preparation,
+    PreparationFailed,
 )
 from app.config import Prompt, llm_settings
 from app.database.models import Message, User
@@ -130,12 +132,24 @@ class AgentClient(ClientBase):
         self,
         user: User,
         message: Message,
+        prepare: Preparation | None = None,
     ) -> GenerateResponseResult:
-        """Generates a response using an agentic loop."""
+        """Generates a response using an agentic loop.
+
+        `prepare` readies the message under the user's turn, so messages arriving
+        meanwhile are answered with it instead of overtaking it.
+        """
         if user.id is None:
             self.logger.error("User object is missing an ID, cannot generate response.")
             raise ValueError("User object must have an ID to generate a response.")
 
+        if prepare and self._get_processor(user.id).is_locked:
+            # The running turn would otherwise answer this message unprepared
+            if error_key := await prepare():
+                return PreparationFailed(error_key)
+            prepare = None
+
+        # Fetched again: the running turn may have finished and removed it
         processor = self._get_processor(user.id)
         processor.add_message(message)
 
@@ -151,6 +165,15 @@ class AgentClient(ClientBase):
             # A tool is announced at most once per turn
             notified_tools: set[str] = set()
             try:
+                if prepare and (error_key := await prepare()):
+                    self.logger.info(
+                        f"Preparation failed for user {user.id}: {error_key}"
+                    )
+                    processor.remove([message])
+                    if not processor.has_messages:
+                        return PreparationFailed(error_key)
+                    # Messages buffered during preparation are still answered
+
                 while True:
                     api_messages, error_messages = await self._preprocess_messages(
                         user=user,

@@ -1,11 +1,12 @@
 """Core image routing, answering, and teacher-facing failure behaviour."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 from fastapi.responses import JSONResponse
 
+from app.clients.client_base import PreparationFailed
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.models.image_models import (
@@ -129,7 +130,8 @@ def flow(monkeypatch):
 
 @pytest.mark.parametrize("latex", [False, True])
 async def test_image_extraction_reaches_agent_and_existing_delivery(flow, latex):
-    async def generate(user, message):
+    async def generate(user, message, prepare):
+        assert await prepare() is None
         flow.persist.assert_awaited_once()
         assert message.id == 9
         assert "Teacher instruction: Solve both" in message.content
@@ -151,7 +153,9 @@ async def test_image_extraction_reaches_agent_and_existing_delivery(flow, latex)
     assert response.status_code == 200
     flow.download.assert_awaited_once_with("12345")
     flow.interpret.assert_awaited_once_with(flow.download.return_value, "Solve both")
-    flow.agent.assert_awaited_once_with(user=flow.user, message=flow.message)
+    flow.agent.assert_awaited_once_with(
+        user=flow.user, message=flow.message, prepare=ANY
+    )
     if latex:
         send_latex.assert_awaited_once_with(
             user=flow.user, llm_content="Solutions", source_chunk_ids=None
@@ -191,16 +195,44 @@ async def test_image_failure_sends_feedback_instead_of_answering(
     else:
         flow.interpret.side_effect = ImageInputError()
 
+    async def generate(user, message, prepare):
+        return PreparationFailed(await prepare())
+
+    flow.agent.side_effect = generate
     response = await flow.service.handle_image_message(flow.user, flow.message, payload)
 
     expected = messaging_service.strings.get_string(
         messaging_service.StringCategory.ERROR, error_key
     )
     assert response.status_code == 200
-    flow.agent.assert_not_awaited()
+    flow.agent.assert_awaited_once()
     flow.persist.assert_not_awaited()
     flow.send.assert_awaited_once_with(flow.user.wa_id, expected)
     flow.visible.assert_awaited_once_with(flow.user, expected)
     if failure in ("disabled", "bad_id"):
         flow.download.assert_not_awaited()
         flow.interpret.assert_not_awaited()
+
+
+async def test_image_failure_is_reported_before_reply_to_buffered_text(flow):
+    """A text sent while the photo was read is still answered, after the error."""
+    flow.interpret.side_effect = ImageInputError("image_unreadable")
+
+    async def generate(user, message, prepare):
+        assert await prepare() == "image_unreadable"
+        return [
+            Message(user_id=user.id, role=MessageRole.assistant, content="Map scale")
+        ]
+
+    flow.agent.side_effect = generate
+    await flow.service.handle_image_message(
+        flow.user, flow.message, image_message()["image"]
+    )
+
+    expected = messaging_service.strings.get_string(
+        messaging_service.StringCategory.ERROR, "image_unreadable"
+    )
+    assert [call.args for call in flow.send.await_args_list] == [
+        (flow.user.wa_id, expected),
+        (flow.user.wa_id, "Map scale"),
+    ]

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.clients.agent_client import AgentClient
-from app.clients.client_base import BUFFERED_RESPONSE
+from app.clients.client_base import BUFFERED_RESPONSE, PreparationFailed
 from app.database import db
 from app.database.enums import MessageRole
 from app.database.models import Message, User
@@ -202,3 +202,150 @@ async def test_generate_response_requires_user_id() -> None:
             user=user,
             message=_make_user_message("hello"),
         )
+
+
+def _save_history(session, *contents: str) -> list[Message]:
+    """Persist visible user messages in arrival order."""
+    start = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    messages = [
+        Message(
+            user_id=1,
+            role=MessageRole.user,
+            content=content,
+            is_present_in_conversation=True,
+            created_at=start + timedelta(seconds=index),
+        )
+        for index, content in enumerate(contents)
+    ]
+    session.add_all(messages)
+    session.commit()
+    return messages
+
+
+@pytest.mark.asyncio
+async def test_text_sent_while_photo_is_prepared_is_answered_with_it(
+    message_history_session,
+) -> None:
+    """The text waits for the photo and both reach the agent in one turn."""
+    client = AgentClient()
+    user = _make_user()
+    photo, text = _save_history(
+        message_history_session, "Image not yet interpreted.", "answer question 1 only"
+    )
+    text_responses = []
+
+    async def prepare() -> None:
+        # The teacher's text arrives while the photo is still being read
+        text_responses.append(await client.generate_response(user, text))
+        photo.content = "The teacher sent a photo. 1. x + 2 = 3"
+
+    with patch(
+        "app.clients.agent_client.async_llm_request",
+        AsyncMock(return_value=AIMessage(content="x = 1")),
+    ) as mock_request:
+        response = await client.generate_response(user, photo, prepare=prepare)
+
+    assert text_responses == [BUFFERED_RESPONSE]
+    mock_request.assert_awaited_once()
+    payload = mock_request.await_args.kwargs["messages"]
+    assert [(message.type, message.content) for message in payload[1:]] == [
+        ("human", "The teacher sent a photo. 1. x + 2 = 3"),
+        ("human", "answer question 1 only"),
+    ]
+    assert isinstance(response, list)
+    assert response[-1].content == "x = 1"
+
+
+@pytest.mark.asyncio
+async def test_failed_preparation_with_nothing_else_skips_the_agent(
+    message_history_session,
+) -> None:
+    client = AgentClient()
+    (photo,) = _save_history(message_history_session, "Image not yet interpreted.")
+
+    with patch("app.clients.agent_client.async_llm_request", AsyncMock()) as request:
+        response = await client.generate_response(
+            _make_user(), photo, prepare=AsyncMock(return_value="image_unreadable")
+        )
+
+    assert response == PreparationFailed("image_unreadable")
+    request.assert_not_awaited()
+    assert not client._get_processor(1).has_messages
+
+
+@pytest.mark.asyncio
+async def test_failed_preparation_still_answers_text_buffered_meanwhile(
+    message_history_session,
+) -> None:
+    client = AgentClient()
+    user = _make_user()
+    photo, text = _save_history(
+        message_history_session, "Image not yet interpreted.", "what is a map scale?"
+    )
+
+    async def prepare() -> str:
+        await client.generate_response(user, text)
+        return "image_unreadable"
+
+    with patch(
+        "app.clients.agent_client.async_llm_request",
+        AsyncMock(return_value=AIMessage(content="A map scale is...")),
+    ) as mock_request:
+        response = await client.generate_response(user, photo, prepare=prepare)
+
+    assert isinstance(response, list)
+    assert response[-1].content == "A map scale is..."
+    mock_request.assert_awaited_once()
+    # The photo is dropped from the batch; only the text is the new message
+    payload = mock_request.await_args.kwargs["messages"]
+    assert payload[-1].content == "what is a map scale?"
+
+
+@pytest.mark.asyncio
+async def test_photo_arriving_during_another_turn_is_prepared_before_buffering() -> (
+    None
+):
+    """The running turn must never pick up the photo before it was read."""
+    client = AgentClient()
+    user = _make_user()
+    photo = _make_user_message("Image not yet interpreted.")
+
+    async def prepare() -> None:
+        photo.content = "The teacher sent a photo. 1. x + 2 = 3"
+
+    processor = client._get_processor(user.id)
+    await processor.lock.acquire()
+    try:
+        response = await client.generate_response(user, photo, prepare=prepare)
+        pending = processor.get_pending_messages()
+    finally:
+        processor.lock.release()
+        processor.clear_messages()
+        client._cleanup_processor(user.id)
+
+    assert response is BUFFERED_RESPONSE
+    assert [message.content for message in pending] == [
+        "The teacher sent a photo. 1. x + 2 = 3"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_failed_photo_during_another_turn_is_not_buffered() -> None:
+    client = AgentClient()
+    user = _make_user()
+
+    processor = client._get_processor(user.id)
+    await processor.lock.acquire()
+    try:
+        response = await client.generate_response(
+            user,
+            _make_user_message("Image not yet interpreted."),
+            prepare=AsyncMock(return_value="image_disabled"),
+        )
+        pending = processor.get_pending_messages()
+    finally:
+        processor.lock.release()
+        client._cleanup_processor(user.id)
+
+    assert response == PreparationFailed("image_disabled")
+    assert pending == []

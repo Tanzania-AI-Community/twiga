@@ -14,7 +14,11 @@ import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
-from app.clients.client_base import BUFFERED_RESPONSE
+from app.clients.client_base import (
+    BUFFERED_RESPONSE,
+    BufferedResponse,
+    PreparationFailed,
+)
 from app.clients.image_interpreter import image_interpreter
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
 from app.config import image_input_settings, settings
@@ -187,10 +191,23 @@ class MessagingService:
     async def handle_image_message(
         self, user: models.User, user_message: models.Message, image_payload: dict
     ) -> JSONResponse:
-        error_key = await self._prepare_image_message(user_message, image_payload)
-        if error_key:
-            return await self._send_image_error(user, error_key)
-        return await self._generate_and_deliver(user, user_message)
+        image_error: str | None = None
+
+        async def prepare_image() -> str | None:
+            nonlocal image_error
+            image_error = await self._prepare_image_message(user_message, image_payload)
+            return image_error
+
+        # Read under the user's turn, so a text sent right after the photo waits for it
+        llm_responses = await agent_client.generate_response(
+            user=user, message=user_message, prepare=prepare_image
+        )
+        if image_error:
+            # Sent before the reply to any text that arrived while the photo was read
+            await self._send_image_error(user, image_error)
+        if isinstance(llm_responses, PreparationFailed):
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+        return await self._deliver_llm_responses(user, llm_responses)
 
     async def _prepare_image_message(
         self, user_message: models.Message, image_payload: dict
@@ -248,7 +265,13 @@ class MessagingService:
         llm_responses = await agent_client.generate_response(
             user=user, message=user_message
         )
+        return await self._deliver_llm_responses(user, llm_responses)
 
+    async def _deliver_llm_responses(
+        self,
+        user: models.User,
+        llm_responses: list[models.Message] | BufferedResponse | None,
+    ) -> JSONResponse:
         if llm_responses is BUFFERED_RESPONSE:
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
