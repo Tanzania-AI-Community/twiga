@@ -19,6 +19,27 @@ class _DummyRequest:
         return self._body
 
 
+def _active_teacher() -> User:
+    """Audio is only transcribed for senders whose text is read (see G4 gate)."""
+    return User(
+        id=9, wa_id="255700000009", name="Teacher", state=enums.UserState.active
+    )
+
+
+def _audio_body(wa_id: str = "255700000009") -> dict:
+    message = {
+        "id": "wamid.AUDIO123",
+        "timestamp": "1710000000",
+        "type": "audio",
+        "audio": {"id": "media-123", "mime_type": "audio/ogg"},
+    }
+    value = {
+        "contacts": [{"wa_id": wa_id, "profile": {"name": "Teacher"}}],
+        "messages": [message],
+    }
+    return {"entry": [{"changes": [{"value": value}]}]}
+
+
 @pytest.mark.asyncio
 async def test_handle_request_awaits_flow_complete_handler() -> None:
     body = {"entry": [{"changes": [{"value": {"messages": []}}]}]}
@@ -121,6 +142,10 @@ async def test_handle_valid_message_transcribes_audio_before_routing() -> None:
     with (
         patch(
             "app.services.request_service.db.get_user_by_waid",
+            AsyncMock(return_value=_active_teacher()),
+        ),
+        patch(
+            "app.services.request_service.state_client._handle_rate_limiting",
             AsyncMock(return_value=None),
         ),
         patch(
@@ -196,6 +221,10 @@ async def test_handle_valid_message_accepts_inline_audio_in_mock_mode() -> None:
         patch.object(request_service.settings, "mock_whatsapp", True),
         patch(
             "app.services.request_service.db.get_user_by_waid",
+            AsyncMock(return_value=_active_teacher()),
+        ),
+        patch(
+            "app.services.request_service.state_client._handle_rate_limiting",
             AsyncMock(return_value=None),
         ),
         patch.object(
@@ -269,6 +298,10 @@ async def test_handle_valid_message_acknowledges_audio_transcription_failure() -
     with (
         patch(
             "app.services.request_service.db.get_user_by_waid",
+            AsyncMock(return_value=_active_teacher()),
+        ),
+        patch(
+            "app.services.request_service.state_client._handle_rate_limiting",
             AsyncMock(return_value=None),
         ),
         patch(
@@ -447,3 +480,88 @@ async def test_handle_chat_message_persists_inbound_message_before_rate_limit_re
     assert response is rate_limit_response
     mock_create_new_message_by_fields.assert_awaited_once()
     mock_handle_active.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "state", [None, enums.UserState.in_review, enums.UserState.approved]
+)
+async def test_audio_is_not_transcribed_when_the_text_is_never_read(state) -> None:
+    """Unknown, in-review and approved senders' replies ignore the content."""
+    user = None if state is None else User(id=9, wa_id="255700000009", state=state)
+    expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    with (
+        patch(
+            "app.services.request_service.db.get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+        patch(
+            "app.services.request_service.state_client._handle_rate_limiting",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.request_service.whatsapp_client.download_media",
+            AsyncMock(),
+        ) as mock_download_media,
+        patch(
+            "app.services.request_service.audio_transcription_service.transcribe",
+            AsyncMock(),
+        ) as mock_transcribe,
+        patch(
+            "app.services.request_service.handle_chat_message",
+            AsyncMock(return_value=expected_response),
+        ) as mock_handle_chat_message,
+    ):
+        response = await request_service.handle_valid_message(_audio_body())
+
+    assert response is expected_response
+    mock_download_media.assert_not_awaited()
+    mock_transcribe.assert_not_awaited()
+    message_info = mock_handle_chat_message.await_args.args[1]
+    assert message_info["extracted_content"] == (
+        "warning: user sent an unsupported message type"
+    )
+    assert "X-Audio-Transcription-Provider" not in response.headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "state",
+    [enums.UserState.onboarding, enums.UserState.active, enums.UserState.inactive],
+)
+async def test_audio_is_transcribed_when_the_text_is_read(state) -> None:
+    user = User(id=9, wa_id="255700000009", state=state)
+
+    with (
+        patch(
+            "app.services.request_service.db.get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+        patch(
+            "app.services.request_service.state_client._handle_rate_limiting",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.request_service.whatsapp_client.download_media",
+            AsyncMock(return_value=(b"audio bytes", "audio/ogg")),
+        ),
+        patch(
+            "app.services.request_service.audio_transcription_service.transcribe",
+            AsyncMock(
+                return_value=TranscriptionResult(
+                    "Juma", AudioTranscriptionProvider.ELEVENLABS, "scribe_v2", 500
+                )
+            ),
+        ) as mock_transcribe,
+        patch(
+            "app.services.request_service.handle_chat_message",
+            AsyncMock(return_value=JSONResponse(content={"status": "ok"})),
+        ) as mock_handle_chat_message,
+    ):
+        await request_service.handle_valid_message(_audio_body())
+
+    mock_transcribe.assert_awaited_once_with(b"audio bytes", "audio/ogg")
+    message_info = mock_handle_chat_message.await_args.args[1]
+    assert message_info["extracted_content"] == "Juma"
+    assert message_info["prechecked_user"] is user

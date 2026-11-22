@@ -11,6 +11,7 @@ import app.database.db as db
 import app.database.enums as enums
 from app.clients.whatsapp_client import whatsapp_client
 from app.config import settings
+from app.database.models import User
 from app.monitoring.metrics import record_whatsapp_event
 from app.services.audio_transcription_service import audio_transcription_service
 from app.services.state_service import state_client
@@ -24,6 +25,20 @@ from app.utils.whatsapp_utils import (
 
 logger = logging.getLogger(__name__)
 _MAX_MOCK_AUDIO_BYTES = 16 * 1024 * 1024
+
+# Only these states' handlers read the message text; registration, in-review and
+# approved replies ignore it, so a paid transcription there would be wasted
+_AUDIO_TRANSCRIBED_STATES = frozenset(
+    {
+        enums.UserState.onboarding,
+        enums.UserState.active,
+        enums.UserState.inactive,
+    }
+)
+
+
+def _should_transcribe_audio(user: User | None) -> bool:
+    return user is not None and user.state in _AUDIO_TRANSCRIBED_STATES
 
 
 def _decode_mock_audio(audio_data: str) -> bytes:
@@ -119,31 +134,17 @@ async def handle_valid_message(body: dict) -> JSONResponse:
                 content={"status": "error", "message": "Invalid audio message"},
                 status_code=400,
             )
-        try:
-            audio_payload = message.get("audio", {})
-            inline_audio = audio_payload.get("data")
-            if settings.mock_whatsapp and inline_audio:
-                audio = _decode_mock_audio(inline_audio)
-                mime_type = audio_payload.get("mime_type") or "audio/ogg"
-            else:
-                audio, mime_type = await whatsapp_client.download_media(media_id)
-            transcription = await audio_transcription_service.transcribe(
-                audio, mime_type
+        if _should_transcribe_audio(user):
+            message_content = await _transcribe_audio(message_info, media_id)
+            if message_content is None:
+                return JSONResponse(content={"status": "ok"}, status_code=200)
+        else:
+            logger.info(
+                "Audio not transcribed: sender_state=%s",
+                user.state.value if user else "unregistered",
             )
-            message_content = transcription.text
-            message_info["transcription_metadata"] = {
-                "provider": transcription.provider.value,
-                "model": transcription.model,
-                "latency_ms": transcription.latency_ms,
-            }
-        except (httpx.HTTPError, ValueError):
-            logger.exception("Failed to transcribe inbound WhatsApp audio")
-            await whatsapp_client.send_message(
-                message_info["wa_id"],
-                "Samahani, sikuweza kusoma ujumbe wako wa sauti. Tafadhali "
-                "jaribu tena au utume ujumbe wa maandishi.",
-            )
-            return JSONResponse(content={"status": "ok"}, status_code=200)
+            # The unsupported-message marker, as for any other non-text message
+            message_content = extract_message(message)
     else:
         message_content = extract_message(message)
 
@@ -171,6 +172,33 @@ async def handle_valid_message(body: dict) -> JSONResponse:
             transcription_metadata["latency_ms"]
         )
     return response
+
+
+async def _transcribe_audio(message_info: dict, media_id: str) -> str | None:
+    """Return the transcript, or None after telling the teacher it failed."""
+    try:
+        audio_payload = message_info["message"].get("audio", {})
+        inline_audio = audio_payload.get("data")
+        if settings.mock_whatsapp and inline_audio:
+            audio = _decode_mock_audio(inline_audio)
+            mime_type = audio_payload.get("mime_type") or "audio/ogg"
+        else:
+            audio, mime_type = await whatsapp_client.download_media(media_id)
+        transcription = await audio_transcription_service.transcribe(audio, mime_type)
+    except (httpx.HTTPError, ValueError):
+        logger.exception("Failed to transcribe inbound WhatsApp audio")
+        await whatsapp_client.send_message(
+            message_info["wa_id"],
+            "Samahani, sikuweza kusoma ujumbe wako wa sauti. Tafadhali "
+            "jaribu tena au utume ujumbe wa maandishi.",
+        )
+        return None
+    message_info["transcription_metadata"] = {
+        "provider": transcription.provider.value,
+        "model": transcription.model,
+        "latency_ms": transcription.latency_ms,
+    }
+    return transcription.text
 
 
 async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResponse:
