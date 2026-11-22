@@ -17,6 +17,14 @@ class MessageProcessor:
     def get_pending_messages(self) -> list[Message]:
         return self.messages.copy()
 
+    def remove(self, messages: list[Message]) -> None:
+        """Drop these exact objects from the batch (by identity, not field equality)."""
+        self.messages[:] = [
+            pending
+            for pending in self.messages
+            if not any(pending is message for message in messages)
+        ]
+
     def clear_messages(self) -> None:
         self.messages.clear()
 

@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Optional
 
@@ -31,7 +32,19 @@ class BufferedResponse:
 
 BUFFERED_RESPONSE = BufferedResponse()
 
-GenerateResponseResult = list[Message] | BufferedResponse | None
+# Readies a message before the agent sees it (e.g. reads a photo); returns an
+# error key, or None when the message is ready
+Preparation = Callable[[], Awaitable[str | None]]
+
+
+@dataclass(frozen=True)
+class PreparationFailed:
+    """The message could not be prepared and nothing else was waiting to be answered."""
+
+    error_key: str
+
+
+GenerateResponseResult = list[Message] | BufferedResponse | PreparationFailed | None
 
 _FLOW_MARKER_PREFIXES = ("[FLOW_SENT]", "[FLOW_COMPLETED]")
 
@@ -315,6 +328,7 @@ class ClientBase(ABC):
         self,
         user: User,
         message: Message,
+        prepare: Preparation | None = None,
     ) -> GenerateResponseResult:
         """Generate a response, handling message batching and tool calls."""
         pass
