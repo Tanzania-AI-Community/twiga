@@ -161,108 +161,120 @@ class AgentClient(ClientBase):
             self.logger.info(f"Lock held for user {user.id}, message buffered")
             return BUFFERED_RESPONSE
 
-        async with processor.lock:
-            # A tool is announced at most once per turn
-            notified_tools: set[str] = set()
-            try:
-                if prepare and (error_key := await prepare()):
-                    self.logger.info(
-                        f"Preparation failed for user {user.id}: {error_key}"
-                    )
-                    processor.remove([message])
-                    if not processor.has_messages:
-                        return PreparationFailed(error_key)
-                    # Messages buffered during preparation are still answered
-
-                while True:
-                    api_messages, error_messages = await self._preprocess_messages(
-                        user=user,
-                        processor=processor,
-                        prompt=Prompt.TWIGA_AGENT_SYSTEM,
-                    )
-
-                    if error_messages:
-                        return error_messages
-                    if api_messages is None:
-                        return None
-
-                    # Track original message count for new message detection
-                    original_count = len(processor.get_pending_messages())
-
-                    """
-                    Basic Agentic approach, run until no more tools are called
-                    """
-                    final_messages: list[Message] = []
-                    for iteration in range(llm_settings.MAX_AGENT_ITERATIONS):
-                        self.logger.debug(
-                            f"Agent iteration {iteration + 1}/{llm_settings.MAX_AGENT_ITERATIONS}"
-                        )
-
-                        # 1. THINK: Call the LLM with tools
-                        llm_response = await self._think(
-                            api_messages=api_messages, user=user, iteration=iteration
-                        )
-                        response_message = self._llm_response_to_message(
-                            llm_response=llm_response, user_id=user.id
-                        )
-
-                        self.logger.debug(f"LLM Response: {llm_response.content}")
-
-                        tool_calls = self.tool_manager.extract_tool_calls(llm_response)
-                        if not tool_calls:
-                            self.logger.info("Agent finished: No tool calls detected.")
-                            final_messages.append(response_message)
-                            break
-
-                        # 2. ACT: Record that we're calling tools
-                        response_message.tool_calls = tool_calls
-                        response_message.content = None
-                        final_messages.append(response_message)
-
-                        # 3. OBSERVE: Execute tools and get responses
-                        tool_responses = await self._observe(
-                            tool_calls=tool_calls,
-                            user=user,
-                            api_messages=api_messages,
-                            final_messages=final_messages,
-                            notified_tools=notified_tools,
-                        )
-
-                        if tool_responses:
-                            final_messages.extend(tool_responses)
-
-                            # Append the agent's tool request and the tool's output to the history
-                            api_messages.append(llm_response)
-                            api_messages.extend(
-                                [msg.to_langchain_message() for msg in tool_responses]
-                            )
-                    else:
-                        # Max iterations reached, force a final response (does not run if break is hit)
-                        final_message = await self._force_final(api_messages, user)
-                        final_messages.append(final_message)
-
-                    if self._check_new_messages(processor, original_count):
+        try:
+            async with processor.lock:
+                # A tool is announced at most once per turn
+                notified_tools: set[str] = set()
+                try:
+                    if prepare and (error_key := await prepare()):
                         self.logger.info(
-                            "New messages buffered during processing. Discarding response and reprocessing batch."
+                            f"Preparation failed for user {user.id}: {error_key}"
                         )
-                        continue
+                        processor.remove([message])
+                        if not processor.has_messages:
+                            return PreparationFailed(error_key)
+                        # Messages buffered during preparation are still answered
 
-                    # the last message in final messages is always an assistant message (either from normal
-                    # flow or forced final), so we can assign source_chunk_ids there
-                    if final_messages:
-                        final_messages[-1].source_chunk_ids = (
-                            self._get_source_chunk_ids(final_messages) or None
+                    while True:
+                        api_messages, error_messages = await self._preprocess_messages(
+                            user=user,
+                            processor=processor,
+                            prompt=Prompt.TWIGA_AGENT_SYSTEM,
                         )
 
-                    return final_messages
-            except Exception as e:
-                self.logger.error(f"Error processing messages in agent loop: {e}")
-                return None
-            finally:
-                # This always runs, whether we returned above or an exception occurred.
-                self.logger.debug("Clearing message buffer and cleaning up processor")
-                processor.clear_messages()
-                self._cleanup_processor(user.id)
+                        if error_messages:
+                            return error_messages
+                        if api_messages is None:
+                            return None
+
+                        # Track original message count for new message detection
+                        original_count = len(processor.get_pending_messages())
+
+                        """
+                        Basic Agentic approach, run until no more tools are called
+                        """
+                        final_messages: list[Message] = []
+                        for iteration in range(llm_settings.MAX_AGENT_ITERATIONS):
+                            self.logger.debug(
+                                f"Agent iteration {iteration + 1}/{llm_settings.MAX_AGENT_ITERATIONS}"
+                            )
+
+                            # 1. THINK: Call the LLM with tools
+                            llm_response = await self._think(
+                                api_messages=api_messages,
+                                user=user,
+                                iteration=iteration,
+                            )
+                            response_message = self._llm_response_to_message(
+                                llm_response=llm_response, user_id=user.id
+                            )
+
+                            self.logger.debug(f"LLM Response: {llm_response.content}")
+
+                            tool_calls = self.tool_manager.extract_tool_calls(
+                                llm_response
+                            )
+                            if not tool_calls:
+                                self.logger.info(
+                                    "Agent finished: No tool calls detected."
+                                )
+                                final_messages.append(response_message)
+                                break
+
+                            # 2. ACT: Record that we're calling tools
+                            response_message.tool_calls = tool_calls
+                            response_message.content = None
+                            final_messages.append(response_message)
+
+                            # 3. OBSERVE: Execute tools and get responses
+                            tool_responses = await self._observe(
+                                tool_calls=tool_calls,
+                                user=user,
+                                api_messages=api_messages,
+                                final_messages=final_messages,
+                                notified_tools=notified_tools,
+                            )
+
+                            if tool_responses:
+                                final_messages.extend(tool_responses)
+
+                                # Append the agent's tool request and the tool's output to the history
+                                api_messages.append(llm_response)
+                                api_messages.extend(
+                                    [
+                                        msg.to_langchain_message()
+                                        for msg in tool_responses
+                                    ]
+                                )
+                        else:
+                            # Max iterations reached, force a final response (does not run if break is hit)
+                            final_message = await self._force_final(api_messages, user)
+                            final_messages.append(final_message)
+
+                        if self._check_new_messages(processor, original_count):
+                            self.logger.info(
+                                "New messages buffered during processing. Discarding response and reprocessing batch."
+                            )
+                            continue
+
+                        # the last message in final messages is always an assistant message (either from normal
+                        # flow or forced final), so we can assign source_chunk_ids there
+                        if final_messages:
+                            final_messages[-1].source_chunk_ids = (
+                                self._get_source_chunk_ids(final_messages) or None
+                            )
+
+                        return final_messages
+                except Exception as e:
+                    self.logger.error(f"Error processing messages in agent loop: {e}")
+                    return None
+                finally:
+                    # This always runs, whether we returned above or an exception occurred.
+                    self.logger.debug("Clearing message buffer")
+                    processor.clear_messages()
+        finally:
+            # Outside the lock: an idle processor can only be removed once released
+            self._cleanup_processor(user.id)
 
 
 agent_client = AgentClient()

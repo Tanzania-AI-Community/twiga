@@ -254,6 +254,8 @@ async def test_text_sent_while_photo_is_prepared_is_answered_with_it(
     ]
     assert isinstance(response, list)
     assert response[-1].content == "x = 1"
+    # The finished turn leaves no idle processor behind
+    assert user.id not in client._processors
 
 
 @pytest.mark.asyncio
@@ -270,7 +272,7 @@ async def test_failed_preparation_with_nothing_else_skips_the_agent(
 
     assert response == PreparationFailed("image_unreadable")
     request.assert_not_awaited()
-    assert not client._get_processor(1).has_messages
+    assert 1 not in client._processors
 
 
 @pytest.mark.asyncio
