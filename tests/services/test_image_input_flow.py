@@ -105,8 +105,11 @@ def flow(monkeypatch):
         visible=AsyncMock(),
     )
 
-    async def update(message, content):
-        message.content = content
+    async def update(message, *, content=None, is_present_in_conversation=None):
+        if content is not None:
+            message.content = content
+        if is_present_in_conversation is not None:
+            message.is_present_in_conversation = is_present_in_conversation
 
     context.persist = AsyncMock(side_effect=update)
     monkeypatch.setattr(
@@ -121,7 +124,7 @@ def flow(monkeypatch):
     monkeypatch.setattr(
         messaging_service.agent_client, "generate_response", context.agent
     )
-    monkeypatch.setattr(messaging_service.db, "update_message_content", context.persist)
+    monkeypatch.setattr(messaging_service.db, "update_message", context.persist)
     monkeypatch.setattr(messaging_service.db, "create_new_messages", AsyncMock())
     monkeypatch.setattr(messaging_service.whatsapp_client, "send_message", context.send)
     monkeypatch.setattr(service, "_persist_visible_assistant_message", context.visible)
@@ -206,7 +209,13 @@ async def test_image_failure_sends_feedback_instead_of_answering(
     )
     assert response.status_code == 200
     flow.agent.assert_awaited_once()
-    flow.persist.assert_not_awaited()
+    # Kept for audit, but out of the agent's history
+    flow.persist.assert_awaited_once_with(
+        flow.message,
+        content="[photo could not be read]",
+        is_present_in_conversation=False,
+    )
+    assert flow.message.is_present_in_conversation is False
     flow.send.assert_awaited_once_with(flow.user.wa_id, expected)
     flow.visible.assert_awaited_once_with(flow.user, expected)
     if failure in ("disabled", "bad_id"):
@@ -236,3 +245,21 @@ async def test_image_failure_is_reported_before_reply_to_buffered_text(flow):
         (flow.user.wa_id, expected),
         (flow.user.wa_id, "Map scale"),
     ]
+
+
+async def test_image_error_is_sent_even_if_hiding_the_photo_fails(flow):
+    flow.interpret.side_effect = ImageInputError("image_unreadable")
+    flow.persist.side_effect = ValueError("Message no longer exists")
+
+    async def generate(user, message, prepare):
+        return PreparationFailed(await prepare())
+
+    flow.agent.side_effect = generate
+    await flow.service.handle_image_message(
+        flow.user, flow.message, image_message()["image"]
+    )
+
+    expected = messaging_service.strings.get_string(
+        messaging_service.StringCategory.ERROR, "image_unreadable"
+    )
+    flow.send.assert_awaited_once_with(flow.user.wa_id, expected)

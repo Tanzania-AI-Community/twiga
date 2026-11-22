@@ -45,6 +45,7 @@ from app.utils.string_manager import StringCategory, strings
 
 class MessagingService:
     _TOOL_NAME_MARKERS = tuple(tool_name.value for tool_name in ToolName)
+    _FAILED_IMAGE_CONTENT = "[photo could not be read]"
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -217,7 +218,7 @@ class MessagingService:
         started = monotonic()
         try:
             content = await self._read_image_request(image_payload)
-            await db.update_message_content(user_message, content)
+            await db.update_message(user_message, content=content)
         except ValidationError:
             error_key = "image_invalid"
         except ImageInputError as exc:
@@ -232,7 +233,21 @@ class MessagingService:
                 error_key or "ready",
                 (monotonic() - started) * 1000,
             )
+        if error_key:
+            await self._hide_failed_image(user_message)
         return error_key
+
+    async def _hide_failed_image(self, user_message: models.Message) -> None:
+        """Keep the row for audit, but out of the agent's history."""
+        try:
+            await db.update_message(
+                user_message,
+                content=self._FAILED_IMAGE_CONTENT,
+                is_present_in_conversation=False,
+            )
+        except Exception as exc:
+            # The teacher still gets the image error; only the history stays stale
+            self.logger.warning("Hiding failed image failed: %s", type(exc).__name__)
 
     async def _read_image_request(self, image_payload: dict) -> str:
         if not image_input_settings.image_input_enabled:

@@ -198,3 +198,55 @@ async def test_create_new_messages_returns_early_for_empty_input() -> None:
         created_messages = await db.create_new_messages([])
 
     assert created_messages == [] and not mock_get_session.called
+
+
+@pytest.mark.asyncio
+async def test_update_message_changes_only_the_owners_row(
+    message_history_session,
+) -> None:
+    photo = Message(
+        user_id=7,
+        role=enums.MessageRole.user,
+        content="Image not yet interpreted.",
+        is_present_in_conversation=True,
+    )
+    other_user = Message(
+        user_id=8,
+        role=enums.MessageRole.user,
+        content="Image not yet interpreted.",
+        is_present_in_conversation=True,
+    )
+    message_history_session.add_all([photo, other_user])
+    message_history_session.commit()
+
+    await db.update_message(
+        photo, content="[photo could not be read]", is_present_in_conversation=False
+    )
+
+    message_history_session.expire_all()
+    assert (photo.content, photo.is_present_in_conversation) == (
+        "[photo could not be read]",
+        False,
+    )
+    assert (other_user.content, other_user.is_present_in_conversation) == (
+        "Image not yet interpreted.",
+        True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_message_rejects_another_users_message(
+    message_history_session,
+) -> None:
+    owned = Message(user_id=7, role=enums.MessageRole.user, content="photo")
+    message_history_session.add(owned)
+    message_history_session.commit()
+    forged = Message(
+        id=owned.id, user_id=8, role=enums.MessageRole.user, content="photo"
+    )
+
+    with pytest.raises(ValueError, match="no longer exists"):
+        await db.update_message(forged, is_present_in_conversation=True)
+
+    message_history_session.expire_all()
+    assert owned.is_present_in_conversation is False
