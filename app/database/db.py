@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, text
+from sqlalchemy import func, text, update
 from sqlalchemy.orm import selectinload
 from sqlmodel import and_, delete, desc, exists, insert, or_, select
 from sqlmodel.sql.expression import SelectOfScalar
@@ -300,6 +300,37 @@ async def create_new_message(message: Message) -> Message:
         except Exception as e:
             logger.error(f"Error creating message for user {message.user_id}: {str(e)}")
             raise Exception(f"Failed to create message: {str(e)}")
+
+
+async def update_message(
+    message: Message,
+    *,
+    content: str | None = None,
+    is_present_in_conversation: bool | None = None,
+) -> None:
+    """Update the given fields in the same history row, not a second message."""
+    if message.id is None:
+        raise ValueError("Cannot update an unpersisted message")
+    values = {
+        field: value
+        for field, value in (
+            ("content", content),
+            ("is_present_in_conversation", is_present_in_conversation),
+        )
+        if value is not None
+    }
+    if not values:
+        return
+    async with get_session() as session:
+        result = await session.execute(
+            update(Message)
+            .where(Message.id == message.id, Message.user_id == message.user_id)
+            .values(**values)
+        )
+        if result.rowcount != 1:
+            raise ValueError("Message no longer exists")
+    for field, value in values.items():
+        setattr(message, field, value)
 
 
 async def create_new_message_by_fields(

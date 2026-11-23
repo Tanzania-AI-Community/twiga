@@ -8,6 +8,13 @@ prompts:
       v0.1:
         description: "Search course material first for curriculum content and accept multilingual input while responding in English."
 
+  image_interpreter_system:
+    path: image_interpreter/system
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Faithful image extraction with categorical readability; no solving."
+
   equation_solver_system:
     path: equation_solver/standard/system
     active_version: v0.0
