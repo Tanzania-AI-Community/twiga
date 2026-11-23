@@ -1,5 +1,6 @@
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
+from uuid import uuid4
 
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
@@ -383,6 +384,45 @@ class GeneratedExam(SQLModel, table=True):
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore
         index=True,
+    )
+
+
+class ExamGenerationReservation(SQLModel, table=True):
+    """One exam-generation slot, held from the request until the exam is saved."""
+
+    __tablename__ = "exam_generation_reservations"  # type: ignore
+    __table_args__ = (
+        Index(
+            "ix_exam_generation_reservations_user_id_created_at",
+            "user_id",
+            "created_at",
+        ),
+    )
+
+    """ FIELDS """
+    id: str = Field(
+        default_factory=lambda: str(uuid4()), primary_key=True, max_length=36
+    )
+    user_id: int = Field(foreign_key="users.id", ondelete="CASCADE")
+    request_key: str = Field(max_length=64)
+    status: enums.ExamReservationStatus = Field(
+        default=enums.ExamReservationStatus.pending, max_length=20
+    )
+    exam_id: Optional[str] = Field(
+        default=None,
+        foreign_key="generated_exams.id",
+        ondelete="SET NULL",
+        max_length=36,
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_column_kwargs={"server_default": sa.func.now()},
+        nullable=False,
+    )
+    completed_at: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
     )
 
 

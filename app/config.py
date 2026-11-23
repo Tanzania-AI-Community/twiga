@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     # Exam generation limiting settings
     exam_generation_limit: int = Field(default=5, gt=0)
     exam_generation_window_days: int = Field(default=7, gt=0)
+    exam_reuse_window_minutes: int = Field(default=30, gt=0)
+    exam_reservation_timeout_minutes: int = Field(default=30, gt=0)
 
     # Database settings
     database_url: SecretStr

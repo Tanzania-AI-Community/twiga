@@ -149,6 +149,12 @@ class SubjectName(str, Enum):
         return f"{self.replace('_', ' ').title()} {emoji}".strip()
 
 
+class ExamReservationStatus(str, Enum):
+    pending = "pending"
+    completed = "completed"
+    failed = "failed"
+
+
 class ChunkType(str, Enum):
     text = "text"
     exercise = "exercise"
