@@ -162,3 +162,45 @@ async def test_reserve_rejects_naive_datetime():
             pending_since=PENDING_SINCE,
             reuse_since=REUSE_SINCE,
         )
+
+
+async def _preview(user_id=1, request_key="key-a", limit=2):
+    return await db.preview_exam_generation(
+        user_id,
+        request_key,
+        limit=limit,
+        window_start=WINDOW_START,
+        pending_since=PENDING_SINCE,
+        reuse_since=REUSE_SINCE,
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected_slot_free"),
+    [
+        ([], True),
+        ([_reservation("key-1"), _reservation("key-2")], False),
+    ],
+    ids=["free", "at-limit"],
+)
+async def test_preview_reports_slot_without_writing_or_locking(
+    exam_reservation_db, rows, expected_slot_free
+):
+    exam_reservation_db.add_all(rows)
+    exam_reservation_db.commit()
+
+    assert await _preview() == (None, expected_slot_free)
+    assert len(_all(exam_reservation_db)) == len(rows)
+    db._lock_exam_reservations.assert_not_awaited()
+
+
+async def test_preview_returns_same_request_in_progress(exam_reservation_db):
+    exam_reservation_db.add(
+        _reservation("key-a", status=ExamReservationStatus.pending, created_at=NOW)
+    )
+    exam_reservation_db.commit()
+
+    existing, slot_free = await _preview()
+
+    assert existing.status == ExamReservationStatus.pending
+    assert slot_free is False

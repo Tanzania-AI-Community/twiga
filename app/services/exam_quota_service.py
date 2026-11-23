@@ -40,23 +40,39 @@ def exam_request_key(class_id: int, subject: str, topics: list[str]) -> str:
 class ExamQuotaService:
     async def reserve(self, user_id: int, request_key: str) -> QuotaDecision:
         """Atomically decide whether this request may generate an exam."""
-        now = datetime.now(timezone.utc)
         reservation, created = await db.reserve_exam_generation(
-            user_id,
-            request_key,
-            limit=settings.exam_generation_limit,
-            window_start=now - timedelta(days=settings.exam_generation_window_days),
-            pending_since=now
-            - timedelta(minutes=settings.exam_reservation_timeout_minutes),
-            reuse_since=now - timedelta(minutes=settings.exam_reuse_window_minutes),
+            user_id, request_key, **self._limits()
         )
-
-        if reservation is None:
-            return QuotaDecision(QuotaOutcome.DENIED)
         if created:
             return QuotaDecision(QuotaOutcome.ALLOWED, reservation_id=reservation.id)
-        if reservation.status == ExamReservationStatus.completed:
-            return QuotaDecision(QuotaOutcome.REUSE, exam_id=reservation.exam_id)
+        return self._decision_without_new_slot(reservation)
+
+    async def preview(self, user_id: int, request_key: str) -> QuotaDecision:
+        """Read-only reserve(): what it would decide now. ALLOWED has no reservation."""
+        existing, slot_free = await db.preview_exam_generation(
+            user_id, request_key, **self._limits()
+        )
+        if slot_free:
+            return QuotaDecision(QuotaOutcome.ALLOWED)
+        return self._decision_without_new_slot(existing)
+
+    @staticmethod
+    def _limits() -> dict:
+        now = datetime.now(timezone.utc)
+        return {
+            "limit": settings.exam_generation_limit,
+            "window_start": now - timedelta(days=settings.exam_generation_window_days),
+            "pending_since": now
+            - timedelta(minutes=settings.exam_reservation_timeout_minutes),
+            "reuse_since": now - timedelta(minutes=settings.exam_reuse_window_minutes),
+        }
+
+    @staticmethod
+    def _decision_without_new_slot(existing) -> QuotaDecision:
+        if existing is None:
+            return QuotaDecision(QuotaOutcome.DENIED)
+        if existing.status == ExamReservationStatus.completed:
+            return QuotaDecision(QuotaOutcome.REUSE, exam_id=existing.exam_id)
         return QuotaDecision(QuotaOutcome.IN_PROGRESS)
 
     # complete and release are best effort: the exam (or the error) matters more

@@ -83,13 +83,19 @@ class AgentClient(ClientBase):
         self.logger.info(f"Agent action: processing {len(tool_calls)} tool call(s).")
         self.logger.debug(f"Tool calls: {tool_calls}")
 
-        unique_tools = {tool_call["function"]["name"] for tool_call in tool_calls}
+        # Calls a preflight already answered (e.g. exam limit reached) get no
+        # notification and do not run.
+        settled = await self.tool_manager.run_preflights(tool_calls, user)
+        settled_ids = {message.tool_call_id for message in settled}
+        to_run = [call for call in tool_calls if call["id"] not in settled_ids]
+
+        unique_tools = {tool_call["function"]["name"] for tool_call in to_run}
         for tool_name in sorted(unique_tools - notified_tools):
             await self._tool_call_notification(user, tool_name)
         notified_tools.update(unique_tools)
 
-        tool_responses = await self.tool_manager.process_tool_calls(tool_calls, user)
-        return tool_responses
+        tool_responses = await self.tool_manager.process_tool_calls(to_run, user)
+        return settled + tool_responses
 
     async def _force_final(
         self,

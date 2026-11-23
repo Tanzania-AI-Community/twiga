@@ -148,3 +148,31 @@ async def test_repeated_request_returns_same_exam_instead_of_refusing(
     assert second["reused"] is True
     mocks.generate.assert_awaited_once()
     mocks.persist.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected_key"),
+    [
+        (QuotaDecision(QuotaOutcome.DENIED), "status"),
+        (QuotaDecision(QuotaOutcome.IN_PROGRESS), "error"),
+        (QuotaDecision(QuotaOutcome.REUSE, exam_id="exam-old"), "exam_id"),
+    ],
+    ids=["denied", "in-progress", "reuse"],
+)
+async def test_preflight_answers_when_no_exam_will_be_generated(decision, expected_key):
+    with patch.object(
+        main.exam_quota_service, "preview", new=AsyncMock(return_value=decision)
+    ) as preview:
+        result = await main.preflight_necta_style_exam(7, "Biology", ["Cells"], 1)
+
+    assert expected_key in json.loads(result)
+    assert preview.await_args.args[0] == 1
+
+
+async def test_preflight_lets_the_tool_run_when_allowed():
+    with patch.object(
+        main.exam_quota_service,
+        "preview",
+        new=AsyncMock(return_value=QuotaDecision(QuotaOutcome.ALLOWED)),
+    ):
+        assert await main.preflight_necta_style_exam(7, "Biology", ["Cells"], 1) is None

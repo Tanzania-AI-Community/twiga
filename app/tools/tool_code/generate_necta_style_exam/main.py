@@ -6,6 +6,7 @@ from app.config import settings
 from app.database.db import create_new_exam
 from app.database.enums import ChunkType
 from app.services.exam_quota_service import (
+    QuotaDecision,
     QuotaOutcome,
     exam_quota_service,
     exam_request_key,
@@ -43,18 +44,9 @@ async def generate_necta_style_exam(
         decision = await exam_quota_service.reserve(
             user_id, exam_request_key(class_id, subject, topics)
         )
-        match decision.outcome:
-            case QuotaOutcome.REUSE:
-                logger.info(
-                    f"Reusing exam_id={decision.exam_id} for a repeated request from user_id={user_id}"
-                )
-                return _success_payload(
-                    decision.exam_id, subject, class_id, topics, reused=True
-                )
-            case QuotaOutcome.IN_PROGRESS:
-                return _error_payload("exam_in_progress", _tool_string("in_progress"))
-            case QuotaOutcome.DENIED:
-                return _rate_limited_payload()
+        payload = _payload_without_generating(decision, class_id, subject, topics)
+        if payload is not None:
+            return payload
 
         try:
             exam_id = await _generate_and_save_exam(class_id, subject, topics, user_id)
@@ -70,6 +62,36 @@ async def generate_necta_style_exam(
     except Exception as e:
         logger.error(f"Error in generate_necta_style_exam: {e}", exc_info=True)
         raise Exception(f"Failed to generate Necta-style exam. Error: {str(e)}")
+
+
+async def preflight_necta_style_exam(
+    class_id: int, subject: str, topics: list[str], user_id: int
+) -> str | None:
+    """Answer at once, before the "takes 10 minutes" notice, when no exam will be generated.
+
+    Read-only: generate_necta_style_exam's reserve() stays the real check.
+    """
+    decision = await exam_quota_service.preview(
+        user_id, exam_request_key(class_id, subject, topics)
+    )
+    return _payload_without_generating(decision, class_id, subject, topics)
+
+
+def _payload_without_generating(
+    decision: QuotaDecision, class_id: int, subject: str, topics: list[str]
+) -> str | None:
+    """The tool result for a decision that needs no new exam, else None."""
+    match decision.outcome:
+        case QuotaOutcome.REUSE:
+            logger.info(f"Reusing exam_id={decision.exam_id} for a repeated request")
+            return _success_payload(
+                decision.exam_id, subject, class_id, topics, reused=True
+            )
+        case QuotaOutcome.IN_PROGRESS:
+            return _error_payload("exam_in_progress", _tool_string("in_progress"))
+        case QuotaOutcome.DENIED:
+            return _rate_limited_payload()
+    return None
 
 
 async def _generate_and_save_exam(

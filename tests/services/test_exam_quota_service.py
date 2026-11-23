@@ -63,6 +63,32 @@ async def test_reserve_maps_db_result_to_decision(db_result, expected):
         assert await ExamQuotaService().reserve(1, "key") == expected
 
 
+@pytest.mark.parametrize(
+    ("db_result", "expected"),
+    [
+        ((None, True), QuotaDecision(QuotaOutcome.ALLOWED)),
+        ((None, False), QuotaDecision(QuotaOutcome.DENIED)),
+        (
+            (
+                SimpleNamespace(status=ExamReservationStatus.completed, exam_id="e-1"),
+                False,
+            ),
+            QuotaDecision(QuotaOutcome.REUSE, exam_id="e-1"),
+        ),
+        (
+            (SimpleNamespace(status=ExamReservationStatus.pending), False),
+            QuotaDecision(QuotaOutcome.IN_PROGRESS),
+        ),
+    ],
+    ids=["allowed", "denied", "reuse", "in-progress"],
+)
+async def test_preview_maps_db_result_to_decision(db_result, expected):
+    with patch.object(
+        module.db, "preview_exam_generation", new=AsyncMock(return_value=db_result)
+    ):
+        assert await ExamQuotaService().preview(1, "key") == expected
+
+
 async def test_reserve_passes_configured_limit_and_windows():
     with (
         patch.object(module.settings, "exam_generation_limit", 3),
