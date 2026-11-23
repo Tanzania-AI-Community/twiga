@@ -4,21 +4,30 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from time import monotonic
 from typing import Optional
 
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
-from app.clients.client_base import BUFFERED_RESPONSE
+from app.clients.client_base import (
+    BUFFERED_RESPONSE,
+    BufferedResponse,
+    PreparationFailed,
+)
+from app.clients.image_interpreter import image_interpreter
 from app.clients.whatsapp_client import DocumentType, ImageType, whatsapp_client
+from app.config import image_input_settings, settings
 from app.latex.latex_artifact_generator import (
     looks_like_latex,
     prepare_latex_body,
     text_to_images,
 )
+from app.models.image_models import ImageInputError, IncomingImage
 from app.monitoring.metrics import record_messages_generated, track_messages
 from app.services.citation_service import CitationRenderResult, citation_service
 from app.services.exam_delivery_service import (
@@ -36,6 +45,7 @@ from app.utils.string_manager import StringCategory, strings
 
 class MessagingService:
     _TOOL_NAME_MARKERS = tuple(tool_name.value for tool_name in ToolName)
+    _FAILED_IMAGE_CONTENT = "[photo could not be read]"
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -158,6 +168,10 @@ class MessagingService:
     @track_messages("command_help")
     async def _command_help(self, user: models.User) -> None:
         response_text = strings.get_string(StringCategory.INFO, "help")
+        if image_input_settings.image_input_enabled:
+            response_text += "\n\n" + strings.get_string(
+                StringCategory.INFO, "image_help"
+            )
         await whatsapp_client.send_message(user.wa_id, response_text)
         await self._persist_visible_assistant_message(user, response_text)
 
@@ -173,10 +187,106 @@ class MessagingService:
         if await self._save_profile_name_reply(user, user_message):
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
+        return await self._generate_and_deliver(user, user_message)
+
+    async def handle_image_message(
+        self, user: models.User, user_message: models.Message, image_payload: dict
+    ) -> JSONResponse:
+        image_error: str | None = None
+
+        async def prepare_image() -> str | None:
+            nonlocal image_error
+            image_error = await self._prepare_image_message(user_message, image_payload)
+            return image_error
+
+        # Read under the user's turn, so a text sent right after the photo waits for it
+        llm_responses = await agent_client.generate_response(
+            user=user, message=user_message, prepare=prepare_image
+        )
+        if image_error:
+            # Sent before the reply to any text that arrived while the photo was read
+            await self._send_image_error(user, image_error)
+        if isinstance(llm_responses, PreparationFailed):
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+        return await self._deliver_llm_responses(user, llm_responses)
+
+    async def _prepare_image_message(
+        self, user_message: models.Message, image_payload: dict
+    ) -> str | None:
+        """Save extracted text, or return the message key for a processing error."""
+        error_key = None
+        started = monotonic()
+        try:
+            content = await self._read_image_request(image_payload)
+            await db.update_message(user_message, content=content)
+        except ValidationError:
+            error_key = "image_invalid"
+        except ImageInputError as exc:
+            error_key = exc.message_key
+        except Exception as exc:
+            # Provider/validation exceptions may embed raw request/response bodies.
+            self.logger.warning("Image processing failed: %s", type(exc).__name__)
+            error_key = "image_processing_failed"
+        finally:
+            self.logger.info(
+                "Image stage=prepare result=%s elapsed_ms=%d",
+                error_key or "ready",
+                (monotonic() - started) * 1000,
+            )
+        if error_key:
+            await self._hide_failed_image(user_message)
+        return error_key
+
+    async def _hide_failed_image(self, user_message: models.Message) -> None:
+        """Keep the row for audit, but out of the agent's history."""
+        try:
+            await db.update_message(
+                user_message,
+                content=self._FAILED_IMAGE_CONTENT,
+                is_present_in_conversation=False,
+            )
+        except Exception as exc:
+            # The teacher still gets the image error; only the history stays stale
+            self.logger.warning("Hiding failed image failed: %s", type(exc).__name__)
+
+    async def _read_image_request(self, image_payload: dict) -> str:
+        if not image_input_settings.image_input_enabled:
+            raise ImageInputError("image_disabled")
+        incoming = IncomingImage(
+            media_id=image_payload.get("id", ""),
+            caption=image_payload.get("caption") or "",
+        )
+        image = await whatsapp_client.download_image(incoming.media_id)
+        interpretation = await image_interpreter.interpret(image, incoming.caption)
+        if interpretation.readability != "clear":
+            raise ImageInputError("image_unreadable")
+        content = interpretation.to_request_text(incoming.caption)
+        if len(content) > settings.message_character_limit:
+            raise ImageInputError("image_too_complex")
+        return content
+
+    async def _send_image_error(
+        self, user: models.User, error_key: str
+    ) -> JSONResponse:
+        text = strings.get_string(StringCategory.ERROR, error_key)
+        await self._persist_visible_assistant_message(user, text)
+        await whatsapp_client.send_message(user.wa_id, text)
+        record_messages_generated(error_key)
+        return JSONResponse(content={"status": "ok"}, status_code=200)
+
+    async def _generate_and_deliver(
+        self, user: models.User, user_message: models.Message
+    ) -> JSONResponse:
         llm_responses = await agent_client.generate_response(
             user=user, message=user_message
         )
+        return await self._deliver_llm_responses(user, llm_responses)
 
+    async def _deliver_llm_responses(
+        self,
+        user: models.User,
+        llm_responses: list[models.Message] | BufferedResponse | None,
+    ) -> JSONResponse:
         if llm_responses is BUFFERED_RESPONSE:
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
