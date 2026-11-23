@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, text
+from sqlalchemy import func, text, update
 from sqlalchemy.orm import selectinload
 from sqlmodel import and_, delete, desc, exists, insert, or_, select
 from sqlmodel.sql.expression import SelectOfScalar
@@ -14,6 +14,7 @@ from app.database.models import (
     Chunk,
     Class,
     ClassResource,
+    ExamGenerationReservation,
     GeneratedExam,
     Message,
     Resource,
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 # Bounds each retrieved chunk before it reaches an LLM prompt; a few badly
 # parsed chunks hold whole chapters (over 1 MB of text).
 MAX_CHUNK_CONTENT_CHARS = 8000
+
+# First key of pg_advisory_xact_lock(namespace, user_id), so these locks cannot
+# collide with other advisory locks keyed by user id.
+EXAM_RESERVATION_LOCK_NAMESPACE = 364
 
 # TODO: Add custom Exceptions for better error handling
 
@@ -142,6 +147,227 @@ async def get_exam_by_id(exam_id: str) -> GeneratedExam | None:
         except Exception as e:
             logger.error("Failed to retrieve exam %s: %s", normalized_exam_id, str(e))
             raise Exception(f"Failed to retrieve exam: {str(e)}")
+
+
+async def _lock_exam_reservations(session, user_id: int) -> None:
+    """Serialise one user's reservations until the transaction ends, across workers."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:namespace, :user_id)"),
+        {"namespace": EXAM_RESERVATION_LOCK_NAMESPACE, "user_id": user_id},
+    )
+
+
+def _require_timezone_aware(**values: datetime) -> None:
+    for name, value in values.items():
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"{name} must be timezone-aware.")
+
+
+def _is_active_pending_slot(pending_since: datetime):
+    return and_(
+        ExamGenerationReservation.status == enums.ExamReservationStatus.pending,
+        ExamGenerationReservation.created_at >= pending_since,
+    )
+
+
+def _is_counted_slot(window_start: datetime, pending_since: datetime):
+    """Slots counted against the limit: completed since `window_start`, and
+    pending since `pending_since` (older pending ones belong to crashed runs)."""
+    return or_(
+        and_(
+            ExamGenerationReservation.status == enums.ExamReservationStatus.completed,
+            ExamGenerationReservation.created_at >= window_start,
+        ),
+        _is_active_pending_slot(pending_since),
+    )
+
+
+async def _check_exam_reservations(
+    session,
+    user_id: int,
+    request_key: str,
+    *,
+    limit: int,
+    window_start: datetime,
+    pending_since: datetime,
+    reuse_since: datetime,
+) -> tuple[ExamGenerationReservation | None, bool]:
+    """Return (same-request reservation, False) if one matches, else (None, slot_free).
+
+    A same request matches when it completed since `reuse_since` or is still
+    pending since `pending_since`.
+    """
+    Reservation = ExamGenerationReservation
+    Status = enums.ExamReservationStatus
+
+    same_request = await session.execute(
+        select(Reservation)
+        .where(
+            Reservation.user_id == user_id,
+            Reservation.request_key == request_key,
+            or_(
+                and_(
+                    Reservation.status == Status.completed,
+                    Reservation.exam_id.is_not(None),
+                    Reservation.completed_at >= reuse_since,
+                ),
+                _is_active_pending_slot(pending_since),
+            ),
+        )
+        .order_by(desc(Reservation.created_at))
+        .limit(1)
+    )
+    existing = same_request.scalar_one_or_none()
+    if existing is not None:
+        return existing, False
+
+    used = await session.execute(
+        select(func.count())
+        .select_from(Reservation)
+        .where(
+            Reservation.user_id == user_id,
+            _is_counted_slot(window_start, pending_since),
+        )
+    )
+    return None, used.scalar_one() < limit
+
+
+async def reserve_exam_generation(
+    user_id: int,
+    request_key: str,
+    *,
+    limit: int,
+    window_start: datetime,
+    pending_since: datetime,
+    reuse_since: datetime,
+) -> tuple[ExamGenerationReservation | None, bool]:
+    """Atomically return the user's matching reservation or take a new slot.
+
+    Returns:
+        (existing, False): the same request is reusable or still in progress.
+        (new, True): a new pending reservation, taken under the limit.
+        (None, False): the limit is reached.
+    """
+    _require_timezone_aware(
+        window_start=window_start, pending_since=pending_since, reuse_since=reuse_since
+    )
+
+    async with get_session() as session:
+        try:
+            await _lock_exam_reservations(session, user_id)
+            existing, slot_free = await _check_exam_reservations(
+                session,
+                user_id,
+                request_key,
+                limit=limit,
+                window_start=window_start,
+                pending_since=pending_since,
+                reuse_since=reuse_since,
+            )
+            if not slot_free:
+                return existing, False
+
+            reservation = ExamGenerationReservation(
+                user_id=user_id, request_key=request_key
+            )
+            session.add(reservation)
+            await session.flush()
+            return reservation, True
+        except Exception as e:
+            logger.error(
+                "Failed to reserve exam generation for user %s: %s", user_id, e
+            )
+            raise Exception(f"Failed to reserve exam generation: {str(e)}")
+
+
+async def preview_exam_generation(
+    user_id: int,
+    request_key: str,
+    *,
+    limit: int,
+    window_start: datetime,
+    pending_since: datetime,
+    reuse_since: datetime,
+) -> tuple[ExamGenerationReservation | None, bool]:
+    """Read-only reserve_exam_generation: no lock, nothing written.
+
+    Returns:
+        (existing, False): the same request is reusable or still in progress.
+        (None, True): a slot is free.
+        (None, False): the limit is reached.
+    """
+    _require_timezone_aware(
+        window_start=window_start, pending_since=pending_since, reuse_since=reuse_since
+    )
+
+    async with get_session() as session:
+        try:
+            return await _check_exam_reservations(
+                session,
+                user_id,
+                request_key,
+                limit=limit,
+                window_start=window_start,
+                pending_since=pending_since,
+                reuse_since=reuse_since,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to preview exam generation for user %s: %s", user_id, e
+            )
+            raise Exception(f"Failed to preview exam generation: {str(e)}")
+
+
+async def get_oldest_counted_exam_slot_at(
+    user_id: int, *, window_start: datetime, pending_since: datetime
+) -> datetime | None:
+    """Creation time of the user's oldest slot still counted against the limit."""
+    _require_timezone_aware(window_start=window_start, pending_since=pending_since)
+
+    async with get_session() as session:
+        try:
+            result = await session.execute(
+                select(func.min(ExamGenerationReservation.created_at)).where(
+                    ExamGenerationReservation.user_id == user_id,
+                    _is_counted_slot(window_start, pending_since),
+                )
+            )
+            oldest = result.scalar_one()
+        except Exception as e:
+            logger.error("Failed to read exam slots for user %s: %s", user_id, e)
+            raise Exception(f"Failed to read exam slots: {str(e)}")
+
+    if oldest is not None and oldest.tzinfo is None:
+        return oldest.replace(tzinfo=timezone.utc)
+    return oldest
+
+
+async def _update_exam_reservation(reservation_id: str, **values) -> None:
+    async with get_session() as session:
+        try:
+            await session.execute(
+                update(ExamGenerationReservation)
+                .where(ExamGenerationReservation.id == reservation_id)
+                .values(**values)
+            )
+        except Exception as e:
+            logger.error("Failed to update exam reservation %s: %s", reservation_id, e)
+            raise Exception(f"Failed to update exam reservation: {str(e)}")
+
+
+async def mark_exam_reservation_completed(reservation_id: str, exam_id: str) -> None:
+    await _update_exam_reservation(
+        reservation_id,
+        status=enums.ExamReservationStatus.completed,
+        exam_id=exam_id,
+        completed_at=datetime.now(timezone.utc),
+    )
+
+
+async def mark_exam_reservation_failed(reservation_id: str) -> None:
+    await _update_exam_reservation(
+        reservation_id, status=enums.ExamReservationStatus.failed
+    )
 
 
 async def get_user_by_waid(wa_id: str) -> User | None:

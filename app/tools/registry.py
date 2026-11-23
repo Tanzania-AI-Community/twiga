@@ -5,7 +5,10 @@ from enum import Enum
 
 from app.tools.tool_code.create_lesson_plan.main import create_lesson_plan
 from app.tools.tool_code.generate_exercise.main import generate_exercise
-from app.tools.tool_code.generate_necta_style_exam.main import generate_necta_style_exam
+from app.tools.tool_code.generate_necta_style_exam.main import (
+    generate_necta_style_exam,
+    preflight_necta_style_exam,
+)
 from app.tools.tool_code.search_knowledge.main import search_knowledge
 from app.tools.tool_code.solve_equation.main import solve_equation
 
@@ -26,6 +29,13 @@ TOOL_FUNCTION_MAP = {
     ToolName.generate_exercise.value: generate_exercise,
     ToolName.solve_equation.value: solve_equation,
     ToolName.generate_necta_style_exam.value: generate_necta_style_exam,
+}
+
+# Optional checks run before the tool's notification is sent. A preflight takes
+# the same arguments as its tool and returns a tool result to answer at once
+# (no notification, tool not run), or None to run the tool as usual.
+TOOL_PREFLIGHT_MAP = {
+    ToolName.generate_necta_style_exam.value: preflight_necta_style_exam,
 }
 
 
@@ -101,7 +111,11 @@ TOOLS_METADATA = [
         "type": "function",
         "function": {
             "name": ToolName.generate_necta_style_exam.value,
-            "description": "Generate a full NECTA-style exam paper and marking scheme for selected topics.",
+            "description": (
+                "Generate a full NECTA-style exam paper and marking scheme for selected topics. "
+                "If the result has `error_code`, reply with the `error` text as your whole message, "
+                "without adding to it or rewording it, and do not call this tool again for that request."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {

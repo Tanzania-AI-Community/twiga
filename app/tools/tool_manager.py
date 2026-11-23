@@ -4,14 +4,19 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from langchain_core.messages import AIMessage
 
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.tools.internal_args import get_internal_tool_args
-from app.tools.registry import TOOL_FUNCTION_MAP, ToolName, get_tools_metadata
+from app.tools.registry import (
+    TOOL_FUNCTION_MAP,
+    TOOL_PREFLIGHT_MAP,
+    ToolName,
+    get_tools_metadata,
+)
 
 
 # Simple Types replacements for OpenAI types
@@ -176,48 +181,15 @@ class ToolManager:
 
         tool_responses = []
         for tool_call in tool_calls:
+            function_name = tool_call.function.name
             try:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
-
-                # Convert class_id to int (Gemini returns it as string due to enum constraints)
-                if "class_id" in function_args:
-                    function_args["class_id"] = int(function_args["class_id"])
-
-                tool_function = TOOL_FUNCTION_MAP.get(function_name)
-                if tool_function is None:
-                    raise ValueError(
-                        f"Unknown tool: {function_name}, cannot process tool call."
-                    )
-
-                tool_function_args = self._build_tool_args(
-                    function_name=function_name,
-                    user=user,
-                    function_args=function_args,
+                tool_function, tool_function_args = self._prepare_tool_call(
+                    function_name, tool_call.function.arguments, user
                 )
-                # validate the final tool function args against the tool function signature to avoid runtime errors
-                self._validate_tool_args(
-                    function_name=function_name,
-                    tool_function=tool_function,
-                    tool_function_args=tool_function_args,
-                )
-
                 result = await tool_function(**tool_function_args)
-                split_result: ToolExecutionResult = self._to_tool_execution_result(
-                    result=result, function_name=function_name
-                )
-
                 tool_responses.append(
-                    Message(
-                        user_id=user.id,
-                        role=MessageRole.tool,
-                        content=split_result.content,
-                        tool_call_id=tool_call.id,
-                        tool_name=function_name,
-                        source_chunk_ids=split_result.source_chunk_ids,
-                    )
+                    self._tool_response(user, tool_call.id, function_name, result)
                 )
-
             except Exception as e:
                 self.logger.error(f"Error in {function_name}: {str(e)}")
                 tool_responses.append(
@@ -230,6 +202,81 @@ class ToolManager:
                     )
                 )
         return tool_responses
+
+    async def run_preflights(
+        self, tool_calls: list[dict[str, Any]], user: User
+    ) -> list[Message]:
+        """
+        Answer the tool calls that a preflight check settles without running the tool.
+
+        The caller runs (and announces) only the other calls. A preflight that
+        fails is logged, and its tool then runs as usual.
+        """
+        responses = []
+        for call in tool_calls:
+            function_name = call["function"]["name"]
+            preflight = TOOL_PREFLIGHT_MAP.get(function_name)
+            if preflight is None:
+                continue
+            try:
+                _, args = self._prepare_tool_call(
+                    function_name, call["function"]["arguments"], user
+                )
+                result = await preflight(**args)
+            except Exception as e:
+                self.logger.warning(
+                    f"Preflight for {function_name} failed; running the tool: {e}"
+                )
+                continue
+            if result is not None:
+                responses.append(
+                    self._tool_response(user, call["id"], function_name, result)
+                )
+        return responses
+
+    def _prepare_tool_call(
+        self, function_name: str, arguments: str, user: User
+    ) -> tuple[Callable[..., Awaitable[Any]], dict[str, Any]]:
+        """Return the tool function and its validated arguments, internal ones included."""
+        function_args = json.loads(arguments)
+
+        # Convert class_id to int (Gemini returns it as string due to enum constraints)
+        if "class_id" in function_args:
+            function_args["class_id"] = int(function_args["class_id"])
+
+        tool_function = TOOL_FUNCTION_MAP.get(function_name)
+        if tool_function is None:
+            raise ValueError(
+                f"Unknown tool: {function_name}, cannot process tool call."
+            )
+
+        tool_function_args = self._build_tool_args(
+            function_name=function_name,
+            user=user,
+            function_args=function_args,
+        )
+        # validate the final tool function args against the tool function signature to avoid runtime errors
+        self._validate_tool_args(
+            function_name=function_name,
+            tool_function=tool_function,
+            tool_function_args=tool_function_args,
+        )
+        return tool_function, tool_function_args
+
+    def _tool_response(
+        self, user: User, tool_call_id: str, function_name: str, result: Any
+    ) -> Message:
+        split_result: ToolExecutionResult = self._to_tool_execution_result(
+            result=result, function_name=function_name
+        )
+        return Message(
+            user_id=user.id,
+            role=MessageRole.tool,
+            content=split_result.content,
+            tool_call_id=tool_call_id,
+            tool_name=function_name,
+            source_chunk_ids=split_result.source_chunk_ids,
+        )
 
     def _build_tool_args(
         self, user: User, function_name: str, function_args: dict[str, Any]
