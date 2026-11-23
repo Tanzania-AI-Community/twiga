@@ -163,6 +163,25 @@ def _require_timezone_aware(**values: datetime) -> None:
             raise ValueError(f"{name} must be timezone-aware.")
 
 
+def _is_active_pending_slot(pending_since: datetime):
+    return and_(
+        ExamGenerationReservation.status == enums.ExamReservationStatus.pending,
+        ExamGenerationReservation.created_at >= pending_since,
+    )
+
+
+def _is_counted_slot(window_start: datetime, pending_since: datetime):
+    """Slots counted against the limit: completed since `window_start`, and
+    pending since `pending_since` (older pending ones belong to crashed runs)."""
+    return or_(
+        and_(
+            ExamGenerationReservation.status == enums.ExamReservationStatus.completed,
+            ExamGenerationReservation.created_at >= window_start,
+        ),
+        _is_active_pending_slot(pending_since),
+    )
+
+
 async def _check_exam_reservations(
     session,
     user_id: int,
@@ -176,15 +195,10 @@ async def _check_exam_reservations(
     """Return (same-request reservation, False) if one matches, else (None, slot_free).
 
     A same request matches when it completed since `reuse_since` or is still
-    pending since `pending_since`. Slots counted against the limit: completed
-    since `window_start`, and pending since `pending_since` (older pending ones
-    belong to crashed runs).
+    pending since `pending_since`.
     """
     Reservation = ExamGenerationReservation
     Status = enums.ExamReservationStatus
-    is_active_pending = and_(
-        Reservation.status == Status.pending, Reservation.created_at >= pending_since
-    )
 
     same_request = await session.execute(
         select(Reservation)
@@ -197,7 +211,7 @@ async def _check_exam_reservations(
                     Reservation.exam_id.is_not(None),
                     Reservation.completed_at >= reuse_since,
                 ),
-                is_active_pending,
+                _is_active_pending_slot(pending_since),
             ),
         )
         .order_by(desc(Reservation.created_at))
@@ -212,13 +226,7 @@ async def _check_exam_reservations(
         .select_from(Reservation)
         .where(
             Reservation.user_id == user_id,
-            or_(
-                and_(
-                    Reservation.status == Status.completed,
-                    Reservation.created_at >= window_start,
-                ),
-                is_active_pending,
-            ),
+            _is_counted_slot(window_start, pending_since),
         )
     )
     return None, used.scalar_one() < limit
@@ -308,6 +316,30 @@ async def preview_exam_generation(
                 "Failed to preview exam generation for user %s: %s", user_id, e
             )
             raise Exception(f"Failed to preview exam generation: {str(e)}")
+
+
+async def get_oldest_counted_exam_slot_at(
+    user_id: int, *, window_start: datetime, pending_since: datetime
+) -> datetime | None:
+    """Creation time of the user's oldest slot still counted against the limit."""
+    _require_timezone_aware(window_start=window_start, pending_since=pending_since)
+
+    async with get_session() as session:
+        try:
+            result = await session.execute(
+                select(func.min(ExamGenerationReservation.created_at)).where(
+                    ExamGenerationReservation.user_id == user_id,
+                    _is_counted_slot(window_start, pending_since),
+                )
+            )
+            oldest = result.scalar_one()
+        except Exception as e:
+            logger.error("Failed to read exam slots for user %s: %s", user_id, e)
+            raise Exception(f"Failed to read exam slots: {str(e)}")
+
+    if oldest is not None and oldest.tzinfo is None:
+        return oldest.replace(tzinfo=timezone.utc)
+    return oldest
 
 
 async def _update_exam_reservation(reservation_id: str, **values) -> None:

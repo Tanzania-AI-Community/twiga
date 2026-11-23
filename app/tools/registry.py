@@ -111,7 +111,11 @@ TOOLS_METADATA = [
         "type": "function",
         "function": {
             "name": ToolName.generate_necta_style_exam.value,
-            "description": "Generate a full NECTA-style exam paper and marking scheme for selected topics.",
+            "description": (
+                "Generate a full NECTA-style exam paper and marking scheme for selected topics. "
+                "If the result has `error_code`, reply with the `error` text as your whole message, "
+                "without adding to it or rewording it, and do not call this tool again for that request."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {

@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 import app.database.db as db
 from app.config import settings
@@ -18,6 +19,8 @@ from app.tools.tool_code.generate_necta_style_exam.exam_generator import (
 from app.utils.string_manager import StringCategory, strings
 
 NUM_CHUNKS_PER_TOPIC = 25
+# Tanzania keeps UTC+3 all year (no daylight saving)
+EAST_AFRICA_TIME = timezone(timedelta(hours=3), "EAT")
 logger = logging.getLogger(__name__)
 
 
@@ -90,7 +93,7 @@ def _payload_without_generating(
         case QuotaOutcome.IN_PROGRESS:
             return _error_payload("exam_in_progress", _tool_string("in_progress"))
         case QuotaOutcome.DENIED:
-            return _rate_limited_payload()
+            return _limit_reached_payload(decision.next_available_at)
     return None
 
 
@@ -196,21 +199,26 @@ def _success_payload(
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _error_payload(error_code: str, message: str) -> str:
-    return json.dumps({"error": message, "error_code": error_code}, ensure_ascii=False)
+def _error_payload(error_code: str, message: str, **details) -> str:
+    """A result the agent relays as written (see the tool description)."""
+    return json.dumps(
+        {"error": message, "error_code": error_code, **details}, ensure_ascii=False
+    )
 
 
-def _rate_limited_payload() -> str:
+def _limit_reached_payload(next_available_at: datetime) -> str:
+    local_time = next_available_at.astimezone(EAST_AFRICA_TIME)
     message = _tool_string("rate_limited").format(
         limit=settings.exam_generation_limit,
         window_days=settings.exam_generation_window_days,
+        next_available_date=(
+            f"{local_time:%A} {local_time.day} {local_time:%B}, {local_time:%H:%M} EAT"
+        ),
     )
-    return json.dumps(
-        {
-            "status": "rate_limited",
-            "message": message,
-            "limit": settings.exam_generation_limit,
-            "window_days": settings.exam_generation_window_days,
-        },
-        ensure_ascii=False,
+    return _error_payload(
+        "exam_limit_reached",
+        message,
+        limit=settings.exam_generation_limit,
+        window_days=settings.exam_generation_window_days,
+        next_available_at=local_time.isoformat(timespec="minutes"),
     )

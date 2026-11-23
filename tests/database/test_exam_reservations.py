@@ -204,3 +204,35 @@ async def test_preview_returns_same_request_in_progress(exam_reservation_db):
 
     assert existing.status == ExamReservationStatus.pending
     assert slot_free is False
+
+
+async def test_oldest_counted_slot_ignores_slots_that_do_not_count(
+    exam_reservation_db,
+):
+    oldest_counted = NOW - timedelta(days=6)
+    exam_reservation_db.add_all(
+        [
+            _reservation("counted-old", created_at=oldest_counted),
+            _reservation("counted-new", created_at=NOW - timedelta(days=1)),
+            _reservation("outside-window", created_at=NOW - timedelta(days=8)),
+            _reservation(
+                "failed",
+                status=ExamReservationStatus.failed,
+                created_at=NOW - timedelta(days=7) + timedelta(minutes=1),
+            ),
+            _reservation("other-user", user_id=2, created_at=NOW - timedelta(days=7)),
+        ]
+    )
+    exam_reservation_db.commit()
+
+    oldest = await db.get_oldest_counted_exam_slot_at(
+        1, window_start=WINDOW_START, pending_since=PENDING_SINCE
+    )
+
+    assert oldest == oldest_counted
+    assert (
+        await db.get_oldest_counted_exam_slot_at(
+            3, window_start=WINDOW_START, pending_since=PENDING_SINCE
+        )
+        is None
+    )

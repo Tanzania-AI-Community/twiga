@@ -40,7 +40,7 @@ tools:
     notification: "📑 Generating exercises from the course content, please hold..."
   generate_necta_style_exam:
     notification: "📝 Generating a NECTA-style exam. This takes around 10 minutes, so please be patient and wait for the message with your exam and solution."
-    rate_limited: "You have reached the limit of {limit} generated exams in {window_days} days. Please try again later."
+    rate_limited: "You have reached the limit of {limit} exams in {window_days} days. You can generate a new exam from {next_available_date}."
     in_progress: "Your exam is still being prepared. I'll send it here as soon as it's ready."
     delivery_failed_exam_and_solution: "Sorry, something went wrong in creating the exam and exam solution."
     delivery_failed_exam: "Sorry, something went wrong in generating the exam."

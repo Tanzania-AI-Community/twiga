@@ -1,5 +1,6 @@
 import json
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -54,19 +55,23 @@ async def _call(topics=("Cells",)):
     )
 
 
-async def test_denied_returns_limit_message_without_generating():
+async def test_denied_returns_limit_error_with_date_in_eat_without_generating():
+    next_available_at = datetime(2026, 11, 27, 6, 14, tzinfo=timezone.utc)
     with (
         patch.object(main.settings, "exam_generation_limit", 2),
         patch.object(main.settings, "exam_generation_window_days", 3),
-        _pipeline(QuotaDecision(QuotaOutcome.DENIED)) as mocks,
+        _pipeline(
+            QuotaDecision(QuotaOutcome.DENIED, next_available_at=next_available_at)
+        ) as mocks,
     ):
         result = await _call()
 
     assert result == {
-        "status": "rate_limited",
-        "message": "You have reached the limit of 2 generated exams in 3 days. Please try again later.",
+        "error": "You have reached the limit of 2 exams in 3 days. You can generate a new exam from Friday 27 November, 09:14 EAT.",
+        "error_code": "exam_limit_reached",
         "limit": 2,
         "window_days": 3,
+        "next_available_at": "2026-11-27T09:14+03:00",
     }
     mocks.generate.assert_not_awaited()
     mocks.persist.assert_not_awaited()
@@ -153,7 +158,13 @@ async def test_repeated_request_returns_same_exam_instead_of_refusing(
 @pytest.mark.parametrize(
     ("decision", "expected_key"),
     [
-        (QuotaDecision(QuotaOutcome.DENIED), "status"),
+        (
+            QuotaDecision(
+                QuotaOutcome.DENIED,
+                next_available_at=datetime(2026, 11, 27, tzinfo=timezone.utc),
+            ),
+            "error_code",
+        ),
         (QuotaDecision(QuotaOutcome.IN_PROGRESS), "error"),
         (QuotaDecision(QuotaOutcome.REUSE, exam_id="exam-old"), "exam_id"),
     ],
