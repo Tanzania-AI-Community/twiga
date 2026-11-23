@@ -71,6 +71,28 @@ git clone https://github.com/Tanzania-AI-Community/mock-whatsapp.git
 
 2. Navigate to the mock WhatsApp directory and follow the README instructions to install dependencies and start the server.
 
+3. Configure the outgoing text receiver in Twiga's environment:
+
+```dotenv
+MOCK_WHATSAPP=True
+MOCK_WHATSAPP_API_URL=http://127.0.0.1:3000/api/whatsapp
+MOCK_WHATSAPP_TOKEN=change-me-local-token
+```
+
+Set the same local token in the mock's environment, along with `CHATBOT_CALLBACK_URL=http://127.0.0.1:8000/devhooks`. Keep the placeholder Meta values from the simple template; real Meta credentials are not needed.
+
+The mock displays accepted outgoing text, individual chunks, progress notifications, read receipts, and typing actions. Its local event log survives restarts. Media and interactive messages are not supported yet. Observer mode remains a separate read-only database view.
+
+When Twiga runs in Docker, try `http://host.docker.internal:3000/api/whatsapp` for the receiver URL. Host loopback connectivity depends on the Docker platform; verify that the container can reach the mock without exposing the host listener publicly.
+
+To run the transport integration test, start the mock with a temporary event directory and `CHATBOT_CALLBACK_URL=http://127.0.0.1:1/devhooks`, then run:
+
+```sh
+MOCK_WHATSAPP_TEST_URL=http://127.0.0.1:3000 uv run pytest tests/integration/test_mock_whatsapp_transport.py
+```
+
+This test uses the actual WhatsApp client and mock receiver, without model calls or database queries.
+
 ## 🖥️ Run the FastAPI application
 
 Run the following command to run the project:

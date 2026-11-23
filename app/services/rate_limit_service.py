@@ -169,10 +169,12 @@ class RateLimitService:
 
         assert settings.time_to_live
         pipe = await redis.pipeline()
+        # Create the counter with an expiry only if it does not already exist.
+        # Retrying while rate limited must not extend the current window.
+        await pipe.set(key, 0, ex=settings.time_to_live, nx=True)
         await pipe.incr(key)
-        await pipe.expire(key, settings.time_to_live)
         result = await pipe.execute()
-        count = int(result[0])
+        count = int(result[1])
         record_rate_limit_hit(scope)
 
         if count > limit:

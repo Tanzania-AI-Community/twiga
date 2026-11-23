@@ -139,7 +139,9 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
 
         case enums.UserState.onboarding:
             # Message already persisted above
-            return await state_client.handle_onboarding(user)
+            return await state_client.handle_onboarding(
+                user, user_message.content or ""
+            )
 
         case enums.UserState.active:
             return await state_client.handle_active(user, message_info, user_message)

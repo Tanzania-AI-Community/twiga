@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import httpx
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 import app.database.db as db
@@ -48,20 +49,22 @@ class WhatsAppClient:
     _MAX_TEXT_LENGTH_CHARS = 4096
 
     def __init__(self):
+        token = settings.whatsapp_api_token.get_secret_value()
+        self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
+        if settings.mock_whatsapp:
+            assert settings.mock_whatsapp_api_url and settings.mock_whatsapp_token
+            self.url = settings.mock_whatsapp_api_url.rstrip("/")
+            token = settings.mock_whatsapp_token.get_secret_value()
         self.headers = {
             "Content-type": "application/json",
-            "Authorization": f"Bearer {settings.whatsapp_api_token.get_secret_value()}",
+            "Authorization": f"Bearer {token}",
         }
-        self.url = f"https://graph.facebook.com/{settings.meta_api_version}/{settings.whatsapp_cloud_number_id}"
         self.logger = logging.getLogger(__name__)
         self.client = httpx.AsyncClient(base_url=self.url)
 
     async def send_message(
         self, wa_id: str, message: str, options: list[str] | None = None
     ) -> bool:
-        if settings.mock_whatsapp:
-            return True
-
         i, total = 0, 0
         try:
             # Margin: Meta may count emoji as 2 chars (UTF-16 units)
@@ -73,8 +76,14 @@ class WhatsAppClient:
                 payload: dict[str, Any] = generate_payload(
                     wa_id, chunk, options if i == total else None
                 )
+                # The local mock reads JSON; Meta keeps its existing form encoding
+                body = (
+                    {"json": jsonable_encoder(payload)}
+                    if settings.mock_whatsapp
+                    else {"data": payload}
+                )
                 response = await self.client.post(
-                    "/messages", data=payload, headers=self.headers
+                    "/messages", headers=self.headers, **body
                 )
 
                 log_httpx_response(response)
@@ -109,9 +118,6 @@ class WhatsAppClient:
 
         https://developers.facebook.com/documentation/business-messaging/whatsapp/typing-indicators/
         """
-        if settings.mock_whatsapp:
-            return
-
         if not message_id:
             self.logger.warning(
                 "Skipping WhatsApp typing indicator because inbound message id is empty."

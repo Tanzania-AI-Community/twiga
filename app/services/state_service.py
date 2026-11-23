@@ -7,7 +7,6 @@ from app.database import db
 from app.database.enums import MessageRole, OnboardingState, Role, UserState
 from app.database.models import Message, User
 from app.monitoring.metrics import record_messages_generated
-from app.services.flows.flow_service import flow_client
 from app.services.messaging_service import messaging_client
 from app.services.onboarding_service import onboarding_client
 from app.services.rate_limit_service import rate_limit_service
@@ -128,8 +127,8 @@ class StateHandler:
 
         return None
 
-    async def handle_onboarding(self, user: User) -> JSONResponse:
-        await onboarding_client.process_state(user)
+    async def handle_onboarding(self, user: User, message_text: str) -> JSONResponse:
+        await onboarding_client.process_state(user, message_text)
         return JSONResponse(
             content={"status": "ok"},
             status_code=200,
@@ -260,38 +259,13 @@ class StateHandler:
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
-        """Handle users approved by dashboard - send welcome message and onboarding flow"""
+        """Move an approved user into onboarding and ask what to call them."""
         try:
-            from app.config import Environment, settings
-
             user.state = UserState.onboarding
             await db.update_user(user)
 
-            # Send welcome and onboarding flow in production
-            if settings.environment == Environment.PRODUCTION:
-                # Send welcome template message with en_US language code
-                await whatsapp_client.send_template_message(
-                    user.wa_id,
-                    settings.welcome_template_id,
-                    language_code="en_US",
-                )
-
-                assert user.id is not None
-                await db.create_new_message_by_fields(
-                    user_id=user.id,
-                    role=MessageRole.assistant,
-                    content=f"Welcome template sent: {settings.welcome_template_id}",
-                    is_present_in_conversation=True,
-                )
-
-                # Send the onboarding flow NOW (after approval)
-                await flow_client.send_personal_and_school_info_flow(user)
-            else:
-                # In non-production, skip template and flow
-                assert user.id is not None
-                self.logger.info(
-                    f"Skipping template and flow for user {user.wa_id} in {settings.environment} environment"
-                )
+            ask_name_message = strings.get_string(StringCategory.ONBOARDING, "ask_name")
+            await onboarding_client.send_recorded_message(user, ask_name_message)
 
             self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)
