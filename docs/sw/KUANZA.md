@@ -211,6 +211,13 @@ Hatua inayofuata, wacha tujenge picha zote za Docker na data za ndani, ambazo zi
 make setup-env
 ```
 
+Wakati wa kujaza hifadhidata ya ndani, `python scripts/download_assets.py`
+huandaa faili ya vekta za mfano. Unaweza pia kuendesha amri hiyo kutoka
+kwenye folda kuu ya mradi kwa Python 3.12. Faili yenye SHA-256 inayotarajiwa
+hutumika tena. Intaneti inahitajika ikiwa faili haipo au haijathibitishwa.
+Ukiongeza faili ya kupakua, ongeza njia yake kwenye `.gitignore` na hifadhi
+URL na SHA-256 yake kwenye skripti.
+
 ## 🖥️ Sanidi programu ya FastAPI.
 
 Endesha amri(command) ifuatayo ili kuendesha mradi:
