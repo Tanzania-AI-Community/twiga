@@ -10,8 +10,15 @@ def _build_generate_necta_style_exam_internal_args(user: User) -> dict[str, int]
     return {"user_id": user.id}
 
 
+def _build_profile_internal_args(user: User) -> dict[str, User]:
+    # The teacher is always the sender; the model cannot choose whose profile changes
+    return {"user": user}
+
+
 INTERNAL_TOOL_ARGS_MAPPING = {
     ToolName.generate_necta_style_exam: _build_generate_necta_style_exam_internal_args,
+    ToolName.update_my_name: _build_profile_internal_args,
+    ToolName.update_my_classes: _build_profile_internal_args,
 }
 
 

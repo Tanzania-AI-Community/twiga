@@ -1,87 +1,86 @@
+"""Conversational onboarding: the intro, message routing and the completion gate.
+
+The agent (in onboarding mode) collects the name, subjects and forms through
+the profile tools. This service only decides which messages reach the agent
+and moves the teacher to `active` once the saved profile is complete. The
+model never decides that onboarding is finished.
+"""
+
 import logging
 
+from fastapi.responses import JSONResponse
+
+from app.clients.agent_modes import AgentMode
 from app.clients.whatsapp_client import whatsapp_client
 from app.database import db
-from app.database.enums import MessageRole, OnboardingState
-from app.database.models import User
-from app.services.flows.flow_service import flow_client
+from app.database.enums import MessageRole, OnboardingState, UserState
+from app.database.models import Message, User
+from app.services.messaging_service import messaging_client
+from app.services.profile import ProfileSnapshot
 from app.utils.string_manager import StringCategory, strings
+from app.utils.whatsapp_utils import ValidMessageType, get_valid_message_type
 
-_MAX_NAME_LENGTH = 50
-_UNSUPPORTED_MESSAGE_CONTENT = "warning: user sent an unsupported message type"
-
-
-def usable_display_name(message_text: str) -> str | None:
-    """Return a name that fits the user record, or None when the reply cannot be saved."""
-    name = message_text.strip()
-    if not name or len(name) > _MAX_NAME_LENGTH or name == _UNSUPPORTED_MESSAGE_CONTENT:
-        return None
-    return name
+# Text (including transcribed voice notes and "help"/"settings") goes to the agent
+_AGENT_MESSAGE_TYPES = frozenset({ValidMessageType.CHAT, ValidMessageType.COMMAND})
 
 
-class OnboardingHandler:
-    def __init__(self):
+def _onboarding_state_for(snapshot: ProfileSnapshot) -> OnboardingState:
+    if snapshot.complete:
+        return OnboardingState.completed
+    if snapshot.name:
+        return OnboardingState.personal_info_submitted
+    return OnboardingState.new
+
+
+class OnboardingService:
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
-        self.flow_client = flow_client
-        self.handlers = {
-            OnboardingState.personal_info_submitted: self.handle_personal_info_submitted,
-            OnboardingState.completed: self.handle_completed,
-        }
 
-    async def process_state(self, user: User, message_text: str):
-        self.logger.debug(
-            f"Onboarding user {user.wa_id} with onboarding_state {user.onboarding_state}"
-        )
-        assert user.onboarding_state is not None
-        if user.onboarding_state == OnboardingState.new:
-            await self.handle_new(user, message_text)
-            return
+    async def send_intro(self, user: User) -> bool:
+        """Send the fixed first message: what Twiga is, the privacy note, and the ask."""
+        intro = strings.get_string(StringCategory.ONBOARDING, "intro")
+        return await self.send_recorded_message(user, intro)
 
-        onboarding_handler = self.handlers.get(
-            user.onboarding_state, self.handle_default
-        )
-        await onboarding_handler(user)
-        # TODO: Update the user state and onboarding_state in the database (make sure its done somewhere)
+    async def handle_message(
+        self, user: User, message_info: dict, user_message: Message
+    ) -> JSONResponse:
+        message_type = get_valid_message_type(message_info)
+        if message_type in _AGENT_MESSAGE_TYPES:
+            await messaging_client.generate_and_deliver(
+                user, user_message, mode=AgentMode.onboarding
+            )
+            await self.update_progress(user)
+        else:
+            text_only = strings.get_string(StringCategory.ONBOARDING, "text_only")
+            await self.send_recorded_message(user, text_only)
+        return JSONResponse(content={"status": "ok"}, status_code=200)
 
-    async def handle_new(self, user: User, message_text: str):
-        try:
-            if not await self._name_question_was_recorded(user):
-                ask_name = strings.get_string(StringCategory.ONBOARDING, "ask_name")
-                await self.send_recorded_message(user, ask_name)
-                return
+    async def update_progress(self, user: User) -> bool:
+        """Sync `onboarding_state` with the saved profile; True when just completed.
 
-            name = usable_display_name(message_text)
-            if name is None:
-                await self._ask_again_for_name(user)
-                return
-
-            self.logger.debug(f"Saving name for user {user.wa_id}")
-            user.name = name
-            user.onboarding_state = OnboardingState.personal_info_submitted
-            await db.update_user(user)
-            await self.flow_client.send_subjects_classes_flow(user)
-        except Exception as e:
-            self.logger.error(f"Error handling new user {user.wa_id}: {str(e)}")
-
-    async def _name_question_was_recorded(self, user: User) -> bool:
-        """True when the newest assistant message asked for the teacher's name."""
-        if user.id is None:
-            raise ValueError("User ID is unexpectedly None during onboarding.")
-
-        latest_assistant_message = await db.get_latest_user_message_by_role(
-            user.id, MessageRole.assistant
-        )
-        if latest_assistant_message is None:
+        Idempotent: once the teacher is active it does nothing, so a buffered
+        message or a repeated call can never complete onboarding twice.
+        """
+        fresh_user = await db.get_user_by_waid(user.wa_id)
+        if fresh_user is None or fresh_user.state != UserState.onboarding:
             return False
 
-        return latest_assistant_message.content in {
-            strings.get_string(StringCategory.ONBOARDING, "ask_name"),
-            strings.get_string(StringCategory.ONBOARDING, "ask_name_retry"),
-        }
+        target_state = _onboarding_state_for(ProfileSnapshot.from_user(fresh_user))
+        if target_state == fresh_user.onboarding_state:
+            return False
 
-    async def _ask_again_for_name(self, user: User) -> None:
-        retry_message = strings.get_string(StringCategory.ONBOARDING, "ask_name_retry")
-        await self.send_recorded_message(user, retry_message)
+        fresh_user.onboarding_state = target_state
+        completed = target_state == OnboardingState.completed
+        if completed:
+            fresh_user.state = UserState.active
+        await db.update_user(fresh_user)
+
+        self.logger.info(
+            "onboarding.progress user_id=%s onboarding_state=%s",
+            fresh_user.id,
+            target_state.value,
+        )
+        return completed
 
     async def send_recorded_message(self, user: User, content: str) -> bool:
         """Send a message and record it only when WhatsApp accepts the send."""
@@ -100,52 +99,5 @@ class OnboardingHandler:
         )
         return True
 
-    async def handle_personal_info_submitted(self, user: User):
-        try:
-            self.logger.debug(
-                f"Triggering send_subjects_classes_flow for user {user.wa_id}"
-            )
-            await self.flow_client.send_subjects_classes_flow(user)
-        except Exception as e:
-            self.logger.error(
-                f"Error handling personal_info_submitted user {user.wa_id}: {str(e)}"
-            )
 
-    async def handle_completed(self, user: User):
-        """Handle completed onboarding - keep user inactive until approved"""
-        self.logger.debug(f"Completed onboarding for user {user.wa_id}.")
-
-        # Send message that registration is pending approval
-        if user.id is None:
-            raise ValueError(
-                "User ID is unexpectedly None during completed onboarding."
-            )
-
-        pending_message = strings.get_string(
-            StringCategory.REGISTRATION, "pending_approval"
-        )
-        await whatsapp_client.send_message(user.wa_id, pending_message)
-        await db.create_new_message_by_fields(
-            user_id=user.id,
-            role=MessageRole.assistant,
-            content=pending_message,
-            is_present_in_conversation=True,
-        )
-
-        # User remains in inactive state until admin approval
-
-    async def handle_default(self, user: User):
-        if user.id is None:
-            raise ValueError("User ID is unexpectedly None during onboarding.")
-
-        err_message = strings.get_string(StringCategory.ERROR, "general")
-        await whatsapp_client.send_message(user.wa_id, err_message)
-        await db.create_new_message_by_fields(
-            user_id=user.id,
-            role=MessageRole.assistant,
-            content=err_message,
-            is_present_in_conversation=True,
-        )
-
-
-onboarding_client = OnboardingHandler()
+onboarding_client = OnboardingService()

@@ -127,12 +127,10 @@ class StateHandler:
 
         return None
 
-    async def handle_onboarding(self, user: User, message_text: str) -> JSONResponse:
-        await onboarding_client.process_state(user, message_text)
-        return JSONResponse(
-            content={"status": "ok"},
-            status_code=200,
-        )
+    async def handle_onboarding(
+        self, user: User, message_info: dict, user_message: Message
+    ) -> JSONResponse:
+        return await onboarding_client.handle_message(user, message_info, user_message)
 
     async def handle_active(
         self, user: User, message_info: dict, user_message: Message
@@ -144,10 +142,6 @@ class StateHandler:
         message_type = get_valid_message_type(message_info)
 
         match message_type:
-            case ValidMessageType.SETTINGS_FLOW_SELECTION:
-                return await messaging_client.handle_settings_selection(
-                    user, user_message
-                )
             case ValidMessageType.COMMAND:
                 return await messaging_client.handle_command_message(user, user_message)
             case ValidMessageType.CHAT:
@@ -263,13 +257,12 @@ class StateHandler:
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
-        """Move an approved user into onboarding and ask what to call them."""
+        """Move an approved user into onboarding and send the intro."""
         try:
             user.state = UserState.onboarding
             await db.update_user(user)
 
-            ask_name_message = strings.get_string(StringCategory.ONBOARDING, "ask_name")
-            await onboarding_client.send_recorded_message(user, ask_name_message)
+            await onboarding_client.send_intro(user)
 
             self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)

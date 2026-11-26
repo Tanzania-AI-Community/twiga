@@ -58,6 +58,7 @@ class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 
     TWIGA_AGENT_SYSTEM = "twiga_agent_system"
+    TWIGA_ONBOARDING_SYSTEM = "twiga_onboarding_system"
     IMAGE_INTERPRETER_SYSTEM = "image_interpreter_system"
 
 
@@ -146,7 +147,8 @@ class Settings(BaseSettings):
         return self.database_url.get_secret_value().replace("+asyncpg", "")
 
     """ OPTIONAL SETTINGS FOR PRODUCTION """
-    # Flows settings
+    # Flows settings: unused since WhatsApp Flows were removed. Kept until the
+    # matching .env.template entries are cleaned up; nothing reads them.
     onboarding_flow_id: Optional[str] = None
     subjects_classes_flow_id: Optional[str] = None
     flow_token_encryption_key: Optional[SecretStr] = None

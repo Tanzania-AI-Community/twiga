@@ -19,8 +19,6 @@ class StringCategory(str, Enum):
     REGISTRATION = "registration"
     SYSTEM = "system"
     TOOLS = "tools"
-    SETTINGS = "settings"
-    FLOWS = "flows"
     RATE_LIMIT = "rate_limit"
     REMINDER = "reminder"
 

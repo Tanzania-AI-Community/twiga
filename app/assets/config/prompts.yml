@@ -1,12 +1,21 @@
 prompts:
   twiga_agent_system:
     path: twiga/system
-    active_version: v0.1
+    active_version: v0.2
     versions:
       v0.0:
         description: "Baseline version."
       v0.1:
         description: "Search course material first for curriculum content and accept multilingual input while responding in English."
+      v0.2:
+        description: "Conversational profile updates (name, subjects, forms) with fixed refusal for other account changes; teacher name rendered as data."
+
+  twiga_onboarding_system:
+    path: twiga/onboarding/system
+    active_version: v0.0
+    versions:
+      v0.0:
+        description: "Collect the teacher's name, subjects and forms conversationally; profile tools only."
 
   image_interpreter_system:
     path: image_interpreter/system

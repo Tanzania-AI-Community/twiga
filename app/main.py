@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -10,8 +10,7 @@ from app.config import Environment, embedding_settings, llm_settings, settings
 from app.database.engine import db_engine, init_db
 from app.monitoring import metrics  # noqa: F401 - registers metrics on import
 from app.redis.engine import disconnect_redis, init_redis
-from app.security import flows_signature_required, signature_required
-from app.services.flows.flow_service import flow_client
+from app.security import signature_required
 from app.services.request_service import handle_request
 
 logger = logging.getLogger(__name__)
@@ -80,14 +79,6 @@ async def devhooks_post(request: Request) -> JSONResponse:
         logger.warning("mock whatsapp is disabled")
         return JSONResponse(content={"message": "mock whatsapp is disabled"})
     return await handle_request(request)
-
-
-@app.post("/flows", dependencies=[Depends(flows_signature_required)])
-async def handle_flows_webhook(
-    request: Request, background_tasks: BackgroundTasks
-) -> PlainTextResponse:
-    logger.debug("flows webhook is being called")
-    return await flow_client.handle_flow_request(request, background_tasks)
 
 
 @app.get("/health")

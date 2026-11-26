@@ -9,6 +9,11 @@ This package contains all the tool calls available to Twiga. Each tool is isolat
 - **generate_exercise** - Generates practice questions based on course literature
 - **solve_equation** - Solves mathematical equations with step-by-step solutions
 - **generate_necta_style_exam** - Generates exams based on course literature using the NECTA style
+- **update_my_name** - Saves the name the teacher wants to be called
+- **update_my_classes** - Adds, removes or replaces the subjects and forms the teacher teaches
+
+The two `update_my_*` tools are *profile tools*: thin adapters over
+`app/services/profile/`, which owns all validation and writes.
 
 ## Adding a New Tool
 
@@ -59,6 +64,14 @@ Notes:
 - `ToolManager` loads these args via `get_internal_tool_args(...)`, merges them with LLM args, and validates the final signature before invoking the tool.
 - Do not add internal-only args to `TOOLS_METADATA` (so they stay hidden from the agent).
 - Ensure the tool function signature accepts the internal args.
+- Internal args override any argument of the same name sent by the model. The profile
+  tools use this to receive the sender as `user`, so the model can never choose whose
+  profile changes.
+
+e) Add the tool to a tool group in `registry.py`: `CURRICULUM_TOOLS` (the default for
+new tools) or `PROFILE_TOOLS`. Agent modes (`app/clients/agent_modes.py`) decide which
+groups the model may use: onboarding teachers only get `PROFILE_TOOLS`. The allowlist is
+enforced in `ToolManager.process_tool_calls`, not only in the schema sent to the model.
 
 
 ### 3. Update System Prompts
@@ -107,7 +120,8 @@ name stays the same. When adding a version, create its file and register it unde
 
 ### 4. Add User-Facing Message
 
-Update `app/assets/strings/english.yml` to add a loading message for your tool:
+Update `app/assets/strings/english.yml` to add a loading message for your tool
+(profile tools have none: the reply itself confirms the change):
 
 ```yaml
 tools:

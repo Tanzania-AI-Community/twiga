@@ -10,6 +10,7 @@ from langchain_core.messages import AIMessage
 
 from app.database.enums import MessageRole
 from app.database.models import Message, User
+from app.services.profile import Catalog
 from app.tools.internal_args import get_internal_tool_args
 from app.tools.registry import TOOL_FUNCTION_MAP, ToolName, get_tools_metadata
 
@@ -48,15 +49,24 @@ class ToolManager:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    def get_tools_metadata_from_registry(self, available_classes: str) -> list:
+    def get_tools_metadata_from_registry(
+        self,
+        available_classes: str,
+        allowed: frozenset[ToolName] | None = None,
+        catalog: Catalog | None = None,
+    ) -> list:
         """
-        Get tools metadata with formatted class IDs for all tools from the tool registry.
+        Get tools metadata for the allowed tools from the tool registry.
 
         Args:
             available_classes: JSON string mapping class names to their IDs
             e.g. '{"Geography Form 2": 1}'
+            allowed: The tools the current agent mode may use (default: all)
+            catalog: Subjects and forms offered to the profile tools
         """
-        return get_tools_metadata(available_classes=available_classes)
+        return get_tools_metadata(
+            available_classes=available_classes, allowed=allowed, catalog=catalog
+        )
 
     def extract_tool_calls(self, llm_response: AIMessage) -> list[dict[str, Any]]:
         """
@@ -157,11 +167,19 @@ class ToolManager:
         return None
 
     async def process_tool_calls(
-        self, tool_calls: list[dict[str, Any]], user: User
+        self,
+        tool_calls: list[dict[str, Any]],
+        user: User,
+        allowed: frozenset[ToolName] | None = None,
     ) -> list[Message]:
         """
         Process tool calls and return their responses as Message objects.
+
+        `allowed` limits which tools may run. It is enforced here and not only in
+        the schema sent to the model, because `_catch_malformed_tool` can recover
+        any tool name from free text.
         """
+        allowed_names = None if allowed is None else {tool.value for tool in allowed}
         tool_calls = [
             ChatCompletionMessageToolCall(
                 id=call.get("id", f"call_{str(uuid.uuid4())}"),
@@ -178,6 +196,12 @@ class ToolManager:
         for tool_call in tool_calls:
             try:
                 function_name = tool_call.function.name
+                if allowed_names is not None and function_name not in allowed_names:
+                    self.logger.warning(
+                        "Refused tool %s: not available in this mode", function_name
+                    )
+                    raise ValueError("tool_not_available")
+
                 function_args = json.loads(tool_call.function.arguments)
 
                 # Convert class_id to int (Gemini returns it as string due to enum constraints)

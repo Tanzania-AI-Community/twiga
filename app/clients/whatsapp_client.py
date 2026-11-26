@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import os
 from enum import Enum
@@ -11,16 +10,11 @@ from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-import app.database.db as db
-import app.database.enums as enums
-import app.services.flows.utils as flow_utils
 from app.config import settings
-from app.database.models import User
 from app.models.image_models import DownloadedImage, ImageInputError
 from app.monitoring.metrics import record_whatsapp_event
 from app.utils.image_utils import MAX_IMAGE_BYTES, SUPPORTED_IMAGE_TYPES, validate_image
 from app.utils.logging_utils import log_httpx_response, private_media_logging
-from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     generate_payload,
     generate_payload_for_document,
@@ -163,9 +157,7 @@ class WhatsAppClient:
 
         return media_response.content, metadata.get("mime_type") or "audio/ogg"
 
-    async def send_message(
-        self, wa_id: str, message: str, options: list[str] | None = None
-    ) -> bool:
+    async def send_message(self, wa_id: str, message: str) -> bool:
         i, total = 0, 0
         try:
             # Margin: Meta may count emoji as 2 chars (UTF-16 units)
@@ -174,9 +166,7 @@ class WhatsAppClient:
             total = len(chunks)
 
             for i, chunk in enumerate(chunks, start=1):
-                payload: dict[str, Any] = generate_payload(
-                    wa_id, chunk, options if i == total else None
-                )
+                payload: dict[str, Any] = generate_payload(wa_id, chunk)
                 # The local mock reads JSON; Meta keeps its existing form encoding
                 body = (
                     {"json": jsonable_encoder(payload)}
@@ -241,65 +231,6 @@ class WhatsAppClient:
             self.logger.error(f"Typing Indicator Request Error: {e}")
         except Exception as e:
             self.logger.error(f"Typing Indicator Unexpected Error: {e}")
-
-    async def send_whatsapp_flow_message(
-        self,
-        user: User,
-        flow_id: str,
-        header_text: str,
-        body_text: str,
-        action_payload: dict[str, Any],
-        flow_cta: str,
-        mode: str = "published",
-    ) -> None:
-        if settings.mock_whatsapp:
-            return
-
-        flow_token = flow_utils.encrypt_flow_token(user.wa_id, flow_id)
-
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": user.wa_id,
-            "recipient_type": "individual",
-            "type": "interactive",
-            "interactive": {
-                "type": "flow",
-                "header": {
-                    "type": "text",
-                    "text": header_text,
-                },
-                "body": {
-                    "text": body_text,
-                },
-                "footer": {
-                    "text": strings.get_string(
-                        StringCategory.FLOWS, "flow_footer_text"
-                    ),
-                },
-                "action": {
-                    "name": "flow",
-                    "parameters": {
-                        "flow_message_version": "3",
-                        "flow_action": "navigate",
-                        "flow_token": flow_token,
-                        "flow_id": flow_id,
-                        "flow_cta": flow_cta,
-                        "mode": mode,
-                        "flow_action_payload": action_payload,
-                    },
-                },
-            },
-        }
-
-        try:
-            response = await self.client.post(
-                "/messages", json=payload, headers=self.headers
-            )
-            log_httpx_response(response)
-        except httpx.RequestError as e:
-            self.logger.error(f"Flow Message Request Error: {e}")
-        except Exception as e:
-            self.logger.error(f"Flow Message Unexpected Error: {e}")
 
     async def send_image_message(
         self,
@@ -592,101 +523,17 @@ class WhatsAppClient:
             record_whatsapp_event(f"status_update:{status}")
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
-    def handle_flow_event(self, body: dict) -> JSONResponse:
+    def handle_ignored_flow_webhook(self, kind: str) -> JSONResponse:
         """
-        Handles WhatsApp webhook events.
+        Acknowledge WhatsApp Flow webhooks without acting on them.
+
+        Twiga no longer uses Flows, but Meta keeps sending status events until the
+        published Flows are deprecated, and a teacher may still submit a form that
+        was open on their phone. Acknowledging with 200 stops Meta from retrying.
         """
-        self.logger.debug(f"Received a WhatsApp Flow event: {body}")
-        event_type = body["entry"][0]["changes"][0]["value"]["event"]
-        record_whatsapp_event(f"flow_event:{event_type.lower()}")
-
-        if event_type == "ENDPOINT_AVAILABILITY":
-            flow_id = body["entry"][0]["changes"][0]["value"]["flow_id"]
-            threshold = body["entry"][0]["changes"][0]["value"]["threshold"]
-            availability = body["entry"][0]["changes"][0]["value"]["availability"]
-            self.logger.info(
-                f"Received a flow availability request for flow id {flow_id}, threshold {threshold}, availability {availability}"
-            )
-            return JSONResponse(
-                content={"status": "ok"},
-                status_code=200,
-            )
-        elif event_type == "FLOW_STATUS_CHANGE":
-            flow_id = body["entry"][0]["changes"][0]["value"]["flow_id"]
-            old_status = body["entry"][0]["changes"][0]["value"]["old_status"]
-            new_status = body["entry"][0]["changes"][0]["value"]["new_status"]
-            self.logger.info(
-                f"Received a flow status change request for flow id {flow_id}, old status {old_status}, new status {new_status}"
-            )
-            return JSONResponse(
-                content={"status": "ok"},
-                status_code=200,
-            )
-        elif event_type == "ENDPOINT_ERROR_RATE":
-            self.logger.info(f"Handling event type: {event_type}")
-            # Add your handling logic here
-            return JSONResponse(
-                content={
-                    "status": "success",
-                    "message": f"Handled event type: {event_type}",
-                },
-                status_code=200,
-            )
-        elif event_type == "ENDPOINT_LATENCY":
-            self.logger.info(f"Handling event type: {event_type}")
-            # Add your handling logic here
-            return JSONResponse(
-                content={
-                    "status": "success",
-                    "message": f"Handled event type: {event_type}",
-                },
-                status_code=200,
-            )
-        else:
-            self.logger.warning(f"⚠️ Unhandled event type: {event_type}")
-            return JSONResponse(
-                content={
-                    "status": "warning",
-                    "message": f"Unhandled event type: {event_type}",
-                },
-                status_code=200,
-            )
-
-    async def handle_flow_message_complete(self, body: dict) -> JSONResponse:
-        """
-        Handles WhatsApp flow message completion events.
-        """
-        self.logger.debug(f"Received a WhatsApp Flow message complete event: {body}")
-        record_whatsapp_event("handler:flow_message_complete")
-
-        try:
-            value = body["entry"][0]["changes"][0]["value"]
-            wa_id = value["contacts"][0]["wa_id"]
-            response_json = value["messages"][0]["interactive"]["nfm_reply"][
-                "response_json"
-            ]
-
-            if isinstance(response_json, str):
-                response_payload = json.loads(response_json)
-            else:
-                response_payload = response_json
-
-            user = await db.get_user_by_waid(wa_id)
-            if user and user.id is not None:
-                await db.create_new_message_by_fields(
-                    user_id=user.id,
-                    role=enums.MessageRole.user,
-                    content=f"[FLOW_COMPLETED] {json.dumps(response_payload, default=str)}",
-                    is_present_in_conversation=True,
-                )
-            else:
-                self.logger.warning(
-                    f"Flow completion received for unknown user with wa_id={wa_id}"
-                )
-        except Exception as e:
-            self.logger.error(f"Failed to persist flow completion payload: {e}")
-
-        return JSONResponse(content={"status": "ok"}, status_code=200)
+        self.logger.info("Ignoring WhatsApp Flow webhook: %s", kind)
+        record_whatsapp_event(f"flow_ignored:{kind}")
+        return JSONResponse(content={"status": "ignored"}, status_code=200)
 
     def handle_invalid_message(self, body: dict) -> JSONResponse:
         """

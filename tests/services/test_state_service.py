@@ -7,7 +7,7 @@ from app.config import Environment
 from app.database.enums import MessageRole, OnboardingState, UserState
 from app.database.models import Message, User
 from app.services.state_service import StateHandler
-from app.utils.string_manager import StringCategory
+from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import ValidMessageType
 
 
@@ -137,9 +137,7 @@ async def test_handle_in_review_user_persists_visible_message_when_not_duplicate
 
 
 @pytest.mark.asyncio
-async def test_handle_new_approved_user_sends_ask_name_and_keeps_onboarding_new() -> (
-    None
-):
+async def test_handle_new_approved_user_sends_intro_and_keeps_onboarding_new() -> None:
     user = User(
         id=4,
         wa_id="255700000004",
@@ -148,17 +146,13 @@ async def test_handle_new_approved_user_sends_ask_name_and_keeps_onboarding_new(
         onboarding_state=OnboardingState.new,
     )
     service = StateHandler()
-    ask_name_message = "What should I call you?"
+    intro = strings.get_string(StringCategory.ONBOARDING, "intro")
 
     with (
         patch(
             "app.services.state_service.db.update_user",
             AsyncMock(return_value=user),
         ),
-        patch(
-            "app.services.state_service.strings.get_string",
-            return_value=ask_name_message,
-        ) as mock_get_string,
         patch(
             "app.services.onboarding_service.whatsapp_client.send_message",
             AsyncMock(return_value=True),
@@ -177,15 +171,119 @@ async def test_handle_new_approved_user_sends_ask_name_and_keeps_onboarding_new(
     assert response.status_code == 200
     assert user.state == UserState.onboarding
     assert user.onboarding_state == OnboardingState.new
-    mock_get_string.assert_called_once_with(StringCategory.ONBOARDING, "ask_name")
-    mock_send_message.assert_awaited_once_with(user.wa_id, ask_name_message)
+    mock_send_message.assert_awaited_once_with(user.wa_id, intro)
     mock_send_template_message.assert_not_awaited()
     assert mock_create_message_by_fields.await_args.kwargs == {
         "user_id": user.id,
         "role": MessageRole.assistant,
-        "content": ask_name_message,
+        "content": intro,
         "is_present_in_conversation": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_handle_onboarding_delegates_to_onboarding_service() -> None:
+    user = User(id=4, wa_id="255700000004", state=UserState.onboarding)
+    message_info = {"message": {"type": "text"}, "extracted_content": "Hi"}
+    user_message = Message(user_id=4, role=MessageRole.user, content="Hi")
+    expected = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    with patch(
+        "app.services.state_service.onboarding_client.handle_message",
+        AsyncMock(return_value=expected),
+    ) as handle_message:
+        response = await StateHandler().handle_onboarding(
+            user, message_info, user_message
+        )
+
+    assert response is expected
+    handle_message.assert_awaited_once_with(user, message_info, user_message)
+
+
+def _registration_session() -> AsyncMock:
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.commit = AsyncMock()
+
+    async def _refresh_user(user: User) -> None:
+        user.id = 501
+
+    session.refresh = AsyncMock(side_effect=_refresh_user)
+    return session
+
+
+@pytest.mark.asyncio
+async def test_new_user_in_production_gets_intro_and_first_message_is_not_saved() -> (
+    None
+):
+    """Nothing the teacher sent before seeing the intro's privacy note is kept."""
+    service = StateHandler()
+    session = _registration_session()
+
+    with (
+        patch(
+            "app.database.engine.get_session",
+            return_value=_SessionContext(session),
+        ),
+        patch("app.config.settings.environment", Environment.PRODUCTION),
+        patch(
+            "app.services.state_service.db.update_user",
+            AsyncMock(side_effect=lambda user: user),
+        ),
+        patch(
+            "app.services.state_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as create_message,
+        patch(
+            "app.services.state_service.onboarding_client.send_intro",
+            AsyncMock(return_value=True),
+        ) as send_intro,
+    ):
+        response = await service.handle_new_user_registration(
+            phone_number="255700000006",
+            message_info={"extracted_content": "Hi, I'm Ali"},
+        )
+
+    assert response.status_code == 200
+    persisted_user = session.add.call_args.args[0]
+    assert persisted_user.state == UserState.onboarding
+    create_message.assert_not_awaited()
+    send_intro.assert_awaited_once_with(persisted_user)
+
+
+@pytest.mark.asyncio
+async def test_new_user_outside_production_still_gets_the_dummy_profile() -> None:
+    service = StateHandler()
+    session = _registration_session()
+    dummy_response = JSONResponse(content={"status": "ok"}, status_code=200)
+
+    with (
+        patch(
+            "app.database.engine.get_session",
+            return_value=_SessionContext(session),
+        ),
+        patch("app.config.settings.environment", Environment.DEVELOPMENT),
+        patch.object(
+            service, "handle_new_dummy", AsyncMock(return_value=dummy_response)
+        ) as handle_new_dummy,
+        patch(
+            "app.services.state_service.db.create_new_message_by_fields",
+            AsyncMock(),
+        ) as create_message,
+        patch(
+            "app.services.state_service.onboarding_client.send_intro", AsyncMock()
+        ) as send_intro,
+    ):
+        response = await service.handle_new_user_registration(
+            phone_number="255700000007",
+            message_info={"extracted_content": "Hi"},
+        )
+
+    assert response is dummy_response
+    handle_new_dummy.assert_awaited_once()
+    create_message.assert_not_awaited()
+    send_intro.assert_not_awaited()
 
 
 @pytest.mark.asyncio

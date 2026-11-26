@@ -11,12 +11,13 @@ from langchain_core.messages import (
 )
 from langchain_core.messages.base import BaseMessage
 
+from app.clients.agent_modes import active_prompt_variables
 from app.clients.whatsapp_client import whatsapp_client
 from app.config import Prompt, settings
 from app.database.db import create_new_message_by_fields, get_user_message_history
 from app.database.enums import MessageRole
 from app.database.models import Message, User
-from app.tools.registry import ToolName
+from app.tools.registry import PROFILE_TOOLS, ToolName
 from app.tools.tool_manager import ToolManager
 from app.utils.message_processor import MessageProcessor
 from app.utils.prompt_manager import prompt_manager
@@ -46,6 +47,8 @@ class PreparationFailed:
 
 GenerateResponseResult = list[Message] | BufferedResponse | PreparationFailed | None
 
+# WhatsApp Flows are gone, but old history still holds these bookkeeping rows;
+# keep hiding them from the model
 _FLOW_MARKER_PREFIXES = ("[FLOW_SENT]", "[FLOW_COMPLETED]")
 
 
@@ -77,6 +80,8 @@ class ClientBase(ABC):
         """Send a notification to the user when a tool call is made."""
         if tool_name == ToolName.search_knowledge.value:
             return  # issue #227
+        if tool_name in PROFILE_TOOLS:
+            return  # the reply itself confirms the saved profile
         tool_strings = strings.get_category(StringCategory.TOOLS)
 
         if tool_name not in tool_strings:
@@ -124,6 +129,7 @@ class ClientBase(ABC):
         user: User,
         processor: MessageProcessor,
         prompt: Prompt = Prompt.TWIGA_AGENT_SYSTEM,
+        prompt_variables: Optional[dict[str, str]] = None,
     ) -> tuple[Optional[list[BaseMessage]], Optional[list[Message]]]:
         """
         Preprocess messages: validate, build API messages, check character limits.
@@ -132,6 +138,7 @@ class ClientBase(ABC):
             user: User object for context
             processor: MessageProcessor with pending messages
             prompt: Prompt to use for system message
+            prompt_variables: Values for the prompt placeholders (default: active mode)
 
         Returns:
             Tuple of (api_messages, None) if successful
@@ -148,6 +155,7 @@ class ClientBase(ABC):
             user=user,
             messages_to_process=messages_to_process,
             prompt=prompt,
+            prompt_variables=prompt_variables,
         )
 
         # Check character limits
@@ -177,6 +185,7 @@ class ClientBase(ABC):
         user: User,
         messages_to_process: list[Message],
         prompt: Prompt = Prompt.TWIGA_AGENT_SYSTEM,
+        prompt_variables: Optional[dict[str, str]] = None,
     ) -> list[BaseMessage]:
         """Build the API messages from DB history + new messages"""
 
@@ -184,7 +193,7 @@ class ClientBase(ABC):
         history = await get_user_message_history(user.id)
 
         formatted_messages = self._format_messages(
-            messages_to_process, history, user, prompt
+            messages_to_process, history, user, prompt, prompt_variables
         )
 
         # Convert to LangChain BaseMessage objects
@@ -273,11 +282,25 @@ class ClientBase(ABC):
         return ordered_chunk_ids
 
     @staticmethod
+    def _render_system_prompt(
+        user: User,
+        prompt: Prompt,
+        prompt_variables: Optional[dict[str, str]] = None,
+    ) -> str:
+        variables = (
+            prompt_variables
+            if prompt_variables is not None
+            else active_prompt_variables(user)
+        )
+        return prompt_manager.format_prompt(name=prompt.value, **variables)
+
+    @staticmethod
     def _format_messages(
         new_messages: list[Message],
         database_messages: Optional[list[Message]],
         user: User,
         prompt: Prompt,
+        prompt_variables: Optional[dict[str, str]] = None,
     ) -> list[dict]:
         """
         Format messages for the API, removing duplicates between new messages and database history.
@@ -286,10 +309,8 @@ class ClientBase(ABC):
         formatted_messages = [
             {
                 "role": MessageRole.system,
-                "content": prompt_manager.format_prompt(
-                    name=prompt.value,
-                    user_name=user.name,
-                    class_info=user.formatted_class_info,
+                "content": ClientBase._render_system_prompt(
+                    user, prompt, prompt_variables
                 ),
             }
         ]

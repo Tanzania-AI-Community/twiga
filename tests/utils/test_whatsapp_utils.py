@@ -1,7 +1,11 @@
 """Tests for WhatsApp message utilities."""
 
+import pytest
+
 from app.utils.whatsapp_utils import (
+    RequestType,
     ValidMessageType,
+    get_request_type,
     get_valid_message_type,
     split_text_for_whatsapp,
 )
@@ -26,6 +30,37 @@ def test_audio_transcript_can_be_routed_as_a_command() -> None:
     }
 
     assert get_valid_message_type(message_info) is ValidMessageType.COMMAND
+
+
+@pytest.mark.parametrize("text", ["settings", "Settings"])
+def test_settings_is_routed_to_the_agent_as_chat(text: str) -> None:
+    message_info = {"message": {"type": "text"}, "extracted_content": text}
+
+    assert get_valid_message_type(message_info) is ValidMessageType.CHAT
+
+
+def test_tap_on_an_old_interactive_menu_is_unsupported() -> None:
+    message_info = {
+        "message": {
+            "type": "interactive",
+            "interactive": {
+                "type": "button_reply",
+                "button_reply": {"title": "Profile"},
+            },
+        },
+        "extracted_content": "Profile",
+    }
+
+    assert get_valid_message_type(message_info) is ValidMessageType.OTHER
+
+
+def test_flow_webhooks_are_still_recognised_so_they_can_be_ignored() -> None:
+    flow_status_event = {
+        "object": "whatsapp_business_account",
+        "entry": [{"changes": [{"value": {"event": "FLOW_STATUS_CHANGE"}}]}],
+    }
+
+    assert get_request_type(flow_status_event) is RequestType.FLOW_EVENT
 
 
 def _visible(text: str) -> str:

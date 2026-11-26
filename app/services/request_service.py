@@ -98,11 +98,11 @@ def _internal_error_response(exc: Exception) -> JSONResponse:
 async def _dispatch_request(body: dict, request_type: RequestType) -> JSONResponse:
     match request_type:
         case RequestType.FLOW_EVENT:
-            return whatsapp_client.handle_flow_event(body)
+            return whatsapp_client.handle_ignored_flow_webhook("event")
         case RequestType.MESSAGE_STATUS_UPDATE:
             return whatsapp_client.handle_status_update(body)
         case RequestType.FLOW_COMPLETE:
-            return await whatsapp_client.handle_flow_message_complete(body)
+            return whatsapp_client.handle_ignored_flow_webhook("completion")
         case RequestType.INVALID_MESSAGE:
             return whatsapp_client.handle_invalid_message(body)
         case RequestType.OUTDATED:
@@ -266,7 +266,7 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
         case enums.UserState.onboarding:
             # Message already persisted above
             return await state_client.handle_onboarding(
-                user, user_message.content or ""
+                user, message_info, user_message
             )
 
         case enums.UserState.active:

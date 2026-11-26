@@ -210,3 +210,47 @@ def test_format_messages_raises_when_history_shorter_than_new_messages() -> None
             user=user,
             prompt=Prompt.TWIGA_AGENT_SYSTEM,
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool_name", ["update_my_name", "update_my_classes"])
+async def test_tool_call_notification_silent_for_profile_tools(tool_name: str) -> None:
+    """The reply itself confirms a profile change, so no "please hold" is sent."""
+    client = DummyClient()
+    user = User(id=11, wa_id="255700000000", name="Teacher")
+
+    with (
+        patch(
+            "app.clients.client_base.whatsapp_client.send_message",
+            AsyncMock(),
+        ) as mock_send_message,
+        patch(
+            "app.clients.client_base.create_new_message_by_fields",
+            AsyncMock(),
+        ) as mock_create_message,
+    ):
+        await client._tool_call_notification(user, tool_name)
+
+    mock_send_message.assert_not_awaited()
+    mock_create_message.assert_not_awaited()
+
+
+def test_format_messages_uses_mode_prompt_variables() -> None:
+    client = DummyClient()
+    user = User(id=1, name="Ali", wa_id="255700000001")
+
+    result = client._format_messages(
+        new_messages=[Message(user_id=1, role=enums.MessageRole.user, content="hi")],
+        database_messages=[
+            Message(user_id=1, role=enums.MessageRole.user, content="hi")
+        ],
+        user=user,
+        prompt=Prompt.TWIGA_ONBOARDING_SYSTEM,
+        prompt_variables={
+            "user_name": "Ali",
+            "current_profile": "Name: Ali",
+            "missing_fields": "classes",
+        },
+    )
+
+    assert "Still missing: classes" in result[0]["content"]

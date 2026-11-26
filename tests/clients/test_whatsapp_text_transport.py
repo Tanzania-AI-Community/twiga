@@ -62,12 +62,10 @@ async def test_mock_sends_json_to_the_local_receiver(monkeypatch):
         return httpx.Response(200, json={"messages": [{"id": "wamid.test"}]})
 
     assert await send_with(client, receive, "255700000001", "Hello 🦒")
-    assert await send_with(client, receive, "1", "Select", ["a", "b", "c", "d"])
     request = requests[0]
     assert str(request.url) == "http://127.0.0.1:3100/api/whatsapp/messages"
     assert request.headers["authorization"] == "Bearer local-token"
     assert json.loads(request.content) == generate_payload("255700000001", "Hello 🦒")
-    assert json.loads(requests[1].content)["type"] == "interactive"
 
 
 @pytest.mark.parametrize("reject_second", [False, True])
