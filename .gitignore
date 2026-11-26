@@ -181,3 +181,7 @@ cython_debug/
 .idea/
 
 scripts/assets/books/
+
+# Downloaded seed assets
+/scripts/assets/sample_data/chunks_gemini.json
+/scripts/assets/sample_data/data.yaml

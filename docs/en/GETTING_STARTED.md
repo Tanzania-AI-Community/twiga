@@ -228,6 +228,8 @@ Next up, let's build all Docker images and local data, needed for further steps 
 make setup-env
 ```
 
+Local setup runs `python scripts/download_assets.py` before seeding the database. See [Downloading assets](DOWNLOADING_ASSETS.md) to run it manually or add a file.
+
 ## 🖥️ Set up the FastAPI application
 
 Run the following command to run the project.

@@ -211,6 +211,8 @@ Hatua inayofuata, wacha tujenge picha zote za Docker na data za ndani, ambazo zi
 make setup-env
 ```
 
+Usanidi wa ndani huendesha `python scripts/download_assets.py` kabla ya kujaza hifadhidata. Ili kuongeza faili, weka jina, folda, URL na SHA-256 katika `scripts/assets/downloads.json`, kisha ongeza njia ya faili katika `.gitignore`. [Mwongozo wa kupakua faili](../en/DOWNLOADING_ASSETS.md).
+
 ## 🖥️ Sanidi programu ya FastAPI.
 
 Endesha amri(command) ifuatayo ili kuendesha mradi:
