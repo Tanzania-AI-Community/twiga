@@ -21,10 +21,6 @@ info:
 onboarding:
   intro: "Hi! I'm Twiga 🦒, a teaching assistant for teachers in Tanzania. I can answer questions about your subjects, find content in your textbooks and create exercises for your classes. I'll only ask for your name and the classes you teach, and I use your messages to answer you and to improve Twiga. What should I call you, and which subjects and forms do you teach?"
   text_only: "Please reply with a text or a voice message so I can finish setting up your profile."
-  ask_name_retry: "I didn't catch a name I can use. Please send the name I should call you, in 50 characters or less."
-  welcome: "Welcome! I'm here to help you with your teaching journey. I'm **Twiga 🦒**, your teaching assistant. I can help you with questions related to the classes you teach, search the content, and generate exercises you can use in your classes.\n\nTo change your name, subjects or forms, just tell me in a text or voice message. \n\nLet's get started! Just talk to me like a colleague."
-  personal_info_submitted: "Thanks for submitting your personal information. Let's continue with your class and subject information to complete your onboarding."
-  completion: "Hurray! {user_name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start talking to Twiga 🦒."
   onboarding_override: "Looks like you're overriding the onboarding process. You've been given default classes and subjects. You can start talking to Twiga 🦒."
   in_review_message: "Thank you for reaching out! Your access is currently being reviewed. You'll hear from us soon."
 
@@ -32,13 +28,6 @@ registration:
   registration_started: "Thank you for registering! Your account is being reviewed by our team. You'll receive a message once approved. Thank you for your patience!"
   pending_approval: "Thank you for registering! Your application is being reviewed. You'll receive a message once approved."
   approved: "Congratulations! Your registration has been approved. Let's complete your profile setup."
-
-settings:
-  intro: "Welcome to the Settings Menu, please select what you want to update."
-  personal_info: "Profile"
-  ask_name: "What should I call you?"
-  name_updated: "Got it, I'll call you {name}."
-  class_subject_info: "Classes and Subjects"
 
 tools:
   create_lesson_plan:
@@ -55,31 +44,6 @@ tools:
     notification: "📚 Searching the course content, please hold..."
   solve_equation:
     notification: "🧮 Solving the equation, please hold..."
-
-flows:
-  registration_header: "Welcome to Twiga! 🦒"
-  registration_body: "Please fill in your details to get started."
-  registration_cta: "Register"
-  start_onboarding_header: "Start onboarding to Twiga 🦒"
-  start_onboarding_body: "Welcome to Twiga! Looks like you are new here. Let's get started."
-  start_onboarding_cta: "Introduction"
-  personal_settings_header: "Update your personal and school information 📝"
-  personal_settings_body: "Let's update your personal and school information."
-  personal_settings_cta: "Personal Settings"
-  subjects_classes_flow_header: "Select the classes you teach 📚"
-  subjects_classes_flow_body: "Select the classes you teach from each of the subjects below"
-  subjects_classes_flow_cta: "Classes"
-  flow_footer_text: "Please follow the instructions."
-  subjects_classes_unknown_action_error: "Unknown subjects/classes flow action"
-  subjects_classes_no_subject_selected_error: "No subject selected"
-  subjects_classes_invalid_subject_selected_error: "Invalid subject selected"
-  subjects_classes_no_classes_selected_for_subjects_error: "No classes selected for selected subjects"
-  subjects_classes_no_classes_selected_for_any_subject_error: "No classes selected for any subject"
-  subjects_classes_selected_subject_missing_error: "Selected subject no longer exists"
-  subjects_classes_no_active_classes_text: "No active classes are available for selected subjects. Please contact support (dev@ai.or.tz) for assistance."
-  subjects_classes_selection_limit_subjects_error: "You can select up to {max_subjects} subjects."
-  subjects_classes_selection_limit_classes_error: "You can select up to {max_classes} classes."
-  subjects_classes_subject_or_classes_not_found_error: "Subject or classes not found"
 
 rate_limit:
   global_message_limit: "🚫 Twiga is currently unavailable. Please come back later."

@@ -6,24 +6,15 @@ from typing import Any, Optional
 
 from app.config import settings
 from app.models.message_models import (
-    Button,
-    ButtonsAction,
-    InteractiveButton,
-    InteractiveList,
-    InteractiveMessage,
-    ListAction,
-    Reply,
-    Row,
-    Section,
     Template,
     TemplateLanguage,
     TemplateMessage,
     TextMessage,
-    TextObject,
 )
 
 
 class RequestType(Enum):
+    # Flow webhooks are only recognised so they can be acknowledged and ignored
     FLOW_EVENT = auto()
     MESSAGE_STATUS_UPDATE = auto()
     FLOW_COMPLETE = auto()
@@ -33,7 +24,6 @@ class RequestType(Enum):
 
 
 class ValidMessageType(Enum):
-    SETTINGS_FLOW_SELECTION = auto()
     COMMAND = auto()
     CHAT = auto()
     IMAGE = auto()
@@ -104,48 +94,6 @@ def generate_payload_for_document(
         payload["document"]["filename"] = filename
 
     return payload
-
-
-def get_interactive_button_payload(
-    recipient: str, text: str, options: list[str]
-) -> dict:
-    buttons = [
-        Button(
-            type="reply",
-            reply=Reply(id=f"option-{i}", title=opt),
-        )
-        for i, opt in enumerate(options)
-    ]
-
-    interactive_button = InteractiveButton(
-        body=TextObject(text=_format_text_for_whatsapp(text)),
-        footer=TextObject(text="This is an automatic message 🦒"),
-        action=ButtonsAction(buttons=buttons),
-    )
-
-    payload = InteractiveMessage(to=recipient, interactive=interactive_button)
-
-    return payload.model_dump()
-
-
-def get_interactive_list_payload(
-    recipient: str, text: str, options: list[str], title: str = "Options"
-) -> dict:
-    rows = [Row(id=f"option-{i}", title=opt) for i, opt in enumerate(options)]
-
-    section = Section(title=title, rows=rows)
-
-    interactive_list = InteractiveList(
-        body=TextObject(text=_format_text_for_whatsapp(text)),
-        footer=TextObject(text="This is an automated message 🦒"),
-        action=ListAction(
-            button="Options", sections=[section]  # List containing the section
-        ),
-    )
-
-    payload = InteractiveMessage(to=recipient, interactive=interactive_list)
-
-    return dict(payload)
 
 
 def _format_text_for_whatsapp(text: str) -> str:
@@ -305,19 +253,15 @@ def extract_message(message: dict) -> str:
     return "warning: user sent an unsupported message type"
 
 
-def is_interactive_message(message_info: dict) -> bool:
-    message = message_info.get("message", {})
-    return message.get("type") == "interactive"
-
-
-COMMAND_OPTIONS = ["settings", "help"]
+# "settings" is no longer a command: it reaches the agent, which explains how
+# to update the profile by text or voice
+COMMAND_OPTIONS = ["help"]
 
 
 def is_command_message(message_info: dict) -> bool:
     message = message_info.get("extracted_content")
     if message is None:
         message = message_info.get("message", {}).get("text", {}).get("body", "")
-    # logger.debug(f"Checking if message is a command: {message}")
 
     if isinstance(message, str):
         return message.lower() in COMMAND_OPTIONS
@@ -327,57 +271,17 @@ def is_command_message(message_info: dict) -> bool:
 def generate_payload(
     wa_id: str,
     response: str,
-    options: Optional[list] = None,
-    flow: Optional[dict] = None,
     template_name: Optional[str] = None,
 ) -> dict:
     if template_name:
         return get_template_payload(wa_id, template_name)
-    if flow:
-        return get_flow_payload(wa_id, flow)
-    if options:
-        if len(options) <= 3:
-            return get_interactive_button_payload(wa_id, response, options)
-        else:
-            return get_interactive_list_payload(wa_id, response, options)
-    else:
-        return get_text_payload(wa_id, response)
-
-
-def get_flow_payload(wa_id: str, flow: dict) -> dict:
-    payload = {
-        "recipient_type": "individual",
-        "messaging_product": "whatsapp",
-        "to": wa_id,
-        "type": "interactive",
-        "interactive": {
-            "type": "flow",
-            "header": {
-                "type": "text",
-                "text": flow.get("header", "Flow message header"),
-            },
-            "body": {"text": flow.get("body", "Flow message body")},
-            "footer": {"text": flow.get("footer", "Flow message footer")},
-            "action": {
-                "name": "flow",
-                "parameters": {
-                    "flow_message_version": flow.get("flow_message_version", "3"),
-                    "flow_token": flow.get("flow_token"),
-                    "flow_name": flow.get("flow_name", "default_flow"),
-                    "flow_cta": flow.get("flow_cta", "Start"),
-                    "flow_action": flow.get("flow_action", "navigate"),
-                    "flow_action_payload": flow.get("flow_action_payload", {}),
-                },
-            },
-        },
-    }
-    return payload
+    return get_text_payload(wa_id, response)
 
 
 def is_other_message(message_info: dict) -> bool:
+    # Interactive replies (e.g. a tap on an old settings menu) are unsupported
     return message_info.get("message", {}).get("type") not in [
         "text",
-        "interactive",
         "image",
         "audio",
     ]
@@ -387,8 +291,6 @@ def get_valid_message_type(message_info: dict) -> ValidMessageType:
 
     if message_info.get("message", {}).get("type") == "image":
         return ValidMessageType.IMAGE
-    if is_interactive_message(message_info):
-        return ValidMessageType.SETTINGS_FLOW_SELECTION
     if is_other_message(message_info):
         logger.debug("WE ENCOUNTERED ANOTHER MESSAGE TYPE")
         return ValidMessageType.OTHER

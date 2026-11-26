@@ -41,7 +41,7 @@ def _audio_body(wa_id: str = "255700000009") -> dict:
 
 
 @pytest.mark.asyncio
-async def test_handle_request_awaits_flow_complete_handler() -> None:
+async def test_handle_request_ignores_flow_completion() -> None:
     body = {"entry": [{"changes": [{"value": {"messages": []}}]}]}
     request = _DummyRequest(body)
     expected_response = JSONResponse(content={"status": "ok"}, status_code=200)
@@ -53,14 +53,18 @@ async def test_handle_request_awaits_flow_complete_handler() -> None:
         ),
         patch("app.services.request_service.record_whatsapp_event"),
         patch(
-            "app.services.request_service.whatsapp_client.handle_flow_message_complete",
-            AsyncMock(return_value=expected_response),
-        ) as mock_flow_complete_handler,
+            "app.services.request_service.whatsapp_client.handle_ignored_flow_webhook",
+            return_value=expected_response,
+        ) as mock_ignore,
+        patch(
+            "app.services.request_service.handle_valid_message", AsyncMock()
+        ) as mock_handle_valid_message,
     ):
         response = await request_service.handle_request(request)
 
     assert response is expected_response
-    mock_flow_complete_handler.assert_awaited_once_with(body)
+    mock_ignore.assert_called_once_with("completion")
+    mock_handle_valid_message.assert_not_awaited()
 
 
 @pytest.mark.asyncio

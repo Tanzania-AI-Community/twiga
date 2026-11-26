@@ -142,10 +142,6 @@ class StateHandler:
         message_type = get_valid_message_type(message_info)
 
         match message_type:
-            case ValidMessageType.SETTINGS_FLOW_SELECTION:
-                return await messaging_client.handle_settings_selection(
-                    user, user_message
-                )
             case ValidMessageType.COMMAND:
                 return await messaging_client.handle_command_message(user, user_message)
             case ValidMessageType.CHAT:
@@ -196,8 +192,6 @@ class StateHandler:
                 )
                 return await self.handle_new_dummy(new_user)
 
-            await self._persist_first_message(new_user, message_info)
-
             if not self.MANUAL_APPROVAL_REQUIRED:
                 self.logger.info(
                     "Manual approval bypass enabled. Starting onboarding for new user"
@@ -230,16 +224,6 @@ class StateHandler:
                 strings.get_string(StringCategory.ERROR, "registration_error"),
             )
             return JSONResponse(content={"status": "error"}, status_code=500)
-
-    async def _persist_first_message(self, user: User, message_info: dict) -> None:
-        """Keep the teacher's first message in their history; it used to be dropped."""
-        assert user.id is not None
-        await db.create_new_message_by_fields(
-            user_id=user.id,
-            role=MessageRole.user,
-            content=message_info.get("extracted_content", ""),
-            is_present_in_conversation=True,
-        )
 
     async def handle_in_review_user(self, user: User) -> JSONResponse:
         """Handle messages from users in review (not yet approved) users"""

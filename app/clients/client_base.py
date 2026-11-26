@@ -47,6 +47,8 @@ class PreparationFailed:
 
 GenerateResponseResult = list[Message] | BufferedResponse | PreparationFailed | None
 
+# WhatsApp Flows are gone, but old history still holds these bookkeeping rows;
+# keep hiding them from the model
 _FLOW_MARKER_PREFIXES = ("[FLOW_SENT]", "[FLOW_COMPLETED]")
 
 

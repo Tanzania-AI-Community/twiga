@@ -214,7 +214,10 @@ def _registration_session() -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_new_user_in_production_keeps_first_message_and_gets_intro() -> None:
+async def test_new_user_in_production_gets_intro_and_first_message_is_not_saved() -> (
+    None
+):
+    """Nothing the teacher sent before seeing the intro's privacy note is kept."""
     service = StateHandler()
     session = _registration_session()
 
@@ -231,7 +234,7 @@ async def test_new_user_in_production_keeps_first_message_and_gets_intro() -> No
         patch(
             "app.services.state_service.db.create_new_message_by_fields",
             AsyncMock(),
-        ) as persist_first_message,
+        ) as create_message,
         patch(
             "app.services.state_service.onboarding_client.send_intro",
             AsyncMock(return_value=True),
@@ -245,12 +248,7 @@ async def test_new_user_in_production_keeps_first_message_and_gets_intro() -> No
     assert response.status_code == 200
     persisted_user = session.add.call_args.args[0]
     assert persisted_user.state == UserState.onboarding
-    assert persist_first_message.await_args.kwargs == {
-        "user_id": 501,
-        "role": MessageRole.user,
-        "content": "Hi, I'm Ali",
-        "is_present_in_conversation": True,
-    }
+    create_message.assert_not_awaited()
     send_intro.assert_awaited_once_with(persisted_user)
 
 
@@ -375,16 +373,7 @@ async def test_handle_new_user_registration_in_production_persists_visible_messa
     persisted_user = session.add.call_args.args[0]
     assert persisted_user.state == UserState.in_review
     mock_send_message.assert_awaited_once_with("255700000006", "Registration started")
-    first_message, registration_started = (
-        call.kwargs for call in mock_create_message_by_fields.await_args_list
-    )
-    assert first_message == {
-        "user_id": 501,
-        "role": MessageRole.user,
-        "content": "Hi",
-        "is_present_in_conversation": True,
-    }
-    assert registration_started == {
+    assert mock_create_message_by_fields.await_args.kwargs == {
         "user_id": 501,
         "role": MessageRole.assistant,
         "content": "Registration started",
