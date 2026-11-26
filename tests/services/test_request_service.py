@@ -436,6 +436,55 @@ async def test_handle_chat_message_persists_inbound_message_and_routes_active() 
 
 
 @pytest.mark.asyncio
+async def test_handle_chat_message_routes_onboarding_with_message_info() -> None:
+    user = User(
+        id=8,
+        wa_id="255700000008",
+        name=None,
+        state=enums.UserState.onboarding,
+    )
+    persisted_message = Message(
+        user_id=user.id,
+        role=enums.MessageRole.user,
+        content="my name is Luke Nuru",
+        is_present_in_conversation=True,
+    )
+    message_info = {
+        "message": {"type": "text"},
+        "extracted_content": "my name is Luke Nuru",
+    }
+
+    with (
+        patch(
+            "app.services.request_service.db.get_user_by_waid",
+            AsyncMock(return_value=user),
+        ),
+        patch(
+            "app.services.request_service.db.create_new_message_by_fields",
+            AsyncMock(return_value=persisted_message),
+        ),
+        patch(
+            "app.services.request_service.state_client._handle_rate_limiting",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.request_service.state_client.handle_onboarding",
+            AsyncMock(
+                return_value=JSONResponse(content={"status": "ok"}, status_code=200)
+            ),
+        ) as mock_handle_onboarding,
+    ):
+        response = await request_service.handle_chat_message(
+            phone_number=user.wa_id, message_info=message_info
+        )
+
+    assert response.status_code == 200
+    mock_handle_onboarding.assert_awaited_once_with(
+        user, message_info, persisted_message
+    )
+
+
+@pytest.mark.asyncio
 async def test_handle_chat_message_persists_inbound_message_before_rate_limit_return() -> (
     None
 ):

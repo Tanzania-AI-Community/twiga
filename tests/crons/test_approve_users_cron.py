@@ -30,7 +30,7 @@ def _whatsapp_context(send_message_result: bool) -> tuple[AsyncMock, AsyncMock]:
 @pytest.mark.asyncio
 async def test_approve_users_persists_welcome_with_shared_message_writer() -> None:
     user = _approved_user()
-    ask_name_message = strings.get_string(StringCategory.ONBOARDING, "ask_name")
+    intro_message = strings.get_string(StringCategory.ONBOARDING, "intro")
     whatsapp_client, whatsapp_context = _whatsapp_context(True)
 
     with (
@@ -55,14 +55,14 @@ async def test_approve_users_persists_welcome_with_shared_message_writer() -> No
 
     assert user.state == UserState.onboarding
     update_user.assert_awaited_once_with(user)
-    whatsapp_client.send_message.assert_awaited_once_with(user.wa_id, ask_name_message)
+    whatsapp_client.send_message.assert_awaited_once_with(user.wa_id, intro_message)
     persisted_messages = create_new_messages.await_args.args[0]
     assert len(persisted_messages) == 2
     assert persisted_messages[0].user_id == user.id
     assert "Welcome template sent" in persisted_messages[0].content
     assert persisted_messages[0].is_present_in_conversation is True
     assert persisted_messages[1].user_id == user.id
-    assert persisted_messages[1].content == ask_name_message
+    assert persisted_messages[1].content == intro_message
     assert persisted_messages[1].is_present_in_conversation is True
 
 

@@ -14,6 +14,7 @@ import app.database.db as db
 import app.database.enums as enums
 import app.database.models as models
 from app.clients.agent_client import agent_client
+from app.clients.agent_modes import AgentMode
 from app.clients.client_base import (
     BUFFERED_RESPONSE,
     BufferedResponse,
@@ -37,10 +38,25 @@ from app.services.exam_delivery_service import (
 )
 from app.services.flows.flow_service import flow_client
 from app.services.lesson_plan_pdf_generation_service import render_lesson_plan_pdf
-from app.services.onboarding_service import usable_display_name
 from app.tools.registry import ToolName
 from app.tools.tool_code.create_lesson_plan.main import format_lesson_plan_as_text
 from app.utils.string_manager import StringCategory, strings
+
+# TODO(stage D): delete with the settings rename path that is its only user
+_MAX_LEGACY_NAME_LENGTH = 50
+_UNSUPPORTED_MESSAGE_CONTENT = "warning: user sent an unsupported message type"
+
+
+def _usable_display_name(message_text: str) -> str | None:
+    """Return a name that fits the user record, or None when it cannot be saved."""
+    name = message_text.strip()
+    if (
+        not name
+        or len(name) > _MAX_LEGACY_NAME_LENGTH
+        or name == _UNSUPPORTED_MESSAGE_CONTENT
+    ):
+        return None
+    return name
 
 
 class MessagingService:
@@ -119,7 +135,7 @@ class MessagingService:
             ):
                 return False
 
-            name = usable_display_name(user_message.content or "")
+            name = _usable_display_name(user_message.content or "")
             if name is None:
                 retry_message = strings.get_string(
                     StringCategory.ONBOARDING, "ask_name_retry"
@@ -187,7 +203,7 @@ class MessagingService:
         if await self._save_profile_name_reply(user, user_message):
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
-        return await self._generate_and_deliver(user, user_message)
+        return await self.generate_and_deliver(user, user_message)
 
     async def handle_image_message(
         self, user: models.User, user_message: models.Message, image_payload: dict
@@ -274,11 +290,18 @@ class MessagingService:
         record_messages_generated(error_key)
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
-    async def _generate_and_deliver(
-        self, user: models.User, user_message: models.Message
+    async def generate_and_deliver(
+        self,
+        user: models.User,
+        user_message: models.Message,
+        mode: AgentMode | None = None,
     ) -> JSONResponse:
+        """Run the agent on the message and deliver its reply.
+
+        `mode` defaults to the one implied by the user's state.
+        """
         llm_responses = await agent_client.generate_response(
-            user=user, message=user_message
+            user=user, message=user_message, mode=mode
         )
         return await self._deliver_llm_responses(user, llm_responses)
 

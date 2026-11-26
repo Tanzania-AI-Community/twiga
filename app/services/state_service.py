@@ -127,12 +127,10 @@ class StateHandler:
 
         return None
 
-    async def handle_onboarding(self, user: User, message_text: str) -> JSONResponse:
-        await onboarding_client.process_state(user, message_text)
-        return JSONResponse(
-            content={"status": "ok"},
-            status_code=200,
-        )
+    async def handle_onboarding(
+        self, user: User, message_info: dict, user_message: Message
+    ) -> JSONResponse:
+        return await onboarding_client.handle_message(user, message_info, user_message)
 
     async def handle_active(
         self, user: User, message_info: dict, user_message: Message
@@ -198,6 +196,8 @@ class StateHandler:
                 )
                 return await self.handle_new_dummy(new_user)
 
+            await self._persist_first_message(new_user, message_info)
+
             if not self.MANUAL_APPROVAL_REQUIRED:
                 self.logger.info(
                     "Manual approval bypass enabled. Starting onboarding for new user"
@@ -231,6 +231,16 @@ class StateHandler:
             )
             return JSONResponse(content={"status": "error"}, status_code=500)
 
+    async def _persist_first_message(self, user: User, message_info: dict) -> None:
+        """Keep the teacher's first message in their history; it used to be dropped."""
+        assert user.id is not None
+        await db.create_new_message_by_fields(
+            user_id=user.id,
+            role=MessageRole.user,
+            content=message_info.get("extracted_content", ""),
+            is_present_in_conversation=True,
+        )
+
     async def handle_in_review_user(self, user: User) -> JSONResponse:
         """Handle messages from users in review (not yet approved) users"""
         assert user.id is not None
@@ -263,13 +273,12 @@ class StateHandler:
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     async def handle_new_approved_user(self, user: User) -> JSONResponse:
-        """Move an approved user into onboarding and ask what to call them."""
+        """Move an approved user into onboarding and send the intro."""
         try:
             user.state = UserState.onboarding
             await db.update_user(user)
 
-            ask_name_message = strings.get_string(StringCategory.ONBOARDING, "ask_name")
-            await onboarding_client.send_recorded_message(user, ask_name_message)
+            await onboarding_client.send_intro(user)
 
             self.logger.info(f"User {user.wa_id} approved and moved to onboarding")
             return JSONResponse(content={"status": "ok"}, status_code=200)

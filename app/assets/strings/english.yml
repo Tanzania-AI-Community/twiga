@@ -15,13 +15,14 @@ error:
   tool_leakage: "Sorry, I can't help with that request. If you have another question or need help with a different topic, I'm happy to assist."
 
 info:
-  help: "You can type 'settings' to change your name or your classes and subjects. Or just talk to me like a colleague."
+  help: "To change your name, subjects or forms, just tell me in a text or voice message. Or just talk to me like a colleague."
   image_help: "You can also send a clear photo of an exercise or textbook question. Add a caption to tell me what you need help with."
 
 onboarding:
-  ask_name: "Hi! I'm Twiga 🦒, a teaching assistant for teachers in Tanzania. I can answer questions about your subjects, find content in your textbooks and create exercises for your classes. I'll only ask for your name and the classes you teach, and I use your messages to answer you and to improve Twiga. What should I call you?"
+  intro: "Hi! I'm Twiga 🦒, a teaching assistant for teachers in Tanzania. I can answer questions about your subjects, find content in your textbooks and create exercises for your classes. I'll only ask for your name and the classes you teach, and I use your messages to answer you and to improve Twiga. What should I call you, and which subjects and forms do you teach?"
+  text_only: "Please reply with a text or a voice message so I can finish setting up your profile."
   ask_name_retry: "I didn't catch a name I can use. Please send the name I should call you, in 50 characters or less."
-  welcome: "Welcome! I'm here to help you with your teaching journey. I'm **Twiga 🦒**, your teaching assistant. I can help you with questions related to the classes you teach, search the content, and generate exercises you can use in your classes.\n\nTo change your name or your classes and subjects, type 'settings' in the chat. \n\nLet's get started! Just talk to me like a colleague."
+  welcome: "Welcome! I'm here to help you with your teaching journey. I'm **Twiga 🦒**, your teaching assistant. I can help you with questions related to the classes you teach, search the content, and generate exercises you can use in your classes.\n\nTo change your name, subjects or forms, just tell me in a text or voice message. \n\nLet's get started! Just talk to me like a colleague."
   personal_info_submitted: "Thanks for submitting your personal information. Let's continue with your class and subject information to complete your onboarding."
   completion: "Hurray! {user_name} 🎉. You have successfully completed the onboarding process. The classes and subjects you teach have been saved. You can now start talking to Twiga 🦒."
   onboarding_override: "Looks like you're overriding the onboarding process. You've been given default classes and subjects. You can start talking to Twiga 🦒."

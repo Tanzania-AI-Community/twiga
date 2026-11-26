@@ -62,7 +62,7 @@ async def approve_and_welcome_users() -> None:
     Find users with UserState.approved and:
     1. Send the welcome template and record it
     2. Move them to onboarding
-    3. Send the name question, recording it only when WhatsApp accepts it
+    3. Send the onboarding intro, recording it only when WhatsApp accepts it
     """
     log_job_start(
         logger,
@@ -108,15 +108,15 @@ async def approve_and_welcome_users() -> None:
                             is_present_in_conversation=True,
                         )
                     ]
-                    ask_name_message = strings.get_string(
-                        StringCategory.ONBOARDING, "ask_name"
+                    intro_message = strings.get_string(
+                        StringCategory.ONBOARDING, "intro"
                     )
-                    if await whatsapp_client.send_message(user.wa_id, ask_name_message):
+                    if await whatsapp_client.send_message(user.wa_id, intro_message):
                         recorded_messages.append(
                             Message(
                                 user_id=user.id,
                                 role=MessageRole.assistant,
-                                content=ask_name_message,
+                                content=intro_message,
                                 is_present_in_conversation=True,
                             )
                         )
