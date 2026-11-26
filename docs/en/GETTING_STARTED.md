@@ -228,12 +228,7 @@ Next up, let's build all Docker images and local data, needed for further steps 
 make setup-env
 ```
 
-Local database seeding prepares the pinned sample embeddings with
-`python scripts/download_assets.py`. You can also run that command from the
-repository root with Python 3.12. It reuses files with the expected SHA-256
-and needs network access when a file is missing or fails verification.
-When adding a downloadable asset, add its destination to `.gitignore` and
-commit the URL and SHA-256 in the script.
+Local setup runs `python scripts/download_assets.py` before seeding the database. See [Downloading assets](DOWNLOADING_ASSETS.md) to run it manually or add a file.
 
 ## 🖥️ Set up the FastAPI application
 

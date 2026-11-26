@@ -1,0 +1,14 @@
+[
+  {
+    "filename": "chunks_gemini.json",
+    "directory": "scripts/assets/sample_data",
+    "url": "https://raw.githubusercontent.com/Tanzania-AI-Community/twiga/f54ae0e4ea433e2de846b5432121c82b098e5966/scripts/assets/sample_data/chunks_gemini.json",
+    "sha256": "719d56682c0e7d3446cbaad3fbddb61459bf74f60a25435b4e80925e4a8fdb7f"
+  },
+  {
+    "filename": "data.yaml",
+    "directory": "scripts/assets/sample_data",
+    "url": "https://raw.githubusercontent.com/Tanzania-AI-Community/twiga/f54ae0e4ea433e2de846b5432121c82b098e5966/scripts/assets/sample_data/data.yaml",
+    "sha256": "ad4e4b94b89031223306e12eca82f8a1d9580259ba740e600ce545e61357efaf"
+  }
+]
