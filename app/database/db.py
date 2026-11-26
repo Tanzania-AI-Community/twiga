@@ -684,6 +684,38 @@ async def assign_teacher_to_classes(
             raise Exception(f"Failed to assign teacher to classes: {str(e)}")
 
 
+async def set_teacher_classes(
+    user_id: int, class_ids: list[int], class_info: dict[str, list[str]]
+) -> None:
+    """
+    Replace a teacher's classes and the `class_info` cache in one transaction,
+    so `users.class_info` can never drift from `teachers_classes`.
+    """
+    async with get_session() as session:
+        try:
+            await session.execute(
+                delete(TeacherClass).where(
+                    TeacherClass.teacher_id == user_id  # type: ignore
+                )
+            )
+            if class_ids:
+                await session.execute(
+                    insert(TeacherClass),
+                    [
+                        {"teacher_id": user_id, "class_id": class_id}
+                        for class_id in class_ids
+                    ],
+                )
+            await session.execute(
+                update(User)
+                .where(User.id == user_id)  # type: ignore
+                .values(class_info=class_info)
+            )
+        except Exception as e:
+            logger.error(f"Failed to set classes for user {user_id}: {str(e)}")
+            raise Exception(f"Failed to set teacher classes: {str(e)}")
+
+
 async def _fetch_users(statement: SelectOfScalar[User]) -> list[User]:
     async with get_session() as session:
         result = await session.execute(statement)
