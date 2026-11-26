@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -15,8 +16,10 @@ import app.database.enums as enums
 import app.services.flows.utils as flow_utils
 from app.config import settings
 from app.database.models import User
+from app.models.image_models import DownloadedImage, ImageInputError
 from app.monitoring.metrics import record_whatsapp_event
-from app.utils.logging_utils import log_httpx_response
+from app.utils.image_utils import MAX_IMAGE_BYTES, SUPPORTED_IMAGE_TYPES, validate_image
+from app.utils.logging_utils import log_httpx_response, private_media_logging
 from app.utils.string_manager import StringCategory, strings
 from app.utils.whatsapp_utils import (
     generate_payload,
@@ -47,6 +50,7 @@ class WhatsAppClient:
     _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
     _MAX_DOCUMENT_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
     _MAX_TEXT_LENGTH_CHARS = 4096
+    _MAX_AUDIO_SIZE_BYTES = 16 * 1024 * 1024
 
     def __init__(self):
         token = settings.whatsapp_api_token.get_secret_value()
@@ -59,8 +63,105 @@ class WhatsAppClient:
             "Content-type": "application/json",
             "Authorization": f"Bearer {token}",
         }
+        self.api_version = settings.meta_api_version
         self.logger = logging.getLogger(__name__)
         self.client = httpx.AsyncClient(base_url=self.url)
+
+    async def download_image(self, media_id: str) -> DownloadedImage:
+        """Resolve a Meta media ID and stream its bytes, with one transient retry."""
+        if settings.mock_whatsapp or not media_id.isascii() or not media_id.isdigit():
+            raise ImageInputError()
+        with private_media_logging():
+            for attempt in range(2):
+                try:
+                    async with asyncio.timeout(30):
+                        url, mime_type = await self._get_image_download_info(media_id)
+                        data = await self._download_image_bytes(url)
+                        return await asyncio.to_thread(validate_image, data, mime_type)
+                except httpx.HTTPStatusError as exc:
+                    if attempt == 0 and (
+                        exc.response.status_code == 429
+                        or exc.response.status_code >= 500
+                    ):
+                        continue
+                    raise ImageInputError() from None
+                except (httpx.RequestError, TimeoutError):
+                    if attempt == 0:
+                        continue
+                    raise ImageInputError() from None
+                except (KeyError, TypeError, ValueError, httpx.InvalidURL):
+                    raise ImageInputError() from None
+        raise ImageInputError()
+
+    async def _get_image_download_info(self, media_id: str) -> tuple[httpx.URL, str]:
+        metadata_url = (
+            f"https://graph.facebook.com/{settings.meta_api_version}/{media_id}"
+        )
+        response = await self.client.get(
+            metadata_url, headers=self.headers, follow_redirects=False, timeout=30
+        )
+        response.raise_for_status()
+        metadata = response.json()
+        if not isinstance(metadata, dict):
+            raise ImageInputError()
+        mime_type = metadata.get("mime_type")
+        if mime_type not in SUPPORTED_IMAGE_TYPES.values():
+            raise ImageInputError("image_invalid")
+        if int(metadata.get("file_size", 0)) > MAX_IMAGE_BYTES:
+            raise ImageInputError("image_invalid")
+        return self._validate_image_download_url(metadata["url"]), mime_type
+
+    @staticmethod
+    def _validate_image_download_url(value: str) -> httpx.URL:
+        url = httpx.URL(value)
+        if url.scheme != "https" or url.userinfo or url.port not in (None, 443):
+            raise ImageInputError()
+        # Only send the access token to Meta's media hosts.
+        allowed_hosts = ("facebook.com", "fbcdn.net", "fbsbx.com")
+        if not any(
+            url.host == host or url.host.endswith("." + host) for host in allowed_hosts
+        ):
+            raise ImageInputError()
+        return url
+
+    async def _download_image_bytes(self, url: httpx.URL) -> bytes:
+        async with self.client.stream(
+            "GET", url, headers=self.headers, follow_redirects=False, timeout=30
+        ) as response:
+            response.raise_for_status()
+            if int(response.headers.get("content-length", 0)) > MAX_IMAGE_BYTES:
+                raise ImageInputError("image_invalid")
+            data = bytearray()
+            async for chunk in response.aiter_bytes(chunk_size=64 * 1024):
+                data.extend(chunk)
+                if len(data) > MAX_IMAGE_BYTES:
+                    raise ImageInputError("image_invalid")
+            return bytes(data)
+
+    async def download_media(self, media_id: str) -> tuple[bytes, str]:
+        """Download inbound WhatsApp media after resolving its temporary URL."""
+        auth_headers = {"Authorization": self.headers["Authorization"]}
+        metadata_response = await self.client.get(
+            f"https://graph.facebook.com/{self.api_version}/{media_id}",
+            headers=auth_headers,
+        )
+        metadata_response.raise_for_status()
+        metadata = metadata_response.json()
+
+        media_url = metadata.get("url")
+        if not media_url:
+            raise ValueError("WhatsApp media response did not include a download URL")
+
+        file_size = int(metadata.get("file_size") or 0)
+        if file_size > self._MAX_AUDIO_SIZE_BYTES:
+            raise ValueError("WhatsApp audio exceeds the 16 MB limit")
+
+        media_response = await self.client.get(media_url, headers=auth_headers)
+        media_response.raise_for_status()
+        if len(media_response.content) > self._MAX_AUDIO_SIZE_BYTES:
+            raise ValueError("WhatsApp audio exceeds the 16 MB limit")
+
+        return media_response.content, metadata.get("mime_type") or "audio/ogg"
 
     async def send_message(
         self, wa_id: str, message: str, options: list[str] | None = None

@@ -43,10 +43,54 @@ class EmbeddingProvider(str, Enum):
     MODAL = BaseProviders.MODAL.value
 
 
+class AudioTranscriptionProvider(str, Enum):
+    ELEVENLABS = "elevenlabs"
+    GROQ = "groq"
+
+
+SUPPORTED_AUDIO_TRANSCRIPTION_MODELS = {
+    AudioTranscriptionProvider.ELEVENLABS: {"scribe_v2"},
+    AudioTranscriptionProvider.GROQ: {"whisper-large-v3-turbo"},
+}
+
+
 class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 
     TWIGA_AGENT_SYSTEM = "twiga_agent_system"
+    IMAGE_INTERPRETER_SYSTEM = "image_interpreter_system"
+
+
+class ImageInputSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=os.getenv("TWIGA_ENV", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    image_input_enabled: bool = False
+    vision_base_url: str = ""
+    vision_model: str = ""
+    vision_api_key: SecretStr = SecretStr("")
+    vision_timeout_seconds: float = Field(default=30, gt=0)
+
+    @model_validator(mode="after")
+    def require_vision_configuration(self):
+        if self.image_input_enabled:
+            if not all(
+                value.strip()
+                for value in (
+                    self.vision_base_url,
+                    self.vision_model,
+                    self.vision_api_key.get_secret_value(),
+                )
+            ):
+                raise ValueError(
+                    "Image input requires VISION_BASE_URL, VISION_MODEL and VISION_API_KEY"
+                )
+            if not self.vision_base_url.startswith("https://"):
+                raise ValueError("VISION_BASE_URL must use HTTPS")
+        return self
 
 
 # Store configurations for the app
@@ -74,6 +118,15 @@ class Settings(BaseSettings):
     mock_whatsapp: bool = False
     mock_whatsapp_api_url: Optional[str] = None
     mock_whatsapp_token: Optional[SecretStr] = None
+
+    # Inbound audio transcription
+    audio_transcription_provider: AudioTranscriptionProvider = (
+        AudioTranscriptionProvider.ELEVENLABS
+    )
+    audio_transcription_model: str = "scribe_v2"
+    audio_transcription_timeout_seconds: float = Field(default=60, gt=0)
+    elevenlabs_api_key: SecretStr | None = None
+    groq_api_key: SecretStr | None = None
 
     # Message limiting settings
     message_character_limit: int = 65000
@@ -401,3 +454,4 @@ def initialize_settings():
 
 
 settings, llm_settings, embedding_settings, tool_settings = initialize_settings()
+image_input_settings = ImageInputSettings()
