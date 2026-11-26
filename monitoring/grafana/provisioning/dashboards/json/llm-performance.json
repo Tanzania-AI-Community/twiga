@@ -139,6 +139,47 @@
       ],
       "title": "Messages Generated (last hour)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (field, result) (increase(twiga_profile_updates_total[1h]))",
+          "legendFormat": "{{field}}: {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Profile Updates by Result (last hour)",
+      "type": "timeseries",
+      "description": "Name and class saves requested by the agent. A rising share of non-ok results usually means a model or prompt regression; unknown_subject shows demand for subjects that are not available yet."
     }
   ],
   "refresh": "30s",

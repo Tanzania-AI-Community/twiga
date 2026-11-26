@@ -290,3 +290,49 @@ async def test_snapshot_raises_when_user_is_gone(
 
     with pytest.raises(ValueError):
         await service.snapshot(make_user())
+
+
+# --- metrics --------------------------------------------------------------
+
+
+async def test_successful_update_is_counted_as_ok(
+    service: ProfileService, fake_db: FakeDb, make_user: UserFactory
+) -> None:
+    fake_db.get_user_by_waid.return_value = make_user(name="Luke")
+
+    with patch("app.services.profile.service.record_profile_update") as record:
+        await service.set_name(make_user(), "Luke")
+
+    record.assert_called_once_with("name", "ok")
+
+
+async def test_refused_update_is_counted_with_its_code(
+    service: ProfileService, fake_db: FakeDb, make_user: UserFactory
+) -> None:
+    _given(fake_db, make_user([101, 201, 301]))
+
+    with (
+        patch("app.services.profile.service.record_profile_update") as record,
+        pytest.raises(ProfileUpdateError),
+    ):
+        await service.update_classes(
+            make_user([101, 201, 301]),
+            add,
+            [forms(SubjectName.physics, GradeLevel.os4)],
+        )
+
+    record.assert_called_once_with("classes", "limit_exceeded")
+
+
+async def test_unexpected_failures_are_not_counted(
+    service: ProfileService, fake_db: FakeDb, make_user: UserFactory
+) -> None:
+    fake_db.update_user.side_effect = RuntimeError("db down")
+
+    with (
+        patch("app.services.profile.service.record_profile_update") as record,
+        pytest.raises(RuntimeError),
+    ):
+        await service.set_name(make_user(), "Luke")
+
+    record.assert_not_called()

@@ -3,10 +3,12 @@
 import logging
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
+from typing import Literal
 
 import app.database.db as db
 from app.database.enums import GradeLevel, SubjectName
 from app.database.models import User
+from app.monitoring.metrics import record_profile_update
 from app.services.profile.catalog import Catalog, available_catalog
 from app.services.profile.class_math import (
     ClassKey,
@@ -175,24 +177,28 @@ class ProfileService:
 
     @staticmethod
     @contextmanager
-    def _logged_update(user: User, field: str, action: str) -> Iterator[None]:
+    def _logged_update(
+        user: User, field: Literal["name", "classes"], action: str
+    ) -> Iterator[None]:
         # Values (e.g. the name) are never logged, only what changed and the outcome
         try:
             yield
         except ProfileUpdateError as error:
-            logger.info(
-                "profile.update user_id=%s field=%s action=%s result=%s",
-                user.id,
-                field,
-                action,
-                error.code.value,
-            )
+            ProfileService._report(user, field, action, error.code.value)
             raise
+        ProfileService._report(user, field, action, "ok")
+
+    @staticmethod
+    def _report(
+        user: User, field: Literal["name", "classes"], action: str, result: str
+    ) -> None:
+        record_profile_update(field, result)
         logger.info(
-            "profile.update user_id=%s field=%s action=%s result=ok",
+            "profile.update user_id=%s field=%s action=%s result=%s",
             user.id,
             field,
             action,
+            result,
         )
 
 

@@ -43,6 +43,13 @@ messages_generated_total = Counter(
     ["feature"],
 )
 
+# Labels are bounded: field is name|classes, result is ok or a ProfileErrorCode
+profile_updates_total = Counter(
+    "twiga_profile_updates_total",
+    "Teacher profile updates requested by the agent, by field and result.",
+    ["field", "result"],
+)
+
 
 def record_whatsapp_event(event: str) -> None:
     """Increment webhook request counter for the provided event name."""
@@ -75,6 +82,11 @@ def record_messages_generated(feature: str, count: int = 1) -> None:
     if count < 1:
         return
     messages_generated_total.labels(feature=feature).inc(count)
+
+
+def record_profile_update(field: Literal["name", "classes"], result: str) -> None:
+    """Record a profile update outcome: "ok" or the refusal code."""
+    profile_updates_total.labels(field=field, result=result).inc()
 
 
 def track_messages(feature: str, *, count: int = 1) -> Callable:
