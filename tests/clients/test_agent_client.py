@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
@@ -8,10 +9,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.clients.agent_client import AgentClient
+from app.clients.agent_modes import AgentMode
 from app.clients.client_base import BUFFERED_RESPONSE, PreparationFailed
 from app.database import db
-from app.database.enums import MessageRole
-from app.database.models import Message, User
+from app.database.enums import GradeLevel, MessageRole, SubjectName
+from app.database.models import Class, Message, Subject, TeacherClass, User
+from app.services.profile import Catalog
+from app.tools.registry import CURRICULUM_TOOLS, PROFILE_TOOLS, ToolName
 
 
 @pytest.fixture
@@ -351,3 +355,207 @@ async def test_failed_photo_during_another_turn_is_not_buffered() -> None:
 
     assert response == PreparationFailed("image_disabled")
     assert pending == []
+
+
+# --- agent modes and profile updates -----------------------------------------
+
+_PROFILE_CATALOG = Catalog(
+    classes={SubjectName.geography: {GradeLevel.os1: 101, GradeLevel.os2: 102}}
+)
+
+
+def _tool_names(request_call) -> set[str]:
+    return {tool["function"]["name"] for tool in request_call.kwargs["tools"]}
+
+
+def _class_id_enum(tools: list) -> list:
+    search = next(
+        tool
+        for tool in tools
+        if tool["function"]["name"] == ToolName.search_knowledge.value
+    )
+    return search["function"]["parameters"]["properties"]["class_id"]["enum"]
+
+
+def _geography_form_2_teacher() -> User:
+    return User(
+        id=1,
+        wa_id="255700000001",
+        name="Luke Nuru",
+        class_info={"geography": ["os2"]},
+        taught_classes=[
+            TeacherClass(
+                teacher_id=1,
+                class_id=102,
+                class_=Class(
+                    id=102,
+                    subject_id=1,
+                    grade_level=GradeLevel.os2,
+                    subject_=Subject(id=1, name=SubjectName.geography),
+                ),
+            )
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_profile_change_refreshes_prompt_and_class_ids_within_the_turn(
+    message_history_session,
+) -> None:
+    client = AgentClient()
+    user = _make_user()
+    (incoming,) = _save_history(
+        message_history_session, "Call me Luke Nuru, I teach Form 2 geography"
+    )
+    llm_responses = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": ToolName.update_my_classes.value,
+                    "args": {
+                        "action": "add",
+                        "classes": [{"subject": "geography", "forms": ["Form 2"]}],
+                    },
+                    "id": "call_1",
+                }
+            ],
+        ),
+        AIMessage(content="You now teach Geography (Form 2)."),
+    ]
+
+    # api_messages is updated in place, so record what each call actually saw
+    seen: list[tuple[str, list]] = []
+
+    async def fake_llm_request(**kwargs):
+        seen.append((kwargs["messages"][0].content, kwargs["tools"]))
+        return llm_responses[len(seen) - 1]
+
+    with (
+        patch("app.clients.agent_client.async_llm_request", fake_llm_request),
+        patch(
+            "app.clients.agent_client.available_catalog",
+            AsyncMock(return_value=_PROFILE_CATALOG),
+        ),
+        patch.object(
+            client.tool_manager,
+            "process_tool_calls",
+            AsyncMock(
+                return_value=[
+                    Message(
+                        user_id=1,
+                        role=MessageRole.tool,
+                        content='{"ok": true}',
+                        tool_call_id="call_1",
+                        tool_name=ToolName.update_my_classes.value,
+                    )
+                ]
+            ),
+        ),
+        patch(
+            "app.clients.agent_client.db.get_user_by_waid",
+            AsyncMock(return_value=_geography_form_2_teacher()),
+        ),
+    ):
+        response = await client.generate_response(user, incoming)
+
+    assert isinstance(response, list)
+    (first_prompt, first_tools), (second_prompt, second_tools) = seen
+    assert "<teacher_name>Test User</teacher_name>" in first_prompt
+    assert "<teacher_name>Luke Nuru</teacher_name>" in second_prompt
+    assert "Geography" in second_prompt
+    assert _class_id_enum(first_tools) == []
+    assert _class_id_enum(second_tools) == [102]
+
+
+@pytest.mark.asyncio
+async def test_onboarding_mode_offers_only_profile_tools(
+    message_history_session,
+) -> None:
+    client = AgentClient()
+    (incoming,) = _save_history(message_history_session, "Hello")
+
+    with (
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(return_value=AIMessage(content="What should I call you?")),
+        ) as mock_request,
+        patch(
+            "app.clients.agent_client.available_catalog",
+            AsyncMock(return_value=_PROFILE_CATALOG),
+        ),
+    ):
+        await client.generate_response(
+            _make_user(), incoming, mode=AgentMode.onboarding
+        )
+
+    request = mock_request.await_args
+    assert _tool_names(request) == {tool.value for tool in PROFILE_TOOLS}
+    assert "Still missing: classes" in request.kwargs["messages"][0].content
+    assert request.kwargs["metadata"]["mode"] == "onboarding"
+
+
+@pytest.mark.asyncio
+async def test_catalog_failure_keeps_teaching_tools_and_drops_profile_tools(
+    message_history_session,
+) -> None:
+    client = AgentClient()
+    (incoming,) = _save_history(message_history_session, "Explain erosion")
+
+    with (
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(return_value=AIMessage(content="Erosion is...")),
+        ) as mock_request,
+        patch(
+            "app.clients.agent_client.available_catalog",
+            AsyncMock(side_effect=RuntimeError("db down")),
+        ),
+    ):
+        response = await client.generate_response(_make_user(), incoming)
+
+    assert isinstance(response, list)
+    assert _tool_names(mock_request.await_args) == {
+        tool.value for tool in CURRICULUM_TOOLS
+    }
+
+
+@pytest.mark.asyncio
+async def test_onboarding_mode_refuses_tools_recovered_from_free_text(
+    message_history_session,
+) -> None:
+    """A curriculum tool smuggled in as text must not run during onboarding."""
+    client = AgentClient()
+    (incoming,) = _save_history(message_history_session, "Explain erosion")
+    smuggled = AIMessage(
+        content=json.dumps(
+            {
+                "name": ToolName.search_knowledge.value,
+                "parameters": {"search_phrase": "erosion", "class_id": 1},
+            }
+        )
+    )
+    search_knowledge = AsyncMock()
+
+    with (
+        patch(
+            "app.clients.agent_client.async_llm_request",
+            AsyncMock(side_effect=[smuggled, AIMessage(content="Which subjects?")]),
+        ),
+        patch(
+            "app.clients.agent_client.available_catalog",
+            AsyncMock(return_value=_PROFILE_CATALOG),
+        ),
+        patch(
+            "app.tools.tool_manager.TOOL_FUNCTION_MAP",
+            {ToolName.search_knowledge.value: search_knowledge},
+        ),
+    ):
+        response = await client.generate_response(
+            _make_user(), incoming, mode=AgentMode.onboarding
+        )
+
+    search_knowledge.assert_not_awaited()
+    assert isinstance(response, list)
+    tool_message = next(m for m in response if m.role == MessageRole.tool)
+    assert json.loads(tool_message.content) == {"error": "tool_not_available"}

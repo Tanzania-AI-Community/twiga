@@ -1,8 +1,16 @@
 import json
 import logging
+from dataclasses import dataclass
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 
+import app.database.db as db
+from app.clients.agent_modes import (
+    AgentMode,
+    AgentModeConfig,
+    get_mode_config,
+    resolve_agent_mode,
+)
 from app.clients.client_base import (
     BUFFERED_RESPONSE,
     ClientBase,
@@ -10,10 +18,21 @@ from app.clients.client_base import (
     Preparation,
     PreparationFailed,
 )
-from app.config import Prompt, llm_settings
+from app.config import llm_settings
 from app.database.models import Message, User
+from app.services.profile import Catalog, available_catalog
+from app.tools.registry import PROFILE_TOOLS, ToolName
 from app.utils.llm_utils import async_llm_request
 from app.utils.prompt_manager import prompt_manager
+
+
+@dataclass(frozen=True)
+class TurnTools:
+    """What the model may use during one turn."""
+
+    config: AgentModeConfig
+    allowed: frozenset[ToolName]
+    catalog: Catalog | None
 
 
 class AgentClient(ClientBase):
@@ -31,6 +50,7 @@ class AgentClient(ClientBase):
         api_messages: list,
         user: User,
         iteration: int,
+        turn: TurnTools,
     ) -> AIMessage:
         """
         THINK: Call the LLM with tools to generate next response or tool calls.
@@ -39,6 +59,7 @@ class AgentClient(ClientBase):
             api_messages: Current conversation history
             user: User object for context
             iteration: Current iteration number
+            turn: Mode, allowed tools and catalog for this turn
 
         Returns:
             AIMessage from the LLM
@@ -46,7 +67,9 @@ class AgentClient(ClientBase):
         return await async_llm_request(
             messages=api_messages,
             tools=self.tool_manager.get_tools_metadata_from_registry(
-                available_classes=json.dumps(user.class_name_to_id_map)
+                available_classes=json.dumps(user.class_name_to_id_map),
+                allowed=turn.allowed,
+                catalog=turn.catalog,
             ),
             tool_choice="auto",
             verbose=False,
@@ -55,8 +78,9 @@ class AgentClient(ClientBase):
                 "user_id": str(user.id),
                 "message_count": len(api_messages),
                 "phase": f"agent_loop_{iteration + 1}/{llm_settings.MAX_AGENT_ITERATIONS}",
+                "mode": turn.config.mode.value,
                 **prompt_manager.build_trace_metadata(
-                    system_prompt_name=Prompt.TWIGA_AGENT_SYSTEM.value
+                    system_prompt_name=turn.config.prompt.value
                 ),
             },
         )
@@ -68,6 +92,7 @@ class AgentClient(ClientBase):
         api_messages: list,
         final_messages: list[Message],
         notified_tools: set[str],
+        turn: TurnTools,
     ) -> list[Message]:
         """
         OBSERVE: Process tool calls and collect their responses.
@@ -78,6 +103,7 @@ class AgentClient(ClientBase):
             api_messages: Current conversation history (will be modified)
             final_messages: List of final messages (will be modified)
             notified_tools: Tools already announced to the user this turn (will be modified)
+            turn: Mode, allowed tools and catalog for this turn
 
         Returns:
             List of tool response messages
@@ -90,13 +116,16 @@ class AgentClient(ClientBase):
             await self._tool_call_notification(user, tool_name)
         notified_tools.update(unique_tools)
 
-        tool_responses = await self.tool_manager.process_tool_calls(tool_calls, user)
+        tool_responses = await self.tool_manager.process_tool_calls(
+            tool_calls, user, allowed=turn.allowed
+        )
         return tool_responses
 
     async def _force_final(
         self,
         api_messages: list,
         user: User,
+        turn: TurnTools,
     ) -> Message:
         """
         Force a final response when max iterations reached.
@@ -104,6 +133,7 @@ class AgentClient(ClientBase):
         Args:
             api_messages: Current conversation history
             user: User object for context
+            turn: Mode, allowed tools and catalog for this turn
 
         Returns:
             Final message from the LLM
@@ -120,24 +150,78 @@ class AgentClient(ClientBase):
                 "user_id": str(user.id),
                 "message_count": len(api_messages),
                 "phase": "agent_forced_final_request",
+                "mode": turn.config.mode.value,
                 **prompt_manager.build_trace_metadata(
-                    system_prompt_name=Prompt.TWIGA_AGENT_SYSTEM.value
+                    system_prompt_name=turn.config.prompt.value
                 ),
             },
         )
 
         return self._llm_response_to_message(final_llm_response, user.id)
 
+    async def _load_turn_tools(self, config: AgentModeConfig) -> TurnTools:
+        """Resolve the tools for this turn; profile tools need the catalog."""
+        if not config.tools & PROFILE_TOOLS:
+            return TurnTools(config=config, allowed=config.tools, catalog=None)
+        try:
+            catalog = await available_catalog()
+        except Exception as e:
+            # Teaching help must keep working even if the catalog cannot load
+            self.logger.warning(
+                "Subject catalog unavailable, profile tools disabled this turn: %s",
+                type(e).__name__,
+            )
+            return TurnTools(
+                config=config, allowed=config.tools - PROFILE_TOOLS, catalog=None
+            )
+        return TurnTools(config=config, allowed=config.tools, catalog=catalog)
+
+    async def _refresh_context(
+        self, user: User, api_messages: list[BaseMessage], config: AgentModeConfig
+    ) -> User:
+        """After a profile change, reload the teacher and re-render the system prompt.
+
+        Without this the rest of the turn would see the old name and classes, and
+        the class IDs offered to the curriculum tools would be stale.
+        """
+        try:
+            fresh_user = await db.get_user_by_waid(user.wa_id)
+        except Exception as e:
+            # The profile is already saved; only this turn's context stays stale
+            self.logger.warning(
+                "Could not refresh the agent context: %s", type(e).__name__
+            )
+            return user
+        if fresh_user is None:
+            self.logger.warning("User disappeared while refreshing the agent context.")
+            return user
+        api_messages[0] = SystemMessage(
+            content=self._render_system_prompt(
+                fresh_user, config.prompt, config.prompt_variables(fresh_user)
+            )
+        )
+        return fresh_user
+
+    @staticmethod
+    def _changed_profile(tool_calls: list[dict]) -> bool:
+        profile_tool_names = {tool.value for tool in PROFILE_TOOLS}
+        return any(
+            tool_call["function"]["name"] in profile_tool_names
+            for tool_call in tool_calls
+        )
+
     async def generate_response(
         self,
         user: User,
         message: Message,
         prepare: Preparation | None = None,
+        mode: AgentMode | None = None,
     ) -> GenerateResponseResult:
         """Generates a response using an agentic loop.
 
         `prepare` readies the message under the user's turn, so messages arriving
-        meanwhile are answered with it instead of overtaking it.
+        meanwhile are answered with it instead of overtaking it. `mode` defaults
+        to the one implied by the user's state.
         """
         if user.id is None:
             self.logger.error("User object is missing an ID, cannot generate response.")
@@ -163,6 +247,7 @@ class AgentClient(ClientBase):
 
         try:
             async with processor.lock:
+                config = get_mode_config(mode or resolve_agent_mode(user))
                 # A tool is announced at most once per turn
                 notified_tools: set[str] = set()
                 try:
@@ -179,13 +264,16 @@ class AgentClient(ClientBase):
                         api_messages, error_messages = await self._preprocess_messages(
                             user=user,
                             processor=processor,
-                            prompt=Prompt.TWIGA_AGENT_SYSTEM,
+                            prompt=config.prompt,
+                            prompt_variables=config.prompt_variables(user),
                         )
 
                         if error_messages:
                             return error_messages
                         if api_messages is None:
                             return None
+
+                        turn = await self._load_turn_tools(config)
 
                         # Track original message count for new message detection
                         original_count = len(processor.get_pending_messages())
@@ -204,6 +292,7 @@ class AgentClient(ClientBase):
                                 api_messages=api_messages,
                                 user=user,
                                 iteration=iteration,
+                                turn=turn,
                             )
                             response_message = self._llm_response_to_message(
                                 llm_response=llm_response, user_id=user.id
@@ -233,6 +322,7 @@ class AgentClient(ClientBase):
                                 api_messages=api_messages,
                                 final_messages=final_messages,
                                 notified_tools=notified_tools,
+                                turn=turn,
                             )
 
                             if tool_responses:
@@ -246,9 +336,16 @@ class AgentClient(ClientBase):
                                         for msg in tool_responses
                                     ]
                                 )
+
+                            if self._changed_profile(tool_calls):
+                                user = await self._refresh_context(
+                                    user, api_messages, config
+                                )
                         else:
                             # Max iterations reached, force a final response (does not run if break is hit)
-                            final_message = await self._force_final(api_messages, user)
+                            final_message = await self._force_final(
+                                api_messages, user, turn
+                            )
                             final_messages.append(final_message)
 
                         if self._check_new_messages(processor, original_count):

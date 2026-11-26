@@ -58,6 +58,7 @@ class Prompt(str, Enum):
     """Enumeration for system prompt names."""
 
     TWIGA_AGENT_SYSTEM = "twiga_agent_system"
+    TWIGA_ONBOARDING_SYSTEM = "twiga_onboarding_system"
     IMAGE_INTERPRETER_SYSTEM = "image_interpreter_system"
 
 
