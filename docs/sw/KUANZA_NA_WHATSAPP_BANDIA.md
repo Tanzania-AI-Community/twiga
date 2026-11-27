@@ -8,6 +8,7 @@ Anza kwa kusakinisha [**uv**](https://docs.astral.sh/uv/) meneja wa pakiti ya Py
 
 ```bash
 $ uv sync
+$ uv run python scripts/download_assets.py
 $ source .venv/bin/activate
 ```
 

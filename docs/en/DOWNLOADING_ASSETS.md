@@ -1,7 +1,7 @@
 # Downloading assets
 
 From the repository root, run `python scripts/download_assets.py` with Python 3.12.
-Local database setup already runs this command before seeding.
+Local database setup already runs this command before seeding. It prepares the seed files and both conversation tokenizers in the bind-mounted checkout.
 
 The script reads [the asset list](../../scripts/assets/downloads.json). For each
 entry it checks the local file's SHA-256. If the file is missing or differs, it

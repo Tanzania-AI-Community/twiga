@@ -16,6 +16,7 @@ Start out by installing the [**uv**](https://docs.astral.sh/uv/) python package 
 
 ```bash
 $ uv sync
+$ uv run python scripts/download_assets.py
 $ source .venv/bin/activate
 ```
 

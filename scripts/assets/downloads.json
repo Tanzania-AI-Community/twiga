@@ -10,5 +10,17 @@
     "directory": "scripts/assets/sample_data",
     "url": "https://raw.githubusercontent.com/Tanzania-AI-Community/twiga/f54ae0e4ea433e2de846b5432121c82b098e5966/scripts/assets/sample_data/data.yaml",
     "sha256": "ad4e4b94b89031223306e12eca82f8a1d9580259ba740e600ce545e61357efaf"
+  },
+  {
+    "filename": "glm_5_3_flash.json",
+    "directory": "app/assets/tokenizers",
+    "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/46a050bec13002ad29ee795c16e61cf4fa3c4a9c/tokenizer.json",
+    "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+  },
+  {
+    "filename": "deepseek_v4_1_flash.json",
+    "directory": "app/assets/tokenizers",
+    "url": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/resolve/314113f8a7dadb388215396ba5fbee2c610a04d6/tokenizer.json",
+    "sha256": "c90dfa01249db1be4245780a052ede752e1361c612ac6d08e2bdada7d599476b"
   }
 ]

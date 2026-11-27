@@ -40,6 +40,9 @@ jobs:
           pip install -e .
           pip install --no-cache-dir pytest pytest-asyncio
 
+      - name: Prepare assets
+        run: python scripts/download_assets.py
+
       - name: Run tests
         env:
           META_API_VERSION: ${{ secrets.META_API_VERSION }}

@@ -1,5 +1,7 @@
 # Conversation summary tokenizers
 
+For a local checkout, run `uv run python scripts/download_assets.py` from the repository root. CI and application image builds run this step automatically.
+
 Both MIT-licensed artifacts are pinned by SHA-256 in `conversation_summary_runtime.py`.
 They are loaded locally with the locked `tokenizers` dependency; no model weights or
 network access are needed at runtime.
