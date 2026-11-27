@@ -9,6 +9,7 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError
 from pydantic import SecretStr, ValidationError
 
 from app.config import LLMProvider, LLMSettings
+from app.services.conversation_summary_service import SummaryKind
 from app.utils import llm_utils
 from app.utils.llm_failover import (
     ModelsCoolingDownError,
@@ -419,3 +420,108 @@ def test_environment_pool_override_and_blank_primary(monkeypatch):
 def test_invalid_failover_settings_are_rejected(kwargs):
     with pytest.raises(ValidationError):
         LLMSettings(_env_file=None, **kwargs)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation,kind",
+    [
+        ("batch", SummaryKind.BATCH),
+        ("rollup", SummaryKind.ROLLUP),
+        ("shortening", SummaryKind.BATCH),
+        ("shortening", SummaryKind.ROLLUP),
+    ],
+)
+async def test_summary_routes_with_shorter_attempt_and_pool_deadlines(
+    together_settings, monkeypatch, operation, kind
+):
+    from app.services import conversation_summary_service as summaries
+
+    router = llm_utils.together_router
+    request = AsyncMock(wraps=router.request)
+    monkeypatch.setattr(router, "request", request)
+    clients = [
+        MagicMock(ainvoke=AsyncMock(side_effect=api_error(404))),
+        MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="summary"))),
+    ]
+    factory = MagicMock(side_effect=clients)
+    monkeypatch.setattr(llm_utils, "_create_llm_client", factory)
+    result = await summaries.ConversationSummaryService(counter=len)._generate(
+        operation, "source", "test", 100, kind=kind
+    )
+    assert result.tokens == len(result.text)
+    assert [call.kwargs["model_name"] for call in factory.call_args_list] == [
+        "primary",
+        "backup",
+    ]
+    assert request.await_args.kwargs["attempt_timeout"] == 20
+    assert request.await_args.kwargs["total_timeout"] == 50
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "scenario", ["success", "unavailable", "timeout", "cooldown", "exhausted", "cancel"]
+)
+async def test_summary_router_paths(together_settings, monkeypatch, scenario):
+    from types import SimpleNamespace
+
+    from app.services import conversation_summary_service as summaries
+
+    monkeypatch.setattr(
+        summaries, "summary_settings", SimpleNamespace(operation_timeout_seconds=0.3)
+    )
+    router = llm_utils.together_router
+    calls = []
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def invoke(model, **kwargs):
+        calls.append(model)
+        started.set()
+        if model == "primary" and scenario in {"timeout", "cancel"}:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        if scenario == "exhausted" or (
+            model == "primary" and scenario in {"unavailable", "cooldown"}
+        ):
+            raise api_error(503)
+        return AIMessage(content="summary")
+
+    def factory(**kwargs):
+        model = kwargs["model_name"]
+        return SimpleNamespace(
+            ainvoke=lambda messages, **options: invoke(model, **options)
+        )
+
+    monkeypatch.setattr(llm_utils, "_create_llm_client", factory)
+    service = summaries.ConversationSummaryService(counter=len)
+    if scenario == "cancel":
+        task = asyncio.create_task(
+            service._generate("batch", "source", "test", 100, kind=SummaryKind.BATCH)
+        )
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert cancelled.is_set() and calls == ["primary"] and not router._cooldowns
+        return
+    if scenario == "exhausted":
+        with pytest.raises(APIStatusError):
+            await service._generate(
+                "batch", "source", "test", 100, kind=SummaryKind.BATCH
+            )
+        assert calls == ["primary", "backup"]
+        return
+    await service._generate("batch", "source", "test", 100, kind=SummaryKind.BATCH)
+    if scenario == "success":
+        assert calls == ["primary"]
+    else:
+        assert calls == ["primary", "backup"]
+    if scenario == "timeout":
+        assert cancelled.is_set()
+    if scenario == "cooldown":
+        calls.clear()
+        await service._generate("batch", "source", "test", 100, kind=SummaryKind.BATCH)
+        assert calls == ["backup"]

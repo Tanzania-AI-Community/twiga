@@ -1,11 +1,13 @@
 import json
 import logging
+from dataclasses import replace
 
 from langchain_core.messages import AIMessage
 
 from app.clients.client_base import (
     BUFFERED_RESPONSE,
     ClientBase,
+    GeneratedResponse,
     GenerateResponseResult,
     Preparation,
     PreparationFailed,
@@ -175,20 +177,23 @@ class AgentClient(ClientBase):
                             return PreparationFailed(error_key)
                         # Messages buffered during preparation are still answered
 
+                    hard_protected = False
                     while True:
-                        api_messages, error_messages = await self._preprocess_messages(
+                        captured = tuple(processor.get_pending_messages())
+                        original_count = len(captured)
+                        api_messages, summary_context = await self._preprocess_messages(
                             user=user,
-                            processor=processor,
                             prompt=Prompt.TWIGA_AGENT_SYSTEM,
+                            messages_to_process=captured,
                         )
 
-                        if error_messages:
-                            return error_messages
-                        if api_messages is None:
+                        if api_messages is None or summary_context is None:
                             return None
-
-                        # Track original message count for new message detection
-                        original_count = len(processor.get_pending_messages())
+                        hard_protected = (
+                            hard_protected or summary_context.hard_protected
+                        )
+                        if self._check_new_messages(processor, original_count):
+                            continue
 
                         """
                         Basic Agentic approach, run until no more tools are called
@@ -264,7 +269,10 @@ class AgentClient(ClientBase):
                                 self._get_source_chunk_ids(final_messages) or None
                             )
 
-                        return final_messages
+                        return GeneratedResponse(
+                            final_messages,
+                            replace(summary_context, hard_protected=hard_protected),
+                        )
                 except Exception as e:
                     self.logger.error(f"Error processing messages in agent loop: {e}")
                     return None

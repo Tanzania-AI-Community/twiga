@@ -181,3 +181,9 @@ cython_debug/
 .idea/
 
 scripts/assets/books/
+
+# Downloaded assets
+/scripts/assets/sample_data/chunks_gemini.json
+/scripts/assets/sample_data/data.yaml
+/app/assets/tokenizers/glm_5_3_flash.json
+/app/assets/tokenizers/deepseek_v4_1_flash.json

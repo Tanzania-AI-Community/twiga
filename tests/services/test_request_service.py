@@ -382,7 +382,11 @@ async def test_audio_is_not_transcribed_for_rate_limited_user() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_chat_message_persists_inbound_message_and_routes_active() -> None:
+@pytest.mark.parametrize(("kind", "visible"), [("text", True), ("image", False)])
+async def test_handle_chat_message_persists_inbound_message_and_routes_active(
+    kind, visible
+) -> None:
+    info = {"extracted_content": "Hello", "message": {"type": kind}}
     user = User(
         id=7,
         wa_id="255700000000",
@@ -393,7 +397,7 @@ async def test_handle_chat_message_persists_inbound_message_and_routes_active() 
         user_id=user.id,
         role=enums.MessageRole.user,
         content="Hello",
-        is_present_in_conversation=True,
+        is_present_in_conversation=visible,
     )
 
     with (
@@ -418,7 +422,7 @@ async def test_handle_chat_message_persists_inbound_message_and_routes_active() 
     ):
         response = await request_service.handle_chat_message(
             phone_number=user.wa_id,
-            message_info={"extracted_content": "Hello"},
+            message_info=info,
         )
 
     assert response.status_code == 200
@@ -426,11 +430,11 @@ async def test_handle_chat_message_persists_inbound_message_and_routes_active() 
         "user_id": user.id,
         "role": enums.MessageRole.user,
         "content": "Hello",
-        "is_present_in_conversation": True,
+        "is_present_in_conversation": visible,
     }
     mock_handle_active.assert_awaited_once_with(
         user,
-        {"extracted_content": "Hello"},
+        info,
         persisted_message,
     )
 

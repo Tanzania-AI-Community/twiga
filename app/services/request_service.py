@@ -229,7 +229,9 @@ async def handle_chat_message(phone_number: str, message_info: dict) -> JSONResp
         user_id=user.id,
         role=enums.MessageRole.user,
         content=message_info.get("extracted_content", ""),
-        is_present_in_conversation=True,
+        # Only the interpreted image text is eligible for conversation summaries.
+        is_present_in_conversation=message_info.get("message", {}).get("type")
+        != "image",
     )
 
     # Handle rate limiting

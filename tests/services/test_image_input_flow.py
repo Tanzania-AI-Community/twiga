@@ -6,7 +6,7 @@ from unittest.mock import ANY, AsyncMock, patch
 import pytest
 from fastapi.responses import JSONResponse
 
-from app.clients.client_base import PreparationFailed
+from app.clients.client_base import GeneratedResponse, PreparationFailed
 from app.database.enums import MessageRole
 from app.database.models import Message, User
 from app.models.image_models import (
@@ -15,6 +15,7 @@ from app.models.image_models import (
     ImageInterpretation,
 )
 from app.services import messaging_service, state_service
+from app.services.conversation_summary_service import SummaryRequestContext
 from app.utils.whatsapp_utils import (
     ValidMessageType,
     extract_message,
@@ -132,17 +133,28 @@ def flow(monkeypatch):
 
 
 @pytest.mark.parametrize("latex", [False, True])
-async def test_image_extraction_reaches_agent_and_existing_delivery(flow, latex):
+async def test_image_extraction_reaches_agent_and_existing_delivery(
+    flow, latex, monkeypatch
+):
+    summary = SummaryRequestContext(flow.user.id, (9,), (9,))
+    flow.visible.return_value = Message(id=10, user_id=7, role=MessageRole.assistant)
+    finalize = AsyncMock()
+    monkeypatch.setattr(
+        messaging_service.conversation_summary_service, "finalize", finalize
+    )
+
     async def generate(user, message, prepare):
         assert await prepare() is None
         flow.persist.assert_awaited_once()
+        assert message.is_present_in_conversation
         assert message.id == 9
         assert "Teacher instruction: Solve both" in message.content
         assert "1. x + 2 = 3\n2. y + 1 = 4" in message.content
         assert "Relevant visual details: A triangle labelled ABC" in message.content
-        return [
-            Message(user_id=user.id, role=MessageRole.assistant, content="Solutions")
-        ]
+        return GeneratedResponse(
+            [Message(user_id=user.id, role=MessageRole.assistant, content="Solutions")],
+            summary,
+        )
 
     flow.agent.side_effect = generate
     with (
@@ -161,10 +173,14 @@ async def test_image_extraction_reaches_agent_and_existing_delivery(flow, latex)
     )
     if latex:
         send_latex.assert_awaited_once_with(
-            user=flow.user, llm_content="Solutions", source_chunk_ids=None
+            user=flow.user,
+            llm_content="Solutions",
+            source_chunk_ids=None,
+            summary_context=summary,
         )
         flow.send.assert_not_awaited()
     else:
+        finalize.assert_awaited_once_with(summary, (10,))
         flow.send.assert_awaited_once_with(flow.user.wa_id, "Solutions")
         flow.visible.assert_awaited_once_with(
             user=flow.user, content="Solutions", source_chunk_ids=None

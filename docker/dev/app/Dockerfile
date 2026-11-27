@@ -23,6 +23,7 @@ RUN uv sync --frozen --no-cache
 
 # Copy application code
 COPY . .
+RUN python scripts/download_assets.py
 
 # Fastapi port
 EXPOSE 8000

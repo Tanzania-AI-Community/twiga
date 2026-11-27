@@ -31,10 +31,14 @@ Ili kuanza kuchangia kwenye Twiga, fuata hatua hizi:
 2. Nenda kwenye tawi la `development`: `git checkout development`
 3. Tengeneza tawi lako la kipengele kutoka tawi la `development`: `git checkout -b jina-la-tawi-lako`
 4. Fuata hatua katika [mwongozo wetu wa kuanza](https://github.com/Tanzania-AI-Community/twiga/blob/documentation/docs/sw/KUANZA.md) ili kupata mradi ukifanya kazi kwenye kompyuta yako
-5. (Bado haiwezekani) Endesha vipimo kuhakikisha kila kitu kinafanya kazi kama inavyotarajiwa
+5. Endesha vipimo vinavyohusika; tazama [vipimo vya muhtasari wa mazungumzo](MUHTASARI_WA_MAZUNGUMZO.md#vipimo) kwa Issue #92.
 6. Hifadhi mabadiliko yako: `git commit -m "[aina]: ujumbe wa kuelezea commit"`
 7. Sukuma kwenye tawi lako la mbali: `git push origin jina-la-tawi-lako`
 8. Wasilisha ombi la kuvuta kwenye tawi la `development` la hifadhi ya awali
+
+## Faili kubwa zilizotengenezwa
+
+Kwa faili kubwa zilizotengenezwa, kama tokenizer JSON, ongeza njia zake wazi katika `.gitattributes` ya mzizi kwa `-diff linguist-generated=true` ili kuzuia hesabu ya mistari ya Git na kuficha diff kwenye GitHub kwa chaguo-msingi.
 
 ## Muundo wa Msimbo na Ukaguzi
 

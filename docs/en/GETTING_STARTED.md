@@ -16,6 +16,7 @@ Start out by installing the [**uv**](https://docs.astral.sh/uv/) python package 
 
 ```bash
 $ uv sync
+$ uv run python scripts/download_assets.py
 $ source .venv/bin/activate
 ```
 
@@ -228,6 +229,8 @@ Next up, let's build all Docker images and local data, needed for further steps 
 make setup-env
 ```
 
+Local setup runs `python scripts/download_assets.py` before seeding the database. See [Downloading assets](DOWNLOADING_ASSETS.md) to run it manually or add a file.
+
 ## 🖥️ Set up the FastAPI application
 
 Run the following command to run the project.
@@ -271,3 +274,6 @@ If you filled the `.env` correctly you should get a success in the logs and some
 ## 🥳 Congratulations!
 
 If you made it this far without issues, you should now have a running server for Twiga that you can text directly from your WhatsApp account. If you're encountering issues at this point still join our [Discord](https://discord.gg/bCe2HfZY2C) and write your question in `⚒-tech-support`.
+
+For conversation-summary runtime requirements and validation, see the
+[conversation summaries guide](CONVERSATION_SUMMARIES.md).
